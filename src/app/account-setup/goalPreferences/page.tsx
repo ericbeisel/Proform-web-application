@@ -13,8 +13,8 @@ export default function GoalsPreferencesPage() {
     preferredActivities: [] as string[],
   });
 
-  const trainingGoalsOptions = ['Build Muscle','Lose Fat','Increase Strength','Improve Cardio','Better Mobility','Sport Performance','Injury Recovery','General Health'];
-  const preferredActivitiesOptions = ['Running','Weightlifting','Yoga','Swimming','Cycling','Boxing','Crossfit','Pilates','Dance','Martial Arts','Rock Climbing','Sports'];
+  const trainingGoalsOptions = ['Build Muscle', 'Lose Fat', 'Increase Strength', 'Improve Cardio', 'Better Mobility', 'Sport Performance', 'Injury Recovery', 'General Health'];
+  const preferredActivitiesOptions = ['Running', 'Weightlifting', 'Yoga', 'Swimming', 'Cycling', 'Boxing', 'Crossfit', 'Pilates', 'Dance', 'Martial Arts', 'Rock Climbing', 'Sports'];
 
   const toggle = (key: 'trainingGoals' | 'preferredActivities', val: string) => {
     setFormData(prev => ({
@@ -25,6 +25,14 @@ export default function GoalsPreferencesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // ── Save this step's data to sessionStorage ──
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      primaryGoal: formData.primaryGoal,
+      trainingGoals: formData.trainingGoals,
+      preferredActivities: formData.preferredActivities,
+    }));
     router.push('/account-setup/coreMetrics');
   };
 
@@ -69,7 +77,7 @@ export default function GoalsPreferencesPage() {
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
-                <path d="M1 1L6 6L11 1" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M1 1L6 6L11 1" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
           </div>

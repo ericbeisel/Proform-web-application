@@ -1,4 +1,5 @@
 import React from 'react';
+import AuthLayoutGate from '@/components/auth/AuthLayoutGate';
 
 export default function AuthLayout({
   children,
@@ -27,7 +28,7 @@ export default function AuthLayout({
       <div className="w-full md:w-3/5 bg-gray-50 overflow-y-auto">
         <div className="min-h-screen flex items-center justify-center p-6 pt-3 md:p-10 md:pt-3">
           <div className="w-full">
-            {children}
+            <AuthLayoutGate>{children}</AuthLayoutGate>
           </div>
         </div>
       </div>

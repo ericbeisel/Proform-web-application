@@ -1,20 +1,175 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Globe, CalendarDays, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Globe, CalendarDays, MapPin, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import {
+  submitAccountSetup,
+  fetchTimezones,
+  fetchCountries,
+  fetchStates,
+  fetchCities,
+  type TimezoneOption,
+  type CountryOption,
+  type StateOption,
+  type CityOption,
+} from '@/api/account-setup/route';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 const DAY_KEYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 type DayKey = typeof DAY_KEYS[number];
 
-const TIME_ZONES = ['UTC-12:00 Baker Island','UTC-11:00 American Samoa','UTC-10:00 Hawaii','UTC-09:00 Alaska','UTC-08:00 Pacific Time (US)','UTC-07:00 Mountain Time (US)','UTC-06:00 Central Time (US)','UTC-05:00 Eastern Time (US)','UTC-04:00 Atlantic Time','UTC-03:00 Brazil','UTC+00:00 London (GMT)','UTC+01:00 Paris, Berlin','UTC+02:00 Cairo, Athens','UTC+03:00 Moscow, Riyadh','UTC+04:00 Dubai','UTC+05:00 Karachi','UTC+05:30 Mumbai, Delhi','UTC+06:00 Dhaka','UTC+07:00 Bangkok','UTC+08:00 Singapore, Beijing','UTC+09:00 Tokyo, Seoul','UTC+10:00 Sydney','UTC+11:00 Solomon Islands','UTC+12:00 Auckland'];
+function SelectField({
+  label, icon, value, onChange, children, required, disabled, placeholder,
+}: {
+  label: string; icon: React.ReactNode; value: string;
+  onChange: (v: string) => void; children: React.ReactNode;
+  required?: boolean; disabled?: boolean; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
+        {icon}{label}
+      </label>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          disabled={disabled}
+          className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-gray-700 appearance-none cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <option value="">{placeholder ?? 'Select...'}</option>
+          {children}
+        </select>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+          <ChevronDown size={15} className="text-gray-400" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PreferencesPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({ timeZone: '', weeklyResetDay: 'Thursday' as DayKey, country: '', state: '', city: '' });
-  const isFormValid = formData.timeZone && formData.country && formData.city;
+
+  const [timezones, setTimezones] = useState<TimezoneOption[]>([]);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [states, setStates]       = useState<StateOption[]>([]);
+  const [cities, setCities]       = useState<CityOption[]>([]);
+
+  const [loadingTimezones, setLoadingTimezones] = useState(true);
+  const [loadingCountries, setLoadingCountries] = useState(true);
+  const [loadingStates, setLoadingStates]       = useState(false);
+  const [loadingCities, setLoadingCities]       = useState(false);
+
+  const [formData, setFormData] = useState({
+    timeZoneId: '',
+    weeklyResetDay: 'Thursday' as DayKey,
+    countryId: '',
+    stateId: '',
+    cityId: '',
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isFormValid = formData.timeZoneId && formData.countryId && formData.cityId;
+
+  useEffect(() => {
+    fetchTimezones()
+      .then(setTimezones)
+      .catch(() => setTimezones([]))
+      .finally(() => setLoadingTimezones(false));
+
+    fetchCountries()
+      .then(setCountries)
+      .catch(() => setCountries([]))
+      .finally(() => setLoadingCountries(false));
+  }, []);
+
+  useEffect(() => {
+    if (!formData.countryId) { setStates([]); setCities([]); return; }
+    setFormData(prev => ({ ...prev, stateId: '', cityId: '' }));
+    setStates([]); setCities([]);
+    setLoadingStates(true);
+    fetchStates(formData.countryId)
+      .then(setStates)
+      .catch(() => setStates([]))
+      .finally(() => setLoadingStates(false));
+  }, [formData.countryId]);
+
+  useEffect(() => {
+    if (!formData.stateId) { setCities([]); return; }
+    setFormData(prev => ({ ...prev, cityId: '' }));
+    setCities([]);
+    setLoadingCities(true);
+    fetchCities(formData.stateId)
+      .then(setCities)
+      .catch(() => setCities([]))
+      .finally(() => setLoadingCities(false));
+  }, [formData.stateId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isFormValid) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+
+      console.log('[PreferencesPage] sessionStorage data:', saved);
+
+      await submitAccountSetup({
+        // Step 1
+        gender:              saved.gender           || '',
+        birthday:            saved.birthday         || '',
+        activityLevel:       saved.activityLevel    || '',
+        unitPreference:      saved.unitPreference   || 'metric',
+        // Step 2
+        primaryGoal:         saved.primaryGoal      || '',
+        trainingGoals:       saved.trainingGoals    || [],
+        preferredActivities: saved.preferredActivities || [],
+        // Step 3
+        currentWeight:       saved.currentWeight    || '',
+        goalWeight:          saved.goalWeight        || '',
+        heightFeet:          saved.heightFeet        || '',
+        heightInches:        saved.heightInches      || '',
+        bodyFatPercentage:   saved.bodyFatPercentage || '',
+        // Step 4
+        dailySteps:          saved.dailySteps        || '',
+        cardioCalorieGoal:   saved.cardioCalorieGoal || '',
+        // Step 6 — arrays of the correct length built by yourSchedule.tsx
+        workoutDays:         saved.workoutDays       || [],
+        supplementalDays:    saved.supplementalDays  || [],
+        cardioDays:          saved.cardioDays        || [],
+        conditioningDays:    saved.conditioningDays  || [],   // ← NEW
+        // Step 7
+        selected1RMMethod:   saved.selected1RMMethod || null,
+        // Step 8
+        benchPress:          saved.benchPress        || '',
+        squat:               saved.squat             || '',
+        deadlift:            saved.deadlift          || '',
+        powerClean:          saved.powerClean        || '',
+        autoCalculateFuture: saved.autoCalculateFuture || false,
+        // Step 9
+        timeZoneId:          String(parseInt(formData.timeZoneId, 10)),  // ensure clean integer string
+        weeklyResetDay:      formData.weeklyResetDay,
+        countryId:           formData.countryId,
+        stateId:             formData.stateId,
+        cityId:              formData.cityId,
+      });
+
+      sessionStorage.removeItem('accountSetup');
+      router.replace('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -23,89 +178,148 @@ export default function PreferencesPage() {
           title: 'Preferences',
           description: 'Set your time and location to keep your plan aligned with your routine.',
         }}
-        showProgress
-        progressData={{ currentStep: 9, totalSteps: 9, nextStep: 'Dashboard' }}
+        showProgress={true}
+        progressData={{ currentStep: 9, totalSteps: 9, nextStep: 'Complete' }}
       />
 
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Configure your Schedule and Time</h1>
-        <p className="text-gray-500 text-sm sm:text-base">Choose your time zone, weekly reset day, and location for accurate tracking and updates.</p>
-      </div>
+      <div className="w-full">
+        <div className="mb-10">
+          <h1 className="text-3xl sm:text-4xl font-bold text-black mb-3">Configure your Schedule and Time</h1>
+          <p className="text-gray-500 text-sm sm:text-base">Choose your time zone, weekly reset day, and location.</p>
+        </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); router.push('/dashboard'); }} className="space-y-5 sm:space-y-6">
-        {/* Time Zone */}
-        <div>
-          <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-800 mb-2 sm:mb-3">
-            <Globe size={15} className="text-[#6202AC]" />Time Zone*
-          </label>
-          <div className="relative">
-            <select value={formData.timeZone} onChange={(e) => setFormData({ ...formData, timeZone: e.target.value })}
-              className="w-full px-4 py-3.5 sm:py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-gray-700 appearance-none cursor-pointer text-sm" required>
-              <option value=""></option>
-              {TIME_ZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg width="11" height="7" viewBox="0 0 11 7" fill="none"><path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <form onSubmit={handleSubmit} className="space-y-6">
+
+          {/* Time Zone — value is the numeric ID string e.g. "1", "42" */}
+          <SelectField
+            label="Time Zone*"
+            icon={<Globe size={15} className="text-[#6202AC]" />}
+            value={formData.timeZoneId}
+            onChange={(v) => { const id = String(parseInt(v, 10)); console.log('[Preferences] timezone selected id:', id); setFormData(prev => ({ ...prev, timeZoneId: id })); }}
+            required
+            disabled={loadingTimezones}
+            placeholder={loadingTimezones ? 'Loading timezones...' : 'Select timezone'}
+          >
+            {timezones.map((tz) => (
+              // tz.id is a string from API e.g. "1", "2" — use directly as value
+              <option key={tz.id} value={String(tz.id)}>
+                {tz.name}
+              </option>
+            ))}
+          </SelectField>
+
+          {/* Weekly Reset Day */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
+              <CalendarDays size={15} className="text-[#6202AC]" />Weekly Reset Day*
+            </label>
+            <div className="bg-[#F3EFFF] rounded-2xl p-4 mb-4 border border-purple-100">
+              <p className="text-sm text-gray-700 leading-relaxed mb-1">
+                Resets your daily metrics each week at <span className="font-semibold">11:59 pm</span> on the selected day.
+              </p>
+              <p className="text-xs text-gray-500">Calories reset at 11:59 pm the night before your start date.</p>
             </div>
+            <div className="flex gap-1.5 mb-3">
+              {DAY_KEYS.map((day, index) => (
+                <button key={day} type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, weeklyResetDay: day }))}
+                  className={`flex-1 py-3 flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-150
+                    ${formData.weeklyResetDay === day ? 'bg-[#6202AC] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >
+                  {DAYS[index]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs font-medium text-[#6202AC]">📅 Weekly reset: Every {formData.weeklyResetDay}</p>
           </div>
-        </div>
 
-        {/* Weekly Reset Day */}
-        <div>
-          <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-800 mb-2 sm:mb-3">
-            <CalendarDays size={15} className="text-[#6202AC]" />Weekly Reset Day*
-          </label>
-          <div className="bg-[#F3EFFF] rounded-2xl p-3 sm:p-4 mb-3 sm:mb-4 border border-[#6202AC33]">
-            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed mb-1">
-              Resets your daily metrics and records your progress each week at <span className="font-semibold">11:59 pm</span>, based on the date selected below:
+          {/* Location */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <MapPin size={15} className="text-[#6202AC]" />Location
+            </label>
+
+            <SelectField
+              label="Country*"
+              icon={<span />}
+              value={formData.countryId}
+              onChange={(v) => setFormData(prev => ({ ...prev, countryId: v }))}
+              required
+              disabled={loadingCountries}
+              placeholder={loadingCountries ? 'Loading countries...' : 'Select country'}
+            >
+              {countries.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label="State"
+              icon={<span />}
+              value={formData.stateId}
+              onChange={(v) => setFormData(prev => ({ ...prev, stateId: v }))}
+              disabled={!formData.countryId || loadingStates}
+              placeholder={
+                !formData.countryId ? 'Select country first' :
+                loadingStates ? 'Loading states...' : 'Select state'
+              }
+            >
+              {states.map((s) => (
+                <option key={s.id} value={String(s.id)}>{s.name}</option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label="City*"
+              icon={<span />}
+              value={formData.cityId}
+              onChange={(v) => setFormData(prev => ({ ...prev, cityId: v }))}
+              required
+              disabled={!formData.stateId || loadingCities}
+              placeholder={
+                !formData.stateId ? 'Select state first' :
+                loadingCities ? 'Loading cities...' : 'Select city'
+              }
+            >
+              {cities.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
+            </SelectField>
+          </div>
+
+          <div className="bg-amber-50 rounded-2xl p-4">
+            <p className="text-xs text-amber-900 leading-relaxed">
+              <span className="font-semibold">🌍 Why we ask:</span> Your location helps us show local gym events and connect you with nearby fitness communities.
             </p>
-            <p className="text-xs text-gray-500">Calories will reset at 11:59 pm on the night before your start date.</p>
           </div>
-          <div className="flex gap-1 sm:gap-1.5 mb-3">
-            {DAY_KEYS.map((day, index) => (
-              <button key={day} type="button" onClick={() => setFormData({ ...formData, weeklyResetDay: day })}
-                className={`flex-1 py-2.5 sm:py-3 flex items-center justify-center rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 border-2
-                  ${formData.weeklyResetDay === day ? 'bg-[#6202AC] text-white border-[#6202AC] shadow-sm' : 'bg-white text-gray-500 border-[#E7E5EB] hover:bg-gray-50'}`}
-              >{DAYS[index]}</button>
-            ))}
-          </div>
-          <p className="text-xs font-medium text-[#6202AC]">📅 Weekly reset: Every {formData.weeklyResetDay}</p>
-        </div>
 
-        {/* Location */}
-        <div className="bg-gradient-to-b from-white to-[#F5F3FF] border border-[#6202AC33] rounded-2xl p-3 sm:p-4">
-          <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-900 mb-3 sm:mb-4">
-            <MapPin size={15} className="text-[#6202AC]" />Location
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-            {[
-              { key: 'country', label: 'Country*', required: true },
-              { key: 'state', label: 'State', required: false },
-              { key: 'city', label: 'City*', required: true },
-            ].map(({ key, label, required }) => (
-              <div key={key}>
-                <p className="text-xs font-medium text-gray-600 mb-1.5">{label}</p>
-                <input type="text" value={formData[key as keyof typeof formData] as string}
-                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                  className="w-full px-3 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-gray-900 text-sm"
-                  required={required}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <p className="text-sm text-red-700 font-medium">⚠️ {error}</p>
+            </div>
+          )}
 
-        <div className="bg-[#FFFBEB] rounded-2xl p-3 sm:p-4 border border-[#FBBF2433]">
-          <p className="text-xs text-amber-900 leading-relaxed">
-            <span className="font-semibold">🌍 Why we ask:</span> Your location helps us show local gym events, provide accurate time tracking, and connect you with nearby fitness communities.
-          </p>
-        </div>
-
-        <button type="submit" disabled={!isFormValid}
-          className={`w-full font-semibold text-base sm:text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md
-            ${isFormValid ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-        >Continue</button>
-      </form>
+          <button
+            type="submit"
+            disabled={!isFormValid || isSubmitting}
+            className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 mt-6
+              ${isFormValid && !isSubmitting
+                ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Completing Setup…
+              </span>
+            ) : 'Complete Setup'}
+          </button>
+        </form>
+      </div>
     </>
   );
 }

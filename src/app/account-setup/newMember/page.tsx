@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, Settings, Users, Lock, Check } from 'lucide-react';
+import { User, Settings, Users, Lock, Check, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import { removeMemberChecklist } from '@/api/auth/remove-member-checklist/route';
 
 export default function NewMemberChecklist() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const router = useRouter();
 
   const steps = [
@@ -14,6 +16,22 @@ export default function NewMemberChecklist() {
     { id: 2, title: 'Account Setup', description: 'Build your experience', icon: Settings, status: 'current' },
     { id: 3, title: 'Create Team', description: 'Earn points and challenge friends', icon: Users, status: 'locked' },
   ];
+
+  const handleClose = async () => {
+    if (isClosing) return;
+    setIsClosing(true);
+
+    try {
+      if (dontShowAgain) {
+        await removeMemberChecklist();
+      }
+    } catch (error) {
+      // Continue navigation even if checklist preference update fails.
+      console.error('Failed to update checklist preference:', error);
+    } finally {
+      router.replace('/dashboard');
+    }
+  };
 
   return (
     <>
@@ -26,8 +44,21 @@ export default function NewMemberChecklist() {
             { value: '50k+', label: 'Workouts Logged' },
           ],
         }}
-        
+        hideBackButton
       />
+
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={handleClose}
+          disabled={isClosing}
+          className="h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Close checklist"
+          title="Close"
+        >
+          <X className="mx-auto h-5 w-5" />
+        </button>
+      </div>
 
       <div className="mb-8 sm:mb-10">
         <h2 className="text-2xl sm:text-3xl font-bold text-black mb-2">New Member Checklist</h2>

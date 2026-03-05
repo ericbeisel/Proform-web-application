@@ -11,6 +11,18 @@ export default function OneRepMaxPage() {
   const router = useRouter();
   const [selectedMethod, setSelectedMethod] = useState<Method | null>(null);
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMethod) return;
+    // ── Save this step's data to sessionStorage ──
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      selected1RMMethod: selectedMethod,
+    }));
+    router.push('/account-setup/strengthProfile');
+  };
+
   return (
     <>
       <SplitLayout
@@ -27,12 +39,9 @@ export default function OneRepMaxPage() {
         <p className="text-gray-500 text-sm sm:text-base">Auto-calculate based on your performance or enter your maxes manually.</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); if (selectedMethod) router.push('/account-setup/strengthProfile'); }} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {(['auto', 'manual'] as Method[]).map((method) => (
-          <button
-            key={method}
-            type="button"
-            onClick={() => setSelectedMethod(method)}
+          <button key={method} type="button" onClick={() => setSelectedMethod(method)}
             className={`w-full text-left p-4 sm:p-5 rounded-2xl border-2 transition-all duration-200 relative
               ${selectedMethod === method ? 'border-[#6202AC] bg-purple-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}
           >
@@ -56,13 +65,9 @@ export default function OneRepMaxPage() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {method === 'auto' ? (
-                    <>
-                      <span className="text-xs font-medium text-rose-500">🎯 Most Accurate</span>
-                      <span className="text-xs font-medium text-amber-500">⚡ Quick Setup</span>
-                    </>
+                    <><span className="text-xs font-medium text-rose-500">🎯 Most Accurate</span><span className="text-xs font-medium text-amber-500">⚡ Quick Setup</span></>
                   ) : (
-                    <span className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors
-                      ${selectedMethod === 'manual' ? 'bg-purple-100 border-purple-200 text-[#6202AC]' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                    <span className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${selectedMethod === 'manual' ? 'bg-purple-100 border-purple-200 text-[#6202AC]' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
                       💪 For Experienced Lifters
                     </span>
                   )}

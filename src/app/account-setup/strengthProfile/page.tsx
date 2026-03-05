@@ -5,15 +5,27 @@ import { ChevronUp, ChevronDown, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 
-function NumberInput({ value, onChange, placeholder, min = 0, max = 9999, step = 2.5 }: {
+function NumberInput({ value, onChange, placeholder, min = 0, max = 9999, step = 5 }: {
   value: string; onChange: (v: string) => void; placeholder: string; min?: number; max?: number; step?: number;
 }) {
-  const inc = () => onChange(String(Math.min(+(((value ? Number(value) : min) + step)).toFixed(1), max)));
-  const dec = () => onChange(String(Math.max(+(((value ? Number(value) : min) - step)).toFixed(1), min)));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value.trim();
+    if (inputValue === '') { onChange(''); return; }
+    // FIX: only allow whole integers, no decimals
+    if (/^\d+$/.test(inputValue)) {
+      const asNumber = Number(inputValue);
+      if (!isNaN(asNumber) && asNumber >= min && asNumber <= max) {
+        onChange(inputValue);
+      }
+    }
+  };
+  const inc = () => onChange(String(Math.min((value ? Number(value) : min) + step, max)));
+  const dec = () => onChange(String(Math.max((value ? Number(value) : min) - step, min)));
   return (
     <div className="relative bg-white rounded-xl overflow-hidden border border-[#E7E5EB]">
-      <input type="number" value={value} placeholder={placeholder}
-        onChange={(e) => { const v = e.target.value; if (v === '') { onChange(''); return; } const n = Number(v); if (!isNaN(n) && n >= min && n <= max) onChange(v); }}
+      <input
+        type="text" inputMode="numeric" pattern="[0-9]*" value={value} placeholder={placeholder}
+        onChange={handleInputChange}
         className="w-full px-4 py-3 sm:py-3.5 pr-12 bg-white text-gray-700 placeholder:text-gray-400 text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-0.5">
@@ -41,6 +53,21 @@ export default function StrengthProfilePage() {
   const [liftValues, setLiftValues] = useState<Record<string, string>>({ benchPress: '', squat: '', deadlift: '', powerClean: '' });
   const [autoCalculate, setAutoCalculate] = useState(false);
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      // FIX: ensure all lift values are integers, default to '0' if empty
+      benchPress:  liftValues.benchPress  || '0',
+      squat:       liftValues.squat       || '0',
+      deadlift:    liftValues.deadlift    || '0',
+      powerClean:  liftValues.powerClean  || '0',
+      autoCalculateFuture: autoCalculate,
+    }));
+    router.push('/account-setup/preferences');
+  };
+
   return (
     <>
       <SplitLayout
@@ -57,21 +84,19 @@ export default function StrengthProfilePage() {
         <p className="text-gray-500 text-sm sm:text-base">Provide your max for each lift so we can personalize your program accurately.</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); router.push('/account-setup/preferences'); }} className="space-y-4">
-        {/* 2x2 grid on sm+, 1 col on mobile */}
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {LIFTS.map((lift) => (
             <div key={lift.id} className="bg-gradient-to-b from-[#F5F3FF] to-white rounded-2xl p-3 sm:p-4 space-y-3 border border-[#6202AC33]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                  {lift.icon}
-                </div>
+                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">{lift.icon}</div>
                 <div>
                   <p className="font-bold text-gray-900 text-sm leading-tight">{lift.name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{lift.description}</p>
                 </div>
               </div>
-              <NumberInput value={liftValues[lift.id]} onChange={(v) => setLiftValues(prev => ({ ...prev, [lift.id]: v }))} placeholder="Enter 1RM" min={0} max={999} step={2.5} />
+              {/* FIX: step=5 for whole number increments, no decimals */}
+              <NumberInput value={liftValues[lift.id]} onChange={(v) => setLiftValues(prev => ({ ...prev, [lift.id]: v }))} placeholder="Enter 1RM (kg)" min={0} max={999} step={5} />
             </div>
           ))}
         </div>
@@ -94,7 +119,7 @@ export default function StrengthProfilePage() {
         </div>
 
         <button type="submit" className="w-full bg-[#6202AC] hover:bg-[#4e0288] text-white font-semibold text-base sm:text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md hover:shadow-lg">
-          Complete Setup
+          Continue to Preferences
         </button>
       </form>
     </>

@@ -9,13 +9,24 @@ function NumberInput({ value, onChange, placeholder, min = 0, max = 999999, step
   value: string; onChange: (v: string) => void; placeholder: string;
   min?: number; max?: number; step?: number; required?: boolean;
 }) {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value.trim();
+    if (inputValue === '') { onChange(''); return; }
+    // FIX: only allow whole integers, no decimals
+    if (/^\d+$/.test(inputValue)) {
+      const asNumber = Number(inputValue);
+      if (!isNaN(asNumber) && asNumber >= min && asNumber <= max) {
+        onChange(inputValue);
+      }
+    }
+  };
   const inc = () => onChange(String(Math.min((value ? Number(value) : min) + step, max)));
   const dec = () => onChange(String(Math.max((value ? Number(value) : min) - step, min)));
   return (
     <div className="relative">
       <input
-        type="number" value={value} placeholder={placeholder} min={min} max={max} step={step} required={required}
-        onChange={(e) => { const v = e.target.value; if (v === '') { onChange(''); return; } const n = Number(v); if (!isNaN(n) && n >= min && n <= max) onChange(v); }}
+        type="text" inputMode="numeric" pattern="[0-9]*" value={value} placeholder={placeholder}
+        onChange={handleInputChange}
         className="w-full px-4 sm:px-5 py-3.5 sm:py-4 pr-12 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-gray-900 placeholder:text-gray-400 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col">
@@ -42,6 +53,17 @@ export default function LifestyleMetricsPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      dailySteps: formData.dailySteps || '0',
+      cardioCalorieGoal: formData.cardioCalorieGoal,
+    }));
+    router.push('/account-setup/progressMetrics');
+  };
+
   return (
     <>
       <SplitLayout
@@ -50,7 +72,7 @@ export default function LifestyleMetricsPage() {
           description: "Let's understand your activity level.",
         }}
         showProgress
-        progressData={{ currentStep: 4, totalSteps: 9, nextStep: 'Your Schedule' }}
+        progressData={{ currentStep: 4, totalSteps: 9, nextStep: 'Progress Metrics' }}
       />
 
       <div className="mb-8 sm:mb-10">
@@ -58,19 +80,19 @@ export default function LifestyleMetricsPage() {
         <p className="text-gray-500 text-sm sm:text-base">Enter your average daily steps and weekly cardio goal to personalize your experience.</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); router.push('/account-setup/progressMetrics'); }} className="space-y-5 sm:space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-800 mb-2 sm:mb-3">
               <Footprints size={15} className="text-[#6202AC]" />Average Daily Steps (optional)
             </label>
-            <NumberInput value={formData.dailySteps} onChange={(v) => setFormData({ ...formData, dailySteps: v })} placeholder="e.g., 10000" min={0} max={50000} step={100} />
+            <NumberInput value={formData.dailySteps} onChange={(v) => setFormData({ ...formData, dailySteps: v })} placeholder="e.g. 10000" min={0} max={50000} step={1} />
           </div>
           <div>
             <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-800 mb-2 sm:mb-3">
               <Flame size={15} className="text-[#6202AC]" />Cardio Calorie Goal / Week*
             </label>
-            <NumberInput value={formData.cardioCalorieGoal} onChange={(v) => setFormData({ ...formData, cardioCalorieGoal: v })} placeholder="e.g., 1500" min={0} max={10000} step={50} required />
+            <NumberInput value={formData.cardioCalorieGoal} onChange={(v) => setFormData({ ...formData, cardioCalorieGoal: v })} placeholder="e.g. 1500" min={0} max={10000} step={1} required />
           </div>
         </div>
 

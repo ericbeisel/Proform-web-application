@@ -7,6 +7,7 @@ import SplitLayout from '@/components/account-setup/SplitLayout';
 
 export default function PersonalBasicsPage() {
   const router = useRouter();
+
   const [formData, setFormData] = useState({
     gender: '',
     birthday: '',
@@ -14,10 +15,27 @@ export default function PersonalBasicsPage() {
     unitPreference: 'metric',
   });
 
+  const getMaxBirthday = () => {
+    const today = new Date();
+    today.setFullYear(today.getFullYear() - 13);
+    today.setDate(today.getDate() - 1);
+    return today.toISOString().split('T')[0];
+  };
+
+  const maxBirthdayDate = getMaxBirthday();
   const isFormValid = formData.gender && formData.birthday && formData.activityLevel;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // ── Save this step's data to sessionStorage ──
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      gender: formData.gender,
+      birthday: formData.birthday,
+      activityLevel: formData.activityLevel,
+      unitPreference: formData.unitPreference,
+    }));
     router.push('/account-setup/goalPreferences');
   };
 
@@ -73,6 +91,7 @@ export default function PersonalBasicsPage() {
               type="date"
               value={formData.birthday}
               onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+              max={maxBirthdayDate}
               className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-sm text-gray-700"
               required
             />
@@ -100,7 +119,7 @@ export default function PersonalBasicsPage() {
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                 <svg width="11" height="7" viewBox="0 0 11 7" fill="none">
-                  <path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
             </div>

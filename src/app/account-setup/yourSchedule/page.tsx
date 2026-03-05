@@ -1,56 +1,73 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Dumbbell, Zap, Flame, Calendar } from 'lucide-react';
+import { ChevronUp, ChevronDown, Dumbbell, Zap, Flame, Mountain, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 
-const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
-const DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
-type DayKey = typeof DAY_KEYS[number];
-
-function DaySelector({ label, sublabel, icon, selectedDays, onToggle, iconColor }: {
-  label: string; sublabel: string; icon: React.ReactNode;
-  selectedDays: DayKey[]; onToggle: (d: DayKey) => void; iconColor: string;
+function NumberInput({
+  value, onChange, placeholder, min = 0, max = 7, step = 1,
+}: {
+  value: string; onChange: (v: string) => void; placeholder: string;
+  min?: number; max?: number; step?: number;
 }) {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value.trim();
+    if (v === '') { onChange(''); return; }
+    if (/^\d+$/.test(v)) {
+      const n = Number(v);
+      if (!isNaN(n) && n >= min && n <= max) onChange(v);
+    }
+  };
+  const inc = () => onChange(String(Math.min((value ? Number(value) : min) + step, max)));
+  const dec = () => onChange(String(Math.max((value ? Number(value) : min) - step, min)));
   return (
-    <div>
-      <div className={`flex items-center gap-2 text-sm font-semibold mb-3 ${iconColor}`}>
-        {icon}
-        <span className="text-gray-800">{label}</span>
-        <span className="text-gray-500 font-normal">({selectedDays.length}/7)</span>
+    <div className="relative">
+      <input
+        type="text" inputMode="numeric" pattern="[0-9]*"
+        value={value} placeholder={placeholder}
+        onChange={handleInputChange}
+        className="w-full px-4 py-3.5 pr-12 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-gray-900 placeholder:text-gray-400 text-sm"
+      />
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col">
+        <button type="button" onClick={inc} tabIndex={-1} className="text-gray-400 hover:text-[#6202AC] p-0.5"><ChevronUp size={16} strokeWidth={2.5} /></button>
+        <button type="button" onClick={dec} tabIndex={-1} className="text-gray-400 hover:text-[#6202AC] p-0.5"><ChevronDown size={16} strokeWidth={2.5} /></button>
       </div>
-      <div className="flex gap-1.5 sm:gap-2">
-        {DAY_KEYS.map((day, index) => (
-          <button
-            key={day}
-            type="button"
-            onClick={() => onToggle(day)}
-            className={`flex-1 aspect-square flex items-center justify-center rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 border-2
-              ${selectedDays.includes(day)
-                ? 'bg-[#6202AC] border-[#6202AC] text-white shadow-md'
-                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-              }`}
-          >
-            {DAYS[index]}
-          </button>
-        ))}
-      </div>
-      <p className="text-xs text-gray-400 mt-2">{sublabel}</p>
     </div>
   );
 }
 
 export default function YourSchedulePage() {
   const router = useRouter();
-  const [workoutDays, setWorkoutDays] = useState<DayKey[]>(['Mon', 'Wed']);
-  const [supplementalDays, setSupplementalDays] = useState<DayKey[]>(['Tue', 'Thu']);
-  const [cardioDays, setCardioDays] = useState<DayKey[]>(['Fri', 'Sat']);
+  const [workoutCount, setWorkoutCount]         = useState('');
+  const [supplementalCount, setSupplementalCount] = useState('');
+  const [cardioCount, setCardioCount]           = useState('');
+  const [conditioningCount, setConditioningCount] = useState('');
 
-  const toggle = (day: DayKey, set: React.Dispatch<React.SetStateAction<DayKey[]>>) =>
-    set(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  const isFormValid = workoutCount !== '';
 
-  const totalActiveDays = new Set([...workoutDays, ...supplementalDays, ...cardioDays]).size;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    sessionStorage.setItem('accountSetup', JSON.stringify({
+      ...existing,
+      // Store as counts directly — route.ts reads .length so we store arrays of that size
+      // But route.ts uses workoutDays.length, so we store dummy arrays of the right length
+      workoutDays:      Array(Number(workoutCount      || 0)).fill(''),
+      supplementalDays: Array(Number(supplementalCount || 0)).fill(''),
+      cardioDays:       Array(Number(cardioCount       || 0)).fill(''),
+      conditioningDays: Array(Number(conditioningCount || 0)).fill(''),
+      // Also store raw counts for convenience
+      workoutCount:      workoutCount      || '0',
+      supplementalCount: supplementalCount || '0',
+      cardioCount:       cardioCount       || '0',
+      conditioningCount: conditioningCount || '0',
+    }));
+    router.push('/account-setup/repMax');
+  };
+
+  const totalActive = Number(workoutCount || 0) + Number(supplementalCount || 0)
+    + Number(cardioCount || 0) + Number(conditioningCount || 0);
 
   return (
     <>
@@ -60,38 +77,70 @@ export default function YourSchedulePage() {
           description: 'Structure your week to build consistency and momentum.',
         }}
         showProgress
-        progressData={{ currentStep: 6, totalSteps: 9, nextStep: 'Lifestyle Metrics' }}
+        progressData={{ currentStep: 6, totalSteps: 9, nextStep: 'Strength Baselines' }}
       />
 
-      <div className="mb-8 sm:mb-10">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Plan your training week</h1>
-        <p className="text-gray-500 text-sm sm:text-base">Select your workout, supplemental, and cardio days to shape your routine.</p>
+      <div className="mb-8">
+        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2">Plan your training week</h1>
+        <p className="text-gray-500 text-sm">Select your workout, supplemental, and cardio days to shape your routine.</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); router.push('/account-setup/repMax'); }} className="space-y-6 sm:space-y-7">
-        <DaySelector label="Training Days*" sublabel="Choose up to four (4) core-workout training days. Typically spaced one day apart to allow for rest." icon={<Dumbbell size={15} />} iconColor="text-[#6202AC]" selectedDays={workoutDays} onToggle={(d) => toggle(d, setWorkoutDays)} />
-        <DaySelector label="Supplemental Days" sublabel="Choose up to seven (7) supplemental workout days. May be completed before/after core-training or on cardio days." icon={<Zap size={15} />} iconColor="text-cyan-500" selectedDays={supplementalDays} onToggle={(d) => toggle(d, setSupplementalDays)} />
-        <DaySelector label="Cardio Days" sublabel="Choose between one (1) and five (5) cardio days to split your cardio goals throughout the week." icon={<Flame size={15} />} iconColor="text-orange-500" selectedDays={cardioDays} onToggle={(d) => toggle(d, setCardioDays)} />
+      <form onSubmit={handleSubmit} className="space-y-5">
 
-        <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Calendar size={18} className="text-[#6202AC]" />
-          </div>
-          <div>
-            <p className="font-bold text-gray-900 text-sm sm:text-base">{totalActiveDays} Active Days Per Week</p>
-            <p className="text-xs text-gray-500 mt-0.5">{workoutDays.length} workout · {supplementalDays.length} supplemental · {cardioDays.length} cardio</p>
-          </div>
+        {/* Workouts Per Week */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-2">
+            <Dumbbell size={15} className="text-[#6202AC]" />Number of Workouts Per Week*
+          </label>
+          <NumberInput value={workoutCount} onChange={setWorkoutCount} placeholder="e.g., 4" min={0} max={7} />
+          <p className="text-xs text-gray-400 mt-1">Main strength training sessions (4-5 workouts recommended)</p>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 sm:p-4">
-          <p className="text-xs sm:text-sm text-yellow-900">
-            <span className="font-semibold">💡 Tip:</span> You can select overlapping days. For example, you might do cardio after your main workout.
+        {/* Supplemental Per Week */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-2">
+            <Zap size={15} className="text-cyan-500" />Number of Supplemental Workouts Per Week
+          </label>
+          <NumberInput value={supplementalCount} onChange={setSupplementalCount} placeholder="e.g., 3" min={0} max={7} />
+          <p className="text-xs text-gray-400 mt-1">Accessory work, mobility, or active recovery (3-4 workouts recommended)</p>
+        </div>
+
+        {/* Cardio Per Week */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-2">
+            <Flame size={15} className="text-orange-500" />Number of Cardio Workouts Per Week
+          </label>
+          <NumberInput value={cardioCount} onChange={setCardioCount} placeholder="e.g., 2" min={0} max={7} />
+          <p className="text-xs text-gray-400 mt-1">Running, cycling, swimming, or other cardio activities (2-3 workouts recommended)</p>
+        </div>
+
+        {/* Field / Conditioning Per Week */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-2">
+            <Mountain size={15} className="text-amber-500" />Number of Field Workouts Per Week
+          </label>
+          <NumberInput value={conditioningCount} onChange={setConditioningCount} placeholder="e.g., 1" min={0} max={7} />
+          <p className="text-xs text-gray-400 mt-1">Outdoor training, sports practice, or functional fitness (1-2 workouts recommended)</p>
+        </div>
+
+        {totalActive > 0 && (
+          <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3 flex items-center gap-3">
+            <Calendar size={16} className="text-[#6202AC] flex-shrink-0" />
+            <p className="text-xs text-purple-900">
+              <span className="font-semibold">{totalActive} sessions/week</span> — {workoutCount || 0} workout · {supplementalCount || 0} supplemental · {cardioCount || 0} cardio · {conditioningCount || 0} field
+            </p>
+          </div>
+        )}
+
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3">
+          <p className="text-xs text-yellow-900">
+            <span className="font-semibold">· Tip:</span> You can schedule multiple types of workouts on the same day. For example, strength training in the morning and cardio in the evening.
           </p>
         </div>
 
-        <button type="submit" disabled={workoutDays.length === 0}
-          className={`w-full font-semibold text-base sm:text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md
-            ${workoutDays.length > 0 ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white hover:shadow-lg' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+        <button type="submit" disabled={!isFormValid}
+          className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200
+            ${isFormValid ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
         >Continue</button>
       </form>
     </>
