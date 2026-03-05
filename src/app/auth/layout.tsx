@@ -1,5 +1,5 @@
-import React from 'react';
-import AuthLayoutGate from '@/components/auth/AuthLayoutGate';
+import React from "react";
+import AuthLayoutGate from "@/components/auth/AuthLayoutGate";
 
 export default function AuthLayout({
   children,
@@ -19,7 +19,7 @@ export default function AuthLayout({
             playsInline
             className="w-full h-full object-cover"
           >
-            <source src="/videos/proform-vid.mp4" type="video/mp4" />
+            <source src="/videos/Proform-vid.mp4" type="video/mp4" />
           </video>
         </div>
       </div>

@@ -1,9 +1,16 @@
-'use client';
+"use client";
 
-import React, { useRef, useEffect, useState, createContext, useContext, useCallback } from 'react';
-import BackButton from '@/components/account-setup/ui/BackButton';
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+  useCallback,
+} from "react";
+import BackButton from "@/components/account-setup/ui/BackButton";
 
-const VIDEO_URL = '/videos/proform-vid.mp4';
+const VIDEO_URL = "/videos/Proform-vid.mp4";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,15 +40,24 @@ interface LayoutContextValue {
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
-const LayoutContext = createContext<LayoutContextValue>({ configure: () => {} });
+const LayoutContext = createContext<LayoutContextValue>({
+  configure: () => {},
+});
 export const useLayout = () => useContext(LayoutContext);
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
-export default function AccountSetupLayout({ children }: { children: React.ReactNode }) {
+export default function AccountSetupLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [leftContent, setLeftContent] = useState<LeftContent>({ title: '', description: '' });
+  const [leftContent, setLeftContent] = useState<LeftContent>({
+    title: "",
+    description: "",
+  });
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [showProgress, setShowProgress] = useState(false);
   const [hideBackButton, setHideBackButton] = useState(true); // default true — no flash on first page
@@ -51,13 +67,22 @@ export default function AccountSetupLayout({ children }: { children: React.React
     videoRef.current?.play().catch(() => {});
   }, []);
 
-  const configure = useCallback(({ leftContent, progressData, showProgress, hideBackButton, onBack }: LayoutConfig) => {
-    if (leftContent)    setLeftContent(leftContent);
-    setProgressData(progressData ?? null);
-    setShowProgress(showProgress ?? false);
-    setHideBackButton(hideBackButton ?? false);
-    setOnBack(onBack ? () => onBack : undefined);
-  }, []);
+  const configure = useCallback(
+    ({
+      leftContent,
+      progressData,
+      showProgress,
+      hideBackButton,
+      onBack,
+    }: LayoutConfig) => {
+      if (leftContent) setLeftContent(leftContent);
+      setProgressData(progressData ?? null);
+      setShowProgress(showProgress ?? false);
+      setHideBackButton(hideBackButton ?? false);
+      setOnBack(onBack ? () => onBack : undefined);
+    },
+    [],
+  );
 
   const progressPercentage = progressData
     ? (progressData.currentStep / progressData.totalSteps) * 100
@@ -66,19 +91,29 @@ export default function AccountSetupLayout({ children }: { children: React.React
   return (
     <LayoutContext.Provider value={{ configure }}>
       <div className="flex flex-col lg:flex-row h-screen w-full overflow-hidden">
-
         {/* ── Mobile Header ── */}
         <div className="lg:hidden relative w-full h-40 flex-shrink-0 overflow-hidden">
-          <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-60">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+          >
             <source src={VIDEO_URL} type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-[#030005]/65" />
           <div className="relative z-10 flex flex-col justify-end px-6 pb-5 h-full text-white">
-            <h1 className="text-2xl font-bold leading-tight">{leftContent.title}</h1>
+            <h1 className="text-2xl font-bold leading-tight">
+              {leftContent.title}
+            </h1>
             {showProgress && progressData && (
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex-1 bg-white/20 h-1 rounded-full overflow-hidden">
-                  <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }} />
+                  <div
+                    className="bg-white h-full rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
                 </div>
                 <p className="text-xs text-white/80 whitespace-nowrap font-medium">
                   {progressData.currentStep}/{progressData.totalSteps}
@@ -90,7 +125,14 @@ export default function AccountSetupLayout({ children }: { children: React.React
 
         {/* ── Left Panel — fixed, centered, NO scroll ── */}
         <div className="hidden lg:flex lg:w-2/5 h-full relative overflow-hidden flex-shrink-0">
-          <video ref={videoRef} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-60">
+          <video
+            ref={videoRef}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+          >
             <source src={VIDEO_URL} type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-[#030005]/65" />
@@ -105,9 +147,14 @@ export default function AccountSetupLayout({ children }: { children: React.React
               {leftContent.stats && (
                 <div className="flex gap-6 w-full mt-12">
                   {leftContent.stats.map((stat, i) => (
-                    <div key={i} className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4">
+                    <div
+                      key={i}
+                      className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4"
+                    >
                       <div className="text-3xl font-bold">{stat.value}</div>
-                      <div className="text-xs text-white/70 mt-1">{stat.label}</div>
+                      <div className="text-xs text-white/70 mt-1">
+                        {stat.label}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -117,13 +164,18 @@ export default function AccountSetupLayout({ children }: { children: React.React
               <div className="max-w-md">
                 <div className="flex items-center justify-between gap-6 mb-3">
                   <div className="flex-1 bg-white/20 h-1 rounded-full overflow-hidden">
-                    <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }} />
+                    <div
+                      className="bg-white h-full rounded-full transition-all duration-500"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
                   </div>
                   <p className="text-white font-semibold text-base whitespace-nowrap">
                     Step {progressData.currentStep} of {progressData.totalSteps}
                   </p>
                 </div>
-                <p className="text-gray-400 text-sm">Next: {progressData.nextStep}</p>
+                <p className="text-gray-400 text-sm">
+                  Next: {progressData.nextStep}
+                </p>
               </div>
             )}
           </div>
@@ -142,7 +194,6 @@ export default function AccountSetupLayout({ children }: { children: React.React
             </div>
           </div>
         </div>
-
       </div>
     </LayoutContext.Provider>
   );
