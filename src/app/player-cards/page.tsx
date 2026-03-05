@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   Upload,
@@ -16,8 +16,22 @@ import {
   Percent,
   Award,
   Activity,
+  Save,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
+import { getAuthToken } from '@/lib/auth/session';
+import {getPlayerCard, createPlayerCard } from '@/api/player-card/route'; // Import the axios-based function
+
+interface PlayerCardData {
+  date: string;
+  name: string;
+  currentWeight: string;
+  bodyCampScore: number;
+  height: string;
+  smm: number;
+  bodyFat: string;
+}
 
 export default function PlayerCardPage() {
   const router = useRouter();
@@ -27,6 +41,32 @@ export default function PlayerCardPage() {
   const progressFileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [progressFile, setProgressFile] = useState<File | null>(null);
+  const [playerData, setPlayerData] = useState<PlayerCardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+ useEffect(() => {
+    const fetchPlayerCard = async () => {
+      try {
+        setLoading(true);
+        console.log('1️⃣ Fetching player card...');
+        
+        // USE YOUR API FUNCTION DIRECTLY
+        const data = await getPlayerCard();
+        
+        console.log('2️⃣ Data received:', data);
+        setPlayerData(data);
+        
+      } catch (err: any) {
+        console.error('❌ Error:', err);
+        setError(err.message || 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlayerCard();
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedFile(e.target.files?.[0] ?? null);
@@ -34,6 +74,83 @@ export default function PlayerCardPage() {
 
   const handleProgressFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setProgressFile(e.target.files?.[0] ?? null);
+  };
+
+  const hasChanges = !!selectedFile || !!progressFile;
+
+ const handleSubmitCard = async () => {
+    if (!hasChanges) return;
+
+    try {
+      setLoading(true);
+      
+      const formData = new FormData();
+      
+      if (selectedFile) {
+        formData.append('bodyScan', selectedFile);
+      }
+      if (progressFile) {
+        formData.append('progressPhoto', progressFile);
+      }
+
+      // DIRECT FUNCTION CALL - NOT fetch or axios to /api/player-card
+      const result = await createPlayerCard(formData);
+      
+      console.log('✅ Update successful:', result);
+      
+      // Reset files
+      setSelectedFile(null);
+      setProgressFile(null);
+      
+      // Refresh data - DIRECT FUNCTION CALL AGAIN
+      const freshData = await getPlayerCard();
+      setPlayerData(freshData);
+      
+    } catch (error: any) {
+      console.error('❌ Update error:', error);
+      alert(error.message || 'Failed to update card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show loading state
+  if (loading && !playerData) {
+    return (
+      <main className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700 mx-auto mb-4" />
+          <p className="text-gray-600">Loading your player card...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error && !playerData) {
+    return (
+      <main className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-2xl shadow">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-purple-600 text-white px-6 py-2 rounded-xl hover:bg-purple-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const data = playerData || {
+    date: 'N/A',
+    name: 'User',
+    currentWeight: '0',
+    bodyCampScore: 0,
+    height: '0',
+    smm: 0,
+    bodyFat: '0',
   };
 
   return (
@@ -76,7 +193,6 @@ export default function PlayerCardPage() {
             <span className="text-cyan-400 text-base md:text-lg font-medium z-10">
               Body Scan Preview
             </span>
-            {/* Optional subtle overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
           <button
@@ -98,9 +214,9 @@ export default function PlayerCardPage() {
                   <User size={20} />
                 </div>
                 <div>
-                  <h2 className="text-lg md:text-xl font-bold">Shweta Gharge</h2>
+                  <h2 className="text-lg md:text-xl font-bold">{data.name}</h2>
                   <p className="text-gray-500 text-xs md:text-sm flex items-center gap-1">
-                    Scan Date: 2/3/2026
+                    Scan Date: {data.date}
                   </p>
                 </div>
               </div>
@@ -127,7 +243,6 @@ export default function PlayerCardPage() {
 
           {/* METRICS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Basic Metrics */}
             <div className="bg-white rounded-2xl p-5 shadow">
               <h3 className="font-semibold mb-3 text-sm md:text-base flex items-center gap-2">
                 <Weight size={16} className="text-purple-600" />
@@ -139,19 +254,18 @@ export default function PlayerCardPage() {
                     <Weight size={14} />
                     Current Wt (lbs)
                   </span>
-                  <span className="text-purple-700 font-bold text-lg md:text-xl">67.00</span>
+                  <span className="text-purple-700 font-bold text-lg md:text-xl">{data.currentWeight}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 text-sm flex items-center gap-1.5">
                     <Ruler size={14} />
                     Height (inches)
                   </span>
-                  <span className="text-purple-700 font-bold text-lg md:text-xl">64.00</span>
+                  <span className="text-purple-700 font-bold text-lg md:text-xl">{data.height}</span>
                 </div>
               </div>
             </div>
 
-            {/* Body Composition */}
             <div className="bg-white rounded-2xl p-5 shadow">
               <h3 className="font-semibold mb-3 text-sm md:text-base flex items-center gap-2">
                 <Dumbbell size={16} className="text-blue-600" />
@@ -163,32 +277,64 @@ export default function PlayerCardPage() {
                     <Dumbbell size={14} />
                     SMM (lbs)
                   </span>
-                  <span className="text-gray-500 font-bold text-lg md:text-xl">0</span>
+                  <span className="text-gray-500 font-bold text-lg md:text-xl">{data.smm}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 text-sm flex items-center gap-1.5">
                     <Percent size={14} />
                     Body Fat (%)
                   </span>
-                  <span className="text-gray-500 font-bold text-lg md:text-xl">0</span>
+                  <span className="text-gray-500 font-bold text-lg md:text-xl">{data.bodyFat}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* COMPOSITION SCORE */}
-          <div className="bg-white rounded-2xl p-5 shadow text-center">
-            <h3 className="font-semibold mb-2 text-sm md:text-base flex items-center justify-center gap-2">
-              <Award size={18} className="text-amber-600" />
-              Composition Score
-            </h3>
-            <p className="text-gray-400 text-xs md:text-sm mb-3">
-              Overall fitness rating
-            </p>
-            <div className="text-5xl md:text-6xl font-bold text-gray-300">
-              0
-            </div>
-          </div>
+       {/* COMPOSITION SCORE */}
+{/* COMPOSITION SCORE */}
+<div className="bg-white rounded-2xl p-5 shadow text-center">
+  <h3 className="font-semibold mb-2 text-sm md:text-base flex items-center justify-center gap-2">
+    <Award size={18} className="text-amber-600" />
+    Composition Score
+  </h3>
+  <p className="text-gray-400 text-xs md:text-sm mb-3">
+    Overall fitness rating
+  </p>
+  <div className="text-5xl md:text-6xl font-bold text-gray-300">
+    {data.bodyCampScore}
+  </div>
+</div>
+
+{/* ORANGE MESSAGE DIV */}
+<div className="bg-orange-50 rounded-xl p-4 text-center mt-4">
+  <p className="text-xs text-orange-800">
+    Upload a body scan to submit a complete card and unlock all metrics!
+  </p>
+</div>
+
+{/* SUBMIT BUTTON - now with same width as orange div */}
+{hasChanges && (
+  <div className="mt-6">
+    <button
+      onClick={handleSubmitCard}
+      disabled={loading}
+      className="w-full bg-purple-600 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:bg-purple-700 transition text-base disabled:opacity-50 flex items-center justify-center gap-2"
+    >
+      {loading ? (
+        <>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+          Submitting...
+        </>
+      ) : (
+        <>
+          <Save size={18} />
+          Submit Card
+        </>
+      )}
+    </button>
+  </div>
+)}
         </div>
       </div>
 
@@ -240,6 +386,12 @@ export default function PlayerCardPage() {
             >
               Upload Scan
             </button>
+            <div className="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-3">
+  <p className="text-xs text-purple-700 flex items-start gap-2">
+    <span className="font-medium">TIP:</span>
+    <span>Take clear photos of your InBody scan results for best accuracy</span>
+  </p>
+</div>
           </div>
         </div>
       )}
@@ -291,6 +443,12 @@ export default function PlayerCardPage() {
             >
               Upload Photo
             </button>
+            <div className="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-3">
+  <p className="text-xs text-purple-700 flex items-start gap-2">
+    <span className="font-medium">TIP:</span>
+    <span>Take clear photos of your physique for best accuracy</span>
+  </p>
+</div>
           </div>
         </div>
       )}
