@@ -38,6 +38,23 @@ export default function PlayerCardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    // Immediate check for admin role to prevent unauthorized access
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const role = parsed?.role ?? parsed?.role_id;
+        if (Number(role) === 3) {
+          router.replace("/admin-player-cards");
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error checking role:", err);
+    }
+  }, [router]);
+
   const fetchPlayerCardData = useCallback(
     async (showSuccessToast: boolean) => {
       try {

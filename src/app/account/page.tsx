@@ -36,19 +36,24 @@ const MAIN_MENU: MenuItem[] = [
   { label: "Connect TV", icon: Monitor, isHighlight: true },
 ];
 
-const TOOLS = [
-  "Create Workout",
-  "Log an Exercise",
-  "Cardio",
-  "Macros",
-  "Hydration",
-  "Recovery",
-  "Player Cards",
-  "Find Courses",
-  "Join Challenges",
-  "Weekly Reports",
-  "Search Programs",
-  "More Options",
+type ToolItem = {
+  label: string;
+  href: string;
+};
+
+const TOOL_ITEMS: ToolItem[] = [
+  { label: "Create Workout", href: "/itinerary/schedule" },
+  { label: "Log an Exercise", href: "/itinerary/queue" },
+  { label: "Cardio", href: "#" },
+  { label: "Macros", href: "#" },
+  { label: "Hydration", href: "#" },
+  { label: "Recovery", href: "#" },
+  { label: "Player Cards", href: "/player-cards" },
+  { label: "Find Courses", href: "#" },
+  { label: "Join Challenges", href: "#" },
+  { label: "Weekly Reports", href: "#" },
+  { label: "Search Programs", href: "/programs" },
+  { label: "More Options", href: "#" },
 ];
 
 export default function AccountPage() {
@@ -190,29 +195,37 @@ export default function AccountPage() {
         <section className="px-0 pb-8 md:px-0">
           <h2 className="mb-4 text-2xl font-bold text-[#141517]">Tools</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {TOOLS.map((tool) => {
-              if (tool === "Player Cards") {
-                const playerCardHref =
-                  roleId === 3 ? "/admin-player-cards" : "/player-cards";
-                return (
-                  <Link key={tool} href={playerCardHref} className="block">
-                    <button
-                      type="button"
-                      className="h-12 w-full rounded-xl border border-[#d2d6dc] bg-[#f8f9fb] px-4 text-left text-base font-medium text-[#1e2023] hover:bg-[#f1f3f6]"
-                    >
-                      {tool}
-                    </button>
-                  </Link>
-                );
+            {TOOL_ITEMS.map((tool) => {
+              let href = tool.href;
+              if (tool.label === "Player Cards") {
+                href = roleId === 3 ? "/admin-player-cards" : "/player-cards";
               }
-              return (
+
+              const button = (
                 <button
-                  key={tool}
                   type="button"
                   className="h-12 w-full rounded-xl border border-[#d2d6dc] bg-[#f8f9fb] px-4 text-left text-base font-medium text-[#1e2023] hover:bg-[#f1f3f6]"
                 >
-                  {tool}
+                  {tool.label}
                 </button>
+              );
+
+              if (href && href !== "#") {
+                return (
+                  <Link key={tool.label} href={href} className="block">
+                    {button}
+                  </Link>
+                );
+              }
+
+              return (
+                <div
+                  key={tool.label}
+                  className="cursor-not-allowed opacity-80"
+                  title="Coming soon"
+                >
+                  {button}
+                </div>
               );
             })}
           </div>
