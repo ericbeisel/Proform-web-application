@@ -12,18 +12,12 @@ import {
   Activity,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getPlayerCard, createPlayerCard } from "@/api/player-card/route"; // Import the axios-based function
+import {
+  getPlayerCard,
+  createPlayerCard,
+  PlayerCardData,
+} from "@/api/player-card/route"; // Import the axios-based function
 import { useToast } from "@/components/ui/toast-provider";
-
-interface PlayerCardData {
-  date: string;
-  name: string;
-  currentWeight: string;
-  bodyCampScore: number;
-  height: string;
-  smm: number;
-  bodyFat: string;
-}
 
 export default function PlayerCardPage() {
   const router = useRouter();
@@ -180,11 +174,11 @@ export default function PlayerCardPage() {
   const data = playerData || {
     date: "N/A",
     name: "User",
-    currentWeight: "0",
+    currentWeight: 0,
     bodyCampScore: 0,
-    height: "0",
+    height: 0,
     smm: 0,
-    bodyFat: "0",
+    bodyFat: 0,
   };
 
   return (
@@ -600,7 +594,9 @@ export default function PlayerCardPage() {
                 onClick={() => {
                   if (!progressFile) return;
                   setShowProgressModal(false);
-                  toast.success("Progress photo saved. Tap Submit Card to upload.");
+                  toast.success(
+                    "Progress photo saved. Tap Submit Card to upload.",
+                  );
                 }}
                 className={`w-full py-4 rounded-[18px] text-lg font-black shadow-lg transition-all duration-300 ${
                   progressFile
