@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ChevronUp, ChevronDown, Weight, Target, Ruler, Percent, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import { useToast } from '@/components/ui/toast-provider';
 
 function NumberInput({
   value, onChange, placeholder, min = 0, max = 9999, step = 1, required = false,
@@ -39,6 +40,7 @@ function NumberInput({
 
 export default function CoreMetricsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [formData, setFormData] = useState({
     currentWeight: '', goalWeight: '', heightFeet: '', heightInches: '', bodyFatPercentage: '',
   });
@@ -49,9 +51,16 @@ export default function CoreMetricsPage() {
   const handleBcaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type !== 'application/pdf') { alert('Please upload a PDF file'); return; }
-    if (file.size > 20 * 1024 * 1024) { alert('File size must be less than 20MB'); return; }
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('File size must be less than 20MB');
+      return;
+    }
     setBcaFile(file);
+    toast.success('BCA report selected');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -80,7 +89,7 @@ export default function CoreMetricsPage() {
       />
 
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2">Let's track your starting point</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2">Let&apos;s track your starting point</h1>
         <p className="text-gray-500 text-sm">Enter your current metrics to help personalize your experience</p>
       </div>
 

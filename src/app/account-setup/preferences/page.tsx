@@ -15,6 +15,7 @@ import {
   type StateOption,
   type CityOption,
 } from '@/api/account-setup/route';
+import { removeMemberChecklist } from '@/api/auth/remove-member-checklist/route';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 const DAY_KEYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -162,10 +163,18 @@ export default function PreferencesPage() {
         cityId:              formData.cityId,
       });
 
+      // Keep parity with mobile flow:
+      // after successful account setup, mark checklist as skipped/completed.
+      await removeMemberChecklist();
+
       sessionStorage.removeItem('accountSetup');
       router.replace('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong. Please try again.',
+      );
     } finally {
       setIsSubmitting(false);
     }

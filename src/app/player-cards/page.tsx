@@ -1,27 +1,19 @@
-'use client';
-import { useState, useRef, useEffect } from 'react';
+"use client";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   ArrowLeft,
   Upload,
   X,
   Heart,
   Camera,
-  User,
   CheckCircle,
   MapPin,
-  Search,
-  Weight,
-  Ruler,
-  Dumbbell,
-  Percent,
   Award,
   Activity,
-  Save,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import axios from 'axios';
-import { getAuthToken } from '@/lib/auth/session';
-import {getPlayerCard, createPlayerCard } from '@/api/player-card/route'; // Import the axios-based function
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { getPlayerCard, createPlayerCard } from "@/api/player-card/route"; // Import the axios-based function
+import { useToast } from "@/components/ui/toast-provider";
 
 interface PlayerCardData {
   date: string;
@@ -35,38 +27,55 @@ interface PlayerCardData {
 
 export default function PlayerCardPage() {
   const router = useRouter();
+  const toast = useToast();
   const [showBodyScanModal, setShowBodyScanModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const progressFileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [progressFile, setProgressFile] = useState<File | null>(null);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(
+    null,
+  );
+  const [progressFilePreview, setProgressFilePreview] = useState<string | null>(
+    null,
+  );
   const [playerData, setPlayerData] = useState<PlayerCardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
- useEffect(() => {
-    const fetchPlayerCard = async () => {
+  const fetchPlayerCardData = useCallback(
+    async (showSuccessToast: boolean) => {
       try {
         setLoading(true);
-        console.log('1️⃣ Fetching player card...');
-        
-        // USE YOUR API FUNCTION DIRECTLY
+        console.log("1️⃣ Fetching player card...");
+
         const data = await getPlayerCard();
-        
-        console.log('2️⃣ Data received:', data);
+
+        console.log("2️⃣ Data received:", data);
         setPlayerData(data);
-        
-      } catch (err: any) {
-        console.error('❌ Error:', err);
-        setError(err.message || 'Failed to load data');
+        setError("");
+        if (showSuccessToast) {
+          toast.success("Player card data loaded successfully.");
+        }
+        return data;
+      } catch (err: unknown) {
+        console.error("❌ Error:", err);
+        const message =
+          err instanceof Error ? err.message : "Failed to load data";
+        setError(message);
+        toast.error(message);
+        return null;
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [toast],
+  );
 
-    fetchPlayerCard();
-  }, []);
+  useEffect(() => {
+    void fetchPlayerCardData(true);
+  }, [fetchPlayerCardData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedFile(e.target.files?.[0] ?? null);
@@ -76,39 +85,64 @@ export default function PlayerCardPage() {
     setProgressFile(e.target.files?.[0] ?? null);
   };
 
+  useEffect(() => {
+    if (!selectedFile) {
+      setSelectedFilePreview(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setSelectedFilePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    if (!progressFile) {
+      setProgressFilePreview(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(progressFile);
+    setProgressFilePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [progressFile]);
+
   const hasChanges = !!selectedFile || !!progressFile;
 
- const handleSubmitCard = async () => {
+  const handleSubmitCard = async () => {
     if (!hasChanges) return;
 
     try {
       setLoading(true);
-      
+
       const formData = new FormData();
-      
+
       if (selectedFile) {
-        formData.append('bodyScan', selectedFile);
+        formData.append("inBodyScans", selectedFile);
       }
       if (progressFile) {
-        formData.append('progressPhoto', progressFile);
+        formData.append("progressImage", progressFile);
       }
 
       // DIRECT FUNCTION CALL - NOT fetch or axios to /api/player-card
       const result = await createPlayerCard(formData);
-      
-      console.log('✅ Update successful:', result);
-      
+
+      console.log("✅ Update successful:", result);
+      toast.success("Player card submitted successfully.");
+
       // Reset files
       setSelectedFile(null);
       setProgressFile(null);
-      
+      if (fileRef.current) fileRef.current.value = "";
+      if (progressFileRef.current) progressFileRef.current.value = "";
+
       // Refresh data - DIRECT FUNCTION CALL AGAIN
-      const freshData = await getPlayerCard();
-      setPlayerData(freshData);
-      
-    } catch (error: any) {
-      console.error('❌ Update error:', error);
-      alert(error.message || 'Failed to update card');
+      await fetchPlayerCardData(true);
+    } catch (error: unknown) {
+      console.error("❌ Update error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to update card";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -144,230 +178,300 @@ export default function PlayerCardPage() {
   }
 
   const data = playerData || {
-    date: 'N/A',
-    name: 'User',
-    currentWeight: '0',
+    date: "N/A",
+    name: "User",
+    currentWeight: "0",
     bodyCampScore: 0,
-    height: '0',
+    height: "0",
     smm: 0,
-    bodyFat: '0',
+    bodyFat: "0",
   };
 
   return (
-    <main className="min-h-screen bg-[#eef1f5] px-6 py-6 md:p-8">
+    <main className="min-h-screen bg-[#f8f9fb] px-4 py-6 md:px-8 md:py-8 lg:px-12">
       {/* HEADER */}
-      <div className="flex items-center justify-between mb-6 md:mb-8">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            className="p-2.5 rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
+            className="group flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:bg-gray-50"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft
+              size={20}
+              className="text-gray-600 group-hover:text-gray-900"
+            />
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-purple-700">
-              <User size={18} />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#333333] text-white shadow-lg shadow-black/10">
+              <Award size={24} />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Player Card</h1>
-              <p className="text-gray-500 text-xs md:text-sm">
+              <h1 className="text-2xl font-bold text-[#1a1a1a] tracking-tight">
+                Player Card
+              </h1>
+              <p className="text-sm font-medium text-gray-400">
                 Track your fitness progress
               </p>
             </div>
           </div>
         </div>
         <button
-          onClick={() => router.push('/player-progress')}
-          className="flex items-center gap-1.5 border border-purple-600 text-purple-600 px-4 py-1.5 md:px-5 md:py-2 rounded-xl font-semibold text-sm md:text-base hover:bg-purple-50 transition"
+          onClick={() => router.push("/player-progress")}
+          className="flex items-center justify-center gap-2 rounded-xl border-2 border-[#7c3aed] bg-white px-6 py-2.5 text-base font-bold text-[#7c3aed] transition-all hover:bg-[#7c3aed]/5"
         >
-          <Activity size={16} />
-          View Progress
+          <Activity size={20} />
+          View Player Progress
         </button>
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* BODY IMAGE / PROGRESS PHOTO CARD */}
-        <div className="bg-white rounded-2xl p-5 shadow flex flex-col items-center lg:col-span-1">
-          <div className="w-full aspect-[4/5] max-h-[420px] bg-gradient-to-br from-gray-900 to-black rounded-xl flex items-center justify-center relative overflow-hidden">
-            <span className="text-cyan-400 text-base md:text-lg font-medium z-10">
-              Body Scan Preview
-            </span>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+      <div className="mx-auto max-w-[1400px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* LEFT COLUMN: BODY IMAGE */}
+          <div className="lg:col-span-4 bg-white rounded-[32px] p-6 shadow-xl shadow-gray-200/50 flex flex-col h-[750px] border border-gray-100">
+            <div className="flex-1 relative rounded-[24px] overflow-hidden bg-[#16181b] border border-gray-800">
+              {/* Grid background pattern */}
+              <div
+                className="absolute inset-0 opacity-20"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(#4b5563 1px, transparent 1px)",
+                  backgroundSize: "30px 30px",
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center p-8">
+                <img
+                  src="/images/svg.png"
+                  alt="Human Asset"
+                  className="h-full object-contain drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]"
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => setShowProgressModal(true)}
+              className="mt-6 text-center text-[#7c3aed] text-base font-bold hover:underline underline-offset-4"
+            >
+              Uplaod Progress Photo
+            </button>
           </div>
-          <button
-            onClick={() => setShowProgressModal(true)}
-            className="mt-4 flex items-center gap-1.5 text-purple-600 hover:text-purple-800 text-sm underline font-medium transition"
-          >
-            <Camera size={14} />
-            Upload Progress Photo
-          </button>
-        </div>
 
-        {/* RIGHT SIDE - INFO + METRICS */}
-        <div className="lg:col-span-2 space-y-5">
-          {/* USER INFO */}
-          <div className="bg-white rounded-2xl p-5 shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700">
-                  <User size={20} />
-                </div>
+          {/* RIGHT COLUMN: CARDS */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            {/* PROFILE INFO CARD */}
+            <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
+              <div className="flex items-start justify-between mb-8">
                 <div>
-                  <h2 className="text-lg md:text-xl font-bold">{data.name}</h2>
-                  <p className="text-gray-500 text-xs md:text-sm flex items-center gap-1">
+                  <h2 className="text-[32px] font-bold text-[#1a1a1a] leading-tight mb-2">
+                    {data.name}
+                  </h2>
+                  <p className="text-lg text-gray-400 font-medium">
                     Scan Date: {data.date}
                   </p>
                 </div>
+                <div className="bg-[#00d1e0] text-white px-6 py-1.5 rounded-full text-sm font-black tracking-widest">
+                  ACTIVE
+                </div>
               </div>
-              <span className="flex items-center gap-1 bg-cyan-100 text-cyan-800 text-xs px-3 py-1 rounded-full font-medium">
-                <CheckCircle size={14} />
-                ACTIVE
-              </span>
+
+              <div className="flex flex-col gap-4">
+                <button
+                  onClick={() => setShowBodyScanModal(true)}
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6d28d9] py-4 text-xl font-bold text-white shadow-lg shadow-purple-600/20 transition-all hover:bg-[#5b21b6]"
+                >
+                  <Upload size={24} />
+                  Upload Body Scan
+                </button>
+                <button className="flex items-center justify-center gap-2 text-[#00a3b8] font-bold text-base hover:text-[#008ba0]">
+                  <MapPin size={18} />
+                  Find a Body Scan Location
+                </button>
+              </div>
             </div>
 
+            {/* METRIC GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* BASIC METRICS */}
+              <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-xl font-bold text-[#1a1a1a]">
+                    Basic Metrics
+                  </h3>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                    <Activity size={20} />
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-baseline justify-between border-b border-gray-100 pb-4">
+                    <span className="text-base font-bold text-gray-400">
+                      Current Wt (lbs):
+                    </span>
+                    <span className="text-[32px] font-black text-[#5b21b6]">
+                      {data.currentWeight}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-base font-bold text-gray-400">
+                      Height (inches):
+                    </span>
+                    <span className="text-[32px] font-black text-[#5b21b6]">
+                      {data.height}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* BODY COMPOSITION */}
+              <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-xl font-bold text-[#1a1a1a]">
+                    Body Composition
+                  </h3>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-500">
+                    <Activity size={20} />
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-baseline justify-between border-b border-gray-100 pb-4">
+                    <span className="text-base font-bold text-gray-400">
+                      SMM (lbs):
+                    </span>
+                    <span className="text-[32px] font-black text-gray-300">
+                      {data.smm}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-base font-bold text-gray-400">
+                      Body Fat (%):
+                    </span>
+                    <span className="text-[32px] font-black text-gray-300">
+                      {data.bodyFat}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* COMPOSITION SCORE */}
+            <div className="bg-white rounded-[40px] p-10 shadow-xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold text-[#1a1a1a] mb-2">
+                    Composition Score
+                  </h3>
+                  <p className="text-lg font-medium text-gray-400">
+                    Overall fitness rating
+                  </p>
+                </div>
+                <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-purple-50 text-purple-600">
+                  <Award size={32} />
+                </div>
+              </div>
+              <div className="mt-8">
+                <span className="text-[120px] font-black text-gray-200 leading-none">
+                  {data.bodyCampScore}
+                </span>
+              </div>
+            </div>
+
+            {/* ALERT BANNER */}
+            <div className="bg-[#fff1ed] rounded-2xl p-4 border-l-4 border-[#ff7043] flex items-center justify-center gap-3">
+              <div className="text-[#ff7043]">
+                <CheckCircle size={20} />
+              </div>
+              <p className="text-base font-bold text-[#ff7043]">
+                Upload a body scan to submit a complete card and unlock all
+                metrics!
+              </p>
+            </div>
+
+            {/* SUBMIT BUTTON */}
             <button
-              onClick={() => setShowBodyScanModal(true)}
-              className="w-full bg-gradient-to-r from-purple-700 to-purple-500 text-white py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-sm hover:brightness-105 transition text-sm md:text-base"
+              onClick={handleSubmitCard}
+              disabled={loading || !hasChanges}
+              className={`w-full py-5 rounded-[24px] text-xl font-bold shadow-lg transition-all ${
+                hasChanges
+                  ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] cursor-pointer"
+                  : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+              }`}
             >
-              <Upload size={16} />
-              Upload Body Scan
+              {loading
+                ? "Submitting..."
+                : hasChanges
+                  ? "Submit Card"
+                  : "Submit Card (Scan Required)"}
             </button>
-
-            <p className="text-blue-600 hover:text-blue-800 text-xs md:text-sm mt-3 text-center flex items-center justify-center gap-1.5 cursor-pointer">
-              <MapPin size={14} />
-              <Search size={14} />
-              Find a Body Scan Location
-            </p>
           </div>
-
-          {/* METRICS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="bg-white rounded-2xl p-5 shadow">
-              <h3 className="font-semibold mb-3 text-sm md:text-base flex items-center gap-2">
-                <Weight size={16} className="text-purple-600" />
-                Basic Metrics
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-600 text-sm flex items-center gap-1.5">
-                    <Weight size={14} />
-                    Current Wt (lbs)
-                  </span>
-                  <span className="text-purple-700 font-bold text-lg md:text-xl">{data.currentWeight}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 text-sm flex items-center gap-1.5">
-                    <Ruler size={14} />
-                    Height (inches)
-                  </span>
-                  <span className="text-purple-700 font-bold text-lg md:text-xl">{data.height}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-5 shadow">
-              <h3 className="font-semibold mb-3 text-sm md:text-base flex items-center gap-2">
-                <Dumbbell size={16} className="text-blue-600" />
-                Body Composition
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-600 text-sm flex items-center gap-1.5">
-                    <Dumbbell size={14} />
-                    SMM (lbs)
-                  </span>
-                  <span className="text-gray-500 font-bold text-lg md:text-xl">{data.smm}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 text-sm flex items-center gap-1.5">
-                    <Percent size={14} />
-                    Body Fat (%)
-                  </span>
-                  <span className="text-gray-500 font-bold text-lg md:text-xl">{data.bodyFat}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* COMPOSITION SCORE */}
-       {/* COMPOSITION SCORE */}
-{/* COMPOSITION SCORE */}
-<div className="bg-white rounded-2xl p-5 shadow text-center">
-  <h3 className="font-semibold mb-2 text-sm md:text-base flex items-center justify-center gap-2">
-    <Award size={18} className="text-amber-600" />
-    Composition Score
-  </h3>
-  <p className="text-gray-400 text-xs md:text-sm mb-3">
-    Overall fitness rating
-  </p>
-  <div className="text-5xl md:text-6xl font-bold text-gray-300">
-    {data.bodyCampScore}
-  </div>
-</div>
-
-{/* ORANGE MESSAGE DIV */}
-<div className="bg-orange-50 rounded-xl p-4 text-center mt-4">
-  <p className="text-xs text-orange-800">
-    Upload a body scan to submit a complete card and unlock all metrics!
-  </p>
-</div>
-
-{/* SUBMIT BUTTON - now with same width as orange div */}
-{hasChanges && (
-  <div className="mt-6">
-    <button
-      onClick={handleSubmitCard}
-      disabled={loading}
-      className="w-full bg-purple-600 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:bg-purple-700 transition text-base disabled:opacity-50 flex items-center justify-center gap-2"
-    >
-      {loading ? (
-        <>
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-          Submitting...
-        </>
-      ) : (
-        <>
-          <Save size={18} />
-          Submit Card
-        </>
-      )}
-    </button>
-  </div>
-)}
         </div>
       </div>
 
       {/* BODY SCAN MODAL */}
       {showBodyScanModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-[480px] relative shadow-2xl">
+        <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
+          <div className="bg-white rounded-[32px] p-6 w-full max-w-[480px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
             <button
               onClick={() => setShowBodyScanModal(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-900 transition-colors"
             >
-              <X size={20} />
+              <X size={20} strokeWidth={2.5} />
             </button>
-            <div className="text-center mb-5">
-              <p className="text-gray-400 text-sm">Add a new</p>
-              <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
-                <Activity size={24} className="text-purple-600" />
-                InBody Scan
+
+            <div className="text-center mb-0">
+              <p className="text-gray-400 text-sm font-bold mb-0.5">
+                Add a new
+              </p>
+              <h2 className="text-3xl font-black text-[#1a1c1e] leading-none mb-3 relative inline-block">
+                Inbody Scan
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#6d28d9] rounded-full" />
               </h2>
             </div>
-            <div className="flex justify-center mb-5">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow">
-                <Heart size={22} />
+
+            <div className="flex justify-center mb-6 pt-2">
+              <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#00d1e0] text-white shadow-xl shadow-purple-500/30 transform -rotate-6">
+                <Heart size={32} fill="currentColor" strokeWidth={0} />
               </div>
             </div>
-            <hr className="my-5 border-gray-200" />
+
+            <div className="w-full h-px bg-gray-100 mb-6" />
+
             <div
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center cursor-pointer hover:border-purple-500 transition"
+              className="group border-2 border-dashed border-gray-200 rounded-[24px] p-6 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
             >
-              <Upload className="mx-auto text-purple-600 mb-2" size={28} />
-              <p className="font-semibold text-gray-800">Upload Scan Image</p>
-              <p className="text-gray-400 text-sm mt-1">or drag and drop</p>
+              {selectedFilePreview ? (
+                <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                  <img
+                    src={selectedFilePreview}
+                    alt="Selected body scan"
+                    className="h-48 w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-purple-100 transition-colors">
+                    <Upload
+                      className="text-[#6d28d9]"
+                      size={24}
+                      strokeWidth={2.5}
+                    />
+                  </div>
+                  <p className="text-lg font-bold text-[#1a1c1e] mb-1">
+                    Upload Image
+                  </p>
+                  <p className="text-gray-400 text-xs font-medium mb-0.5">
+                    or drag and drop
+                  </p>
+                  <p className="text-gray-300 text-[10px] font-medium">
+                    Max File Size 15MB
+                  </p>
+                </>
+              )}
+              {selectedFile && (
+                <p className="mt-3 text-xs font-semibold text-[#6d28d9]">
+                  {selectedFile.name}
+                </p>
+              )}
               <input
                 type="file"
                 ref={fileRef}
@@ -376,55 +480,111 @@ export default function PlayerCardPage() {
                 accept="image/*"
               />
             </div>
-            <button
-              disabled={!selectedFile}
-              className={`w-full mt-5 py-2.5 rounded-xl font-semibold text-sm md:text-base transition ${
-                selectedFile
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Upload Scan
-            </button>
-            <div className="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-3">
-  <p className="text-xs text-purple-700 flex items-start gap-2">
-    <span className="font-medium">TIP:</span>
-    <span>Take clear photos of your InBody scan results for best accuracy</span>
-  </p>
-</div>
+
+            <div className="flex flex-col gap-4 mt-6">
+              <button
+                disabled={!selectedFile}
+                onClick={() => {
+                  if (!selectedFile) return;
+                  setShowBodyScanModal(false);
+                  toast.success("Body scan saved. Tap Submit Card to upload.");
+                }}
+                className={`w-full py-4 rounded-[18px] text-lg font-black shadow-lg transition-all duration-300 ${
+                  selectedFile
+                    ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
+                    : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {selectedFile ? "Save Scan" : "Select a File First"}
+              </button>
+
+              <button
+                onClick={() => setShowBodyScanModal(false)}
+                className="text-[#00d1e0] text-lg font-black hover:opacity-80 transition-opacity"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 bg-[#f0f0ff] rounded-xl p-3 border border-purple-100/50">
+              <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-2">
+                <span className="text-sm">💡</span>
+                <span className="text-gray-400 font-medium">Tip:</span>
+                <span className="text-purple-600/80">
+                  Clear photos of scan results for best accuracy
+                </span>
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* PROGRESS PHOTO MODAL */}
       {showProgressModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-[480px] relative shadow-2xl">
+        <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
+          <div className="bg-white rounded-[32px] p-6 w-full max-w-[480px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
             <button
               onClick={() => setShowProgressModal(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-900 transition-colors"
             >
-              <X size={20} />
+              <X size={20} strokeWidth={2.5} />
             </button>
-            <div className="text-center mb-5">
-              <p className="text-gray-400 text-sm">Add a new</p>
-              <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
-                <Camera size={24} className="text-purple-600" />
+
+            <div className="text-center mb-0">
+              <p className="text-gray-400 text-sm font-bold mb-0.5">
+                Add a new
+              </p>
+              <h2 className="text-3xl font-black text-[#1a1c1e] leading-none mb-3 relative inline-block">
                 Progress Photo
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-12 h-1 bg-[#6d28d9] rounded-full" />
               </h2>
             </div>
-            <div className="flex justify-center mb-5">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow">
-                <Camera size={22} />
+
+            <div className="flex justify-center mb-6 pt-2">
+              <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#00d1e0] text-white shadow-xl shadow-purple-500/30 transform -rotate-6">
+                <Camera size={32} fill="currentColor" strokeWidth={0} />
               </div>
             </div>
-            <hr className="my-5 border-gray-200" />
+
+            <div className="w-full h-px bg-gray-100 mb-6" />
+
             <div
               onClick={() => progressFileRef.current?.click()}
-              className="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center cursor-pointer hover:border-purple-500 transition"
+              className="group border-2 border-dashed border-gray-200 rounded-[24px] p-6 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
             >
-              <Camera className="mx-auto text-purple-600 mb-2" size={28} />
-              <p className="font-semibold text-gray-800">Upload Progress Photo</p>
+              {progressFilePreview ? (
+                <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                  <img
+                    src={progressFilePreview}
+                    alt="Selected progress photo"
+                    className="h-48 w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-purple-100 transition-colors">
+                    <Upload
+                      className="text-[#6d28d9]"
+                      size={24}
+                      strokeWidth={2.5}
+                    />
+                  </div>
+                  <p className="text-lg font-bold text-[#1a1c1e] mb-1">
+                    Upload Image
+                  </p>
+                  <p className="text-gray-400 text-xs font-medium mb-0.5">
+                    or drag and drop
+                  </p>
+                  <p className="text-gray-300 text-[10px] font-medium">
+                    Max File Size 15MB
+                  </p>
+                </>
+              )}
+              {progressFile && (
+                <p className="mt-3 text-xs font-semibold text-[#6d28d9]">
+                  {progressFile.name}
+                </p>
+              )}
               <input
                 type="file"
                 ref={progressFileRef}
@@ -433,22 +593,41 @@ export default function PlayerCardPage() {
                 accept="image/*"
               />
             </div>
-            <button
-              disabled={!progressFile}
-              className={`w-full mt-5 py-2.5 rounded-xl font-semibold text-sm md:text-base transition ${
-                progressFile
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Upload Photo
-            </button>
-            <div className="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-3">
-  <p className="text-xs text-purple-700 flex items-start gap-2">
-    <span className="font-medium">TIP:</span>
-    <span>Take clear photos of your physique for best accuracy</span>
-  </p>
-</div>
+
+            <div className="flex flex-col gap-4 mt-6">
+              <button
+                disabled={!progressFile}
+                onClick={() => {
+                  if (!progressFile) return;
+                  setShowProgressModal(false);
+                  toast.success("Progress photo saved. Tap Submit Card to upload.");
+                }}
+                className={`w-full py-4 rounded-[18px] text-lg font-black shadow-lg transition-all duration-300 ${
+                  progressFile
+                    ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
+                    : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {progressFile ? "Save Photo" : "Select a File First"}
+              </button>
+
+              <button
+                onClick={() => setShowProgressModal(false)}
+                className="text-[#00d1e0] text-lg font-black hover:opacity-80 transition-opacity"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 bg-[#e6f9fb] rounded-xl p-3 border border-cyan-100/50">
+              <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-2">
+                <span className="text-sm">💡</span>
+                <span className="text-gray-400 font-medium">Tip:</span>
+                <span className="text-cyan-600/80">
+                  Clear photos of physique for best accuracy
+                </span>
+              </p>
+            </div>
           </div>
         </div>
       )}

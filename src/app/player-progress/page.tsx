@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { ArrowLeft, TrendingUp } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { getPlayerCardDetails } from '@/api/player-card/route';
+import { ArrowLeft, TrendingUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { getPlayerCardDetails, PlayerCardDetail } from "@/api/player-card/route";
 
 interface ProgressItem {
   id: number;
@@ -12,41 +12,54 @@ interface ProgressItem {
   smm: string;
   fat: string;
   score: number;
-  status?: 'Complete' | 'Pending';
+  status: "Complete" | "Pending" | "Reject";
+}
+
+function normalizeStatus(status: string | undefined): "Complete" | "Pending" | "Reject" {
+  const value = (status || "").trim().toLowerCase();
+  if (value === "complete") return "Complete";
+  if (value === "reject" || value === "rejected") return "Reject";
+  return "Pending";
+}
+
+function statusBadgeClass(status: "Complete" | "Pending" | "Reject"): string {
+  if (status === "Complete") return "bg-[#e6f9f6] text-[#00daba]";
+  if (status === "Reject") return "bg-[#fff1f0] text-[#ef4444]";
+  return "bg-gray-100 text-gray-400";
 }
 
 export default function PlayerProgress() {
   const router = useRouter();
   const [progressData, setProgressData] = useState<ProgressItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [stats, setStats] = useState({
     totalScans: 0,
-    weightChange: '0 lbs',
+    weightChange: "0 lbs",
     currentScore: 0,
     improvement: 0,
-    playerName: 'Shweta Gharge',
+    playerName: "Shweta Gharge",
   });
 
   useEffect(() => {
     const fetchProgress = async () => {
       try {
         setLoading(true);
-        
+
         // Call your API endpoint
-        const data = await getPlayerCardDetails();
-        console.log('API Response:', data);
-        
-        // Transform API data to match your component's format
-        // Adjust this mapping based on your actual API response structure
-        const formattedData = data.map((item: any, index: number) => ({
+        const response = await getPlayerCardDetails();
+        console.log("API Response:", response);
+
+        const rows = Array.isArray(response?.data) ? response.data : [];
+
+        const formattedData = rows.map((item: PlayerCardDetail, index: number) => ({
           id: item.id || index + 1,
-          date: item.date || 'N/A',
-          weight: item.currentWeight ? `${item.currentWeight} lbs` : '0 lbs',
-          smm: item.smm ? `${item.smm} lbs` : '0 lbs',
-          fat: item.bodyFat ? `${item.bodyFat}%` : '0%',
+          date: item.date || "N/A",
+          weight: item.currentWeight ? `${item.currentWeight} lbs` : "0 lbs",
+          smm: item.smm ? `${item.smm} lbs` : "0 lbs",
+          fat: item.bodyFat ? `${item.bodyFat}%` : "0%",
           score: item.bodyCampScore || 0,
-          status: item.status || 'Complete',
+          status: normalizeStatus(item.status),
         }));
 
         setProgressData(formattedData);
@@ -54,73 +67,81 @@ export default function PlayerProgress() {
         // Calculate stats from data
         if (formattedData.length > 0) {
           // Sort by date (assuming newest first)
-          const sorted = [...formattedData].sort((a, b) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
+          const sorted = [...formattedData].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
           );
-          
+
           const latestScan = sorted[0];
           const oldestScan = sorted[sorted.length - 1];
-          
+
           // Parse weight values (remove 'lbs' and convert to number)
           const latestWeight = parseFloat(latestScan.weight) || 0;
           const oldestWeight = parseFloat(oldestScan.weight) || 0;
           const weightDiff = (latestWeight - oldestWeight).toFixed(1);
-          
+
           // Calculate score improvement
           const latestScore = latestScan.score || 0;
           const oldestScore = oldestScan.score || 0;
           const scoreDiff = latestScore - oldestScore;
 
           setStats({
-            totalScans: formattedData.length,
-            weightChange: `${weightDiff.startsWith('-') ? '' : '+'}${weightDiff} lbs`,
+            totalScans: response.total_scan ?? formattedData.length,
+            weightChange: `${weightDiff.startsWith("-") ? "" : "+"}${weightDiff} lbs`,
             currentScore: latestScore,
-            improvement: scoreDiff,
-            playerName: data[0]?.name || 'Shweta Gharge',
+            improvement: response.improvement ?? scoreDiff,
+            playerName: response.name || rows[0]?.name || "Shweta Gharge",
           });
+        } else {
+          setStats((prev) => ({
+            ...prev,
+            totalScans: response.total_scan ?? 0,
+            improvement: response.improvement ?? 0,
+            playerName: response.name || prev.playerName,
+          }));
         }
+      } catch (err: unknown) {
+        console.error("Error fetching progress:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load progress data",
+        );
 
-      } catch (err: any) {
-        console.error('Error fetching progress:', err);
-        setError(err.message || 'Failed to load progress data');
-        
         // Fallback to dummy data if API fails
         setProgressData([
           {
             id: 4,
-            date: '2/3/2026',
-            weight: '67 lbs',
-            smm: '52.4 lbs',
-            fat: '18.2%',
+            date: "2/3/2026",
+            weight: "67 lbs",
+            smm: "52.4 lbs",
+            fat: "18.2%",
             score: 85,
-            status: 'Complete',
+            status: "Complete",
           },
           {
             id: 3,
-            date: '1/15/2026',
-            weight: '68.5 lbs',
-            smm: '51.8 lbs',
-            fat: '19.1%',
+            date: "1/15/2026",
+            weight: "68.5 lbs",
+            smm: "51.8 lbs",
+            fat: "19.1%",
             score: 82,
-            status: 'Complete',
+            status: "Complete",
           },
           {
             id: 2,
-            date: '12/28/2025',
-            weight: '69.2 lbs',
-            smm: '51.2 lbs',
-            fat: '20%',
+            date: "12/28/2025",
+            weight: "69.2 lbs",
+            smm: "51.2 lbs",
+            fat: "20%",
             score: 79,
-            status: 'Complete',
+            status: "Complete",
           },
         ]);
-        
+
         setStats({
           totalScans: 3,
-          weightChange: '-2.2 lbs',
+          weightChange: "-2.2 lbs",
           currentScore: 85,
           improvement: 6,
-          playerName: 'Shweta Gharge',
+          playerName: "Shweta Gharge",
         });
       } finally {
         setLoading(false);
@@ -160,148 +181,195 @@ export default function PlayerProgress() {
   }
 
   return (
-    <main className="min-h-screen bg-[#eef1f5] px-5 py-6 md:p-8">
-      {/* HEADER */}
-      <div className="flex items-center gap-3 mb-6 md:mb-8">
+    <main className="min-h-screen bg-[#f8f9fb] px-5 py-6 md:p-10 font-sans">
+      {/* HEADER SECTION */}
+      <div className="flex items-center gap-4 mb-8">
         <button
           onClick={() => router.back()}
-          className="p-2.5 rounded-full bg-white shadow-sm"
+          className="p-2.5 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={18} className="text-gray-700" strokeWidth={2.5} />
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center">
-            <TrendingUp size={16} />
+          <div className="w-10 h-10 rounded-xl bg-[#6d28d9] text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+            <TrendingUp size={22} strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold">Player Progress</h1>
-            <p className="text-gray-500 text-xs md:text-sm">
+            <h1 className="text-2xl font-bold text-[#1a1c1e] tracking-tight">
+              Player Progress
+            </h1>
+            <p className="text-gray-400 text-xs font-medium">
               Track {stats.playerName}’s fitness journey
             </p>
           </div>
         </div>
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
-        <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm">
-          <p className="text-gray-500 text-xs md:text-sm">Total Scans</p>
-          <p className="text-2xl md:text-3xl font-bold text-purple-600 mt-1">{stats.totalScans}</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm">
-          <p className="text-gray-500 text-xs md:text-sm">Weight Change</p>
-          <p className={`text-2xl md:text-3xl font-bold mt-1 ${
-            stats.weightChange.startsWith('-') ? 'text-green-500' : 
-            stats.weightChange === '0 lbs' ? 'text-gray-500' : 'text-orange-500'
-          }`}>
-            {stats.weightChange}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm">
-          <p className="text-gray-500 text-xs md:text-sm">Current Score</p>
-          <p className="text-2xl md:text-3xl font-bold text-purple-600 mt-1">{stats.currentScore}</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm">
-          <p className="text-gray-500 text-xs md:text-sm">Improvement</p>
-          <p className={`text-2xl md:text-3xl font-bold mt-1 ${
-            stats.improvement > 0 ? 'text-green-500' : 
-            stats.improvement < 0 ? 'text-red-500' : 'text-gray-500'
-          }`}>
-            {stats.improvement > 0 ? '+' : ''}{stats.improvement}
-          </p>
-        </div>
+      {/* SUMMARY STATS GRID */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        {[
+          {
+            label: "Total Scans",
+            value: stats.totalScans,
+            color: "text-[#6d28d9]",
+          },
+          {
+            label: "Weight Change",
+            value: stats.weightChange,
+            color: stats.weightChange.startsWith("-")
+              ? "text-[#00daba]"
+              : "text-orange-500",
+          },
+          {
+            label: "Current Score",
+            value: stats.currentScore,
+            color: "text-[#6d28d9]",
+          },
+          {
+            label: "Improvement",
+            value: `${stats.improvement > 0 ? "+" : ""}${stats.improvement}`,
+            color: stats.improvement >= 0 ? "text-[#00daba]" : "text-red-500",
+          },
+        ].map((stat, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-2xl p-5 shadow-sm border border-white"
+          >
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">
+              {stat.label}
+            </p>
+            <p className={`text-3xl font-bold ${stat.color} leading-none`}>
+              {stat.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* TIMELINE */}
-      <div className="bg-white rounded-2xl shadow p-5 md:p-6">
-        <h2 className="text-lg font-bold mb-4">Progress Timeline</h2>
+      {/* PROGRESS TIMELINE SECTION */}
+      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-6 md:p-8">
+        <h2 className="text-lg font-bold text-[#1a1c1e] mb-6 tracking-tight">
+          Progress Timeline
+        </h2>
 
-        <div className="space-y-3">
-          {progressData.map((item) => (
+        <div className="space-y-4">
+          {progressData.map((item, index) => (
             <div
               key={item.id}
-              className="border rounded-xl p-4 flex items-center justify-between hover:shadow transition"
+              className="group border border-gray-50 bg-white rounded-2xl p-4 flex items-center justify-between hover:shadow-md transition-all duration-200"
             >
-              {/* LEFT SECTION */}
+              {/* CONTENT SECTION */}
               <div className="flex items-center gap-4 flex-1">
-                {/* ID Circle */}
-                <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                {/* ID BADGE */}
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#6d28d9] to-[#7c3aed] text-white flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md shadow-purple-500/10">
                   #{item.id}
                 </div>
 
-                {/* Image Placeholder */}
-                <div className="w-12 h-12 bg-gray-200 rounded-md flex-shrink-0" />
+                {/* SCAN IMAGE */}
+                <div className="w-12 h-12 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100">
+                  <img
+                    src="/images/svg.png"
+                    alt="Scan"
+                    className="w-full h-full object-cover grayscale opacity-60"
+                  />
+                </div>
 
-                {/* Content */}
+                {/* INFO & METRICS */}
                 <div className="flex-1">
-                  {/* Date and Status Row */}
                   <div className="flex items-center gap-3 mb-2">
-                    <p className="font-semibold text-sm md:text-base">{item.date}</p>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full ${
-                      item.status === 'Complete' 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {item.status || 'Complete'}
+                    <p className="text-base font-bold text-[#1a1c1e]">
+                      {item.date}
+                    </p>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusBadgeClass(item.status)}`}
+                    >
+                      {item.status}
                     </span>
                   </div>
 
-                  {/* Metrics Grid */}
-                  <div className="grid grid-cols-4 gap-6 text-xs md:text-sm">
-                    <div>
-                      <span className="text-gray-500 block mb-0.5">Weight</span>
-                      <div className="text-purple-600 font-semibold">{item.weight}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block mb-0.5">SMM</span>
-                      <div className="text-blue-600 font-semibold">{item.smm}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block mb-0.5">Body Fat</span>
-                      <div className="text-orange-500 font-semibold">{item.fat}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block mb-0.5">Score</span>
-                      <div className="text-purple-600 font-semibold">{item.score}</div>
-                    </div>
+                  {/* METRICS ROW */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+                    {[
+                      {
+                        label: "Weight",
+                        value: item.weight,
+                        color: "text-[#6d28d9]",
+                        delta: index === 0 ? "-2 lbs" : null,
+                        deltaColor: "bg-[#e6f9f6] text-[#00daba]",
+                      },
+                      {
+                        label: "SMM",
+                        value: item.smm,
+                        color: "text-sky-500",
+                        delta: index === 0 ? "+0.6 lbs" : null,
+                        deltaColor: "bg-[#e6f9f6] text-[#00daba]",
+                      },
+                      {
+                        label: "Body Fat",
+                        value: item.fat,
+                        color: "text-orange-500",
+                        delta: index === 0 ? "-0.9%" : null,
+                        deltaColor: "bg-[#fff1f0] text-red-400",
+                      },
+                      {
+                        label: "Comp Score",
+                        value: item.score,
+                        color: "text-[#6d28d9]",
+                        delta: index === 0 ? "+3" : null,
+                        deltaColor: "bg-[#e6f9f6] text-[#00daba]",
+                      },
+                    ].map((m, i) => (
+                      <div key={i} className="flex flex-col">
+                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                          {m.label}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`${m.color} text-sm font-bold`}>
+                            {m.value}
+                          </span>
+                          {m.delta && (
+                            <span
+                              className={`${m.deltaColor} text-[8px] font-bold px-1.5 py-0.5 rounded-md`}
+                            >
+                              {m.delta}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT ARROW */}
-              <div className="text-purple-500 text-lg pl-4 flex-shrink-0">›</div>
+              {/* NAV ARROW */}
+              <div className="pl-4">
+                <div className="p-2 rounded-xl group-hover:bg-purple-50 text-gray-300 group-hover:text-[#6d28d9] transition-all cursor-pointer">
+                  <ArrowLeft
+                    className="rotate-180"
+                    size={18}
+                    strokeWidth={2.5}
+                  />
+                </div>
+              </div>
             </div>
           ))}
 
-          {/* PENDING CARD - only show if there's a pending scan in data */}
-          {progressData.some(item => item.status === 'Pending') && (
-            <div className="border rounded-xl p-4 flex items-center gap-4 opacity-65">
-              <div className="w-10 h-10 rounded-full bg-purple-300 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                #1
-              </div>
-
-              <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-lg flex-shrink-0">
-                📅
-              </div>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <p className="font-semibold text-sm">12/10/2025</p>
-                  <span className="text-xs bg-gray-200 px-2.5 py-0.5 rounded-full">
-                    Pending
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">Scan not completed yet</p>
-              </div>
+          {progressData.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/40 px-5 py-6 text-center text-sm font-semibold text-gray-400">
+              No progress cards yet.
             </div>
           )}
         </div>
       </div>
 
-      {/* TIP */}
-      <div className="mt-6 bg-gradient-to-r from-purple-50 to-blue-50 text-purple-700 text-sm rounded-xl p-3.5 text-center">
-        Keep uploading scans to see your progress!
+      {/* FOOTER BANNER */}
+      <div className="mt-8 mb-4 overflow-hidden rounded-2xl">
+        <div className="bg-gradient-to-r from-purple-50 via-white to-cyan-50 p-4 border-b-2 border-[#6d28d9] flex items-center justify-center gap-2 shadow-sm">
+          <span className="text-base">📈</span>
+          <p className="text-xs md:text-sm font-bold text-[#6d28d9] text-center tracking-tight">
+            Keep uploading scans to track your progress over time!
+          </p>
+        </div>
       </div>
     </main>
   );

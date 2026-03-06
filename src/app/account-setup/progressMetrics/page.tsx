@@ -4,21 +4,30 @@ import React, { useState } from 'react';
 import { Upload, BarChart3, Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import { useToast } from '@/components/ui/toast-provider';
 
 export default function ProgressMetricsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [progressPhoto, setProgressPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { alert('File size must be less than 10MB'); return; }
-    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) { alert('Please upload a JPG, PNG or HEIC file'); return; }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) {
+      toast.error('Please upload a JPG, PNG or HEIC file');
+      return;
+    }
     setProgressPhoto(file);
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result as string);
     reader.readAsDataURL(file);
+    toast.success('Progress photo selected');
   };
 
   return (

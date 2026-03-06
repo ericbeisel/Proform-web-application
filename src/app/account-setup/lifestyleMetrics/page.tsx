@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ChevronUp, ChevronDown, Footprints, Flame, Camera, Upload, BarChart3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import { useToast } from '@/components/ui/toast-provider';
 
 function NumberInput({ value, onChange, placeholder, min = 0, max = 999999, step = 1, required = false }: {
   value: string; onChange: (v: string) => void; placeholder: string;
@@ -39,18 +40,26 @@ function NumberInput({ value, onChange, placeholder, min = 0, max = 999999, step
 
 export default function LifestyleMetricsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [formData, setFormData] = useState({ dailySteps: '', cardioCalorieGoal: '', progressPhoto: null as File | null });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { alert('File size must be less than 10MB'); return; }
-    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) { alert('Please upload a JPG, PNG or HEIC file'); return; }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) {
+      toast.error('Please upload a JPG, PNG or HEIC file');
+      return;
+    }
     setFormData({ ...formData, progressPhoto: file });
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result as string);
     reader.readAsDataURL(file);
+    toast.success('Progress photo selected');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,7 +85,7 @@ export default function LifestyleMetricsPage() {
       />
 
       <div className="mb-8 sm:mb-10">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Let's understand your activity level</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Let&apos;s understand your activity level</h1>
         <p className="text-gray-500 text-sm sm:text-base">Enter your average daily steps and weekly cardio goal to personalize your experience.</p>
       </div>
 

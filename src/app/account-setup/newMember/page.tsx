@@ -9,6 +9,7 @@ import { removeMemberChecklist } from '@/api/auth/remove-member-checklist/route'
 export default function NewMemberChecklist() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const router = useRouter();
 
   const steps = [
@@ -21,12 +22,17 @@ export default function NewMemberChecklist() {
     if (isClosing) return;
     setIsClosing(true);
 
+    router.replace('/dashboard');
+  };
+
+  const handleDontShowAgain = async (checked: boolean) => {
+    if (!checked || isSkipping) return;
+    setDontShowAgain(true);
+    setIsSkipping(true);
+
     try {
-      if (dontShowAgain) {
-        await removeMemberChecklist();
-      }
+      await removeMemberChecklist();
     } catch (error) {
-      // Continue navigation even if checklist preference update fails.
       console.error('Failed to update checklist preference:', error);
     } finally {
       router.replace('/dashboard');
@@ -119,10 +125,10 @@ export default function NewMemberChecklist() {
       </div>
 
       <div className="flex items-center justify-center gap-2">
-        <input type="checkbox" id="dontShow" checked={dontShowAgain} onChange={(e) => setDontShowAgain(e.target.checked)}
+        <input type="checkbox" id="dontShow" checked={dontShowAgain} onChange={(e) => { void handleDontShowAgain(e.target.checked); }}
           className="w-4 h-4 accent-[#6202AC] cursor-pointer rounded" />
         <label htmlFor="dontShow" className="text-xs sm:text-sm text-gray-500 cursor-pointer select-none">
-          Don't show me this again
+          Don&apos;t show me this again
         </label>
       </div>
     </>

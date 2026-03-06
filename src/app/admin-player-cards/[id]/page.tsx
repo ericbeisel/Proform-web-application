@@ -1,0 +1,439 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import {
+  ArrowLeft,
+  BarChart3,
+  Zap,
+  Target,
+  Award,
+  TrendingUp as TrendingUpIcon,
+} from "lucide-react";
+import {
+  acceptAdminPlayerCard,
+  getAdminPlayerCardDetails,
+  PlayerCardDetail,
+  rejectAdminPlayerCard,
+} from "@/api/player-card/route";
+
+type ToastType = "success" | "error";
+
+type MetricsState = {
+  currentWeight: string;
+  height: string;
+  smm: string;
+  bodyFat: string;
+  bodyCampScore: string;
+};
+
+function initialMetrics(cardData?: PlayerCardDetail | null): MetricsState {
+  return {
+    currentWeight: cardData?.currentWeight?.toString() || "0.00",
+    height: cardData?.height?.toString() || "0.00",
+    smm: cardData?.smm?.toString() || "0",
+    bodyFat: cardData?.bodyFat?.toString() || "0",
+    bodyCampScore: cardData?.bodyCampScore?.toString() || "00",
+  };
+}
+
+function toastStyles(type: ToastType): string {
+  return type === "success"
+    ? "border-[#b7e9d7] bg-[#e8f8f2] text-[#0f7f5c]"
+    : "border-[#f1c8c1] bg-[#fff2f0] text-[#c0392b]";
+}
+
+function statusStyles(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "complete") return "bg-[#00daba] text-white";
+  if (normalized === "reject") return "bg-[#ef4444] text-white";
+  return "bg-[#9ca3af] text-white";
+}
+
+export default function AdminPlayerCardDetail() {
+  const router = useRouter();
+  const { id } = useParams();
+
+  const parsedId = useMemo(() => {
+    const value = Array.isArray(id) ? id[0] : id;
+    const asNumber = Number.parseInt(value || "", 10);
+    return Number.isNaN(asNumber) ? null : asNumber;
+  }, [id]);
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [cardData, setCardData] = useState<PlayerCardDetail | null>(null);
+  const [metrics, setMetrics] = useState<MetricsState>(initialMetrics());
+  const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectComment, setRejectComment] = useState("");
+
+  useEffect(() => {
+    if (parsedId === null) {
+      setLoading(false);
+      setToast({ type: "error", message: "Invalid player card id." });
+      return;
+    }
+
+    const fetchCard = async () => {
+      try {
+        setLoading(true);
+        const data = await getAdminPlayerCardDetails(parsedId);
+        setCardData(data);
+        setMetrics(initialMetrics(data));
+      } catch (error: unknown) {
+        setToast({
+          type: "error",
+          message: error instanceof Error ? error.message : "Failed to load player card details.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchCard();
+  }, [parsedId]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const safe = value.replace(/[^\d.]/g, "");
+    setMetrics((prev) => ({ ...prev, [name]: safe }));
+  };
+
+  const handleAccept = async () => {
+    if (parsedId === null) return;
+    try {
+      setSubmitting(true);
+      await acceptAdminPlayerCard({
+        id: parsedId,
+        currentWeight: metrics.currentWeight || "0",
+        height: metrics.height || "0",
+        smm: metrics.smm || "0",
+        bodyFat: metrics.bodyFat || "0",
+        bodyCampScore: metrics.bodyCampScore || "0",
+      });
+      setToast({ type: "success", message: "Card approved successfully." });
+      router.push("/admin-player-cards");
+    } catch (error: unknown) {
+      setToast({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to approve card.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (parsedId === null) return;
+    if (!rejectComment.trim()) {
+      setToast({ type: "error", message: "Rejection comment is required." });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await rejectAdminPlayerCard({
+        id: parsedId,
+        reject_comment: rejectComment.trim(),
+      });
+      setShowRejectModal(false);
+      setRejectComment("");
+      setToast({ type: "success", message: "Card rejected successfully." });
+      router.push("/admin-player-cards");
+    } catch (error: unknown) {
+      setToast({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to reject card.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const scanDate = cardData?.date ? cardData.date.split(" ")[0] : "N/A";
+  const playerName = cardData?.name || "User";
+  const statusText = cardData?.status || "Pending";
+
+  return (
+    <main className="min-h-screen bg-[#f8f9fb] px-4 py-6 md:p-10 font-sans">
+      {toast && (
+        <div className="fixed right-4 top-4 z-50 w-full max-w-sm">
+          <div className={`rounded-lg border px-4 py-3 text-sm font-semibold shadow ${toastStyles(toast.type)}`}>
+            {toast.message}
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.back()}
+            className="p-3 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-all border border-gray-100"
+          >
+            <ArrowLeft size={20} className="text-gray-700" strokeWidth={2.5} />
+          </button>
+
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#333] text-white flex items-center justify-center shadow-lg border-2 border-white">
+              <Award size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[#1a1c1e] tracking-tight">
+                Player Card
+              </h1>
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+                {playerName}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button className="flex items-center gap-2 bg-[#f8f9fc] border-2 border-[#6d28d9] text-[#6d28d9] px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-purple-50 transition-all shadow-sm uppercase tracking-wider">
+          <BarChart3 size={16} />
+          View Player Progress
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="max-w-[1400px] mx-auto rounded-2xl bg-white p-8 text-center text-sm font-semibold text-gray-500">
+          Loading player card...
+        </div>
+      ) : (
+        <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-4 h-full">
+            <div className="bg-white rounded-[40px] p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] border border-white h-full relative overflow-hidden flex flex-col items-center">
+              <div className="absolute inset-0 bg-[#1a1c1e] m-4 rounded-[32px] overflow-hidden">
+                <div
+                  className="absolute inset-0 opacity-10"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+                    backgroundSize: "40px 40px",
+                  }}
+                />
+                <div className="relative h-full w-full flex items-center justify-center p-12">
+                  <img
+                    src={cardData?.progressImage || "/images/svg.png"}
+                    alt="Human Asset"
+                    className="h-full w-auto object-contain brightness-110"
+                  />
+                </div>
+              </div>
+
+              <div className="h-[500px] w-full" />
+
+              <button className="mt-6 text-[#6d28d9] text-xs font-bold underline underline-offset-4 uppercase tracking-widest hover:opacity-70 transition-opacity relative z-10">
+                Progress Photo
+              </button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 space-y-8">
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-white">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-[#1a1c1e]">
+                    Body Scan Photo
+                  </h3>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                    Scan Date: {scanDate}
+                  </p>
+                </div>
+                <span className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${statusStyles(statusText)}`}>
+                  {statusText.toUpperCase()}
+                </span>
+              </div>
+              <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 border border-gray-100">
+                <img
+                  src={cardData?.inBodyScans || "/images/svg.png"}
+                  alt="Scan Thumbnail"
+                  className="w-full h-full object-cover grayscale opacity-60"
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-white relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-xs font-bold text-[#1a1c1e] uppercase tracking-wider">
+                    Composition Score
+                  </h3>
+                  <p className="text-gray-400 text-[10px] font-medium">
+                    Overall fitness rating
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-[#6d28d9]">
+                  <Target size={20} />
+                </div>
+              </div>
+
+              <input
+                type="text"
+                name="bodyCampScore"
+                value={metrics.bodyCampScore}
+                onChange={handleChange}
+                className="text-[80px] font-bold text-[#6d28d9] leading-none tracking-tighter w-full bg-transparent border-none outline-none focus:ring-0 p-0"
+                placeholder="00"
+              />
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 space-y-8">
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-white">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xs font-bold text-[#1a1c1e] uppercase tracking-wider">
+                  Basic Metrics
+                </h3>
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-[#6d28d9]">
+                  <TrendingUpIcon size={20} />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between group">
+                  <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
+                    Current Wt (lbs):
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="currentWeight"
+                      value={metrics.currentWeight}
+                      onChange={handleChange}
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-24 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="h-px bg-gray-50 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
+                <div className="flex items-center justify-between group">
+                  <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
+                    Height (Inches):
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="height"
+                      value={metrics.height}
+                      onChange={handleChange}
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-24 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-white">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xs font-bold text-[#1a1c1e] uppercase tracking-wider">
+                  Body Composition
+                </h3>
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-[#6d28d9]">
+                  <Zap size={20} />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between group">
+                  <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
+                    SMM (lbs):
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="smm"
+                      value={metrics.smm}
+                      onChange={handleChange}
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-16 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="h-px bg-gray-50 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
+                <div className="flex items-center justify-between group">
+                  <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
+                    Body Fat (%):
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="bodyFat"
+                      value={metrics.bodyFat}
+                      onChange={handleChange}
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-16 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <button
+                onClick={() => void handleAccept()}
+                disabled={submitting}
+                className="w-full bg-[#6202AC] hover:bg-[#500ba6] text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-500/20 active:scale-[0.98] transition-all uppercase tracking-widest text-sm disabled:opacity-70"
+              >
+                {submitting ? "Submitting..." : "Submit Card"}
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                disabled={submitting}
+                className="w-full bg-white border-2 border-[#6d28d9] text-[#6d28d9] hover:bg-purple-50 font-bold py-4 rounded-2xl active:scale-[0.98] transition-all uppercase tracking-widest text-sm disabled:opacity-70"
+              >
+                Reject Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRejectModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-[#1a1c1e]">Reject Card</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Please add a reason for rejection.
+            </p>
+
+            <textarea
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              className="mt-4 h-28 w-full resize-none rounded-xl border border-gray-200 p-3 text-sm text-gray-800 outline-none focus:border-[#6202AC]"
+              placeholder="Enter rejection reason..."
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectComment("");
+                }}
+                className="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleReject()}
+                disabled={submitting}
+                className="rounded-full bg-[#6202AC] px-5 py-2 text-sm font-semibold text-white disabled:opacity-70"
+              >
+                {submitting ? "Submitting..." : "Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
