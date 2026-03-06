@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useCallback, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,38 +14,11 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import EditTimeModal, { TimeSlot } from "./EditTimeModal";
-
-// Mock API functions for React Query demonstration
-const fetchPreferences = async () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        weeklyTargets: {
-          resistance: "4",
-          cardio: "4",
-          supplemental: "4",
-          conditioning: "3",
-        },
-        calories: "4000",
-        steps: "8000",
-        schedule: {
-          workout: { Monday: [{ startTime: "03:30 PM" }] },
-          cardio: { Tuesday: [{ startTime: "04:30 PM" }] },
-          supplemental: { Wednesday: [{ startTime: "01:30 PM" }] },
-          conditioning: { Thursday: [{ startTime: "04:30 PM" }] },
-        },
-      });
-    }, 500);
-  });
-};
-
-const updatePreferencesAPI = async (data: any) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ success: true, data });
-    }, 500);
-  });
-};
+import {
+  ActivityDay,
+  preferenceApi,
+  WeeklyTarget as ApiWeeklyTarget,
+} from "@/api/preferences/route";
 
 const DAYS = ["M", "T", "W", "Th", "F", "Sa", "Su"];
 const DAY_MAP: Record<string, string> = {
@@ -56,6 +29,120 @@ const DAY_MAP: Record<string, string> = {
   F: "Friday",
   Sa: "Saturday",
   Su: "Sunday",
+};
+const REVERSE_DAY_MAP: Record<string, string> = Object.entries(DAY_MAP).reduce(
+  (acc, [short, full]) => ({ ...acc, [full]: short }),
+  {},
+);
+const SECTION_TO_API_TYPE: Record<ScheduleSection, string> = {
+  workout: "Workout",
+  cardio: "Cardio",
+  supplemental: "Supplemental",
+  conditioning: "Conditioning",
+};
+
+type ScheduleSection = "workout" | "cardio" | "supplemental" | "conditioning";
+
+type WeeklyTargetsState = {
+  resistance: string;
+  cardio: string;
+  supplemental: string;
+  conditioning: string;
+};
+
+type ToastType = "success" | "error";
+type ToastMessage = {
+  id: number;
+  type: ToastType;
+  message: string;
+};
+
+type PreferencesQueryData = {
+  weeklyTargets: WeeklyTargetsState;
+  calories: string;
+  steps: string;
+  schedule: Record<ScheduleSection, Record<string, TimeSlot[]>>;
+};
+
+function formatFromApiTime(time: string): string {
+  const [h = "0", m = "00"] = time.split(":");
+  let hours = Number(h);
+  if (Number.isNaN(hours)) hours = 0;
+  const ap = hours >= 12 ? "PM" : "AM";
+  const formattedHours = hours % 12 || 12;
+  return `${formattedHours.toString().padStart(2, "0")}:${m} ${ap}`;
+}
+
+function formatToApiTime(time: string): string {
+  const [h_m, ap] = time.split(" ");
+  const [h = "0", m = "00"] = h_m.split(":");
+  let hours = Number(h);
+  if (Number.isNaN(hours)) hours = 0;
+  const upperAp = (ap || "AM").toUpperCase();
+  if (upperAp === "PM" && hours < 12) hours += 12;
+  if (upperAp === "AM" && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, "0")}:${m.padStart(2, "0")}:00`;
+}
+
+function getSelectedDays(sectionTimes: Record<string, TimeSlot[]>): string[] {
+  return Object.keys(sectionTimes)
+    .map((fullDay) => REVERSE_DAY_MAP[fullDay])
+    .filter(Boolean);
+}
+
+function toInt(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function normalizeSectionTimes(times: Record<string, TimeSlot[]>): Record<string, TimeSlot[]> {
+  return Object.fromEntries(
+    Object.entries(times).filter(([, slots]) => Array.isArray(slots) && slots.length > 0),
+  );
+}
+
+const fetchPreferences = async (): Promise<PreferencesQueryData> => {
+  const [prefData, targetData, cardioData, stepData, workoutDays, cardioDays, supplementalDays, conditioningDays] =
+    await Promise.all([
+      preferenceApi.getPreferencesData(),
+      preferenceApi.getWeeklyTarget(),
+      preferenceApi.getCardioGoal(),
+      preferenceApi.getAvgSteps(),
+      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.workout),
+      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.cardio),
+      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.supplemental),
+      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.conditioning),
+    ]);
+
+  const toSectionTimes = (items: ActivityDay[]) => {
+    const sectionTimes: Record<string, TimeSlot[]> = {};
+    items.forEach((entry) => {
+      const mappedTimes = Array.isArray(entry.time)
+        ? entry.time.map((item) => ({ startTime: formatFromApiTime(item) }))
+        : [];
+      if (entry.day) {
+        sectionTimes[entry.day] = mappedTimes;
+      }
+    });
+    return normalizeSectionTimes(sectionTimes);
+  };
+
+  return {
+    weeklyTargets: {
+      resistance: String(targetData?.workout ?? prefData?.workout ?? 0),
+      cardio: String(targetData?.cardio ?? prefData?.cardio ?? 0),
+      supplemental: String(targetData?.supplement ?? prefData?.supplement ?? 0),
+      conditioning: String(targetData?.conditioning ?? prefData?.conditioning ?? 0),
+    },
+    calories: String(cardioData?.calories_goal ?? prefData?.calories_goal ?? 0),
+    steps: String(stepData?.avarage_daily_steps ?? prefData?.avarage_daily_steps ?? 0),
+    schedule: {
+      workout: toSectionTimes(workoutDays),
+      cardio: toSectionTimes(cardioDays),
+      supplemental: toSectionTimes(supplementalDays),
+      conditioning: toSectionTimes(conditioningDays),
+    },
+  };
 };
 
 type DayGridProps = {
@@ -161,26 +248,18 @@ const MemoizedScheduleBlock = React.memo(ScheduleBlock);
 
 export default function PreferencesPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
-  const { data: preferencesData, isLoading } = useQuery({
+  const { data: preferencesData, isLoading, isError, error } = useQuery({
     queryKey: ["preferences"],
     queryFn: fetchPreferences,
   });
 
-  const mutation = useMutation({
-    mutationFn: updatePreferencesAPI,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["preferences"] });
-    },
-  });
+  const [workoutDays, setWorkoutDays] = useState<string[]>([]);
+  const [cardioDays, setCardioDays] = useState<string[]>([]);
+  const [supplementalDays, setSupplementalDays] = useState<string[]>([]);
+  const [conditioningDays, setConditioningDays] = useState<string[]>([]);
 
-  const [workoutDays, setWorkoutDays] = useState(["M", "W", "Th", "F"]);
-  const [cardioDays, setCardioDays] = useState(["T", "Sa"]);
-  const [supplementalDays, setSupplementalDays] = useState(["W", "Su"]);
-  const [conditioningDays, setConditioningDays] = useState(["M", "Th"]);
-
-  const [activeEditSection, setActiveEditSection] = useState<string | null>(
+  const [activeEditSection, setActiveEditSection] = useState<ScheduleSection | null>(
     null,
   );
   const [scheduleData, setScheduleData] = useState<
@@ -192,89 +271,154 @@ export default function PreferencesPage() {
     conditioning: {},
   });
 
-  const [calories, setCalories] = useState("4000");
-  const [steps, setSteps] = useState("8000");
+  const [calories, setCalories] = useState("0");
+  const [steps, setSteps] = useState("0");
   const [showWeeklyTargetModal, setShowWeeklyTargetModal] = useState(false);
   const [showCardioGoalModal, setShowCardioGoalModal] = useState(false);
-  const [weeklyTargets, setWeeklyTargets] = useState({
-    resistance: "4",
-    cardio: "4",
-    supplemental: "4",
-    conditioning: "3",
+  const [weeklyTargets, setWeeklyTargets] = useState<WeeklyTargetsState>({
+    resistance: "0",
+    cardio: "0",
+    supplemental: "0",
+    conditioning: "0",
   });
   const [newCardioGoal, setNewCardioGoal] = useState("0");
-  const [goalEntry, setGoalEntry] = useState("");
   const [weightUnit, setWeightUnit] = useState("KG");
   const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isSavingSteps, setIsSavingSteps] = useState(false);
+
+  const showToast = useCallback((type: ToastType, message: string) => {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 3500);
+  }, []);
 
   // Sync loaded data
   useEffect(() => {
     if (preferencesData) {
-      const data = preferencesData as any;
-      setCalories(data.calories);
-      setSteps(data.steps);
-      setWeeklyTargets(data.weeklyTargets);
-      setScheduleData(data.schedule);
-      if (data.weightUnit) setWeightUnit(data.weightUnit);
+      setCalories(preferencesData.calories);
+      setSteps(preferencesData.steps);
+      setWeeklyTargets(preferencesData.weeklyTargets);
+      setScheduleData(preferencesData.schedule);
+      setWorkoutDays(getSelectedDays(preferencesData.schedule.workout));
+      setCardioDays(getSelectedDays(preferencesData.schedule.cardio));
+      setSupplementalDays(getSelectedDays(preferencesData.schedule.supplemental));
+      setConditioningDays(getSelectedDays(preferencesData.schedule.conditioning));
+      setNewCardioGoal(preferencesData.calories);
     }
   }, [preferencesData]);
 
-  // Ensure that all selected days across all sections have at least one time slot populated.
-  // This powers the radio selection indicator inside the EditTimeModal.
   useEffect(() => {
-    setScheduleData((prev) => {
-      let changed = false;
-      const newSchedule = { ...prev };
+    if (isError) {
+      showToast("error", (error as Error)?.message || "Failed to load preferences.");
+    }
+  }, [error, isError, showToast]);
 
-      const syncSection = (
-        section: "workout" | "cardio" | "supplemental" | "conditioning",
-        days: string[],
-      ) => {
-        days.forEach((shortDay) => {
-          const fullDay = DAY_MAP[shortDay];
-          if (fullDay) {
-            if (!newSchedule[section]) {
-              newSchedule[section] = {};
-            }
-            if (
-              !newSchedule[section][fullDay] ||
-              newSchedule[section][fullDay].length === 0
-            ) {
-              newSchedule[section] = {
-                ...newSchedule[section],
-                [fullDay]: [{ startTime: "09:00 AM" }],
-              };
-              changed = true;
-            }
-          }
-        });
-      };
+  const setSelectedDaysForSection = useCallback(
+    (section: ScheduleSection, days: string[]) => {
+      switch (section) {
+        case "workout":
+          setWorkoutDays(days);
+          break;
+        case "cardio":
+          setCardioDays(days);
+          break;
+        case "supplemental":
+          setSupplementalDays(days);
+          break;
+        case "conditioning":
+          setConditioningDays(days);
+          break;
+        default:
+          break;
+      }
+    },
+    [],
+  );
 
-      syncSection("workout", workoutDays);
-      syncSection("cardio", cardioDays);
-      syncSection("supplemental", supplementalDays);
-      syncSection("conditioning", conditioningDays);
+  const saveActivityDays = useCallback(
+    async (
+      section: ScheduleSection,
+      times: Record<string, TimeSlot[]>,
+      showSuccess = false,
+    ) => {
+      const type = SECTION_TO_API_TYPE[section];
+      const activity: ActivityDay[] = Object.entries(times).map(([day, slots]) => ({
+        day,
+        time: slots.map((slot) => formatToApiTime(slot.startTime)),
+      }));
 
-      return changed ? newSchedule : prev;
-    });
-  }, [workoutDays, cardioDays, supplementalDays, conditioningDays]);
+      await preferenceApi.addActivityDays(type, activity);
+      if (showSuccess) {
+        showToast("success", `${type} schedule updated successfully.`);
+      }
+    },
+    [showToast],
+  );
+
+  const handleSectionDayChange = useCallback(
+    async (section: ScheduleSection, nextSelectedDays: string[]) => {
+      const currentSection = scheduleData[section] || {};
+      const nextSectionTimes: Record<string, TimeSlot[]> = {};
+
+      nextSelectedDays.forEach((shortDay) => {
+        const fullDay = DAY_MAP[shortDay];
+        if (!fullDay) return;
+        nextSectionTimes[fullDay] = currentSection[fullDay]?.length
+          ? currentSection[fullDay]
+          : [{ startTime: "09:00 AM" }];
+      });
+
+      const normalized = normalizeSectionTimes(nextSectionTimes);
+      setSelectedDaysForSection(section, nextSelectedDays);
+      setScheduleData((prev) => ({
+        ...prev,
+        [section]: normalized,
+      }));
+
+      try {
+        await saveActivityDays(section, normalized, true);
+      } catch (saveError: unknown) {
+        showToast(
+          "error",
+          (saveError as Error)?.message ||
+            `Failed to update ${SECTION_TO_API_TYPE[section]} schedule.`,
+        );
+      }
+    },
+    [saveActivityDays, scheduleData, setSelectedDaysForSection, showToast],
+  );
 
   const handleSaveTimes = useCallback(
     (times: Record<string, TimeSlot[]>) => {
       if (activeEditSection) {
-        const newSchedule = {
-          ...scheduleData,
-          [activeEditSection]: times,
-        };
-        setScheduleData(newSchedule);
-        mutation.mutate({ schedule: newSchedule });
+        const normalized = normalizeSectionTimes(times);
+        const selectedDays = getSelectedDays(normalized);
+
+        setSelectedDaysForSection(activeEditSection, selectedDays);
+        setScheduleData((prev) => ({
+          ...prev,
+          [activeEditSection]: normalized,
+        }));
+
+        void saveActivityDays(activeEditSection, normalized, true).catch(
+          (saveError: unknown) => {
+            showToast(
+              "error",
+              (saveError as Error)?.message ||
+                `Failed to update ${SECTION_TO_API_TYPE[activeEditSection]} schedule.`,
+            );
+          },
+        );
       }
     },
-    [activeEditSection, scheduleData, mutation],
+    [activeEditSection, saveActivityDays, setSelectedDaysForSection, showToast],
   );
 
   const getTimesCount = useCallback(
-    (section: "workout" | "cardio" | "supplemental" | "conditioning") => {
+    (section: ScheduleSection) => {
       const sectionData = scheduleData[section] || {};
       const countMap: Record<string, number> = {};
       Object.entries(sectionData).forEach(([fullDay, times]) => {
@@ -289,6 +433,71 @@ export default function PreferencesPage() {
     },
     [scheduleData],
   );
+
+  const handleSaveWeeklyTargets = useCallback(async () => {
+    const payload: ApiWeeklyTarget = {
+      workout: toInt(weeklyTargets.resistance),
+      cardio: toInt(weeklyTargets.cardio),
+      supplement: toInt(weeklyTargets.supplemental),
+      conditioning: toInt(weeklyTargets.conditioning),
+    };
+
+    try {
+      await preferenceApi.updateWeeklyTarget(payload);
+      setShowWeeklyTargetModal(false);
+      showToast("success", "Weekly targets updated successfully.");
+    } catch (saveError: unknown) {
+      showToast(
+        "error",
+        (saveError as Error)?.message || "Failed to update weekly targets.",
+      );
+    }
+  }, [showToast, weeklyTargets]);
+
+  const handleSaveCardioGoal = useCallback(async () => {
+    const parsed = Number.parseInt(newCardioGoal, 10);
+    if (Number.isNaN(parsed)) {
+      showToast("error", "Please enter a valid cardio goal.");
+      return;
+    }
+
+    try {
+      await preferenceApi.updateCardioGoal(parsed);
+      const nextGoal = String(parsed);
+      setCalories(nextGoal);
+      setNewCardioGoal(nextGoal);
+      setShowCardioGoalModal(false);
+      showToast("success", "Cardio goal updated successfully.");
+    } catch (saveError: unknown) {
+      showToast(
+        "error",
+        (saveError as Error)?.message || "Failed to update cardio goal.",
+      );
+    }
+  }, [newCardioGoal, showToast]);
+
+  const handleSaveAvgSteps = useCallback(async () => {
+    if (isSavingSteps) return;
+    const parsed = Number.parseInt(steps, 10);
+    if (Number.isNaN(parsed)) {
+      showToast("error", "Please enter a valid step count.");
+      return;
+    }
+
+    try {
+      setIsSavingSteps(true);
+      await preferenceApi.updateAvgSteps(parsed);
+      setSteps(String(parsed));
+      showToast("success", "Average daily steps updated successfully.");
+    } catch (saveError: unknown) {
+      showToast(
+        "error",
+        (saveError as Error)?.message || "Failed to update average daily steps.",
+      );
+    } finally {
+      setIsSavingSteps(false);
+    }
+  }, [isSavingSteps, showToast, steps]);
 
   const currentCardioGoal = calories.trim() || "4000";
   const formatNumber = (value: string) => {
@@ -379,8 +588,7 @@ export default function PreferencesPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setGoalEntry("");
-                      setNewCardioGoal("0");
+                      setNewCardioGoal(calories.trim() || "0");
                       setShowCardioGoalModal(true);
                     }}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eadcff] text-[#6b17c6]"
@@ -394,9 +602,13 @@ export default function PreferencesPage() {
                 </p>
                 <input
                   value={calories}
-                  onChange={(e) => setCalories(e.target.value)}
+                  readOnly
+                  onClick={() => {
+                    setNewCardioGoal(calories.trim() || "0");
+                    setShowCardioGoalModal(true);
+                  }}
                   placeholder="Calories"
-                  className="mt-4 h-12 w-full rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
+                  className="mt-4 h-12 w-full cursor-pointer rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
                 <div className="mt-3 rounded-xl border border-[#bfe4fa] bg-[#eaf6ff] px-4 py-3 text-[16px]">
                   <span className="font-semibold text-[#01a1e8]">*e.g.:</span>{" "}
@@ -413,7 +625,16 @@ export default function PreferencesPage() {
                 </p>
                 <input
                   value={steps}
-                  onChange={(e) => setSteps(e.target.value)}
+                  onChange={(e) => setSteps(e.target.value.replace(/[^\d]/g, ""))}
+                  onBlur={() => {
+                    void handleSaveAvgSteps();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                      void handleSaveAvgSteps();
+                    }
+                  }}
                   placeholder="Steps"
                   className="mt-4 h-12 w-full rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
@@ -443,7 +664,9 @@ export default function PreferencesPage() {
                     : "Default Time 3:30 pm"
                 }
                 selected={workoutDays}
-                onChange={setWorkoutDays}
+                onChange={(days) => {
+                  void handleSectionDayChange("workout", days);
+                }}
                 onEditTimes={() => setActiveEditSection("workout")}
                 timesCount={getTimesCount("workout")}
               />
@@ -458,7 +681,9 @@ export default function PreferencesPage() {
                     : "Default Time 4:30 pm"
                 }
                 selected={cardioDays}
-                onChange={setCardioDays}
+                onChange={(days) => {
+                  void handleSectionDayChange("cardio", days);
+                }}
                 onEditTimes={() => setActiveEditSection("cardio")}
                 timesCount={getTimesCount("cardio")}
               />
@@ -475,7 +700,9 @@ export default function PreferencesPage() {
                     : "Default Time 1:30 pm"
                 }
                 selected={supplementalDays}
-                onChange={setSupplementalDays}
+                onChange={(days) => {
+                  void handleSectionDayChange("supplemental", days);
+                }}
                 onEditTimes={() => setActiveEditSection("supplemental")}
                 timesCount={getTimesCount("supplemental")}
               />
@@ -492,7 +719,9 @@ export default function PreferencesPage() {
                     : "Default Time 4:30 pm"
                 }
                 selected={conditioningDays}
-                onChange={setConditioningDays}
+                onChange={(days) => {
+                  void handleSectionDayChange("conditioning", days);
+                }}
                 onEditTimes={() => setActiveEditSection("conditioning")}
                 timesCount={getTimesCount("conditioning")}
               />
@@ -526,7 +755,6 @@ export default function PreferencesPage() {
                       onClick={() => {
                         setWeightUnit(unit);
                         setShowUnitDropdown(false);
-                        mutation.mutate({ weightUnit: unit });
                       }}
                       className={`flex h-12 w-full items-center px-4 text-[18px] hover:bg-[#f0f4f8] ${weightUnit === unit ? "bg-[#f0f4f8] font-bold text-[#6202AC]" : "text-[#1a1a1a]"}`}
                     >
@@ -563,6 +791,29 @@ export default function PreferencesPage() {
             </div>
           </section>
         </div>
+      </div>
+
+      {isLoading && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#1a1a1a] shadow-md">
+            Loading preferences...
+          </div>
+        </div>
+      )}
+
+      <div className="fixed right-4 top-4 z-[60] flex w-full max-w-sm flex-col gap-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`rounded-lg border px-4 py-3 text-sm font-semibold shadow ${
+              toast.type === "success"
+                ? "border-[#b7e9d7] bg-[#e8f8f2] text-[#0f7f5c]"
+                : "border-[#f1c8c1] bg-[#fff2f0] text-[#c0392b]"
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
       </div>
 
       {showWeeklyTargetModal && (
@@ -664,8 +915,7 @@ export default function PreferencesPage() {
               <button
                 type="button"
                 onClick={() => {
-                  mutation.mutate({ weeklyTargets });
-                  setShowWeeklyTargetModal(false);
+                  void handleSaveWeeklyTargets();
                 }}
                 className="h-12 min-w-[200px] rounded-full bg-[#6202AC] px-10 text-base font-semibold text-white shadow-md hover:bg-[#500ba6]"
               >
@@ -718,7 +968,6 @@ export default function PreferencesPage() {
                   onChange={(e) => {
                     const next = e.target.value.replace(/[^\d]/g, "") || "0";
                     setNewCardioGoal(next);
-                    setCalories(next);
                   }}
                   className="w-full bg-transparent text-center text-4xl font-bold leading-none text-[#6202AC] outline-none"
                 />
@@ -736,8 +985,7 @@ export default function PreferencesPage() {
               <button
                 type="button"
                 onClick={() => {
-                  mutation.mutate({ calories });
-                  setShowCardioGoalModal(false);
+                  void handleSaveCardioGoal();
                 }}
                 className="mt-6 h-[54px] w-[90%] mx-auto block rounded-full bg-[#6202AC] px-6 text-center text-[22px] font-semibold text-white shadow-md hover:bg-[#500ba6]"
               >
@@ -754,9 +1002,7 @@ export default function PreferencesPage() {
                   key={suggestion}
                   type="button"
                   onClick={() => {
-                    setGoalEntry(suggestion);
                     setNewCardioGoal(suggestion);
-                    setCalories(suggestion);
                   }}
                   className="rounded-[16px] border border-[#d1d7df] bg-white px-5 py-2.5 text-[15px] font-bold text-[#6202AC] hover:bg-gray-50"
                 >
