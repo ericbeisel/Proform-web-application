@@ -98,10 +98,7 @@ export default function SearchWorkoutsPage() {
 
       {/* ── Top Nav Bar ── */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-8 py-4 flex items-center gap-6">
-        <button className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition">
-          <ChevronLeft size={20} />
-          <span className="text-sm font-medium">Back</span>
-        </button>
+      
         <h1 className="text-xl font-bold text-gray-900">Search Workouts</h1>
         <div className="flex-1 max-w-xl relative ml-4">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />

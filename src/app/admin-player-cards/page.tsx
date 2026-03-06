@@ -198,7 +198,6 @@ export default function AdminPlayerCards() {
 
       <div className="mt-8 mb-4 overflow-hidden rounded-2xl">
         <div className="bg-gradient-to-r from-purple-50 via-white to-cyan-50 p-4 border-b-2 border-[#6d28d9] flex items-center justify-center gap-2 shadow-sm">
-          <span className="text-base">📈</span>
           <p className="text-xs md:text-sm font-bold text-[#6d28d9] text-center tracking-tight">
             Keep uploading scans to track your progress over time!
           </p>

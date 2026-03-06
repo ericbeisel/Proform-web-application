@@ -63,19 +63,28 @@ export default function CoreMetricsPage() {
     toast.success('BCA report selected');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
-    sessionStorage.setItem('accountSetup', JSON.stringify({
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+
+  console.log("Form Values:", formData);
+  console.log("BCA File:", bcaFile);
+
+  const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+
+  sessionStorage.setItem(
+    'accountSetup',
+    JSON.stringify({
       ...existing,
       currentWeight: formData.currentWeight,
       goalWeight: formData.goalWeight,
       heightFeet: formData.heightFeet,
       heightInches: formData.heightInches || '0',
       bodyFatPercentage: formData.bodyFatPercentage || '0',
-    }));
-    router.push('/account-setup/lifestyleMetrics');
-  };
+    })
+  );
+
+  router.push('/account-setup/lifestyleMetrics');
+};
 
   return (
     <>
