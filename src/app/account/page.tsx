@@ -25,6 +25,11 @@ type MenuItem = {
   isHighlight?: boolean;
 };
 
+type ToolItem = {
+  label: string;
+  href?: string;
+};
+
 const MAIN_MENU: MenuItem[] = [
   { label: "My Profile", icon: User },
   { label: "My Dashboard", icon: LayoutGrid, href: "/dashboard" },
@@ -36,19 +41,19 @@ const MAIN_MENU: MenuItem[] = [
   { label: "Connect TV", icon: Monitor, isHighlight: true },
 ];
 
-const TOOLS = [
-  "Create Workout",
-  "Log an Exercise",
-  "Cardio",
-  "Macros",
-  "Hydration",
-  "Recovery",
-  "Player Cards",
-  "Find Courses",
-  "Join Challenges",
-  "Weekly Reports",
-  "Search Programs",
-  "More Options",
+const TOOLS: ToolItem[] = [
+  { label: "Create Workout" },
+  { label: "Log an Exercise" },
+  { label: "Cardio" },
+  { label: "Macros" },
+  { label: "Hydration" },
+  { label: "Recovery" },
+  { label: "Player Cards", href: "/player-cards" }, // redirect page
+  { label: "Find Courses" },
+  { label: "Join Challenges" },
+  { label: "Weekly Reports" },
+  { label: "Search Programs" },
+  { label: "More Options" },
 ];
 
 export default function AccountPage() {
@@ -74,17 +79,20 @@ export default function AccountPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f8] p-4 md:p-8">
       <div className="mx-auto max-w-[1400px]">
-        <header className="flex items-start border-b border-[#d8dce2] px-0 py-7 md:px-0">
+        {/* Header */}
+        <header className="flex items-start border-b border-[#d8dce2] py-7">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-full bg-[#6d28d9] text-white shadow-md">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#6d28d9] text-white shadow-md md:h-14 md:w-14">
               <User size={24} />
             </div>
+
             <div>
-              <h1 className="text-3xl font-bold leading-none text-[#16181b]">
+              <h1 className="text-[44px] font-bold leading-none text-[#16181b]">
                 {accountName}
               </h1>
-              <p className="mt-2 flex items-center gap-2 text-xl font-semibold text-[#5b11b9]">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f4be2a] text-sm">
+
+              <p className="mt-3 flex items-center gap-2 text-[36px] font-semibold text-[#5b11b9]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4be2a] text-[16px]">
                   🪙
                 </span>
                 : 25 Pts
@@ -93,11 +101,16 @@ export default function AccountPage() {
           </div>
         </header>
 
-        <section className="px-0 py-8 md:px-0">
-          <h2 className="mb-4 text-2xl font-bold text-[#141517]">Main Menu</h2>
+        {/* Main Menu */}
+        <section className="py-8">
+          <h2 className="mb-5 text-[32px] font-bold text-[#141517]">
+            Main Menu
+          </h2>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {MAIN_MENU.map((item) => {
               const Icon = item.icon;
+
               const card = (
                 <div
                   className={`flex h-[82px] items-center justify-between rounded-[18px] border px-5 ${
@@ -113,16 +126,20 @@ export default function AccountPage() {
                       }`}
                     >
                       <Icon
-                        size={18}
+                        size={20}
                         className={
                           item.isHighlight ? "text-white" : "text-[#667085]"
                         }
                       />
                     </div>
-                    <span className="text-lg font-semibold">{item.label}</span>
+
+                    <span className="text-[26px] font-semibold">
+                      {item.label}
+                    </span>
                   </div>
+
                   <ChevronRight
-                    size={20}
+                    size={22}
                     className={
                       item.isHighlight ? "text-white" : "text-[#667085]"
                     }
@@ -132,7 +149,7 @@ export default function AccountPage() {
 
               if (item.href) {
                 return (
-                  <Link key={item.label} href={item.href} className="block">
+                  <Link key={item.label} href={item.href}>
                     {card}
                   </Link>
                 );
@@ -143,7 +160,6 @@ export default function AccountPage() {
                   key={item.label}
                   type="button"
                   className="cursor-not-allowed opacity-80"
-                  title="Coming soon"
                 >
                   {card}
                 </button>
@@ -152,38 +168,48 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section className="px-0 pb-8 md:px-0">
-          <h2 className="mb-4 text-2xl font-bold text-[#141517]">Tools</h2>
+        {/* Tools Section */}
+        <section className="pb-8">
+          <h2 className="mb-5 text-[32px] font-bold text-[#141517]">Tools</h2>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {TOOLS.map((tool) => (
-              <button
-                key={tool}
-                type="button"
-                className="h-12 rounded-xl border border-[#d2d6dc] bg-[#f8f9fb] px-4 text-left text-base font-medium text-[#1e2023] hover:bg-[#f1f3f6]"
-              >
-                {tool}
-              </button>
-            ))}
+            {TOOLS.map((tool) => {
+              const card = (
+                <div className="flex h-[54px] items-center rounded-[14px] border border-[#d2d6dc] bg-[#f8f9fb] px-4 text-[20px] font-medium text-[#1e2023] hover:bg-[#f1f3f6]">
+                  {tool.label}
+                </div>
+              );
+
+              if (tool.href) {
+                return (
+                  <Link key={tool.label} href={tool.href}>
+                    {card}
+                  </Link>
+                );
+              }
+
+              return (
+                <button key={tool.label} type="button">
+                  {card}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        <footer className="grid grid-cols-1 gap-3 border-t border-[#d8dce2] px-0 py-6 md:grid-cols-3 md:px-0">
-          <button
-            type="button"
-            className="h-12 rounded-xl bg-[#14a9c6] text-lg font-semibold text-white shadow-sm hover:bg-[#1298b2]"
-          >
+        {/* Footer */}
+        <footer className="grid grid-cols-1 gap-3 border-t border-[#d8dce2] py-6 md:grid-cols-3">
+          <button className="h-[56px] rounded-[16px] bg-[#14a9c6] text-[20px] font-semibold text-white hover:bg-[#1298b2]">
             Coach Login
           </button>
-          <button
-            type="button"
-            className="h-12 rounded-xl bg-[#6202AC] text-lg font-semibold text-white shadow-sm hover:bg-[#500ba6]"
-          >
+
+          <button className="h-[56px] rounded-[16px] bg-[#5f0ec4] text-[20px] font-semibold text-white hover:bg-[#5009a7]">
             Creator
           </button>
+
           <button
-            type="button"
             onClick={handleLogout}
-            className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#d2d6dc] bg-[#f8f9fb] text-lg font-semibold text-[#667085] hover:bg-[#f1f3f6]"
+            className="flex h-[56px] items-center justify-center gap-2 rounded-[16px] border border-[#d2d6dc] bg-[#f8f9fb] text-[20px] font-semibold text-[#667085] hover:bg-[#f1f3f6]"
           >
             <LogOut size={20} />
             Log Out
