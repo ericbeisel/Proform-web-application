@@ -118,10 +118,10 @@ export default function NewMemberChecklist() {
           className="w-full bg-[#6202AC] hover:bg-[#4e0288] text-white font-semibold text-sm sm:text-base py-4 rounded-full transition-all duration-200 shadow-md hover:shadow-lg">
           Go to Account Setup
         </button>
-        <button onClick={() => {}}
-          className="w-full bg-white hover:bg-purple-50 text-[#6202AC] font-semibold text-sm sm:text-base py-4 rounded-full border-2 border-[#6202AC] transition-all duration-200">
-          View Program Suggestions
-        </button>
+<button onClick={() => router.push('/programs/all-programs')}
+  className="w-full bg-white hover:bg-purple-50 text-[#6202AC] font-semibold text-sm sm:text-base py-4 rounded-full border-2 border-[#6202AC] transition-all duration-200">
+  View Program Suggestions
+</button>
       </div>
 
       <div className="flex items-center justify-center gap-2">

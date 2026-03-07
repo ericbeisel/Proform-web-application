@@ -6,6 +6,7 @@ import {
   Zap, Target, Activity, TrendingUp, Globe, Flame,
   Circle, Users, ArrowRight,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const PURPLE = "#6C3AE8";
 const ORANGE  = "#F97316";
@@ -91,6 +92,7 @@ function StarRating({ rating }: { rating: number }) {
 
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function SearchWorkoutsPage() {
+  const router = useRouter(); 
   const [query, setQuery] = useState("");
 
   return (
@@ -98,7 +100,6 @@ export default function SearchWorkoutsPage() {
 
       {/* ── Top Nav Bar ── */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-8 py-4 flex items-center gap-6">
-      
         <h1 className="text-xl font-bold text-gray-900">Search Workouts</h1>
         <div className="flex-1 max-w-xl relative ml-4">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -114,7 +115,7 @@ export default function SearchWorkoutsPage() {
       {/* ── Body ── */}
       <main className="flex-1 px-8 py-8 max-w-screen-xl mx-auto w-full space-y-10">
 
-        {/* ── Featured Banner ── */}
+        {/* ── Featured Banner with View All Button ── */}
         <div className="relative rounded-3xl overflow-hidden h-56 w-full"
           style={{ background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)" }}>
           <img
@@ -122,9 +123,18 @@ export default function SearchWorkoutsPage() {
             alt="Featured" className="absolute inset-0 w-full h-full object-cover opacity-40"
           />
           <div className="relative z-10 p-8 h-full flex flex-col justify-end">
-            <div className="flex items-center gap-2 mb-1">
-              <Star size={18} fill="#FBBF24" className="text-amber-400" />
-              <span className="text-white font-bold text-xl">Featured Workouts</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 mb-1">
+                <Star size={18} fill="#FBBF24" className="text-amber-400" />
+                <span className="text-white font-bold text-xl">Featured Workouts</span>
+              </div>
+              {/* View All Programs Button */}
+<button 
+  onClick={() => router.push('/programs/all-programs')} // Updated path
+  className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-white/30 transition"
+>
+  View All Programs <ArrowRight size={14} />
+</button>
             </div>
             <p className="text-gray-300 text-sm">Discover trending programs curated just for you</p>
           </div>
@@ -218,10 +228,16 @@ export default function SearchWorkoutsPage() {
           <SectionHeader title="Free Programs" showSeeAll />
           <div className="grid grid-cols-6 gap-4">
             {freePrograms.map((p) => (
-              <div key={p.id} className="relative rounded-2xl overflow-hidden h-32 group cursor-pointer">
+              <div 
+                key={p.id} 
+                className="relative rounded-2xl overflow-hidden h-32 group cursor-pointer"
+              >
                 <img src={p.img} alt="program" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition" />
-                <FreePill label="FREE" />
+                <span className="absolute top-2 left-2 flex items-center gap-1 bg-green-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-2 h-2 bg-white rounded-full inline-block" />
+                  FREE
+                </span>
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-// app/dashboard/components/QuickActions.tsx
+// app/dashboard/components/QuickActions.tsx (no changes)
 import { Plus, Edit, Search, List, Users, User } from 'lucide-react'
 
 export default function QuickActions() {

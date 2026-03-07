@@ -4,9 +4,10 @@ import { BarChart2, User } from 'lucide-react'
 type Props = {
   activeNav: string
   setActiveNav: (value: string) => void
+  userName?: string  // Add this
 }
 
-export default function DashboardHeader({ activeNav, setActiveNav }: Props) {
+export default function DashboardHeader({ activeNav, setActiveNav, userName }: Props) {
   return (
     <header className="sticky top-0 z-50 h-16 bg-white border-b border-[#e8e6f0] flex items-center px-8 gap-6">
       <span className="font-black text-xl mr-2">My Dashboard</span>
@@ -34,7 +35,7 @@ export default function DashboardHeader({ activeNav, setActiveNav }: Props) {
           <BarChart2 size={20} />
         </button>
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fd7b4d] to-[#fdcb6e] flex items-center justify-center text-white font-bold text-sm cursor-pointer">
-          <User size={18} />
+          {userName ? userName.charAt(0).toUpperCase() : <User size={18} />}
         </div>
       </div>
     </header>
