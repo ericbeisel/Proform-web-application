@@ -81,7 +81,78 @@ export interface CityOption {
   state_id?: number;
 }
 
+export interface ActivityLevelOption {
+  id: string | number;      // API returns id as string e.g. "1", "2", "3", "4"
+  name: string;             // e.g. "0-1 Workout", "2-3 Workout", etc.
+  value: string;            // e.g. "1.2", "1.375", "1.55", "1.725"
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ─── Location & Timezone fetch functions ─────────────────────────────────────
+
+// Add this to your existing api/account-setup/route.ts file
+
+// ─── Training Goals API types ────────────────────────────────────────────────
+
+export interface TrainingGoalOption {
+  id: string | number;      // API returns id as string e.g. "4", "6", "8", etc.
+  name: string;             // e.g. "Understand Mechanics", "Power/Explosiveness", etc.
+  Hide?: string;            // "0" for visible, "1" for hidden (optional)
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ─── Training Goals fetch function ───────────────────────────────────────────
+
+/** Fetch all training goals from GET /api/training_goals */
+export const fetchTrainingGoals = async (): Promise<TrainingGoalOption[]> => {
+  try {
+    const { data } = await axios.get(`${API_BASE}/training_goals`);
+    console.log('[fetchTrainingGoals] raw response:', data);
+    
+    // Handle different response structures
+    const goals: any[] = Array.isArray(data) ? data : (data.data ?? data.training_goals ?? []);
+    console.log('[fetchTrainingGoals] parsed goals:', goals);
+    
+    return goals;
+  } catch (error: any) {
+    console.error('[fetchTrainingGoals] error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch training goals');
+  }
+};
+
+// Add these to your existing api/account-setup/route.ts file
+
+// ─── Sports API types ────────────────────────────────────────────────────────
+
+export interface SportOption {
+  id: string | number;      // API returns id as string e.g. "1", "2", "3", etc.
+  name: string;             // e.g. "Basketball", "Football", "Soccer", etc.
+  image_url?: string;       // Optional image URL for the sport
+  order?: string;           // Display order "1", "2", "3", etc.
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ─── Sports fetch function ───────────────────────────────────────────────────
+
+/** Fetch all sports from GET /api/sports */
+export const fetchSports = async (): Promise<SportOption[]> => {
+  try {
+    const { data } = await axios.get(`${API_BASE}/sports`);
+    console.log('[fetchSports] raw response:', data);
+    
+    // Handle different response structures
+    const sports: any[] = Array.isArray(data) ? data : (data.data ?? data.sports ?? []);
+    console.log('[fetchSports] parsed sports:', sports);
+    
+    return sports;
+  } catch (error: any) {
+    console.error('[fetchSports] error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch sports');
+  }
+};
 
 /** Fetch all timezones from GET /api/timezone */
 export const fetchTimezones = async (): Promise<TimezoneOption[]> => {
@@ -171,6 +242,22 @@ function mapActivityLevel(level: string): string {
   console.log('[mapActivityLevel] input:', level, '→ output:', result);
   return result;
 }
+
+export const fetchActivityLevels = async (): Promise<ActivityLevelOption[]> => {
+  try {
+    const { data } = await axios.get(`${API_BASE}/activity_level`);
+    console.log('[fetchActivityLevels] raw response:', data);
+    
+    // Handle different response structures
+    const levels: any[] = Array.isArray(data) ? data : (data.data ?? data.activity_levels ?? []);
+    console.log('[fetchActivityLevels] parsed levels:', levels);
+    
+    return levels;
+  } catch (error: any) {
+    console.error('[fetchActivityLevels] error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || 'Failed to fetch activity levels');
+  }
+};
 
 function mapWeightGoalType(goal: string): string {
   let result: string;
@@ -269,6 +356,8 @@ function buildPayload(input: AccountSetupInput): URLSearchParams {
 
 // ─── Submit function ─────────────────────────────────────────────────────────
 
+
+// In your submitAccountSetup function (in the API file or wherever it is)
 export const submitAccountSetup = async (input: AccountSetupInput) => {
   try {
     console.log('[submitAccountSetup] called with input:', JSON.stringify(input, null, 2));
@@ -291,6 +380,10 @@ export const submitAccountSetup = async (input: AccountSetupInput) => {
     );
 
     console.log('[submitAccountSetup] SUCCESS response:', JSON.stringify(data, null, 2));
+    
+    // After successful account setup, clear sessionStorage
+    sessionStorage.removeItem('accountSetup');
+    
     return data;
   } catch (error: any) {
     console.error('[submitAccountSetup] ERROR status:', error.response?.status);
@@ -304,6 +397,44 @@ export const submitAccountSetup = async (input: AccountSetupInput) => {
     throw new Error(message);
   }
 };
+
+// export const submitAccountSetup = async (input: AccountSetupInput) => {
+//   try {
+//     console.log('[submitAccountSetup] called with input:', JSON.stringify(input, null, 2));
+
+//     const params = buildPayload(input);
+//     const token = getAuthToken();
+
+//     console.log('[submitAccountSetup] token present:', !!token);
+//     console.log('[submitAccountSetup] posting to:', `${API_BASE}/accountsetup`);
+
+//     const { data } = await axios.post(
+//       `${API_BASE}/accountsetup`,
+//       params,
+//       {
+//         headers: {
+//           'Content-Type': 'application/x-www-form-urlencoded',
+//           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//         },
+//       }
+//     );
+
+//     console.log('[submitAccountSetup] SUCCESS response:', JSON.stringify(data, null, 2));
+//     return data;
+//   } catch (error: any) {
+//     console.error('[submitAccountSetup] ERROR status:', error.response?.status);
+//     console.error('[submitAccountSetup] ERROR data:', JSON.stringify(error.response?.data, null, 2));
+//     console.error('[submitAccountSetup] ERROR message:', error.message);
+
+//     const message =
+//       error.response?.data?.message ||
+//       error.message ||
+//       'Account setup failed. Please try again.';
+//     throw new Error(message);
+//   }
+// };
+
+
 
 // ─── Next.js Route Handler ────────────────────────────────────────────────────
 

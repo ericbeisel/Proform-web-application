@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, Pencil, Check, Calculator } from 'lucide-react';
+import { Sparkles, Pencil, Check, Calculator, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 
@@ -9,17 +9,26 @@ type Method = 'auto' | 'manual';
 
 export default function OneRepMaxPage() {
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<Method | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMethod) return;
+    
+    setIsSubmitting(true);
+    
+    // Simulate a small delay to show the loader (remove this in production)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // ── Save this step's data to sessionStorage ──
     const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
     sessionStorage.setItem('accountSetup', JSON.stringify({
       ...existing,
       selected1RMMethod: selectedMethod,
     }));
+    
+    setIsSubmitting(false);
     router.push('/account-setup/strengthProfile');
   };
 
@@ -87,10 +96,24 @@ export default function OneRepMaxPage() {
           </div>
         </div>
 
-        <button type="submit" disabled={!selectedMethod}
-          className={`w-full font-semibold text-base sm:text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md
-            ${selectedMethod ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-        >Continue</button>
+        <button 
+          type="submit" 
+          disabled={!selectedMethod || isSubmitting}
+          className={`w-full font-semibold text-base sm:text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md flex items-center justify-center gap-2
+            ${selectedMethod && !isSubmitting
+              ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white hover:shadow-lg' 
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Continue'
+          )}
+        </button>
       </form>
     </>
   );

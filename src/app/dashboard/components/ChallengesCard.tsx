@@ -1,7 +1,12 @@
 // app/dashboard/components/ChallengesCard.tsx
 import { Award, TrendingUp, CheckCircle2 } from 'lucide-react'
 
-export default function ChallengesCard() {
+interface ChallengesCardProps {
+  streak?: number;
+  completed?: number;
+}
+
+export default function ChallengesCard({ streak = 0, completed = 0 }: ChallengesCardProps) {
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <div className="flex justify-between items-start mb-3">
@@ -15,13 +20,13 @@ export default function ChallengesCard() {
       </div>
       <div className="grid grid-cols-2 gap-2.5 mb-3">
         <div className="bg-[#f7f6fb] rounded-xl p-3.5 text-center">
-          <div className="font-black text-3xl">0</div>
+          <div className="font-black text-3xl">{streak}</div>
           <div className="text-[10px] text-[#8b879e] mt-0.5 flex items-center justify-center gap-1">
             <TrendingUp size={13} /> Day Streak
           </div>
         </div>
         <div className="bg-[#f7f6fb] rounded-xl p-3.5 text-center">
-          <div className="font-black text-3xl">0</div>
+          <div className="font-black text-3xl">{completed}</div>
           <div className="text-[10px] text-[#8b879e] mt-0.5 flex items-center justify-center gap-1">
             <CheckCircle2 size={13} /> Completed
           </div>

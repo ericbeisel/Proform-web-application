@@ -1,4 +1,4 @@
-// app/dashboard/components/LiveSessionsCard.tsx
+// app/dashboard/components/LiveSessionsCard.tsx (no changes)
 import { Timer } from 'lucide-react'
 
 export default function LiveSessionsCard() {

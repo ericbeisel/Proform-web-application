@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown, Footprints, Flame, Camera, Upload, BarChart3 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Footprints, Flame, Camera, Upload, BarChart3, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 import { useToast } from '@/components/ui/toast-provider';
@@ -41,6 +41,7 @@ function NumberInput({ value, onChange, placeholder, min = 0, max = 999999, step
 export default function LifestyleMetricsPage() {
   const router = useRouter();
   const toast = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ dailySteps: '', cardioCalorieGoal: '', progressPhoto: null as File | null });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -62,14 +63,22 @@ export default function LifestyleMetricsPage() {
     toast.success('Progress photo selected');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    setIsSubmitting(true);
+    
+    // Simulate a small delay to show the loader (remove this in production)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
     sessionStorage.setItem('accountSetup', JSON.stringify({
       ...existing,
       dailySteps: formData.dailySteps || '0',
       cardioCalorieGoal: formData.cardioCalorieGoal,
     }));
+    
+    setIsSubmitting(false);
     router.push('/account-setup/progressMetrics');
   };
 
@@ -112,7 +121,7 @@ export default function LifestyleMetricsPage() {
         </div>
 
         {/* Progress Photo */}
-        <div>
+        {/* <div>
           <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-800 mb-2 sm:mb-3">
             <Camera size={15} className="text-[#6202AC]" />Progress Photo (optional)
           </label>
@@ -136,7 +145,7 @@ export default function LifestyleMetricsPage() {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-2">Take a starting photo to track your transformation journey</p>
-        </div>
+        </div> */}
 
         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-purple-900">
@@ -145,10 +154,24 @@ export default function LifestyleMetricsPage() {
           </p>
         </div>
 
-        <button type="submit" disabled={!formData.cardioCalorieGoal}
-          className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200
-            ${formData.cardioCalorieGoal ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-        >Continue</button>
+        <button 
+          type="submit" 
+          disabled={!formData.cardioCalorieGoal || isSubmitting}
+          className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 flex items-center justify-center gap-2
+            ${formData.cardioCalorieGoal && !isSubmitting
+              ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg' 
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Continue'
+          )}
+        </button>
       </form>
     </>
   );
