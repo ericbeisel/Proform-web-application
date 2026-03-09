@@ -1,13 +1,25 @@
 // app/dashboard/components/DashboardHeader.tsx
-import { BarChart2, User } from 'lucide-react'
+"use client"
+
+import { BarChart2, User, LogOut } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { clearAuthSession } from '@/lib/auth/session'
 
 type Props = {
   activeNav: string
   setActiveNav: (value: string) => void
-  userName?: string  // Add this
+  userName?: string
 }
 
 export default function DashboardHeader({ activeNav, setActiveNav, userName }: Props) {
+
+  const router = useRouter()
+
+const handleLogout = () => {
+    clearAuthSession();
+    router.replace("/auth/login");
+  };
+
   return (
     <header className="sticky top-0 z-50 h-16 bg-white border-b border-[#e8e6f0] flex items-center px-8 gap-6">
       <span className="font-black text-xl mr-2">My Dashboard</span>
@@ -31,12 +43,24 @@ export default function DashboardHeader({ activeNav, setActiveNav, userName }: P
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+
         <button className="w-9 h-9 rounded-[10px] border border-[#e8e6f0] bg-white flex items-center justify-center text-[#8b879e] hover:border-[#a29bfe] hover:text-[#6c5ce7] transition-all">
           <BarChart2 size={20} />
         </button>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1 px-3 h-9 rounded-[10px] border border-[#e8e6f0] text-[#8b879e] hover:border-red-300 hover:text-red-500 transition-all"
+        >
+          <LogOut size={16} />
+          Logout
+        </button>
+
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fd7b4d] to-[#fdcb6e] flex items-center justify-center text-white font-bold text-sm cursor-pointer">
           {userName ? userName.charAt(0).toUpperCase() : <User size={18} />}
         </div>
+
       </div>
     </header>
   )

@@ -97,34 +97,77 @@ export default function DashboardPage() {
       {/* Responsive padding */}
       <main className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
 
-        {/* Account Setup Reminder Banner */}
-        {!accountSetupComplete && (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 shadow-lg">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 rounded-full p-3">
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-white font-semibold text-lg">Complete Your Account Setup</h3>
-                  <p className="text-amber-100 text-sm">Finish setting up your account to unlock personalized features and track your progress</p>
-                </div>
-              </div>
-              <button
-                onClick={handleCompleteSetup}
-                className="bg-white text-amber-600 hover:bg-amber-50 font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-md"
-              >
-                Complete Setup
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
+{/* Account Setup Reminder Banner */}
+{!accountSetupComplete && (
+  <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-3 sm:p-4 shadow-lg animate-warning-bounce">
+    
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
 
+      {/* LEFT SIDE */}
+      <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+        
+        <div className="bg-white/20 rounded-full p-2 sm:p-2.5 animate-pulse">
+          <svg
+            className="w-4 h-4 sm:w-5 sm:h-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+
+        <div>
+          <h3 className="text-white font-semibold text-sm sm:text-base">
+            Complete Your Account Setup
+          </h3>
+
+          <p className="text-amber-100 text-[11px] sm:text-xs leading-relaxed">
+            Finish setting up your account to unlock personalized features and track your progress
+          </p>
+        </div>
+
+      </div>
+
+      {/* BUTTON */}
+      <button
+        onClick={handleCompleteSetup}
+        className="
+          sm:ml-auto
+          bg-white text-amber-600 hover:bg-amber-50
+          font-semibold
+          px-4 py-2
+          rounded-lg
+          transition-all duration-200
+          flex items-center gap-2
+          shadow-md
+          text-xs sm:text-sm
+        "
+      >
+        Complete Setup
+        <svg
+          className="w-3.5 h-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+      </button>
+
+    </div>
+  </div>
+)}
         <Banner />
 
         {/* Responsive main grid */}

@@ -40,3 +40,19 @@ body {
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+@keyframes warningBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-6px);
+  }
+  40% {
+    transform: translateY(0);
+  }
+}
+
+.animate-warning-bounce {
+  animation: warningBounce 2s ease-in-out infinite;
+}

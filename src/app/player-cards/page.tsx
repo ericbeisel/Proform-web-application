@@ -17,7 +17,13 @@ import {
   createPlayerCard,
   PlayerCardData,
 } from "@/api/player-card/route";
+import { dashboardApi } from "@/api/dashboard/route";
 import { useToast } from "@/components/ui/toast-provider";
+
+// ✅ Small inline spinner shown in place of a metric value
+const ValueLoader = () => (
+  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600" />
+);
 
 export default function PlayerCardPage() {
   const router = useRouter();
@@ -28,15 +34,19 @@ export default function PlayerCardPage() {
   const progressFileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [progressFile, setProgressFile] = useState<File | null>(null);
-  const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(
-    null,
-  );
-  const [progressFilePreview, setProgressFilePreview] = useState<string | null>(
-    null,
-  );
+  const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(null);
+  const [progressFilePreview, setProgressFilePreview] = useState<string | null>(null);
   const [playerData, setPlayerData] = useState<PlayerCardData | null>(null);
+  const [measurementUnit, setMeasurementUnit] = useState<string>("kg");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [metricsLoading, setMetricsLoading] = useState(false); // ✅ Controls inline value loaders
   const [error, setError] = useState("");
+
+  const convertHeightToInches = (heightStr: string | number): number => {
+    if (!heightStr) return 0;
+    return Number(heightStr) * 12;
+  };
 
   useEffect(() => {
     try {
@@ -54,28 +64,40 @@ export default function PlayerCardPage() {
     }
   }, [router]);
 
-  const fetchPlayerCardData = useCallback(
+  const fetchAllData = useCallback(
     async (showSuccessToast: boolean) => {
       try {
         setLoading(true);
-        console.log("1️⃣ Fetching player card...");
 
-        const data = await getPlayerCard();
+        const [playerCardResult, dashboardResult] = await Promise.allSettled([
+          getPlayerCard(),
+          dashboardApi.getDashboardSummary(),
+        ]);
 
-        console.log("2️⃣ Data received:", data);
-        setPlayerData(data);
+        if (playerCardResult.status === "fulfilled") {
+          setPlayerData(playerCardResult.value);
+        } else {
+          console.error("Failed to fetch player card:", playerCardResult.reason);
+        }
+
+        if (dashboardResult.status === "fulfilled") {
+          const dashboardData = dashboardResult.value;
+          if (dashboardData.measurementUnit) {
+            setMeasurementUnit(dashboardData.measurementUnit);
+          }
+        } else {
+          console.error("Failed to fetch dashboard:", dashboardResult.reason);
+        }
+
         setError("");
         if (showSuccessToast) {
           toast.success("Player card data loaded successfully.");
         }
-        return data;
       } catch (err: unknown) {
         console.error("❌ Error:", err);
-        const message =
-          err instanceof Error ? err.message : "Failed to load data";
+        const message = err instanceof Error ? err.message : "Failed to load data";
         setError(message);
         toast.error(message);
-        return null;
       } finally {
         setLoading(false);
       }
@@ -84,34 +106,31 @@ export default function PlayerCardPage() {
   );
 
   useEffect(() => {
-    void fetchPlayerCardData(true);
-  }, [fetchPlayerCardData]);
+    void fetchAllData(true);
+  }, [fetchAllData]);
 
+  // ✅ Show inline value loaders when a file is selected
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(e.target.files?.[0] ?? null);
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    if (file) setMetricsLoading(true);
   };
 
   const handleProgressFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProgressFile(e.target.files?.[0] ?? null);
+    const file = e.target.files?.[0] ?? null;
+    setProgressFile(file);
+    if (file) setMetricsLoading(true);
   };
 
   useEffect(() => {
-    if (!selectedFile) {
-      setSelectedFilePreview(null);
-      return;
-    }
-
+    if (!selectedFile) { setSelectedFilePreview(null); return; }
     const objectUrl = URL.createObjectURL(selectedFile);
     setSelectedFilePreview(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [selectedFile]);
 
   useEffect(() => {
-    if (!progressFile) {
-      setProgressFilePreview(null);
-      return;
-    }
-
+    if (!progressFile) { setProgressFilePreview(null); return; }
     const objectUrl = URL.createObjectURL(progressFile);
     setProgressFilePreview(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
@@ -120,22 +139,19 @@ export default function PlayerCardPage() {
   const hasChanges = !!selectedFile || !!progressFile;
 
   const handleSubmitCard = async () => {
-    if (!hasChanges) return;
+    if (!hasChanges) {
+      setMetricsLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true);
+      setSubmitting(true);
 
       const formData = new FormData();
-
-      if (selectedFile) {
-        formData.append("inBodyScans", selectedFile);
-      }
-      if (progressFile) {
-        formData.append("progressImage", progressFile);
-      }
+      if (selectedFile) formData.append("inBodyScans", selectedFile);
+      if (progressFile) formData.append("progressImage", progressFile);
 
       const result = await createPlayerCard(formData);
-
       console.log("✅ Update successful:", result);
       toast.success("Player card submitted successfully.");
 
@@ -144,14 +160,14 @@ export default function PlayerCardPage() {
       if (fileRef.current) fileRef.current.value = "";
       if (progressFileRef.current) progressFileRef.current.value = "";
 
-      await fetchPlayerCardData(true);
+      await fetchAllData(true);
     } catch (error: unknown) {
       console.error("❌ Update error:", error);
-      const message =
-        error instanceof Error ? error.message : "Failed to update card";
+      const message = error instanceof Error ? error.message : "Failed to update card";
       toast.error(message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
+      setMetricsLoading(false); // ✅ Stop loaders after submit
     }
   };
 
@@ -192,6 +208,9 @@ export default function PlayerCardPage() {
     bodyFat: 0,
   };
 
+  const heightInInches = convertHeightToInches(data.height);
+  const weightUnit = measurementUnit;
+
   return (
     <main className="min-h-screen bg-[#f8f9fb] px-3 py-4 md:px-5 md:py-5 lg:px-8">
       {/* HEADER */}
@@ -201,22 +220,15 @@ export default function PlayerCardPage() {
             onClick={() => router.back()}
             className="group flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:bg-gray-50"
           >
-            <ArrowLeft
-              size={16}
-              className="text-gray-600 group-hover:text-gray-900"
-            />
+            <ArrowLeft size={16} className="text-gray-600 group-hover:text-gray-900" />
           </button>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#333333] text-white shadow-lg shadow-black/10">
               <Award size={18} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[#1a1a1a] tracking-tight">
-                Player Card
-              </h1>
-              <p className="text-xs font-medium text-gray-400">
-                Track your fitness progress
-              </p>
+              <h1 className="text-xl font-bold text-[#1a1a1a] tracking-tight">Player Card</h1>
+              <p className="text-xs font-medium text-gray-400">Track your fitness progress</p>
             </div>
           </div>
         </div>
@@ -232,14 +244,13 @@ export default function PlayerCardPage() {
       {/* MAIN CONTENT */}
       <div className="mx-auto max-w-[1200px]">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* LEFT COLUMN: BODY IMAGE */}
+          {/* LEFT COLUMN */}
           <div className="lg:col-span-4 bg-white rounded-2xl p-4 shadow-xl shadow-gray-200/50 flex flex-col h-[500px] border border-gray-100">
             <div className="flex-1 relative rounded-xl overflow-hidden bg-[#16181b] border border-gray-800">
               <div
                 className="absolute inset-0 opacity-20"
                 style={{
-                  backgroundImage:
-                    "radial-gradient(#4b5563 1px, transparent 1px)",
+                  backgroundImage: "radial-gradient(#4b5563 1px, transparent 1px)",
                   backgroundSize: "24px 24px",
                 }}
               />
@@ -259,24 +270,19 @@ export default function PlayerCardPage() {
             </button>
           </div>
 
-          {/* RIGHT COLUMN: CARDS */}
+          {/* RIGHT COLUMN */}
           <div className="lg:col-span-8 flex flex-col gap-4">
             {/* PROFILE INFO CARD */}
             <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-[#1a1a1a] leading-tight mb-1">
-                    {data.name}
-                  </h2>
-                  <p className="text-sm text-gray-400 font-medium">
-                    Scan Date: {data.date}
-                  </p>
+                  <h2 className="text-xl font-bold text-[#1a1a1a] leading-tight mb-1">{data.name}</h2>
+                  <p className="text-sm text-gray-400 font-medium">Scan Date: {data.date}</p>
                 </div>
                 <div className="bg-[#00d1e0] text-white px-3 py-0.5 rounded-full text-xs font-black tracking-widest">
                   ACTIVE
                 </div>
               </div>
-
               <div className="flex flex-col gap-2">
                 <button
                   onClick={() => setShowBodyScanModal(true)}
@@ -297,30 +303,31 @@ export default function PlayerCardPage() {
               {/* BASIC METRICS */}
               <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-[#1a1a1a]">
-                    Basic Metrics
-                  </h3>
+                  <h3 className="text-base font-bold text-[#1a1a1a]">Basic Metrics</h3>
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
                     <Activity size={16} />
                   </div>
                 </div>
-
                 <div className="space-y-3">
-                  <div className="flex items-baseline justify-between border-b border-gray-100 pb-2">
-                    <span className="text-xs font-bold text-gray-400">
-                      Current Wt (lbs):
-                    </span>
-                    <span className="text-xl font-black text-[#5b21b6]">
-                      {data.currentWeight}
-                    </span>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span className="text-xs font-bold text-gray-400">Current Wt ({weightUnit}):</span>
+                    {/* ✅ Spinner replaces value when metricsLoading */}
+                    {metricsLoading ? (
+                      <ValueLoader />
+                    ) : (
+                      <span className="text-xl font-black text-[#5b21b6]">{data.currentWeight}</span>
+                    )}
                   </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-gray-400">
-                      Height (inches):
-                    </span>
-                    <span className="text-xl font-black text-[#5b21b6]">
-                      {data.height}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-400">Height (inches):</span>
+                    {metricsLoading ? (
+                      <ValueLoader />
+                    ) : (
+                      <span className="text-xl font-black text-[#5b21b6]">
+                        {heightInInches}
+                        <span className="text-sm text-gray-400 ml-1">({data.height} ft)</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -328,54 +335,49 @@ export default function PlayerCardPage() {
               {/* BODY COMPOSITION */}
               <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-[#1a1a1a]">
-                    Body Composition
-                  </h3>
+                  <h3 className="text-base font-bold text-[#1a1a1a]">Body Composition</h3>
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-500">
                     <Activity size={16} />
                   </div>
                 </div>
-
                 <div className="space-y-3">
-                  <div className="flex items-baseline justify-between border-b border-gray-100 pb-2">
-                    <span className="text-xs font-bold text-gray-400">
-                      SMM (lbs):
-                    </span>
-                    <span className="text-xl font-black text-gray-300">
-                      {data.smm}
-                    </span>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <span className="text-xs font-bold text-gray-400">SMM ({weightUnit}):</span>
+                    {metricsLoading ? (
+                      <ValueLoader />
+                    ) : (
+                      <span className="text-xl font-black text-gray-300">{data.smm}</span>
+                    )}
                   </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-gray-400">
-                      Body Fat (%):
-                    </span>
-                    <span className="text-xl font-black text-gray-300">
-                      {data.bodyFat}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-400">Body Fat (%):</span>
+                    {metricsLoading ? (
+                      <ValueLoader />
+                    ) : (
+                      <span className="text-xl font-black text-[#5b21b6]">{data.bodyFat}%</span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
             {/* COMPOSITION SCORE */}
-            <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden">
+            <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-base font-bold text-[#1a1a1a] mb-1">
-                    Composition Score
-                  </h3>
-                  <p className="text-xs font-medium text-gray-400">
-                    Overall fitness rating
-                  </p>
+                  <h3 className="text-base font-bold text-[#1a1a1a] mb-1">Composition Score</h3>
+                  <p className="text-xs font-medium text-gray-400">Overall fitness rating</p>
                 </div>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
                   <Award size={20} />
                 </div>
               </div>
               <div className="mt-3">
-                <span className="text-5xl font-black text-gray-200 leading-none">
-                  {data.bodyCampScore}
-                </span>
+                {metricsLoading ? (
+                  <ValueLoader />
+                ) : (
+                  <span className="text-5xl font-black text-gray-200 leading-none">{data.bodyCampScore}</span>
+                )}
               </div>
             </div>
 
@@ -385,22 +387,21 @@ export default function PlayerCardPage() {
                 <CheckCircle size={16} />
               </div>
               <p className="text-xs font-bold text-[#ff7043]">
-                Upload a body scan to submit a complete card and unlock all
-                metrics!
+                Upload a body scan to submit a complete card and unlock all metrics!
               </p>
             </div>
 
             {/* SUBMIT BUTTON */}
             <button
               onClick={handleSubmitCard}
-              disabled={loading || !hasChanges}
+              disabled={submitting}
               className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all ${
                 hasChanges
                   ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] cursor-pointer"
                   : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
               }`}
             >
-              {loading
+              {submitting
                 ? "Submitting..."
                 : hasChanges
                   ? "Submit Card"
@@ -422,9 +423,7 @@ export default function PlayerCardPage() {
             </button>
 
             <div className="text-center mb-0">
-              <p className="text-gray-400 text-xs font-bold mb-0.5">
-                Add a new
-              </p>
+              <p className="text-gray-400 text-xs font-bold mb-0.5">Add a new</p>
               <h2 className="text-2xl font-black text-[#1a1c1e] leading-none mb-2 relative inline-block">
                 Inbody Scan
                 <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#6d28d9] rounded-full" />
@@ -445,44 +444,22 @@ export default function PlayerCardPage() {
             >
               {selectedFilePreview ? (
                 <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                  <img
-                    src={selectedFilePreview}
-                    alt="Selected body scan"
-                    className="h-32 w-full object-contain"
-                  />
+                  <img src={selectedFilePreview} alt="Selected body scan" className="h-32 w-full object-contain" />
                 </div>
               ) : (
                 <>
                   <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
-                    <Upload
-                      className="text-[#6d28d9]"
-                      size={18}
-                      strokeWidth={2.5}
-                    />
+                    <Upload className="text-[#6d28d9]" size={18} strokeWidth={2.5} />
                   </div>
-                  <p className="text-base font-bold text-[#1a1c1e] mb-1">
-                    Upload Image
-                  </p>
-                  <p className="text-gray-400 text-xs font-medium mb-0.5">
-                    or drag and drop
-                  </p>
-                  <p className="text-gray-300 text-[10px] font-medium">
-                    Max File Size 15MB
-                  </p>
+                  <p className="text-base font-bold text-[#1a1c1e] mb-1">Upload Image</p>
+                  <p className="text-gray-400 text-xs font-medium mb-0.5">or drag and drop</p>
+                  <p className="text-gray-300 text-[10px] font-medium">Max File Size 15MB</p>
                 </>
               )}
               {selectedFile && (
-                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">
-                  {selectedFile.name}
-                </p>
+                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">{selectedFile.name}</p>
               )}
-              <input
-                type="file"
-                ref={fileRef}
-                className="hidden"
-                onChange={handleFileChange}
-                accept="image/*"
-              />
+              <input type="file" ref={fileRef} className="hidden" onChange={handleFileChange} accept="image/*" />
             </div>
 
             <div className="flex flex-col gap-3 mt-4">
@@ -501,7 +478,6 @@ export default function PlayerCardPage() {
               >
                 {selectedFile ? "Save Scan" : "Select a File First"}
               </button>
-
               <button
                 onClick={() => setShowBodyScanModal(false)}
                 className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
@@ -514,9 +490,7 @@ export default function PlayerCardPage() {
               <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1">
                 <span className="text-xs">💡</span>
                 <span className="text-gray-400 font-medium">Tip:</span>
-                <span className="text-purple-600/80 text-[10px]">
-                  Clear photos of scan results for best accuracy
-                </span>
+                <span className="text-purple-600/80 text-[10px]">Clear photos of scan results for best accuracy</span>
               </p>
             </div>
           </div>
@@ -535,9 +509,7 @@ export default function PlayerCardPage() {
             </button>
 
             <div className="text-center mb-0">
-              <p className="text-gray-400 text-xs font-bold mb-0.5">
-                Add a new
-              </p>
+              <p className="text-gray-400 text-xs font-bold mb-0.5">Add a new</p>
               <h2 className="text-2xl font-black text-[#1a1c1e] leading-none mb-2 relative inline-block">
                 Progress Photo
                 <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#6d28d9] rounded-full" />
@@ -558,36 +530,20 @@ export default function PlayerCardPage() {
             >
               {progressFilePreview ? (
                 <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                  <img
-                    src={progressFilePreview}
-                    alt="Selected progress photo"
-                    className="h-32 w-full object-contain"
-                  />
+                  <img src={progressFilePreview} alt="Selected progress photo" className="h-32 w-full object-contain" />
                 </div>
               ) : (
                 <>
                   <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
-                    <Upload
-                      className="text-[#6d28d9]"
-                      size={18}
-                      strokeWidth={2.5}
-                    />
+                    <Upload className="text-[#6d28d9]" size={18} strokeWidth={2.5} />
                   </div>
-                  <p className="text-base font-bold text-[#1a1c1e] mb-1">
-                    Upload Image
-                  </p>
-                  <p className="text-gray-400 text-xs font-medium mb-0.5">
-                    or drag and drop
-                  </p>
-                  <p className="text-gray-300 text-[10px] font-medium">
-                    Max File Size 15MB
-                  </p>
+                  <p className="text-base font-bold text-[#1a1c1e] mb-1">Upload Image</p>
+                  <p className="text-gray-400 text-xs font-medium mb-0.5">or drag and drop</p>
+                  <p className="text-gray-300 text-[10px] font-medium">Max File Size 15MB</p>
                 </>
               )}
               {progressFile && (
-                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">
-                  {progressFile.name}
-                </p>
+                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">{progressFile.name}</p>
               )}
               <input
                 type="file"
@@ -604,9 +560,7 @@ export default function PlayerCardPage() {
                 onClick={() => {
                   if (!progressFile) return;
                   setShowProgressModal(false);
-                  toast.success(
-                    "Progress photo saved. Tap Submit Card to upload.",
-                  );
+                  toast.success("Progress photo saved. Tap Submit Card to upload.");
                 }}
                 className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
                   progressFile
@@ -616,7 +570,6 @@ export default function PlayerCardPage() {
               >
                 {progressFile ? "Save Photo" : "Select a File First"}
               </button>
-
               <button
                 onClick={() => setShowProgressModal(false)}
                 className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
@@ -629,9 +582,7 @@ export default function PlayerCardPage() {
               <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1">
                 <span className="text-xs">💡</span>
                 <span className="text-gray-400 font-medium">Tip:</span>
-                <span className="text-cyan-600/80 text-[10px]">
-                  Clear photos of physique for best accuracy
-                </span>
+                <span className="text-cyan-600/80 text-[10px]">Clear photos of physique for best accuracy</span>
               </p>
             </div>
           </div>
