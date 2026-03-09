@@ -1,17 +1,16 @@
-// src/app/search-workouts/page.tsx
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search, ArrowLeft, Grid3x3, List, LayoutGrid, AlignJustify } from "lucide-react";
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Search, LayoutGrid, AlignJustify } from "lucide-react"
 
 interface Workout {
-  id: number;
-  week: string;
-  season: string;
-  title: string;
-  category: string;
-  image: string;
+  id: number
+  week: string
+  season: string
+  title: string
+  category: string
+  image: string
 }
 
 const workouts: Workout[] = [
@@ -23,112 +22,77 @@ const workouts: Workout[] = [
   { id: 6, week: "WEEK 3", season: "SEASONS", title: "Glute Builder", category: "Legs", image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800" },
   { id: 7, week: "WEEK 1", season: "SEASONS", title: "Arm Day", category: "Arms", image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800" },
   { id: 8, week: "WEEK 2", season: "SEASONS", title: "HIIT Cardio", category: "Cardio", image: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=800" },
-];
+]
 
 export default function SearchWorkoutsPage() {
-  const router = useRouter();
+  const router = useRouter()
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [muscleFilter, setMuscleFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [muscleFilter, setMuscleFilter] = useState("All")
+  const [loading, setLoading] = useState(true)
 
-  const categories = ["All", "Chest", "Legs", "Back", "Shoulders", "Core", "Arms", "Cardio"];
+  const categories = ["All", "Chest", "Legs", "Back", "Shoulders", "Core", "Arms", "Cardio"]
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1200)
+    return () => clearTimeout(timer)
+  }, [])
 
   const filteredWorkouts = workouts.filter((w) => {
-    const matchSearch = w.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = muscleFilter === "All" || w.category === muscleFilter;
-    return matchSearch && matchCategory;
-  });
+    const matchSearch = w.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchCategory = muscleFilter === "All" || w.category === muscleFilter
+    return matchSearch && matchCategory
+  })
 
   return (
     <div className="min-h-screen bg-gray-100">
-     {/* Header */}
-     <header
-  style={{
-    background: "white",
-    borderBottom: "1px solid #E5E7EB",
-    padding: "14px 28px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    position: "sticky",
-    top: 0,
-    zIndex: 100
-  }}
->
-  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-    
-    <div>
-      <h1
-        style={{
-          fontSize: 20,
-          fontWeight: 800,
-          color: "#111827"
-        }}
-      >
-        Search All Workouts
-      </h1>
 
-      <p
-        style={{
-          fontSize: 12,
-          color: "#9CA3AF",
-          marginTop: 1
-        }}
-      >
-        Find the perfect workout for your training goals
-      </p>
-    </div>
+      {/* HEADER */}
+      <header className="bg-white border-b sticky top-0 z-40 px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-  </div>
+        <div>
+          <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">
+            Search All Workouts
+          </h1>
 
-  <div style={{ display: "flex", gap: 6 }}>
+          <p className="text-xs text-gray-400">
+            Find the perfect workout for your training goals
+          </p>
+        </div>
 
-    <button
-      onClick={() => setViewMode("grid")}
-      style={{
-        border: "none",
-        borderRadius: 8,
-        padding: "8px 10px",
-        display: "flex",
-        background: viewMode === "grid" ? "#6C3AE8" : "#F3F4F6",
-        transition: "background 0.15s"
-      }}
-    >
-      <LayoutGrid
-        size={16}
-        color={viewMode === "grid" ? "white" : "#6B7280"}
-      />
-    </button>
+        <div className="flex gap-2">
 
-    <button
-      onClick={() => setViewMode("list")}
-      style={{
-        border: "none",
-        borderRadius: 8,
-        padding: "8px 10px",
-        display: "flex",
-        background: viewMode === "list" ? "#6C3AE8" : "#F3F4F6",
-        transition: "background 0.15s"
-      }}
-    >
-      <AlignJustify
-        size={16}
-        color={viewMode === "list" ? "white" : "#6B7280"}
-      />
-    </button>
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`p-2 rounded-lg transition ${
+              viewMode === "grid" ? "bg-purple-600 text-white" : "bg-gray-100"
+            }`}
+          >
+            <LayoutGrid size={16} />
+          </button>
 
-  </div>
-</header>
-      <div className="max-w-7xl mx-auto px-6 py-6">
+          <button
+            onClick={() => setViewMode("list")}
+            className={`p-2 rounded-lg transition ${
+              viewMode === "list" ? "bg-purple-600 text-white" : "bg-gray-100"
+            }`}
+          >
+            <AlignJustify size={16} />
+          </button>
 
-   
+        </div>
 
-        {/* Filters Row */}
-        <div className="flex flex-wrap items-center gap-4  mb-8">
+      </header>
 
-          {/* Search */}
-          <div className="relative flex-1 min-w-[250px]">
+      {/* STICKY FILTER BAR */}
+      <div className="sticky top-[76px] z-30 bg-gray-100 border-b">
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row gap-4">
+
+          {/* SEARCH */}
+          <div className="relative flex-1">
+
             <Search
               size={18}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -140,9 +104,10 @@ export default function SearchWorkoutsPage() {
               placeholder="Search workouts..."
               className="w-full pl-11 pr-4 py-3 rounded-xl bg-gray-200 focus:outline-none"
             />
+
           </div>
 
-          {/* Dropdown */}
+          {/* CATEGORY FILTER */}
           <select
             value={muscleFilter}
             onChange={(e) => setMuscleFilter(e.target.value)}
@@ -153,23 +118,43 @@ export default function SearchWorkoutsPage() {
             ))}
           </select>
 
-          {/* Workout Count */}
-          <div className="text-sm text-gray-600 bg-gray-200 px-4 py-2 rounded-lg">
+          {/* COUNT */}
+          <div className="text-sm text-gray-600 bg-gray-200 px-4 py-2 rounded-lg flex items-center">
             {filteredWorkouts.length} workouts
           </div>
 
         </div>
 
-        {/* GRID VIEW */}
+      </div>
 
-        {viewMode === "grid" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {/* CONTENT */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+        {/* SKELETON LOADING */}
+        {loading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[220px] bg-white rounded-2xl overflow-hidden shadow animate-pulse"
+              >
+                <div className="h-full bg-gray-300" />
+              </div>
+            ))}
+
+          </div>
+        )}
+
+        {/* GRID VIEW */}
+        {!loading && viewMode === "grid" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
             {filteredWorkouts.map((workout) => (
               <div
                 key={workout.id}
                 onClick={() => router.push(`/workout/${workout.id}`)}
-                className="relative h-[230px] rounded-2xl overflow-hidden cursor-pointer group"
+                className="relative h-[220px] rounded-2xl overflow-hidden cursor-pointer group"
               >
 
                 <img
@@ -206,67 +191,59 @@ export default function SearchWorkoutsPage() {
         )}
 
         {/* LIST VIEW */}
+        {!loading && viewMode === "list" && (
+          <div className="space-y-5">
 
-     {viewMode === "list" && (
-  <div className="space-y-5">
+            {filteredWorkouts.map((workout) => (
+              <div
+                key={workout.id}
+                onClick={() => router.push(`/workout/${workout.id}`)}
+                className="bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer group flex flex-col sm:flex-row"
+              >
 
-    {filteredWorkouts.map((workout) => (
-      <div
-        key={workout.id}
-        onClick={() => router.push(`/workout/${workout.id}`)}
-        className="relative h-[150px] rounded-2xl overflow-hidden cursor-pointer group"
-      >
+                {/* IMAGE */}
+                <div className="relative sm:w-[220px] h-[180px] sm:h-auto flex-shrink-0">
 
-        {/* Background image */}
-        <img
-          src={workout.image}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
-        />
+                  <img
+                    src={workout.image}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  />
 
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/40" />
+                  <div className="absolute top-3 left-3 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-md">
+                    {workout.week}
+                  </div>
 
-        {/* Image side */}
-        <div className="absolute left-0 top-0 bottom-0 w-[160px] overflow-hidden">
-          <img
-            src={workout.image}
-            className="w-full h-full object-cover"
-          />
+                </div>
 
-          {/* Week badge */}
-          <div className="absolute top-3 left-3 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-md">
-            {workout.week}
+                {/* CONTENT */}
+                <div className="p-5 flex flex-col justify-center flex-1">
+
+                  <p className="text-gray-400 text-xs uppercase">
+                    {workout.season}
+                  </p>
+
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {workout.title}
+                  </h3>
+
+                  <p className="text-gray-500 text-sm mb-3">
+                    {workout.week} • Strength workout focusing on compound lifts
+                  </p>
+
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 rounded-lg w-full sm:w-[160px]">
+                    View Workout
+                  </button>
+
+                </div>
+
+              </div>
+            ))}
+
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="relative ml-[180px] h-full flex flex-col justify-center pr-6">
-
-          <p className="text-gray-300 text-xs uppercase">
-            {workout.season}
-          </p>
-
-          <h3 className="text-white text-xl font-semibold">
-            {workout.title}
-          </h3>
-
-          <p className="text-gray-400 text-sm mb-3">
-            {workout.week} • Strength workout focusing on compound lifts
-          </p>
-
-          <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 rounded-lg w-full">
-            View Workout
-          </button>
-
-        </div>
+        )}
 
       </div>
-    ))}
 
-  </div>
-)}
-
-      </div>
     </div>
-  );
+  )
 }

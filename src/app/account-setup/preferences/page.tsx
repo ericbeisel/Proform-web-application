@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Globe, CalendarDays, MapPin, ChevronDown } from 'lucide-react';
+import { Globe, CalendarDays, MapPin, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 import {
@@ -67,7 +67,7 @@ export default function PreferencesPage() {
 
   const [formData, setFormData] = useState({
     timeZoneId: '',
-    weeklyResetDay: 'Thursday' as DayKey,
+    weeklyResetDay: 'Monday' as DayKey,
     countryId: '',
     stateId: '',
     cityId: '',
@@ -146,7 +146,7 @@ export default function PreferencesPage() {
         workoutDays:         saved.workoutDays       || [],
         supplementalDays:    saved.supplementalDays  || [],
         cardioDays:          saved.cardioDays        || [],
-        conditioningDays:    saved.conditioningDays  || [],   // ← NEW
+        conditioningDays:    saved.conditioningDays  || [],
         // Step 7
         selected1RMMethod:   saved.selected1RMMethod || null,
         // Step 8
@@ -156,19 +156,19 @@ export default function PreferencesPage() {
         powerClean:          saved.powerClean        || '',
         autoCalculateFuture: saved.autoCalculateFuture || false,
         // Step 9
-        timeZoneId:          String(parseInt(formData.timeZoneId, 10)),  // ensure clean integer string
+        timeZoneId:          String(parseInt(formData.timeZoneId, 10)),
         weeklyResetDay:      formData.weeklyResetDay,
         countryId:           formData.countryId,
         stateId:             formData.stateId,
         cityId:              formData.cityId,
       });
 
-      // Keep parity with mobile flow:
-      // after successful account setup, mark checklist as skipped/completed.
-      await removeMemberChecklist();
-
-      sessionStorage.removeItem('accountSetup');
-      router.replace('/dashboard');
+      // Don't remove sessionStorage yet
+      // Don't call removeMemberChecklist yet
+      
+      // Redirect to the new member checklist page with a query param to show success
+      router.push('/account-setup/newMember?setup=completed');
+      
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -199,7 +199,7 @@ export default function PreferencesPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Time Zone — value is the numeric ID string e.g. "1", "42" */}
+          {/* Time Zone */}
           <SelectField
             label="Time Zone*"
             icon={<Globe size={15} className="text-[#6202AC]" />}
@@ -210,7 +210,6 @@ export default function PreferencesPage() {
             placeholder={loadingTimezones ? 'Loading timezones...' : 'Select timezone'}
           >
             {timezones.map((tz) => (
-              // tz.id is a string from API e.g. "1", "2" — use directly as value
               <option key={tz.id} value={String(tz.id)}>
                 {tz.name}
               </option>
@@ -229,15 +228,21 @@ export default function PreferencesPage() {
               <p className="text-xs text-gray-500">Calories reset at 11:59 pm the night before your start date.</p>
             </div>
             <div className="flex gap-1.5 mb-3">
-              {DAY_KEYS.map((day, index) => (
-                <button key={day} type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, weeklyResetDay: day }))}
-                  className={`flex-1 py-3 flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-150
-                    ${formData.weeklyResetDay === day ? 'bg-[#6202AC] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                >
-                  {DAYS[index]}
-                </button>
-              ))}
+              {['Monday', 'Sunday'].map((day, index) => {
+                const dayKey = day as 'Monday' | 'Sunday';
+                const displayChar = day === 'Monday' ? 'M' : 'S';
+                return (
+                  <button 
+                    key={day} 
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, weeklyResetDay: dayKey }))}
+                    className={`flex-1 py-3 flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-150
+                      ${formData.weeklyResetDay === dayKey ? 'bg-[#6202AC] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    {displayChar}
+                  </button>
+                );
+              })}
             </div>
             <p className="text-xs font-medium text-[#6202AC]">📅 Weekly reset: Every {formData.weeklyResetDay}</p>
           </div>
@@ -311,20 +316,17 @@ export default function PreferencesPage() {
           <button
             type="submit"
             disabled={!isFormValid || isSubmitting}
-            className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 mt-6
+            className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 mt-6 flex items-center justify-center gap-2
               ${isFormValid && !isSubmitting
                 ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
           >
             {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Completing Setup…
-              </span>
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Completing Setup...
+              </>
             ) : 'Complete Setup'}
           </button>
         </form>

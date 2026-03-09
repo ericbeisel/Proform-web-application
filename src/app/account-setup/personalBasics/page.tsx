@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Cake, Activity, Ruler } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
+import { fetchActivityLevels, ActivityLevelOption } from '@/api/account-setup/route';
 
 export default function PersonalBasicsPage() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [activityLevels, setActivityLevels] = useState<ActivityLevelOption[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     gender: '',
@@ -14,6 +18,36 @@ export default function PersonalBasicsPage() {
     activityLevel: '',
     unitPreference: 'metric',
   });
+
+  // Fetch activity levels from API on component mount
+  useEffect(() => {
+    const loadActivityLevels = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const levels = await fetchActivityLevels();
+        setActivityLevels(levels);
+        
+        // Load saved data from sessionStorage if exists
+        const savedData = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+        if (savedData.gender || savedData.birthday || savedData.activityLevel || savedData.unitPreference) {
+          setFormData({
+            gender: savedData.gender || '',
+            birthday: savedData.birthday || '',
+            activityLevel: savedData.activityLevel || '',
+            unitPreference: savedData.unitPreference || 'metric',
+          });
+        }
+      } catch (err: any) {
+        console.error('Failed to load activity levels:', err);
+        setError(err.message || 'Failed to load activity levels');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadActivityLevels();
+  }, []);
 
   const getMaxBirthday = () => {
     const today = new Date();
@@ -33,10 +67,16 @@ export default function PersonalBasicsPage() {
       ...existing,
       gender: formData.gender,
       birthday: formData.birthday,
-      activityLevel: formData.activityLevel,
+      activityLevel: formData.activityLevel, // This now stores the ID (1,2,3,4)
       unitPreference: formData.unitPreference,
     }));
     router.push('/account-setup/goalPreferences');
+  };
+
+  // Helper function to get display name from activity level ID
+  const getActivityLevelName = (id: string) => {
+    const level = activityLevels.find(l => String(l.id) === id);
+    return level?.name || id;
   };
 
   return (
@@ -63,7 +103,7 @@ export default function PersonalBasicsPage() {
             Gender*
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {['Male', 'Female', 'Non-binary', 'Prefer not to say'].map((option) => (
+            {['Male', 'Female', 'Prefer not to say'].map((option) => (
               <button
                 key={option}
                 type="button"
@@ -104,25 +144,46 @@ export default function PersonalBasicsPage() {
               Activity Level*
             </label>
             <div className="relative">
-              <select
-                value={formData.activityLevel}
-                onChange={(e) => setFormData({ ...formData, activityLevel: e.target.value })}
-                className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-sm text-gray-700 appearance-none cursor-pointer"
-                required
-              >
-                <option value=""></option>
-                <option value="sedentary">Sedentary</option>
-                <option value="light">Light</option>
-                <option value="moderate">Moderate</option>
-                <option value="active">Active</option>
-                <option value="very-active">Very Active</option>
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                <svg width="11" height="7" viewBox="0 0 11 7" fill="none">
-                  <path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+              {isLoading ? (
+                <div className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">
+                  Loading activity levels...
+                </div>
+              ) : error ? (
+                <div className="w-full px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                  {error}
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={formData.activityLevel}
+                    onChange={(e) => setFormData({ ...formData, activityLevel: e.target.value })}
+                    className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-sm text-gray-700 appearance-none cursor-pointer [&:not([value=''])]:text-gray-900"
+                    required
+                  >
+                    <option value="" disabled hidden>
+                      Select weekly workouts
+                    </option>
+                    {activityLevels.map((level) => (
+                      <option key={level.id} value={String(level.id)}>
+                        {level.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="11" height="7" viewBox="0 0 11 7" fill="none">
+                      <path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </>
+              )}
             </div>
+            
+            {/* Show selected activity level details (optional) */}
+            {formData.activityLevel && !isLoading && !error && (
+              <p className="text-xs text-gray-500 mt-2">
+                Selected: {getActivityLevelName(formData.activityLevel)}
+              </p>
+            )}
           </div>
         </div>
 
@@ -133,7 +194,7 @@ export default function PersonalBasicsPage() {
             Unit Preference
           </label>
           <div className="grid grid-cols-2 gap-3">
-            {[{ value: 'metric', label: 'Metric (kg/cm)' }, { value: 'imperial', label: 'Imperial (lbs/ft)' }].map((u) => (
+            {[{ value: 'metric', label: 'Metric (kg)' }, { value: 'imperial', label: 'Imperial (lbs)' }].map((u) => (
               <button
                 key={u.value}
                 type="button"
@@ -152,14 +213,14 @@ export default function PersonalBasicsPage() {
 
         <button
           type="submit"
-          disabled={!isFormValid}
+          disabled={!isFormValid || isLoading}
           className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200
-            ${isFormValid
+            ${isFormValid && !isLoading
               ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
         >
-          Continue to Next Step
+          {isLoading ? 'Loading...' : 'Continue to Next Step'}
         </button>
       </form>
     </>

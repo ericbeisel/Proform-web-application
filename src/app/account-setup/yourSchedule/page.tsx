@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown, Dumbbell, Zap, Flame, Mountain, Calendar } from 'lucide-react';
+import { ChevronUp, ChevronDown, Dumbbell, Zap, Flame, Mountain, Calendar, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SplitLayout from '@/components/account-setup/SplitLayout';
 
@@ -39,6 +39,7 @@ function NumberInput({
 
 export default function YourSchedulePage() {
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [workoutCount, setWorkoutCount]         = useState('');
   const [supplementalCount, setSupplementalCount] = useState('');
   const [cardioCount, setCardioCount]           = useState('');
@@ -46,8 +47,14 @@ export default function YourSchedulePage() {
 
   const isFormValid = workoutCount !== '';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    setIsSubmitting(true);
+    
+    // Simulate a small delay to show the loader (remove this in production)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
     sessionStorage.setItem('accountSetup', JSON.stringify({
       ...existing,
@@ -63,6 +70,8 @@ export default function YourSchedulePage() {
       cardioCount:       cardioCount       || '0',
       conditioningCount: conditioningCount || '0',
     }));
+    
+    setIsSubmitting(false);
     router.push('/account-setup/repMax');
   };
 
@@ -138,10 +147,24 @@ export default function YourSchedulePage() {
           </p>
         </div>
 
-        <button type="submit" disabled={!isFormValid}
-          className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200
-            ${isFormValid ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-        >Continue</button>
+        <button 
+          type="submit" 
+          disabled={!isFormValid || isSubmitting}
+          className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 flex items-center justify-center gap-2
+            ${isFormValid && !isSubmitting
+              ? 'bg-[#6202AC] hover:bg-[#4e0288] text-white shadow-md' 
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Continue'
+          )}
+        </button>
       </form>
     </>
   );

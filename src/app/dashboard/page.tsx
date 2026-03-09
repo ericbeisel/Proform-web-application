@@ -1,63 +1,64 @@
 // app/dashboard/page.tsx
 "use client"
 
-import { useState, useEffect } from 'react'
-import { dashboardApi, DashboardSummary } from '@/api/dashboard/route'
+import { useState, useEffect } from "react"
+import { dashboardApi, DashboardSummary } from "@/api/dashboard/route"
+import { useRouter } from "next/navigation"
 
-import DashboardHeader from './components/DashboardHeader'
-import Banner from './components/Banner'
-import ItineraryCard from './components/ItineraryCard'
-import ForYouCard from './components/ForYouCard'
-import AccountabilityTools from './components/AccountabilityTools'
-import StandardsCard from './components/StandardsCard'
-import LiveSessionsCard from './components/LiveSessionsCard'
-import DailyTodoCard from './components/DailyTodoCard'
-import ChallengesCard from './components/ChallengesCard'
-import WeeklyTargets from './components/WeeklyTargets'
-import QuickActions from './components/QuickActions'
+import DashboardHeader from "./components/DashboardHeader"
+import Banner from "./components/Banner"
+import ItineraryCard from "./components/ItineraryCard"
+import ForYouCard from "./components/ForYouCard"
+import AccountabilityTools from "./components/AccountabilityTools"
+import StandardsCard from "./components/StandardsCard"
+import LiveSessionsCard from "./components/LiveSessionsCard"
+import DailyTodoCard from "./components/DailyTodoCard"
+import ChallengesCard from "./components/ChallengesCard"
+import WeeklyTargets from "./components/WeeklyTargets"
+import QuickActions from "./components/QuickActions"
 
 export default function DashboardPage() {
-  const [activeNav, setActiveNav] = useState('Home')
+  const router = useRouter()
+  const [activeNav, setActiveNav] = useState("Home")
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [accountSetupComplete, setAccountSetupComplete] = useState(true) // Default to true, will update after fetch
 
-// app/dashboard/page.tsx - Update the fetch function
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
 
-useEffect(() => {
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-      console.log('📡 Fetching dashboard data...')
-      
-      const data = await dashboardApi.getDashboardSummary()
-      
-      // 🔍 DEBUG: Log the entire data object
-      console.log('✅ Dashboard data received:', data)
-      
-      // Log each section to verify
-      console.log('👤 User:', data.userName, data.userEmail)
-      console.log('⚖️ Weight:', data.currentWeight, data.measurementUnit)
-      console.log('🎯 Weekly Targets:', data.weeklyTargets)
-      console.log('💪 Strength Metrics:', data.strengthMetrics)
-      console.log('🏋️ Training Goals:', data.trainingGoals)
-      console.log('📊 Daily Steps:', data.dailySteps)
-      console.log('🔥 Calories Goal:', data.caloriesGoal)
-      
-      setDashboardData(data)
-      setError(null)
-    } catch (err: any) {
-      console.error('❌ Dashboard error:', err)
-      setError(err.message || 'Failed to load dashboard data')
-    } finally {
-      setLoading(false)
+        // Get raw dashboard data to check accountsetup status
+        const rawData = await dashboardApi.getDashboardData()
+        const user = rawData.user
+        const details = user.OtherDetail
+        
+        // Check if account setup is complete (accountsetup field is "1" or completed)
+        const isSetupComplete = details.accountsetup === "1" || details.accountsetup?.toLowerCase() === "completed"
+        setAccountSetupComplete(isSetupComplete)
+
+        // Get the processed summary for display
+        const summary = await dashboardApi.getDashboardSummary()
+        setDashboardData(summary)
+        setError(null)
+        
+      } catch (err: any) {
+        console.error("❌ Dashboard error:", err)
+        setError(err.message || "Failed to load dashboard data")
+      } finally {
+        setLoading(false)
+      }
     }
+
+    fetchDashboardData()
+  }, [])
+
+  const handleCompleteSetup = () => {
+    router.push('/account-setup/newMember')
   }
 
-  fetchDashboardData()
-}, [])
-
-  // Show loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f0eff4] flex items-center justify-center">
@@ -69,7 +70,6 @@ useEffect(() => {
     )
   }
 
-  // Show error state
   if (error) {
     return (
       <div className="min-h-screen bg-[#f0eff4] flex items-center justify-center">
@@ -88,40 +88,79 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#f0eff4] text-[#1a1825] antialiased">
-      <DashboardHeader 
-        activeNav={activeNav} 
-        setActiveNav={setActiveNav} 
+      <DashboardHeader
+        activeNav={activeNav}
+        setActiveNav={setActiveNav}
         userName={dashboardData?.userName}
       />
 
-      <main className="p-7 px-8 flex flex-col gap-6">
+      {/* Responsive padding */}
+      <main className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+
+        {/* Account Setup Reminder Banner */}
+        {!accountSetupComplete && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 shadow-lg">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 rounded-full p-3">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-lg">Complete Your Account Setup</h3>
+                  <p className="text-amber-100 text-sm">Finish setting up your account to unlock personalized features and track your progress</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCompleteSetup}
+                className="bg-white text-amber-600 hover:bg-amber-50 font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-md"
+              >
+                Complete Setup
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         <Banner />
 
-        <div className="grid grid-cols-[280px_1fr_280px] gap-5">
+        {/* Responsive main grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_280px] gap-5">
+
+          {/* LEFT COLUMN */}
           <ItineraryCard />
 
+          {/* CENTER COLUMN */}
           <div className="space-y-5">
-            <ForYouCard 
+            <ForYouCard
               currentWeight={dashboardData?.currentWeight}
               goalWeight={dashboardData?.goalWeight}
               measurementUnit={dashboardData?.measurementUnit}
               trainingGoals={dashboardData?.trainingGoals}
             />
+
             <AccountabilityTools />
             <StandardsCard />
           </div>
 
+          {/* RIGHT COLUMN */}
           <div className="space-y-5">
             <LiveSessionsCard />
             <DailyTodoCard />
             <ChallengesCard />
           </div>
+
         </div>
 
-        <div className="grid grid-cols-2 gap-5">
+        {/* Bottom grid responsive */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <WeeklyTargets targets={dashboardData?.weeklyTargets} />
           <QuickActions />
         </div>
+
       </main>
     </div>
   )
