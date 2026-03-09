@@ -43,7 +43,7 @@ export default function PlayerCardPage() {
   const [metricsLoading, setMetricsLoading] = useState(false); // ✅ Controls inline value loaders
   const [error, setError] = useState("");
 
-  const convertHeightToInches = (heightStr: string | number): number => {
+  const convertHeightToInches = (heightStr: string | number | null): number => {
     if (!heightStr) return 0;
     return Number(heightStr) * 12;
   };
