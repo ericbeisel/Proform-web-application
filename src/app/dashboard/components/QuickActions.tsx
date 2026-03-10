@@ -12,7 +12,7 @@ export default function QuickActions() {
     { icon: Edit, label: "Log Activity" },
     { icon: Search, label: "Search Workouts", route: "programs/all-workout" },
     { icon: List, label: "View Programs", route: "/programs" },
-    { icon: Users, label: "Join a Team" },
+    { icon: Users, label: "Create a team" },
     { icon: User, label: "Player Card", route: "/player-cards" },
   ]
 
