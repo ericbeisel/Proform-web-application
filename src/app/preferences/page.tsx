@@ -358,38 +358,48 @@ export default function PreferencesPage() {
     [showToast],
   );
 
-  const handleSectionDayChange = useCallback(
-    async (section: ScheduleSection, nextSelectedDays: string[]) => {
-      const currentSection = scheduleData[section] || {};
-      const nextSectionTimes: Record<string, TimeSlot[]> = {};
+ // Add this constant near the top of your file (or inside the component)
+const DEFAULT_TIMES: Record<ScheduleSection, string> = {
+  workout:       "08:30 AM",
+  cardio:        "07:30 PM",     // 19:30 → 7:30 PM
+  supplemental:  "01:30 PM",     // 13:30 → 1:30 PM
+  conditioning:  "04:30 PM",     // 16:30 → 4:30 PM
+};
 
-      nextSelectedDays.forEach((shortDay) => {
-        const fullDay = DAY_MAP[shortDay];
-        if (!fullDay) return;
-        nextSectionTimes[fullDay] = currentSection[fullDay]?.length
-          ? currentSection[fullDay]
-          : [{ startTime: "09:00 AM" }];
-      });
+const handleSectionDayChange = useCallback(
+  async (section: ScheduleSection, nextSelectedDays: string[]) => {
+    const currentSection = scheduleData[section] || {};
+    const nextSectionTimes: Record<string, TimeSlot[]> = {};
 
-      const normalized = normalizeSectionTimes(nextSectionTimes);
-      setSelectedDaysForSection(section, nextSelectedDays);
-      setScheduleData((prev) => ({
-        ...prev,
-        [section]: normalized,
-      }));
+    nextSelectedDays.forEach((shortDay) => {
+      const fullDay = DAY_MAP[shortDay];
+      if (!fullDay) return;
 
-      try {
-        await saveActivityDays(section, normalized, true);
-      } catch (saveError: unknown) {
-        showToast(
-          "error",
-          (saveError as Error)?.message ||
-            `Failed to update ${SECTION_TO_API_TYPE[section]} schedule.`,
-        );
-      }
-    },
-    [saveActivityDays, scheduleData, setSelectedDaysForSection, showToast],
-  );
+      // Use existing times if they exist, otherwise use the section-specific default
+      nextSectionTimes[fullDay] = currentSection[fullDay]?.length
+        ? currentSection[fullDay]
+        : [{ startTime: DEFAULT_TIMES[section] }];
+    });
+
+    const normalized = normalizeSectionTimes(nextSectionTimes);
+    setSelectedDaysForSection(section, nextSelectedDays);
+    setScheduleData((prev) => ({
+      ...prev,
+      [section]: normalized,
+    }));
+
+    try {
+      await saveActivityDays(section, normalized, true);
+    } catch (saveError: unknown) {
+      showToast(
+        "error",
+        (saveError as Error)?.message ||
+          `Failed to update ${SECTION_TO_API_TYPE[section]} schedule.`,
+      );
+    }
+  },
+  [saveActivityDays, scheduleData, setSelectedDaysForSection, showToast],
+);
 
   const handleSaveTimes = useCallback(
     (times: Record<string, TimeSlot[]>) => {
@@ -657,12 +667,12 @@ export default function PreferencesPage() {
                 title="Preferred Workout Days:"
                 subtitle="Select all days of the week you usually train on (can select more than one)"
                 hint="*For Suggested: 5-6 Primary Workouts per week"
-                timeLabel={
-                  getTimesCount("workout") &&
-                  Object.values(getTimesCount("workout")).some((t) => t > 0)
-                    ? "Times Selected"
-                    : "Default Time 3:30 pm"
-                }
+               timeLabel={
+  getTimesCount("workout") &&
+  Object.values(getTimesCount("workout")).some((t) => t > 0)
+    ? "Times Selected"
+    : "Default Time 08:30 am"
+}
                 selected={workoutDays}
                 onChange={(days) => {
                   void handleSectionDayChange("workout", days);
@@ -674,12 +684,12 @@ export default function PreferencesPage() {
                 title="Default Cardio Days:"
                 subtitle="Choose which days you like to use your cardio workouts"
                 hint="*For Suggested: 3-5 Cardio workouts per week"
-                timeLabel={
-                  getTimesCount("cardio") &&
-                  Object.values(getTimesCount("cardio")).some((t) => t > 0)
-                    ? "Times Selected"
-                    : "Default Time 4:30 pm"
-                }
+             timeLabel={
+  getTimesCount("cardio") &&
+  Object.values(getTimesCount("cardio")).some((t) => t > 0)
+    ? "Times Selected"
+    : "Default Time 07:30 pm"
+}
                 selected={cardioDays}
                 onChange={(days) => {
                   void handleSectionDayChange("cardio", days);
@@ -691,14 +701,12 @@ export default function PreferencesPage() {
                 title="Preferred Supplemental Days:"
                 subtitle="Choose which days you like to use your supplemental workout days, based on your weekly target"
                 hint="*For Suggested: 2-4 Supplemental workouts, based on your weekly target"
-                timeLabel={
-                  getTimesCount("supplemental") &&
-                  Object.values(getTimesCount("supplemental")).some(
-                    (t) => t > 0,
-                  )
-                    ? "Times Selected"
-                    : "Default Time 1:30 pm"
-                }
+              timeLabel={
+  getTimesCount("supplemental") &&
+  Object.values(getTimesCount("supplemental")).some((t) => t > 0)
+    ? "Times Selected"
+    : "Default Time 01:30 pm"
+}
                 selected={supplementalDays}
                 onChange={(days) => {
                   void handleSectionDayChange("supplemental", days);
@@ -710,14 +718,12 @@ export default function PreferencesPage() {
                 title="Preferred Conditioning Days:"
                 subtitle="Choose which days you like to use your conditioning workout days, based on your weekly target"
                 hint="*For Suggested: 2-3 Supplemental workouts (less cardio must...)"
-                timeLabel={
-                  getTimesCount("conditioning") &&
-                  Object.values(getTimesCount("conditioning")).some(
-                    (t) => t > 0,
-                  )
-                    ? "Times Selected"
-                    : "Default Time 4:30 pm"
-                }
+             timeLabel={
+  getTimesCount("conditioning") &&
+  Object.values(getTimesCount("conditioning")).some((t) => t > 0)
+    ? "Times Selected"
+    : "Default Time 04:30 pm"
+}
                 selected={conditioningDays}
                 onChange={(days) => {
                   void handleSectionDayChange("conditioning", days);
