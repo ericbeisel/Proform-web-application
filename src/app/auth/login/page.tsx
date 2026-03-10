@@ -38,17 +38,21 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const data = await login(formData.email, formData.password);
+   const data = await login(formData.email, formData.password);
 
-      if (data.user) {
-        setAuthUser({
-          id: data.user.id,
-          name: data.user.name,
-          username: data.user.username,
-          email: data.user.email || data.user.email_id,
-          role: data.user.role || data.user.role_id,
-        });
-      }
+if (data.token) {
+  localStorage.setItem("token", data.token); // ADD THIS
+}
+
+if (data.user) {
+  setAuthUser({
+    id: data.user.id,
+    name: data.user.name,
+    username: data.user.username,
+    email: data.user.email || data.user.email_id,
+    role: data.user.role || data.user.role_id,
+  });
+}
 
       console.log('Login successful:', data);
 

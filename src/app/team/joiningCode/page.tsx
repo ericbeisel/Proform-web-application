@@ -1,13 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
+
 export default function JoiningCodePage() {
   const [code, setCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-    
+
   const handleSubmit = () => {
-    router.push("/team-dashboard");
+    if (!code.trim()) return;
+
+    setIsLoading(true);
+
+    // Simulate API call / delay (remove in real app)
+    setTimeout(() => {
+      // In real app → validate code here, then:
+      router.push("/team-dashboard");
+      // or show error if code is invalid
+    }, 1200); // fake delay — replace with real fetch/axios call
   };
 
   return (
@@ -58,7 +69,7 @@ export default function JoiningCodePage() {
         </p>
 
         {/* Form */}
-        <div className="w-full mb-4">
+        <div className="w-full mb-6">
           <label
             htmlFor="joiningCode"
             className="block text-sm font-medium text-gray-700 mb-2"
@@ -72,15 +83,45 @@ export default function JoiningCodePage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="w-full px-4 py-3.5 text-sm text-gray-700 border border-gray-200 rounded-lg outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all duration-200 placeholder:text-gray-400 placeholder:uppercase placeholder:tracking-wide"
+            disabled={isLoading}
           />
         </div>
 
-        {/* Button */}
+        {/* Button – matched exactly to your Create Team button */}
         <button
           onClick={handleSubmit}
-          className="w-full py-4 bg-[#6202AC] hover:bg-violet-600 text-white text-sm font-semibold rounded-lg transition-colors duration-200 cursor-pointer"
+          disabled={isLoading || !code.trim()}
+          className={`w-full py-4 bg-[#6202AC] hover:bg-violet-600 text-white text-sm font-semibold rounded-lg transition-colors duration-200 cursor-pointer flex items-center justify-center gap-2 ${
+            isLoading || !code.trim() ? "opacity-50 cursor-not-allowed" : ""
+          }`}
         >
-          Submit
+          {isLoading ? (
+            <>
+              <svg
+                className="animate-spin h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              Submitting...
+            </>
+          ) : (
+            "Submit"
+          )}
         </button>
 
       </div>

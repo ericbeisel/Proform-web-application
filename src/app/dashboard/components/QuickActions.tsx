@@ -12,8 +12,9 @@ export default function QuickActions() {
     { icon: Edit, label: "Log Activity" },
     { icon: Search, label: "Search Workouts", route: "programs/all-workout" },
     { icon: List, label: "View Programs", route: "/programs" },
-    { icon: Users, label: "Create a team" },
+    { icon: Users, label: "Create a team" , route: "/team/createTeam" },
     { icon: User, label: "Player Card", route: "/player-cards" },
+    { icon: User, label: "Team", route: "/team/teams" },
   ]
 
   const handleAction = (action: any) => {

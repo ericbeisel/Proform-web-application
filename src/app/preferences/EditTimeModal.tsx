@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, memo } from "react";
 import { ArrowLeft, Plus, Trash2, ChevronDown } from "lucide-react";
 
@@ -11,8 +13,16 @@ const DAYS_FULL = [
   "Saturday",
 ];
 
+// Default times in 24-hour format (for <input type="time">)
+const DEFAULT_TIMES_BY_SECTION: Record<string, string> = {
+  workout: "08:30",
+  cardio: "19:30",
+  supplemental: "13:30",
+  conditioning: "16:30",
+};
+
 export interface TimeSlot {
-  startTime: string;
+  startTime: string; // stored as "HH:MM AM/PM" or "HH:MM"
 }
 
 interface EditTimeModalProps {
@@ -30,8 +40,7 @@ const EditTimeModal = ({
   title,
   initialTimes = {},
 }: EditTimeModalProps) => {
-  const [selectedTimes, setSelectedTimes] =
-    useState<Record<string, TimeSlot[]>>(initialTimes);
+  const [selectedTimes, setSelectedTimes] = useState<Record<string, TimeSlot[]>>(initialTimes);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +68,23 @@ const EditTimeModal = ({
   const addTimeSlot = (day: string) => {
     if ((selectedTimes[day]?.length || 0) < 3) {
       const newTimes = { ...selectedTimes };
-      newTimes[day] = [...(newTimes[day] || []), { startTime: "09:00 AM" }];
+
+      // Determine section based on modal title
+      const sectionKey = title.toLowerCase().includes("workout")
+        ? "workout"
+        : title.toLowerCase().includes("cardio")
+        ? "cardio"
+        : title.toLowerCase().includes("supplemental")
+        ? "supplemental"
+        : title.toLowerCase().includes("conditioning")
+        ? "conditioning"
+        : null;
+
+      const defaultTime = sectionKey && DEFAULT_TIMES_BY_SECTION[sectionKey]
+        ? DEFAULT_TIMES_BY_SECTION[sectionKey]
+        : "09:00";
+
+      newTimes[day] = [...(newTimes[day] || []), { startTime: defaultTime }];
       setSelectedTimes(newTimes);
     }
   };
@@ -167,33 +192,30 @@ const EditTimeModal = ({
                       <input
                         type="time"
                         value={
-                          // Converting "09:00 AM" to "09:00" format for the input
+                          // Convert stored format (HH:MM AM/PM or HH:MM) → HH:mm for input
                           (() => {
-                            const match =
-                              slot.startTime.match(/(\d+):(\d+)\s(AM|PM)/i);
-                            if (match) {
-                              let h = parseInt(match[1], 10);
-                              const m = match[2];
-                              const isPM = match[3].toUpperCase() === "PM";
-                              if (isPM && h !== 12) h += 12;
-                              if (!isPM && h === 12) h = 0;
-                              return `${h.toString().padStart(2, "0")}:${m}`;
+                            const timeStr = slot.startTime;
+                            if (timeStr.includes(" ")) {
+                              const [time, period] = timeStr.split(" ");
+                              const [h, m] = time.split(":");
+                              let hour = parseInt(h, 10);
+                              const isPM = period?.toUpperCase() === "PM";
+                              if (isPM && hour !== 12) hour += 12;
+                              if (!isPM && hour === 12) hour = 0;
+                              return `${hour.toString().padStart(2, "0")}:${m}`;
                             }
-                            return "09:00";
+                            return timeStr.padStart(5, "0"); // already HH:mm
                           })()
                         }
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = e.target.value; // "HH:mm"
                           if (val) {
                             const [h, m] = val.split(":");
                             let hour = parseInt(h, 10);
                             const ampm = hour >= 12 ? "PM" : "AM";
                             hour = hour % 12 || 12;
-                            updateTimeSlot(
-                              expandedDay,
-                              index,
-                              `${hour.toString().padStart(2, "0")}:${m} ${ampm}`,
-                            );
+                            const displayTime = `${hour.toString().padStart(2, "0")}:${m} ${ampm}`;
+                            updateTimeSlot(expandedDay, index, displayTime);
                           }
                         }}
                         className="w-full flex items-center justify-between text-[14px] bg-[#F9F9F9] text-black border border-[#EEEEEE] rounded-xl px-4 py-3 outline-none focus:border-[#6202AC] transition-colors"

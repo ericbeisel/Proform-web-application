@@ -1,5 +1,6 @@
 // app/dashboard/components/WeeklyTargets.tsx
 import { Dumbbell, Activity, Zap, Heart } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface WeeklyTargetsProps {
   targets?: {
@@ -11,6 +12,8 @@ interface WeeklyTargetsProps {
 }
 
 export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
+  const router = useRouter(); // Add this
+  
   const defaultTargets = {
     workout: 3,
     supplement: 2,
@@ -63,13 +66,21 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
     },
   ]
 
+  // Add this click handler
+  const handleCardioClick = () => {
+    router.push('/cardio');
+  };
+
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <h3 className="font-bold text-sm mb-3.5">Weekly Targets</h3>
       {targetItems.map(item => (
         <div
           key={item.label}
-          className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor}`}
+          onClick={item.label === 'Cardio' ? handleCardioClick : undefined} // Add onClick only for Cardio
+          className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor} ${
+            item.label === 'Cardio' ? 'cursor-pointer hover:opacity-80 transition-opacity' : '' // Add cursor style only for Cardio
+          }`}
         >
           <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-lg ${item.iconBg}`}>
             <item.icon size={18} />
