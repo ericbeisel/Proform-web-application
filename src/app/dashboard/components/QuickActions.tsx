@@ -1,7 +1,7 @@
 // app/dashboard/components/QuickActions.tsx
 "use client"
 
-import { Plus, Edit, Search, List, Users, User } from "lucide-react"
+import { Plus, Edit, Search, List, Users, User, Settings } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function QuickActions() {
@@ -15,6 +15,7 @@ export default function QuickActions() {
     { icon: Users, label: "Create a team" , route: "/team/createTeam" },
     { icon: User, label: "Player Card", route: "/player-cards" },
     { icon: User, label: "Team", route: "/team/teams" },
+    { icon: Settings, label: "Preferences", route: "/preferences" },
   ]
 
   const handleAction = (action: any) => {

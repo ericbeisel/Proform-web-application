@@ -114,18 +114,18 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
       preferenceApi.getActivityDays(SECTION_TO_API_TYPE.conditioning),
     ]);
 
-  const toSectionTimes = (items: ActivityDay[]) => {
-    const sectionTimes: Record<string, TimeSlot[]> = {};
-    items.forEach((entry) => {
-      const mappedTimes = Array.isArray(entry.time)
-        ? entry.time.map((item) => ({ startTime: formatFromApiTime(item) }))
-        : [];
-      if (entry.day) {
-        sectionTimes[entry.day] = mappedTimes;
-      }
-    });
-    return normalizeSectionTimes(sectionTimes);
-  };
+const toSectionTimes = (items: ActivityDay[]) => {
+  const sectionTimes: Record<string, TimeSlot[]> = {};
+  items.forEach((entry) => {
+    const mappedTimes = Array.isArray(entry.time)
+      ? entry.time.map((item) => ({ startTime: formatFromApiTime(item) }))
+      : [];
+    if (entry.day && mappedTimes.length > 0) {
+      sectionTimes[entry.day] = mappedTimes;
+    }
+  });
+  return normalizeSectionTimes(sectionTimes);
+};
 
   return {
     weeklyTargets: {
@@ -307,6 +307,7 @@ export default function PreferencesPage() {
       setSupplementalDays(getSelectedDays(preferencesData.schedule.supplemental));
       setConditioningDays(getSelectedDays(preferencesData.schedule.conditioning));
       setNewCardioGoal(preferencesData.calories);
+       console.log('Preferences data schedule:', preferencesData.schedule);
     }
   }, [preferencesData]);
 
@@ -359,11 +360,12 @@ export default function PreferencesPage() {
   );
 
  // Add this constant near the top of your file (or inside the component)
+// Update this constant to use the correct 12-hour format with AM/PM
 const DEFAULT_TIMES: Record<ScheduleSection, string> = {
-  workout:       "08:30 AM",
-  cardio:        "07:30 PM",     // 19:30 → 7:30 PM
-  supplemental:  "01:30 PM",     // 13:30 → 1:30 PM
-  conditioning:  "04:30 PM",     // 16:30 → 4:30 PM
+  workout: "08:30 AM",
+  cardio: "07:30 PM",     // This is correct for 19:30
+  supplemental: "01:30 PM", // This is correct for 13:30
+  conditioning: "04:30 PM", // This is correct for 16:30
 };
 
 const handleSectionDayChange = useCallback(
@@ -378,7 +380,7 @@ const handleSectionDayChange = useCallback(
       // Use existing times if they exist, otherwise use the section-specific default
       nextSectionTimes[fullDay] = currentSection[fullDay]?.length
         ? currentSection[fullDay]
-        : [{ startTime: DEFAULT_TIMES[section] }];
+        : [{ startTime: DEFAULT_TIMES[section] }]; // This is already in "HH:MM AM/PM" format
     });
 
     const normalized = normalizeSectionTimes(nextSectionTimes);
@@ -516,19 +518,27 @@ const handleSectionDayChange = useCallback(
     return n.toLocaleString();
   };
 
-  if (activeEditSection) {
-    return (
-      <EditTimeModal
-        isOpen={true}
-        onClose={() => setActiveEditSection(null)}
-        onSave={handleSaveTimes}
-        title={"Edit Time"}
-        initialTimes={
-          activeEditSection ? scheduleData[activeEditSection] || {} : {}
-        }
-      />
-    );
-  }
+if (activeEditSection) {
+  // Get the times for the active section
+  const sectionTimes = scheduleData[activeEditSection] || {};
+  
+  // Log to debug (remove after fixing)
+  console.log('Active section:', activeEditSection);
+  console.log('Section times:', sectionTimes);
+  
+  return (
+    <EditTimeModal
+      isOpen={true}
+      onClose={() => setActiveEditSection(null)}
+      onSave={handleSaveTimes}
+      title={activeEditSection === "workout" ? "Edit Workout Times" : 
+             activeEditSection === "cardio" ? "Edit Cardio Times" :
+             activeEditSection === "supplemental" ? "Edit Supplemental Times" :
+             "Edit Conditioning Times"}
+      initialTimes={sectionTimes}
+    />
+  );
+}
 
   return (
     <main className="min-h-screen bg-[#f4f6f9] p-4 md:p-8">

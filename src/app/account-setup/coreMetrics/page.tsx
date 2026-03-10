@@ -266,14 +266,14 @@ export default function CoreMetricsPage() {
         </div>
 
         {/* Weight difference summary */}
-        {formData.currentWeight && formData.goalWeight && (
+        {/* {formData.currentWeight && formData.goalWeight && (
           <div className="bg-purple-50 p-3 rounded-xl">
             <p className="text-xs text-[#6202AC]">
               Goal: {Number(formData.goalWeight) > Number(formData.currentWeight) ? 'Gain' : 'Lose'}{' '}
               {Math.abs(Number(formData.goalWeight) - Number(formData.currentWeight)).toFixed(1)} {weightUnit}
             </p>
           </div>
-        )}
+        )} */}
 
         <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3">
           <p className="text-xs text-purple-900">
