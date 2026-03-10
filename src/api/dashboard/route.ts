@@ -3,7 +3,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
 // ===========================================
 // TYPES
@@ -130,31 +131,25 @@ const parseToList = (value: string): string[] => {
   if (!value) return [];
   return value
     .split(/[,\n]/)
-    .map(item => item.trim())
-    .filter(item => item.length > 0);
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 };
 
 // ===========================================
 // AXIOS CLIENT
 // ===========================================
 
-const apiClient = axios.create({
-  baseURL: API_BASE,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+// ===========================================
+// HELPER FOR HEADERS
+// ===========================================
 
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = getAuthToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error),
-);
+const getHeaders = () => {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 // ===========================================
 // DASHBOARD API
@@ -166,10 +161,14 @@ export const dashboardApi = {
    */
   getDashboardData: async (): Promise<DashboardResponse> => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       return response.data as DashboardResponse;
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load dashboard data."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load dashboard data."),
+      );
     }
   },
 
@@ -178,7 +177,9 @@ export const dashboardApi = {
    */
   getDashboardSummary: async (): Promise<DashboardSummary> => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       const data = response.data as DashboardResponse;
       const user = data.user;
       const details = user.OtherDetail;
@@ -212,19 +213,25 @@ export const dashboardApi = {
         gender: details.gender,
       };
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load dashboard summary."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load dashboard summary."),
+      );
     }
   },
 
   /**
    * Get only user profile info
    */
-  getUserProfile: async (): Promise<Pick<UserData, 'id' | 'name' | 'email' | 'image'>> => {
+  getUserProfile: async (): Promise<
+    Pick<UserData, "id" | "name" | "email" | "image">
+  > => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       const data = response.data as DashboardResponse;
       const user = data.user;
-      
+
       return {
         id: user.id,
         name: user.name,
@@ -232,21 +239,33 @@ export const dashboardApi = {
         image: user.image,
       };
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load user profile."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load user profile."),
+      );
     }
   },
 
   /**
    * Get only user metrics (weight, height, bodyfat, goals)
    */
-  getUserMetrics: async (): Promise<Pick<UserOtherDetail, 
-    'currentWeight' | 'goalWeight' | 'height' | 'bodyfat' | 
-    'avarage_daily_steps' | 'calories_goal'>> => {
+  getUserMetrics: async (): Promise<
+    Pick<
+      UserOtherDetail,
+      | "currentWeight"
+      | "goalWeight"
+      | "height"
+      | "bodyfat"
+      | "avarage_daily_steps"
+      | "calories_goal"
+    >
+  > => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       const data = response.data as DashboardResponse;
       const details = data.user.OtherDetail;
-      
+
       return {
         currentWeight: details.currentWeight,
         goalWeight: details.goalWeight,
@@ -256,7 +275,9 @@ export const dashboardApi = {
         calories_goal: details.calories_goal,
       };
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load user metrics."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load user metrics."),
+      );
     }
   },
 
@@ -270,10 +291,12 @@ export const dashboardApi = {
     conditioning: number;
   }> => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       const data = response.data as DashboardResponse;
       const details = data.user.OtherDetail;
-      
+
       return {
         workout: parseInt(details.target_workout_week) || 0,
         supplement: parseInt(details.target_supplement_week) || 0,
@@ -281,7 +304,9 @@ export const dashboardApi = {
         conditioning: parseInt(details.target_conditioning_week) || 0,
       };
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load weekly targets."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load weekly targets."),
+      );
     }
   },
 
@@ -295,10 +320,12 @@ export const dashboardApi = {
     deadlift: number;
   }> => {
     try {
-      const response = await apiClient.get("/dashboard");
+      const response = await axios.get(`${API_BASE}/dashboard`, {
+        headers: getHeaders(),
+      });
       const data = response.data as DashboardResponse;
       const details = data.user.OtherDetail;
-      
+
       return {
         benchPress: parseFloat(details.r_bench_press) || 0,
         backSquat: parseFloat(details.r_back_squat) || 0,
@@ -306,7 +333,9 @@ export const dashboardApi = {
         deadlift: parseFloat(details.r_deadlift) || 0,
       };
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load strength metrics."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load strength metrics."),
+      );
     }
   },
 };
