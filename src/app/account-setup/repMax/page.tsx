@@ -28,8 +28,13 @@ export default function OneRepMaxPage() {
       selected1RMMethod: selectedMethod,
     }));
     
-    setIsSubmitting(false);
-    router.push('/account-setup/strengthProfile');
+ setIsSubmitting(false);
+
+if (selectedMethod === 'auto') {
+  router.push('/account-setup/preferences');
+} else {
+  router.push('/account-setup/strengthProfile');
+}
   };
 
   return (

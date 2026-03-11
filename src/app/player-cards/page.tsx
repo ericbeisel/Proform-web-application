@@ -20,6 +20,11 @@ import {
 import { dashboardApi } from "@/api/dashboard/route";
 import { useToast } from "@/components/ui/toast-provider";
 
+// Extend the PlayerCardData type to include inBodyScanUrl
+interface ExtendedPlayerCardData extends PlayerCardData {
+  inBodyScanUrl?: string | null;
+}
+
 // ✅ Small inline spinner shown in place of a metric value
 const ValueLoader = () => (
   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600" />
@@ -36,11 +41,11 @@ export default function PlayerCardPage() {
   const [progressFile, setProgressFile] = useState<File | null>(null);
   const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(null);
   const [progressFilePreview, setProgressFilePreview] = useState<string | null>(null);
-  const [playerData, setPlayerData] = useState<PlayerCardData | null>(null);
+  const [playerData, setPlayerData] = useState<ExtendedPlayerCardData | null>(null);
   const [measurementUnit, setMeasurementUnit] = useState<string>("kg");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [metricsLoading, setMetricsLoading] = useState(false); // ✅ Controls inline value loaders
+  const [metricsLoading, setMetricsLoading] = useState(false);
   const [error, setError] = useState("");
 
   const convertHeightToInches = (heightStr: string | number | null): number => {
@@ -75,7 +80,7 @@ export default function PlayerCardPage() {
         ]);
 
         if (playerCardResult.status === "fulfilled") {
-          setPlayerData(playerCardResult.value);
+          setPlayerData(playerCardResult.value as ExtendedPlayerCardData);
         } else {
           console.error("Failed to fetch player card:", playerCardResult.reason);
         }
@@ -109,7 +114,6 @@ export default function PlayerCardPage() {
     void fetchAllData(true);
   }, [fetchAllData]);
 
-  // ✅ Show inline value loaders when a file is selected
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setSelectedFile(file);
@@ -137,6 +141,9 @@ export default function PlayerCardPage() {
   }, [progressFile]);
 
   const hasChanges = !!selectedFile || !!progressFile;
+  
+  // ✅ Check if body scan exists (either from API or newly uploaded)
+  const hasBodyScan = !!(playerData?.inBodyScanUrl || selectedFilePreview);
 
   const handleSubmitCard = async () => {
     if (!hasChanges) {
@@ -167,7 +174,7 @@ export default function PlayerCardPage() {
       toast.error(message);
     } finally {
       setSubmitting(false);
-      setMetricsLoading(false); // ✅ Stop loaders after submit
+      setMetricsLoading(false);
     }
   };
 
@@ -206,6 +213,7 @@ export default function PlayerCardPage() {
     height: 0,
     smm: 0,
     bodyFat: 0,
+    inBodyScanUrl: null,
   };
 
   const heightInInches = convertHeightToInches(data.height);
@@ -289,7 +297,7 @@ export default function PlayerCardPage() {
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#6d28d9] py-3 text-base font-bold text-white shadow-lg shadow-purple-600/20 transition-all hover:bg-[#5b21b6]"
                 >
                   <Upload size={18} />
-                  Upload Body Scan
+                  {hasBodyScan ? "Update Body Scan" : "Upload Body Scan"}
                 </button>
                 <button className="flex items-center justify-center gap-1 text-[#00a3b8] text-xs font-bold hover:text-[#008ba0]">
                   <MapPin size={14} />
@@ -311,7 +319,6 @@ export default function PlayerCardPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                     <span className="text-xs font-bold text-gray-400">Current Wt ({weightUnit}):</span>
-                    {/* ✅ Spinner replaces value when metricsLoading */}
                     {metricsLoading ? (
                       <ValueLoader />
                     ) : (
@@ -381,31 +388,39 @@ export default function PlayerCardPage() {
               </div>
             </div>
 
-            {/* ALERT BANNER */}
-            <div className="bg-[#fff1ed] rounded-xl p-3 border-l-4 border-[#ff7043] flex items-center justify-center gap-2">
-              <div className="text-[#ff7043]">
-                <CheckCircle size={16} />
+            {/* ✅ ALERT BANNER - Only show if NO body scan exists */}
+            {!hasBodyScan && (
+              <div className="bg-[#fff1ed] rounded-xl p-3 border-l-4 border-[#ff7043] flex items-center justify-center gap-2">
+                <div className="text-[#ff7043]">
+                  <CheckCircle size={16} />
+                </div>
+                <p className="text-xs font-bold text-[#ff7043]">
+                  Upload a body scan to submit a complete card and unlock all metrics!
+                </p>
               </div>
-              <p className="text-xs font-bold text-[#ff7043]">
-                Upload a body scan to submit a complete card and unlock all metrics!
-              </p>
-            </div>
+            )}
 
             {/* SUBMIT BUTTON */}
             <button
               onClick={handleSubmitCard}
-              disabled={submitting}
+              disabled={submitting || (!hasChanges && !hasBodyScan)}
               className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all ${
-                hasChanges
-                  ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] cursor-pointer"
-                  : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+                submitting
+                  ? "bg-gray-400 text-white cursor-wait"
+                  : hasChanges
+                    ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] cursor-pointer"
+                    : hasBodyScan
+                      ? "bg-gray-400 text-white cursor-not-allowed opacity-50"
+                      : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
               }`}
             >
               {submitting
                 ? "Submitting..."
                 : hasChanges
                   ? "Submit Card"
-                  : "Submit Card (Scan Required)"}
+                  : hasBodyScan
+                    ? "No Changes to Submit"
+                    : "Submit Card (Scan Required)"}
             </button>
           </div>
         </div>
@@ -445,6 +460,11 @@ export default function PlayerCardPage() {
               {selectedFilePreview ? (
                 <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                   <img src={selectedFilePreview} alt="Selected body scan" className="h-32 w-full object-contain" />
+                </div>
+              ) : playerData?.inBodyScanUrl ? (
+                <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                  <img src={playerData.inBodyScanUrl} alt="Current body scan" className="h-32 w-full object-contain" />
+                  <p className="text-xs text-gray-500 mt-1">Current scan</p>
                 </div>
               ) : (
                 <>

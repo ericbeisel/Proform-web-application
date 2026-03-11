@@ -11,7 +11,7 @@ export default function Banner({ daysRemaining = 26, onClose }: BannerProps) {
   const router = useRouter()
 
   const handleCreateCard = () => {
-    router.push("/player-card")
+    router.push("/player-cards")
   }
 
 return (

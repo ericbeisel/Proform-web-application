@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, ReactNode } from 'react'; // Added ReactNode
 import { useLayout } from '@/app/account-setup/layout';
 
 interface LeftContent {
@@ -16,6 +16,7 @@ interface ProgressData {
 }
 
 interface SplitLayoutProps {
+  children?: ReactNode; // 1. Add children to the interface
   leftContent: LeftContent;
   progressData?: ProgressData;
   showProgress?: boolean;
@@ -24,6 +25,7 @@ interface SplitLayoutProps {
 }
 
 export default function SplitLayout({
+  children, // 2. Destructure children here
   leftContent,
   progressData,
   showProgress = false,
@@ -34,8 +36,13 @@ export default function SplitLayout({
 
   useEffect(() => {
     configure({ leftContent, progressData, showProgress, hideBackButton, onBack });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leftContent, progressData, showProgress, hideBackButton]); // Added dependencies for safety
 
-  return null;
+  // 3. Return the children instead of null
+  return (
+    <div className="w-full">
+      {children}
+    </div>
+  );
 }

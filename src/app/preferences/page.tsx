@@ -942,93 +942,104 @@ if (activeEditSection) {
         </div>
       )}
 
-      {showCardioGoalModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-          onClick={() => setShowCardioGoalModal(false)}
-        >
-          <div
-            className="w-full max-w-[600px] rounded-[24px] bg-white px-6 md:px-8 pb-10 pt-10 shadow-[0_30px_80px_rgba(0,0,0,0.35)] max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-center text-xl font-semibold text-[#6b7384]">
-              You&apos;re adjusting:
-            </p>
-            <h3 className="mt-2 text-center text-4xl font-bold leading-none text-[#1a1a1a]">
-              Cardio Goal
-            </h3>
-            <div className="mx-auto mt-4 h-[4px] w-[120px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
+   {showCardioGoalModal && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+    onClick={() => setShowCardioGoalModal(false)}
+  >
+    <div
+      className="w-full max-w-[520px] rounded-[22px] bg-white px-6 md:px-7 pb-8 pt-8 shadow-[0_25px_70px_rgba(0,0,0,0.35)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <p className="text-center text-lg font-semibold text-[#6b7384]">
+        You&apos;re adjusting:
+      </p>
 
-            <div className="mt-8 grid items-center gap-5 md:grid-cols-[1fr_auto_1fr]">
-              <div className="rounded-[20px] border border-[#cfd5dd] px-4 py-8 text-center">
-                <p className="text-4xl font-bold leading-none text-[#697286]">
-                  {formatNumber(currentCardioGoal)}
-                </p>
-                <p className="mt-3 text-lg font-semibold text-[#1f2229]">
-                  Current
-                </p>
-                <p className="mt-1 text-sm text-[#a3acb9]">kcal per week</p>
-              </div>
+      <h3 className="mt-2 text-center text-3xl font-bold leading-none text-[#1a1a1a]">
+        Cardio Goal
+      </h3>
 
-              <div className="flex items-center justify-center text-[#11a9d5]">
-                <ArrowRight
-                  size={32}
-                  strokeWidth={3}
-                  className="rotate-90 md:rotate-0"
-                />
-              </div>
+      <div className="mx-auto mt-4 h-[4px] w-[110px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
 
-              <div className="rounded-[20px] border-[3px] border-[#10aad3] px-4 py-8 text-center">
-                <input
-                  value={newCardioGoal}
-                  onChange={(e) => {
-                    const next = e.target.value.replace(/[^\d]/g, "") || "0";
-                    setNewCardioGoal(next);
-                  }}
-                  className="w-full bg-transparent text-center text-4xl font-bold leading-none text-[#6202AC] outline-none"
-                />
-                <p className="mt-3 text-lg font-semibold text-[#1f2229]">New</p>
-                <p className="mt-1 text-sm text-[#a3acb9]">kcal per week</p>
-              </div>
-            </div>
+      <div className="mt-7 grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
 
-            <p className="mx-auto mt-8 max-w-[400px] text-center text-sm text-[#6d7688]">
-              Set a weekly cardio calorie goal that aligns with your fitness
-              objectives
-            </p>
-
-            <div className="mx-auto mt-6 w-full max-w-[300px]">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSaveCardioGoal();
-                }}
-                className="mt-6 h-[54px] w-[90%] mx-auto block rounded-full bg-[#6202AC] px-6 text-center text-[22px] font-semibold text-white shadow-md hover:bg-[#500ba6]"
-              >
-                Save Cardio Goal
-              </button>
-            </div>
-
-            <p className="mt-8 text-center text-sm text-[#a3acb9]">
-              Quick suggestions:
-            </p>
-            <div className="mt-3 flex flex-wrap justify-center gap-3">
-              {["3000", "4000", "5000", "6000"].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => {
-                    setNewCardioGoal(suggestion);
-                  }}
-                  className="rounded-[16px] border border-[#d1d7df] bg-white px-5 py-2.5 text-[15px] font-bold text-[#6202AC] hover:bg-gray-50"
-                >
-                  {formatNumber(suggestion)}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Current */}
+        <div className="rounded-[18px] border border-[#cfd5dd] px-4 py-7 text-center">
+          <p className="text-3xl font-bold leading-none text-[#697286]">
+            {formatNumber(currentCardioGoal)}
+          </p>
+          <p className="mt-2 text-base font-semibold text-[#1f2229]">
+            Current
+          </p>
+          <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
         </div>
-      )}
+
+        {/* Arrow */}
+        <div className="flex items-center justify-center text-[#11a9d5]">
+          <ArrowRight
+            size={28}
+            strokeWidth={3}
+            className="rotate-90 md:rotate-0"
+          />
+        </div>
+
+        {/* New */}
+        <div className="rounded-[18px] border-[3px] border-[#10aad3] px-4 py-7 text-center">
+          <input
+            value={newCardioGoal}
+            onChange={(e) => {
+              const next = e.target.value.replace(/[^\d]/g, "") || "0";
+              setNewCardioGoal(next);
+            }}
+            className="w-full bg-transparent text-center text-3xl font-bold leading-none text-[#6202AC] outline-none"
+          />
+          <p className="mt-2 text-base font-semibold text-[#1f2229]">New</p>
+          <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
+        </div>
+
+      </div>
+
+      <p className="mx-auto mt-6 max-w-[360px] text-center text-sm text-[#6d7688]">
+        Set a weekly cardio calorie goal that aligns with your fitness
+        objectives
+      </p>
+
+      {/* Save Button */}
+      <div className="mx-auto mt-5 w-full max-w-[260px]">
+        <button
+          type="button"
+          onClick={() => {
+            void handleSaveCardioGoal();
+          }}
+          className="h-[50px] w-full rounded-full bg-[#6202AC] px-6 text-[20px] font-semibold text-white shadow-md hover:bg-[#500ba6]"
+        >
+          Save Cardio Goal
+        </button>
+      </div>
+
+      {/* Suggestions */}
+      <p className="mt-7 text-center text-sm text-[#a3acb9]">
+        Quick suggestions:
+      </p>
+
+      <div className="mt-3 flex flex-wrap justify-center gap-3">
+        {["3000", "4000", "5000", "6000"].map((suggestion) => (
+          <button
+            key={suggestion}
+            type="button"
+            onClick={() => {
+              setNewCardioGoal(suggestion);
+            }}
+            className="rounded-[14px] border border-[#d1d7df] bg-white px-4 py-2 text-[14px] font-bold text-[#6202AC] hover:bg-gray-50"
+          >
+            {formatNumber(suggestion)}
+          </button>
+        ))}
+      </div>
+
+    </div>
+  </div>
+)}
     </main>
   );
 }

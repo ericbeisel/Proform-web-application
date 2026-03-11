@@ -143,7 +143,7 @@ if (data.user) {
         </div>
 
         {/* Terms */}
-        <div className="flex items-start gap-3 pt-1">
+        {/* <div className="flex items-start gap-3 pt-1">
           <input
             type="checkbox"
             id="terms"
@@ -164,7 +164,7 @@ if (data.user) {
               Privacy Policy
             </Link>
           </label>
-        </div>
+        </div> */}
 
         {/* Submit Button with loader */}
         <button

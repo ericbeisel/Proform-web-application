@@ -26,7 +26,7 @@ type MenuItem = {
 };
 
 const MAIN_MENU: MenuItem[] = [
-  { label: "My Profile", icon: User },
+{ label: "My Profile", icon: User, href: "/profile" },
   { label: "My Dashboard", icon: LayoutGrid, href: "/dashboard" },
   { label: "My Itinerary", icon: Calendar, href: "/itinerary/itinerary-page" },
   { label: "My Metrics", icon: Activity, href: "/itinerary/all-activity" },

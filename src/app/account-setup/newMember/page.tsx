@@ -85,11 +85,13 @@ function NewMemberChecklistContent() {
     });
   }
 
-  const handleClose = async () => {
-    if (isClosing) return;
-    setIsClosing(true);
-    router.replace("/dashboard");
-  };
+ const handleClose = () => {
+  if (isClosing) return;
+  setIsClosing(true);
+
+  // flicker / reload same page
+  window.location.reload();
+};
 
   const handleDontShowAgain = async (checked: boolean) => {
     if (!checked || isSkipping) return;
@@ -282,7 +284,7 @@ function NewMemberChecklistContent() {
       </div>
 
       {/* Only show "Don't show again" when account setup is not complete */}
-      {!accountSetupComplete && (
+      {/* {!accountSetupComplete && (
         <div className="flex items-center justify-center gap-2">
           <input
             type="checkbox"
@@ -300,7 +302,24 @@ function NewMemberChecklistContent() {
             Don&apos;t show me this again
           </label>
         </div>
-      )}
+      )} */}
+      <div className="flex items-center justify-center gap-2">
+  <input
+    type="checkbox"
+    id="dontShow"
+    checked={dontShowAgain}
+    onChange={(e) => {
+      void handleDontShowAgain(e.target.checked);
+    }}
+    className="w-4 h-4 accent-[#6202AC] cursor-pointer rounded"
+  />
+  <label
+    htmlFor="dontShow"
+    className="text-xs sm:text-sm text-gray-500 cursor-pointer select-none"
+  >
+    Don&apos;t show me this again
+  </label>
+</div>
     </>
   );
 }

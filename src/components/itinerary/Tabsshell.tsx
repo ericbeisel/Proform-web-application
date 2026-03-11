@@ -1,11 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import NavTabs from "@/components/itinerary/Navtabs";
 import PageTitle from "@/components/itinerary/Pagetitle";
 
 // Routes inside (tabs) that should hide the shared shell
-const HIDDEN_SHELL_ROUTES = ["/itinerary/missed-activity", "/itinerary/all-activity"];
+const HIDDEN_SHELL_ROUTES = ["/itinerary/missed-activity", "/itinerary/all-activity", "/itinerary/queue"];
 
 export default function TabsShell({
   children,
@@ -16,7 +15,6 @@ export default function TabsShell({
   const hideShell = HIDDEN_SHELL_ROUTES.some((r) => pathname.startsWith(r));
 
   if (hideShell) {
-    // Render page content only — no header, no tabs
     return (
       <div className="flex flex-col w-full min-h-screen bg-white">
         {children}
@@ -74,9 +72,6 @@ export default function TabsShell({
           </svg>
         </button>
       </header>
-
-      {/* ── Tab Navigation ── */}
-      <NavTabs />
 
       {/* ── Page Content ── */}
       <main className="flex-1 overflow-y-auto bg-white">
