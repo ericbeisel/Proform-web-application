@@ -1,28 +1,28 @@
 // app/dashboard/components/QuickActions.tsx
-"use client"
+"use client";
 
-import { Plus, Edit, Search, List, Users, User, Settings } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Plus, Edit, Search, List, Users, User, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function QuickActions() {
-  const router = useRouter()
+  const router = useRouter();
 
   const actions = [
     { icon: Plus, label: "Create Workout" },
     { icon: Edit, label: "Log Activity" },
     { icon: Search, label: "Search Workouts", route: "programs/all-workout" },
     { icon: List, label: "View Programs", route: "/programs" },
-    { icon: Users, label: "Create a team" , route: "/team/createTeam" },
+    { icon: Users, label: "Create a team", route: "/team/createTeam" },
     { icon: User, label: "Player Card", route: "/player-cards" },
     { icon: User, label: "Team", route: "/team/teams" },
     { icon: Settings, label: "Preferences", route: "/preferences" },
-  ]
+  ];
 
   const handleAction = (action: any) => {
     if (action.route) {
-      router.push(action.route)
+      router.push(action.route);
     }
-  }
+  };
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
@@ -46,5 +46,5 @@ export default function QuickActions() {
         ))}
       </div>
     </div>
-  )
+  );
 }

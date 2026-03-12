@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react"
 import { dashboardApi, DashboardSummary } from "@/api/dashboard/route"
+import { getAuthToken } from "@/lib/auth/session"
 import { useRouter } from "next/navigation"
 
 import DashboardHeader from "./components/DashboardHeader"
@@ -23,40 +24,51 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [accountSetupComplete, setAccountSetupComplete] = useState(true) // Default to true, will update after fetch
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      // Guard: if no token exists yet, redirect immediately instead of
+      // firing requests that will all fail with "invalid credentials"
+      const token = getAuthToken()
+      if (!token) {
+        router.replace("/login")
+        return
+      }
+
       try {
         setLoading(true)
 
-        // Get raw dashboard data to check accountsetup status
-        const rawData = await dashboardApi.getDashboardData()
-        const user = rawData.user
-        const details = user.OtherDetail
-        
-        // Check if account setup is complete (accountsetup field is "1" or completed)
-        const isSetupComplete = details.accountsetup === "1" || details.accountsetup?.toLowerCase() === "completed"
-        setAccountSetupComplete(isSetupComplete)
-
-        // Get the processed summary for display
+        // Single call — getDashboardSummary now includes accountSetupComplete
+        // so we don't need a separate getDashboardData() call anymore
         const summary = await dashboardApi.getDashboardSummary()
         setDashboardData(summary)
         setError(null)
-        
-      } catch (err: any) {
-        console.error("❌ Dashboard error:", err)
-        setError(err.message || "Failed to load dashboard data")
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to load dashboard data"
+        console.error("❌ Dashboard error:", message)
+
+        // Auth errors → redirect to login rather than showing a dead error screen
+        const isAuthError =
+          message.toLowerCase().includes("credential") ||
+          message.toLowerCase().includes("unauthorized") ||
+          message.toLowerCase().includes("no auth token")
+
+        if (isAuthError) {
+          router.replace("/login")
+          return
+        }
+
+        setError(message)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchDashboardData()
-  }, [])
+    void fetchDashboardData()
+  }, [router])
 
   const handleCompleteSetup = () => {
-    router.push('/account-setup/newMember')
+    router.push("/account-setup/newMember")
   }
 
   if (loading) {
@@ -94,89 +106,67 @@ export default function DashboardPage() {
         userName={dashboardData?.userName}
       />
 
-      {/* Responsive padding */}
       <main className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
 
-{/* Account Setup Reminder Banner */}
-{!accountSetupComplete && (
-  <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-3 sm:p-4 shadow-lg animate-warning-bounce">
-    
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {/* Account Setup Reminder Banner — now driven by summary.accountSetupComplete */}
+        {dashboardData && !dashboardData.accountSetupComplete && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-3 sm:p-4 shadow-lg animate-warning-bounce">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
 
-      {/* LEFT SIDE */}
-      <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
-        
-        <div className="bg-white/20 rounded-full p-2 sm:p-2.5 animate-pulse">
-          <svg
-            className="w-4 h-4 sm:w-5 sm:h-5 text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
+              <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+                <div className="bg-white/20 rounded-full p-2 sm:p-2.5 animate-pulse">
+                  <svg
+                    className="w-4 h-4 sm:w-5 sm:h-5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
 
-        <div>
-          <h3 className="text-white font-semibold text-sm sm:text-base">
-            Complete Your Account Setup
-          </h3>
+                <div>
+                  <h3 className="text-white font-semibold text-sm sm:text-base">
+                    Complete Your Account Setup
+                  </h3>
+                  <p className="text-amber-100 text-[11px] sm:text-xs leading-relaxed">
+                    Finish setting up your account to unlock personalized features and track your progress
+                  </p>
+                </div>
+              </div>
 
-          <p className="text-amber-100 text-[11px] sm:text-xs leading-relaxed">
-            Finish setting up your account to unlock personalized features and track your progress
-          </p>
-        </div>
+              <button
+                onClick={handleCompleteSetup}
+                className="
+                  sm:ml-auto
+                  bg-white text-amber-600 hover:bg-amber-50
+                  font-semibold px-4 py-2 rounded-lg
+                  transition-all duration-200
+                  flex items-center gap-2 shadow-md
+                  text-xs sm:text-sm
+                "
+              >
+                Complete Setup
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
 
-      </div>
+            </div>
+          </div>
+        )}
 
-      {/* BUTTON */}
-      <button
-        onClick={handleCompleteSetup}
-        className="
-          sm:ml-auto
-          bg-white text-amber-600 hover:bg-amber-50
-          font-semibold
-          px-4 py-2
-          rounded-lg
-          transition-all duration-200
-          flex items-center gap-2
-          shadow-md
-          text-xs sm:text-sm
-        "
-      >
-        Complete Setup
-        <svg
-          className="w-3.5 h-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
-
-    </div>
-  </div>
-)}
         <Banner />
 
-        {/* Responsive main grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_280px] gap-5">
 
-          {/* LEFT COLUMN */}
           <ItineraryCard />
 
-          {/* CENTER COLUMN */}
           <div className="space-y-5">
             <ForYouCard
               currentWeight={dashboardData?.currentWeight}
@@ -184,12 +174,10 @@ export default function DashboardPage() {
               measurementUnit={dashboardData?.measurementUnit}
               trainingGoals={dashboardData?.trainingGoals}
             />
-
             <AccountabilityTools />
             <StandardsCard />
           </div>
 
-          {/* RIGHT COLUMN */}
           <div className="space-y-5">
             <LiveSessionsCard />
             <DailyTodoCard />
@@ -198,7 +186,6 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* Bottom grid responsive */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <WeeklyTargets targets={dashboardData?.weeklyTargets} />
           <QuickActions />

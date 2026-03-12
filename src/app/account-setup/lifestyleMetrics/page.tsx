@@ -88,35 +88,56 @@ export default function LifestyleMetricsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState<{
-    dailySteps: string;
-    cardioCalorieGoal: string;
-    progressPhoto: File | null;
-  }>(() => {
-    const saved = sessionStorage.getItem('accountSetup');
-    if (!saved) {
-      return {
-        dailySteps: '',
-        cardioCalorieGoal: '',
-        progressPhoto: null,
-      };
-    }
+  const [formData, setFormData] = useState({
+  dailySteps: '',
+  cardioCalorieGoal: '',
+  progressPhoto: null as File | null,
+});
 
-    try {
-      const parsed = JSON.parse(saved);
-      return {
-        dailySteps: parsed.dailySteps || '',
-        cardioCalorieGoal: parsed.cardioCalorieGoal || '',
-        progressPhoto: null, // File cannot be restored
-      };
-    } catch {
-      return {
-        dailySteps: '',
-        cardioCalorieGoal: '',
-        progressPhoto: null,
-      };
-    }
-  });
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
+
+  sessionStorage.setItem(
+    "accountSetup",
+    JSON.stringify({
+      ...existing,
+      dailySteps: formData.dailySteps || "0",
+      cardioCalorieGoal: formData.cardioCalorieGoal || "",
+    })
+  );
+}, [formData.dailySteps, formData.cardioCalorieGoal]);
+
+  // const [formData, setFormData] = useState<{
+  //   dailySteps: string;
+  //   cardioCalorieGoal: string;
+  //   progressPhoto: File | null;
+  // }>(() => {
+  //   const saved = sessionStorage.getItem('accountSetup');
+  //   if (!saved) {
+  //     return {
+  //       dailySteps: '',
+  //       cardioCalorieGoal: '',
+  //       progressPhoto: null,
+  //     };
+  //   }
+
+  //   try {
+  //     const parsed = JSON.parse(saved);
+  //     return {
+  //       dailySteps: parsed.dailySteps || '',
+  //       cardioCalorieGoal: parsed.cardioCalorieGoal || '',
+  //       progressPhoto: null, // File cannot be restored
+  //     };
+  //   } catch {
+  //     return {
+  //       dailySteps: '',
+  //       cardioCalorieGoal: '',
+  //       progressPhoto: null,
+  //     };
+  //   }
+  // });
 
   // Auto-save to sessionStorage when relevant fields change
   useEffect(() => {

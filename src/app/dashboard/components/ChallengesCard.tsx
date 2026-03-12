@@ -1,5 +1,8 @@
 // app/dashboard/components/ChallengesCard.tsx
+"use client";
+
 import { Award, TrendingUp, CheckCircle2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface ChallengesCardProps {
   streak?: number;
@@ -7,6 +10,8 @@ interface ChallengesCardProps {
 }
 
 export default function ChallengesCard({ streak = 0, completed = 0 }: ChallengesCardProps) {
+  const router = useRouter()
+
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <div className="flex justify-between items-start mb-3">
@@ -32,7 +37,10 @@ export default function ChallengesCard({ streak = 0, completed = 0 }: Challenges
           </div>
         </div>
       </div>
-      <button className="w-full bg-gradient-to-r from-[#6c5ce7] to-[#a29bfe] text-white rounded-[10px] py-2.5 font-semibold text-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <button
+        onClick={() => router.push('/checklist')}
+        className="w-full bg-gradient-to-r from-[#6c5ce7] to-[#a29bfe] text-white rounded-[10px] py-2.5 font-semibold text-sm hover:shadow-lg hover:-translate-y-0.5 transition"
+      >
         Go Check List
       </button>
     </div>

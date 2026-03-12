@@ -80,6 +80,7 @@ export interface DashboardSummary {
   bodyfat: number;
   dailySteps: number;
   caloriesGoal: number;
+  accountSetupComplete: boolean;
   weeklyTargets: {
     workout: number;
     supplement: number;
@@ -111,6 +112,11 @@ type ApiErrorPayload = {
 
 function extractErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ApiErrorPayload>(error)) {
+    const status = error.response?.status;
+    // Surface auth errors clearly so callers can redirect
+    if (status === 401 || status === 403) {
+      return "Invalid credentials. Please log in again.";
+    }
     return (
       error.response?.data?.message ||
       error.response?.data?.error ||
@@ -126,7 +132,6 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-// Parse comma/line separated strings into arrays
 const parseToList = (value: string): string[] => {
   if (!value) return [];
   return value
@@ -137,19 +142,62 @@ const parseToList = (value: string): string[] => {
 
 // ===========================================
 // AXIOS CLIENT
+// Single instance with interceptor — token is
+// read at request time so it's always fresh.
 // ===========================================
 
-// ===========================================
-// HELPER FOR HEADERS
-// ===========================================
+const apiClient = axios.create({ baseURL: API_BASE });
 
-const getHeaders = () => {
+apiClient.interceptors.request.use((config) => {
   const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
+  if (!token) {
+    // Abort immediately rather than sending an unauthenticated request
+    throw new axios.Cancel("No auth token found. Redirecting to login.");
+  }
+  config.headers.Authorization = `Bearer ${token}`;
+  config.headers["Content-Type"] = "application/json";
+  return config;
+});
+
+// ===========================================
+// IN-MEMORY CACHE
+// One network round-trip per page load.
+// All derived methods read from this cache.
+// ===========================================
+
+let _cache: DashboardResponse | null = null;
+let _cachePromise: Promise<DashboardResponse> | null = null;
+
+/**
+ * Fetches /dashboard once and caches the result for the lifetime of the page.
+ * Concurrent callers share the same in-flight promise so only one request fires.
+ * Call invalidateCache() after any mutation that changes dashboard data.
+ */
+async function fetchOnce(): Promise<DashboardResponse> {
+  if (_cache) return _cache;
+
+  // If a request is already in-flight, share it
+  if (_cachePromise) return _cachePromise;
+
+  _cachePromise = apiClient
+    .get<DashboardResponse>("/dashboard")
+    .then((res) => {
+      _cache = res.data;
+      _cachePromise = null;
+      return _cache;
+    })
+    .catch((err: unknown) => {
+      _cachePromise = null;
+      throw new Error(extractErrorMessage(err, "Failed to load dashboard data."));
+    });
+
+  return _cachePromise;
+}
+
+export function invalidateDashboardCache(): void {
+  _cache = null;
+  _cachePromise = null;
+}
 
 // ===========================================
 // DASHBOARD API
@@ -157,191 +205,108 @@ const getHeaders = () => {
 
 export const dashboardApi = {
   /**
-   * Get raw dashboard data from API
+   * Raw dashboard response. Cached after first call.
    */
   getDashboardData: async (): Promise<DashboardResponse> => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      return response.data as DashboardResponse;
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load dashboard data."),
-      );
-    }
+    return fetchOnce();
   },
 
   /**
-   * Get processed dashboard summary with parsed values
+   * Fully processed summary — everything the UI needs in one call.
+   * accountSetupComplete is included so the page doesn't need a second fetch.
    */
   getDashboardSummary: async (): Promise<DashboardSummary> => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      const data = response.data as DashboardResponse;
-      const user = data.user;
-      const details = user.OtherDetail;
+    const data = await fetchOnce();
+    const user = data.user;
+    const details = user.OtherDetail;
 
-      return {
-        userName: user.name,
-        userEmail: user.email,
-        currentWeight: parseFloat(details.currentWeight) || 0,
-        goalWeight: parseFloat(details.goalWeight) || 0,
-        height: parseFloat(details.height) || 0,
-        bodyfat: parseFloat(details.bodyfat) || 0,
-        dailySteps: parseInt(details.avarage_daily_steps) || 0,
-        caloriesGoal: parseInt(details.calories_goal) || 0,
-        weeklyTargets: {
-          workout: parseInt(details.target_workout_week) || 0,
-          supplement: parseInt(details.target_supplement_week) || 0,
-          cardio: parseInt(details.target_cardio_week) || 0,
-          conditioning: parseInt(details.target_conditioning_week) || 0,
-        },
-        strengthMetrics: {
-          benchPress: parseFloat(details.r_bench_press) || 0,
-          backSquat: parseFloat(details.r_back_squat) || 0,
-          powerClean: parseFloat(details.r_power_clean) || 0,
-          deadlift: parseFloat(details.r_deadlift) || 0,
-        },
-        measurementUnit: details.measurementUnit,
-        activityLevel: details.activityLevel,
-        trainingGoals: parseToList(details.trainingGoals),
-        trainingSports: parseToList(details.trainingSport),
-        birthDate: details.birthDate,
-        gender: details.gender,
-      };
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load dashboard summary."),
-      );
-    }
+    const accountSetupComplete =
+      details.accountsetup === "1" ||
+      details.accountsetup?.toLowerCase() === "completed";
+
+    return {
+      userName: user.name,
+      userEmail: user.email,
+      accountSetupComplete,
+      currentWeight: parseFloat(details.currentWeight) || 0,
+      goalWeight: parseFloat(details.goalWeight) || 0,
+      height: parseFloat(details.height) || 0,
+      bodyfat: parseFloat(details.bodyfat) || 0,
+      dailySteps: parseInt(details.avarage_daily_steps, 10) || 0,
+      caloriesGoal: parseInt(details.calories_goal, 10) || 0,
+      weeklyTargets: {
+        workout: parseInt(details.target_workout_week, 10) || 0,
+        supplement: parseInt(details.target_supplement_week, 10) || 0,
+        cardio: parseInt(details.target_cardio_week, 10) || 0,
+        conditioning: parseInt(details.target_conditioning_week, 10) || 0,
+      },
+      strengthMetrics: {
+        benchPress: parseFloat(details.r_bench_press) || 0,
+        backSquat: parseFloat(details.r_back_squat) || 0,
+        powerClean: parseFloat(details.r_power_clean) || 0,
+        deadlift: parseFloat(details.r_deadlift) || 0,
+      },
+      measurementUnit: details.measurementUnit,
+      activityLevel: details.activityLevel,
+      trainingGoals: parseToList(details.trainingGoals),
+      trainingSports: parseToList(details.trainingSport),
+      birthDate: details.birthDate,
+      gender: details.gender,
+    };
   },
 
-  /**
-   * Get only user profile info
-   */
-  getUserProfile: async (): Promise<
-    Pick<UserData, "id" | "name" | "email" | "image">
-  > => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      const data = response.data as DashboardResponse;
-      const user = data.user;
-
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      };
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load user profile."),
-      );
-    }
+  getUserProfile: async (): Promise<Pick<UserData, "id" | "name" | "email" | "image">> => {
+    const data = await fetchOnce();
+    const user = data.user;
+    return { id: user.id, name: user.name, email: user.email, image: user.image };
   },
 
-  /**
-   * Get only user metrics (weight, height, bodyfat, goals)
-   */
   getUserMetrics: async (): Promise<
-    Pick<
-      UserOtherDetail,
-      | "currentWeight"
-      | "goalWeight"
-      | "height"
-      | "bodyfat"
-      | "avarage_daily_steps"
-      | "calories_goal"
-    >
+    Pick<UserOtherDetail, "currentWeight" | "goalWeight" | "height" | "bodyfat" | "avarage_daily_steps" | "calories_goal">
   > => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      const data = response.data as DashboardResponse;
-      const details = data.user.OtherDetail;
-
-      return {
-        currentWeight: details.currentWeight,
-        goalWeight: details.goalWeight,
-        height: details.height,
-        bodyfat: details.bodyfat,
-        avarage_daily_steps: details.avarage_daily_steps,
-        calories_goal: details.calories_goal,
-      };
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load user metrics."),
-      );
-    }
+    const data = await fetchOnce();
+    const details = data.user.OtherDetail;
+    return {
+      currentWeight: details.currentWeight,
+      goalWeight: details.goalWeight,
+      height: details.height,
+      bodyfat: details.bodyfat,
+      avarage_daily_steps: details.avarage_daily_steps,
+      calories_goal: details.calories_goal,
+    };
   },
 
-  /**
-   * Get weekly targets
-   */
   getWeeklyTargets: async (): Promise<{
     workout: number;
     supplement: number;
     cardio: number;
     conditioning: number;
   }> => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      const data = response.data as DashboardResponse;
-      const details = data.user.OtherDetail;
-
-      return {
-        workout: parseInt(details.target_workout_week) || 0,
-        supplement: parseInt(details.target_supplement_week) || 0,
-        cardio: parseInt(details.target_cardio_week) || 0,
-        conditioning: parseInt(details.target_conditioning_week) || 0,
-      };
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load weekly targets."),
-      );
-    }
+    const data = await fetchOnce();
+    const details = data.user.OtherDetail;
+    return {
+      workout: parseInt(details.target_workout_week, 10) || 0,
+      supplement: parseInt(details.target_supplement_week, 10) || 0,
+      cardio: parseInt(details.target_cardio_week, 10) || 0,
+      conditioning: parseInt(details.target_conditioning_week, 10) || 0,
+    };
   },
 
-  /**
-   * Get strength metrics (1RM values)
-   */
   getStrengthMetrics: async (): Promise<{
     benchPress: number;
     backSquat: number;
     powerClean: number;
     deadlift: number;
   }> => {
-    try {
-      const response = await axios.get(`${API_BASE}/dashboard`, {
-        headers: getHeaders(),
-      });
-      const data = response.data as DashboardResponse;
-      const details = data.user.OtherDetail;
-
-      return {
-        benchPress: parseFloat(details.r_bench_press) || 0,
-        backSquat: parseFloat(details.r_back_squat) || 0,
-        powerClean: parseFloat(details.r_power_clean) || 0,
-        deadlift: parseFloat(details.r_deadlift) || 0,
-      };
-    } catch (error: unknown) {
-      throw new Error(
-        extractErrorMessage(error, "Failed to load strength metrics."),
-      );
-    }
+    const data = await fetchOnce();
+    const details = data.user.OtherDetail;
+    return {
+      benchPress: parseFloat(details.r_bench_press) || 0,
+      backSquat: parseFloat(details.r_back_squat) || 0,
+      powerClean: parseFloat(details.r_power_clean) || 0,
+      deadlift: parseFloat(details.r_deadlift) || 0,
+    };
   },
 };
-
-// ===========================================
-// DEFAULT EXPORT (for convenience)
-// ===========================================
 
 export default dashboardApi;

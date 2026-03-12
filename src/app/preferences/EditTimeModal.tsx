@@ -42,7 +42,7 @@ const EditTimeModal = ({
 }: EditTimeModalProps) => {
   const [selectedTimes, setSelectedTimes] = useState<Record<string, TimeSlot[]>>(initialTimes);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
-
+const [errors, setErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     if (isOpen) {
       setSelectedTimes(initialTimes);
@@ -95,12 +95,31 @@ const EditTimeModal = ({
     setSelectedTimes(newTimes);
   };
 
-  const updateTimeSlot = (day: string, index: number, value: string) => {
-    const newTimes = { ...selectedTimes };
-    newTimes[day] = [...(newTimes[day] || [])];
-    newTimes[day][index] = { startTime: value };
-    setSelectedTimes(newTimes);
-  };
+const updateTimeSlot = (day: string, index: number, value: string) => {
+  const newTimes = { ...selectedTimes };
+  const daySlots = [...(newTimes[day] || [])];
+
+  // Check duplicate
+  const isDuplicate = daySlots.some(
+    (slot, i) => slot.startTime === value && i !== index
+  );
+
+  if (isDuplicate) {
+  setErrors((prev) => ({
+  ...prev,
+  [day]: `You have duplicate time slot for ${day}`,
+}));
+    return;
+  }
+
+  // Clear error
+  setErrors((prev) => ({ ...prev, [day]: "" }));
+
+  daySlots[index] = { startTime: value };
+  newTimes[day] = daySlots;
+
+  setSelectedTimes(newTimes);
+};
 
   const totalSelectedDays = Object.keys(selectedTimes).filter(
     (d) => selectedTimes[d]?.length > 0,
@@ -230,7 +249,11 @@ const EditTimeModal = ({
                   </button>
                 </div>
               ))}
-
+{errors[expandedDay] && (
+  <p className="text-[12px] text-red-500 font-medium mb-3">
+    {errors[expandedDay]}
+  </p>
+)}
               {(selectedTimes[expandedDay]?.length || 0) < 3 ? (
                 <button
                   onClick={() => addTimeSlot(expandedDay)}
@@ -249,6 +272,7 @@ const EditTimeModal = ({
             </div>
           </div>
         )}
+        
       </div>
 
       {/* Footer */}

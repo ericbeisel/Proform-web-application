@@ -28,7 +28,9 @@ export default function TeamDashboard() {
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Team Dashboard</h1>
-          <p className="text-xs text-gray-500">Track your team's progress and performance</p>
+          <p className="text-xs text-gray-500">
+            Track your team's progress and performance
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors">
@@ -52,12 +54,20 @@ export default function TeamDashboard() {
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-4 mb-5">
               <div className="flex items-center gap-1">
-                <span className="text-5xl font-extrabold text-orange-500">0</span>
-                <span className="text-2xl font-bold text-orange-500 mt-2">%</span>
+                <span className="text-5xl font-extrabold text-orange-500">
+                  0
+                </span>
+                <span className="text-2xl font-bold text-orange-500 mt-2">
+                  %
+                </span>
               </div>
               <div>
-                <p className="text-base font-semibold text-gray-800">Team Completion</p>
-                <p className="text-xs text-orange-500 font-medium">0 Workouts Completed This Week</p>
+                <p className="text-base font-semibold text-gray-800">
+                  Team Completion
+                </p>
+                <p className="text-xs text-orange-500 font-medium">
+                  0 Workouts Completed This Week
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-4 gap-3">
@@ -74,7 +84,9 @@ export default function TeamDashboard() {
                   <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500 group-hover:bg-purple-100 transition-colors">
                     {item.icon}
                   </div>
-                  <span className="text-xs text-gray-600 font-medium">{item.label}</span>
+                  <span className="text-xs text-gray-600 font-medium">
+                    {item.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -83,16 +95,25 @@ export default function TeamDashboard() {
           {/* Sessions */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-800">Sessions</h2>
+              <h2 className="text-base font-semibold text-gray-800">
+                Sessions
+              </h2>
               <button className="text-gray-400 hover:text-gray-600">
                 <Pencil size={15} />
               </button>
             </div>
             <div className="bg-amber-50 rounded-xl p-4 min-h-[110px] flex flex-col">
-              <p className="text-xs font-semibold text-amber-600 mb-3">Daily To-Do List</p>
+              <p className="text-xs font-semibold text-amber-600 mb-3">
+                Daily To-Do List
+              </p>
               <div className="flex-1 flex flex-col items-center justify-center gap-1.5">
                 <div className="w-8 h-8 text-amber-400">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
                     <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </div>
@@ -105,7 +126,9 @@ export default function TeamDashboard() {
         {/* Team Goals */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-gray-800">Team Goals</h2>
+            <h2 className="text-base font-semibold text-gray-800">
+              Team Goals
+            </h2>
             <button className="flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800 transition-colors">
               View All <ChevronRight size={15} />
             </button>
@@ -145,13 +168,12 @@ export default function TeamDashboard() {
                 iconColor: "text-green-500",
               },
             ].map((goal) => (
-              <div
-                key={goal.label}
-                className={`${goal.bg} rounded-2xl p-4`}
-              >
+              <div key={goal.label} className={`${goal.bg} rounded-2xl p-4`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`${goal.iconColor}`}>{goal.icon}</div>
-                  <span className="text-sm font-medium text-gray-700">{goal.label}</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {goal.label}
+                  </span>
                 </div>
                 <div className="flex items-baseline gap-0.5 mb-3">
                   <span className="text-3xl font-bold text-gray-800">0</span>
@@ -186,13 +208,17 @@ export default function TeamDashboard() {
               Add Players
             </button>
 
-            <p className="text-center text-xs text-gray-400">Invite players to join your team</p>
+            <p className="text-center text-xs text-gray-400">
+              Invite players to join your team
+            </p>
           </div>
 
           {/* Coach's Toolbox */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-800">Coach's Toolbox</h2>
+              <h2 className="text-base font-semibold text-gray-800">
+                Coach's Toolbox
+              </h2>
               <button className="text-gray-400 hover:text-gray-600">
                 <Settings size={16} />
               </button>
@@ -214,8 +240,12 @@ export default function TeamDashboard() {
                     <Trophy size={20} />
                   </div>
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">Team Challenge</p>
-                    <p className="text-white/70 text-xs">Create competitions for your team</p>
+                    <p className="text-white text-sm font-semibold leading-tight">
+                      Team Challenge
+                    </p>
+                    <p className="text-white/70 text-xs">
+                      Create competitions for your team
+                    </p>
                   </div>
                 </div>
               </div>
@@ -235,8 +265,12 @@ export default function TeamDashboard() {
                     <UserPlus size={20} />
                   </div>
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">Add Player</p>
-                    <p className="text-white/70 text-xs">Invite players to join your team</p>
+                    <p className="text-white text-sm font-semibold leading-tight">
+                      Add Player
+                    </p>
+                    <p className="text-white/70 text-xs">
+                      Invite players to join your team
+                    </p>
                   </div>
                 </div>
               </div>
@@ -256,8 +290,12 @@ export default function TeamDashboard() {
                     <UserCheck size={20} />
                   </div>
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">Add Coach</p>
-                    <p className="text-white/70 text-xs">Add coaches to lead your team</p>
+                    <p className="text-white text-sm font-semibold leading-tight">
+                      Add Coach
+                    </p>
+                    <p className="text-white/70 text-xs">
+                      Add coaches to lead your team
+                    </p>
                   </div>
                 </div>
               </div>
@@ -270,8 +308,12 @@ export default function TeamDashboard() {
                     <Pencil size={20} />
                   </div>
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">Edit Team</p>
-                    <p className="text-white/70 text-xs">Manage your team details</p>
+                    <p className="text-white text-sm font-semibold leading-tight">
+                      Edit Team
+                    </p>
+                    <p className="text-white/70 text-xs">
+                      Manage your team details
+                    </p>
                   </div>
                 </div>
               </div>

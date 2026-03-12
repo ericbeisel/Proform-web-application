@@ -1,5 +1,5 @@
 // app/dashboard/components/AccountabilityTools.tsx
-import CircleProgress from './CircleProgress'
+import CircleProgress from "./CircleProgress";
 
 interface AccountabilityToolsProps {
   repSetProgress?: number;
@@ -7,10 +7,10 @@ interface AccountabilityToolsProps {
   overallProgress?: number;
 }
 
-export default function AccountabilityTools({ 
-  repSetProgress = 0, 
-  recoveryProgress = 0, 
-  overallProgress = 0 
+export default function AccountabilityTools({
+  repSetProgress = 0,
+  recoveryProgress = 0,
+  overallProgress = 0,
 }: AccountabilityToolsProps) {
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
@@ -22,8 +22,12 @@ export default function AccountabilityTools({
         </div>
         <div className="text-center">
           <div className="w-[68px] h-[68px] mx-auto bg-gradient-to-br from-[#6c5ce7] to-[#a29bfe] rounded-full flex flex-col items-center justify-center">
-            <span className="text-white font-black text-[15px]">{overallProgress}%</span>
-            <span className="text-white/75 text-[8px] tracking-wide mt-0.5 uppercase">Completed</span>
+            <span className="text-white font-black text-[15px]">
+              {overallProgress}%
+            </span>
+            <span className="text-white/75 text-[8px] tracking-wide mt-0.5 uppercase">
+              Completed
+            </span>
           </div>
         </div>
         <div className="text-center">
@@ -32,10 +36,10 @@ export default function AccountabilityTools({
         </div>
       </div>
       <div className="flex justify-around text-[10px] text-[#8b879e] border-t border-[#e8e6f0] pt-2.5 mt-1">
-        {['By 8:00am', 'By 12:00m', 'By 6:00pm', 'By 10pm'].map(t => (
+        {["By 8:00am", "By 12:00m", "By 6:00pm", "By 10pm"].map((t) => (
           <span key={t}>{t}</span>
         ))}
       </div>
     </div>
-  )
+  );
 }

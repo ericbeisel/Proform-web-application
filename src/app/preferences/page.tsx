@@ -511,12 +511,11 @@ const handleSectionDayChange = useCallback(
     }
   }, [isSavingSteps, showToast, steps]);
 
-  const currentCardioGoal = calories.trim() || "4000";
-  const formatNumber = (value: string) => {
-    const n = Number(value || "0");
-    if (Number.isNaN(n)) return "0";
-    return n.toLocaleString();
-  };
+ const formatNumber = (value: string) => {
+  const n = Number(value || "0");
+  if (Number.isNaN(n)) return "0";
+  return n.toString();
+};
 
 if (activeEditSection) {
   // Get the times for the active section
@@ -569,7 +568,7 @@ if (activeEditSection) {
 
               <div className="mt-5 space-y-3">
                 {[
-                  ["A. Resistance Workout", weeklyTargets.resistance],
+                  ["A. Primary Workout", weeklyTargets.resistance],
                   ["B. Cardio Workout", weeklyTargets.cardio],
                   ["C. Supplemental Workout", weeklyTargets.supplemental],
                   ["D. Conditioning Workout", weeklyTargets.conditioning],
@@ -623,10 +622,10 @@ if (activeEditSection) {
                 <input
                   value={calories}
                   readOnly
-                  onClick={() => {
-                    setNewCardioGoal(calories.trim() || "0");
-                    setShowCardioGoalModal(true);
-                  }}
+                  // onClick={() => {
+                  //   setNewCardioGoal(calories.trim() || "0");
+                  //   setShowCardioGoalModal(true);
+                  // }}
                   placeholder="Calories"
                   className="mt-4 h-12 w-full cursor-pointer rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
@@ -832,115 +831,123 @@ if (activeEditSection) {
         ))}
       </div>
 
-      {showWeeklyTargetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-[820px] rounded-[32px] bg-white px-8 pb-8 pt-10 shadow-[0_30px_80px_rgba(0,0,0,0.35)] md:px-12">
-            <div className="flex justify-center">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-[0_14px_22px_rgba(0,0,0,0.22)]">
-                <Crosshair size={40} />
-              </div>
-            </div>
-
-            <h3 className="mt-6 text-center text-3xl font-bold leading-none text-[#1a1a1a]">
-              Set Weekly Targets
-            </h3>
-            <div className="mx-auto mt-4 h-[3px] w-full max-w-[200px] bg-[#6202AC]" />
-            <p className="mt-3 text-center text-sm text-[#666]">
-              Set weekly targets to stay on track to meet your goals
-            </p>
-
-            <div className="mt-7 grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-semibold text-[#6202AC]">
-                  Primary Workouts *
-                </span>
-                <input
-                  value={weeklyTargets.resistance}
-                  onChange={(e) =>
-                    setWeeklyTargets((prev) => ({
-                      ...prev,
-                      resistance: e.target.value.replace(/[^\d]/g, ""),
-                    }))
-                  }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-[#6202AC]">
-                  Cardio Workouts *
-                </span>
-                <input
-                  value={weeklyTargets.cardio}
-                  onChange={(e) =>
-                    setWeeklyTargets((prev) => ({
-                      ...prev,
-                      cardio: e.target.value.replace(/[^\d]/g, ""),
-                    }))
-                  }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-[#6202AC]">
-                  Supplemental Workouts *
-                </span>
-                <input
-                  value={weeklyTargets.supplemental}
-                  onChange={(e) =>
-                    setWeeklyTargets((prev) => ({
-                      ...prev,
-                      supplemental: e.target.value.replace(/[^\d]/g, ""),
-                    }))
-                  }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-[#6202AC]">
-                  Field Workouts *
-                </span>
-                <input
-                  value={weeklyTargets.conditioning}
-                  onChange={(e) =>
-                    setWeeklyTargets((prev) => ({
-                      ...prev,
-                      conditioning: e.target.value.replace(/[^\d]/g, ""),
-                    }))
-                  }
-                  className="mt-2 h-12 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-                />
-              </label>
-            </div>
-
-            <div className="mt-6 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
-              *Cardio workouts are set based on your Cardio Schedule/Itinerary.
-              To make changes go to your{" "}
-              <a href="/itinerary/schedule" className="font-semibold underline">
-                Cardio Schedule
-              </a>
-            </div>
-
-            <div className="mt-8 flex justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => setShowWeeklyTargetModal(false)}
-                className="h-12 rounded-full border border-[#d1d7df] px-8 text-base font-semibold text-[#566071]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSaveWeeklyTargets();
-                }}
-                className="h-12 min-w-[200px] rounded-full bg-[#6202AC] px-10 text-base font-semibold text-white shadow-md hover:bg-[#500ba6]"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
+   {showWeeklyTargetModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+    <div className="w-full max-w-[620px] rounded-[28px] bg-white px-6 pb-6 pt-8 shadow-[0_25px_60px_rgba(0,0,0,0.30)] md:px-8">
+      
+      <div className="flex justify-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-[0_12px_20px_rgba(0,0,0,0.22)]">
+          <Crosshair size={34} />
         </div>
-      )}
+      </div>
+
+      <h3 className="mt-5 text-center text-2xl font-bold leading-none text-[#1a1a1a]">
+        Set Weekly Targets
+      </h3>
+
+      <div className="mx-auto mt-3 h-[3px] w-full max-w-[160px] bg-[#6202AC]" />
+
+      <p className="mt-3 text-center text-sm text-[#666]">
+        Set weekly targets to stay on track to meet your goals
+      </p>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="text-sm font-semibold text-[#6202AC]">
+            Primary Workouts *
+          </span>
+          <input
+            value={weeklyTargets.resistance}
+            onChange={(e) =>
+              setWeeklyTargets((prev) => ({
+                ...prev,
+                resistance: e.target.value.replace(/[^\d]/g, ""),
+              }))
+            }
+            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-semibold text-[#6202AC]">
+            Cardio Workouts *
+          </span>
+          <input
+            value={weeklyTargets.cardio}
+            onChange={(e) =>
+              setWeeklyTargets((prev) => ({
+                ...prev,
+                cardio: e.target.value.replace(/[^\d]/g, ""),
+              }))
+            }
+            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-semibold text-[#6202AC]">
+            Supplemental Workouts *
+          </span>
+          <input
+            value={weeklyTargets.supplemental}
+            onChange={(e) =>
+              setWeeklyTargets((prev) => ({
+                ...prev,
+                supplemental: e.target.value.replace(/[^\d]/g, ""),
+              }))
+            }
+            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-semibold text-[#6202AC]">
+            Field Workouts *
+          </span>
+          <input
+            value={weeklyTargets.conditioning}
+            onChange={(e) =>
+              setWeeklyTargets((prev) => ({
+                ...prev,
+                conditioning: e.target.value.replace(/[^\d]/g, ""),
+              }))
+            }
+            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+          />
+        </label>
+      </div>
+
+      <div className="mt-5 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
+        *Cardio workouts are set based on your Cardio Schedule/Itinerary.
+        To make changes go to your{" "}
+        <a href="/itinerary/schedule" className="font-semibold underline">
+          Cardio Schedule
+        </a>
+      </div>
+
+      <div className="mt-7 flex justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setShowWeeklyTargetModal(false)}
+          className="h-11 rounded-full border border-[#d1d7df] px-8 text-base font-semibold text-[#566071]"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleSaveWeeklyTargets();
+          }}
+          className="h-11 min-w-[180px] rounded-full bg-[#6202AC] px-8 text-base font-semibold text-white shadow-md hover:bg-[#500ba6]"
+        >
+          Save Changes
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
 
    {showCardioGoalModal && (
   <div
@@ -966,7 +973,7 @@ if (activeEditSection) {
         {/* Current */}
         <div className="rounded-[18px] border border-[#cfd5dd] px-4 py-7 text-center">
           <p className="text-3xl font-bold leading-none text-[#697286]">
-            {formatNumber(currentCardioGoal)}
+            {formatNumber(calories)}
           </p>
           <p className="mt-2 text-base font-semibold text-[#1f2229]">
             Current

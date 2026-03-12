@@ -1,34 +1,35 @@
-"use client"
+"use client";
 
-import { BarChart2, User, LogOut, Menu, X } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { clearAuthSession } from "@/lib/auth/session"
-import Link from "next/link"
-import { useState } from "react"
+import { BarChart2, User, LogOut, Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { clearAuthSession } from "@/lib/auth/session";
+import Link from "next/link";
+import { useState } from "react";
 
 type Props = {
-  activeNav: string
-  setActiveNav: (value: string) => void
-  userName?: string
-}
+  activeNav: string;
+  setActiveNav: (value: string) => void;
+  userName?: string;
+};
 
-export default function DashboardHeader({ activeNav, setActiveNav, userName }: Props) {
-
-  const router = useRouter()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+export default function DashboardHeader({
+  activeNav,
+  setActiveNav,
+  userName,
+}: Props) {
+  const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
-    clearAuthSession()
-    router.replace("/auth/login")
-  }
+    clearAuthSession();
+    router.replace("/auth/login");
+  };
 
-  const navItems = ["Home", "Teams", "Search Workouts", "Programs"]
+  const navItems = ["Home", "Teams", "Search Workouts", "Programs"];
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e8e6f0]">
-
       <div className="h-16 flex items-center px-4 sm:px-6 lg:px-8 gap-4">
-
         {/* Logo */}
         <span className="font-black text-lg sm:text-xl whitespace-nowrap">
           My Dashboard
@@ -36,16 +37,17 @@ export default function DashboardHeader({ activeNav, setActiveNav, userName }: P
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex gap-1 bg-[#f7f6fb] rounded-[10px] p-1">
-          {navItems.map(item => (
+          {navItems.map((item) => (
             <button
               key={item}
               onClick={() => setActiveNav(item)}
               className={`
                 px-3 lg:px-4 py-1.5 text-[12px] lg:text-[13px] font-medium rounded-[7px]
                 transition-all duration-150
-                ${activeNav === item
-                  ? "bg-white text-[#1a1825] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
-                  : "text-[#8b879e] hover:text-[#6c5ce7]"
+                ${
+                  activeNav === item
+                    ? "bg-white text-[#1a1825] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
+                    : "text-[#8b879e] hover:text-[#6c5ce7]"
                 }
               `}
             >
@@ -56,7 +58,6 @@ export default function DashboardHeader({ activeNav, setActiveNav, userName }: P
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-
           {/* Analytics */}
           <button className="hidden sm:flex w-9 h-9 rounded-[10px] border border-[#e8e6f0] bg-white items-center justify-center text-[#8b879e] hover:border-[#a29bfe] hover:text-[#6c5ce7] transition-all">
             <BarChart2 size={18} />
@@ -94,18 +95,18 @@ export default function DashboardHeader({ activeNav, setActiveNav, userName }: P
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#e8e6f0] bg-white px-4 py-3 space-y-2">
-
-          {navItems.map(item => (
+          {navItems.map((item) => (
             <button
               key={item}
               onClick={() => {
-                setActiveNav(item)
-                setMobileMenuOpen(false)
+                setActiveNav(item);
+                setMobileMenuOpen(false);
               }}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm
-                ${activeNav === item
-                  ? "bg-purple-50 text-[#6c5ce7]"
-                  : "text-gray-600 hover:bg-gray-50"
+                ${
+                  activeNav === item
+                    ? "bg-purple-50 text-[#6c5ce7]"
+                    : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -120,10 +121,8 @@ export default function DashboardHeader({ activeNav, setActiveNav, userName }: P
             <LogOut size={16} />
             Logout
           </button>
-
         </div>
       )}
-
     </header>
-  )
+  );
 }
