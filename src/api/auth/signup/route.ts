@@ -68,10 +68,42 @@ export const signup = async ({
 
     return data;
   } catch (error: any) {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Signup failed. Please try again.";
-    throw new Error(message);
+    console.error("Signup API error:", error.response?.data || error);
+    
+    // Extract the error message from the response
+    let errorMessage = "Signup failed. Please try again.";
+    
+    if (error.response?.data) {
+      // Handle different response structures
+      const responseData = error.response.data;
+      
+      // Check for message in various formats
+      if (typeof responseData === 'string') {
+        errorMessage = responseData;
+      } else if (responseData.message) {
+        errorMessage = responseData.message;
+      } else if (responseData.error) {
+        errorMessage = responseData.error;
+      } else if (responseData.msg) {
+        errorMessage = responseData.msg;
+      }
+      
+      // Check for email already exists in any field
+      const errorString = JSON.stringify(responseData).toLowerCase();
+      if (
+        errorString.includes('email already exists') ||
+        errorString.includes('email already taken') ||
+        errorString.includes('email has already been taken') ||
+        errorString.includes('email already registered') ||
+        errorString.includes('duplicate email') ||
+        errorString.includes('email already in use')
+      ) {
+        errorMessage = 'Email already exists';
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
   }
 };

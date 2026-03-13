@@ -174,11 +174,11 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
 
 type DayGridProps = {
   selected: string[];
-  onChange: (days: string[]) => void;
   timesCount?: Record<string, number>;
+  sectionTimes?: Record<string, TimeSlot[]>;
 };
 
-function DayGrid({ selected, onChange, timesCount = {} }: DayGridProps) {
+function DayGrid({ selected, timesCount = {}, sectionTimes = {} }: DayGridProps) {
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -188,14 +188,7 @@ function DayGrid({ selected, onChange, timesCount = {} }: DayGridProps) {
             <button
               key={day}
               type="button"
-              onClick={() =>
-                onChange(
-                  active
-                    ? selected.filter((d) => d !== day)
-                    : [...selected, day],
-                )
-              }
-              className={`h-10 min-w-[52px] rounded-xl border text-sm font-semibold transition ${
+              className={`h-10 min-w-[52px] rounded-xl border text-sm font-semibold transition cursor-default ${
                 active
                   ? "border-[#6202ac] bg-[#6202ac] text-white shadow"
                   : "border-[#E0E0E0] bg-[#f8fafc] text-[#666]"
@@ -206,16 +199,22 @@ function DayGrid({ selected, onChange, timesCount = {} }: DayGridProps) {
           );
         })}
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 text-center text-[12px] font-semibold text-[#888]">
-        {DAYS.map((day) => {
-          const count = timesCount[day] || 0;
-          return (
-            <div key={day} className="min-w-[52px]">
-              {selected.includes(day) && count > 1 ? `+${count - 1}` : ""}
-            </div>
-          );
-        })}
-      </div>
+      
+      {/* Show times in format: Mo:3:30 PM, Fr:10:00 AM */}
+      {selected.length > 0 && (
+        <div className="mt-2 text-[12px] font-medium text-[#6202AC]">
+          {selected
+            .map(day => {
+              const fullDay = DAY_MAP[day];
+              const times = sectionTimes[fullDay] || [];
+              if (times.length === 0) return null;
+              // Use the first time for each day
+              return `${day}:${times[0].startTime}`;
+            })
+            .filter(Boolean)
+            .join(' • ')}
+        </div>
+      )}
     </>
   );
 }
@@ -228,18 +227,18 @@ function ScheduleBlock({
   hint,
   timeLabel,
   selected,
-  onChange,
   onEditTimes,
   timesCount = {},
+  sectionTimes = {},  // Add this line
 }: {
   title: string;
   subtitle: string;
   hint: string;
   timeLabel: string;
   selected: string[];
-  onChange: (days: string[]) => void;
   onEditTimes: () => void;
   timesCount?: Record<string, number>;
+  sectionTimes?: Record<string, TimeSlot[]>;  // Add this line
 }) {
   return (
     <div>
@@ -256,8 +255,8 @@ function ScheduleBlock({
       <div className="mb-3">
         <MemoizedDayGrid
           selected={selected}
-          onChange={onChange}
           timesCount={timesCount}
+          sectionTimes={sectionTimes}  // Pass it down to DayGrid
         />
       </div>
 
@@ -276,11 +275,18 @@ const MemoizedScheduleBlock = React.memo(ScheduleBlock);
 export default function PreferencesPage() {
   const router = useRouter();
 
-  const { data: preferencesData, isLoading, isError, error } = useQuery({
-    queryKey: ["preferences"],
-    queryFn: fetchPreferences,
-  });
+//   const { data: preferencesData, isLoading, isError, error } = useQuery({
+//   queryKey: ["preferences"],
+//   queryFn: fetchPreferences,
+//   staleTime: 1000 * 60 * 5, // cache for 5 minutes
+// })
 
+const { data: preferencesData, isLoading, isError, error } = useQuery({
+  queryKey: ["preferences"],
+  queryFn: fetchPreferences,
+  staleTime: 1000 * 60 * 5,  // don't refetch for 5 minutes
+  gcTime: 1000 * 60 * 10,    // keep in cache for 10 minutes
+});
   const [workoutDays, setWorkoutDays] = useState<string[]>([]);
   const [cardioDays, setCardioDays] = useState<string[]>([]);
   const [supplementalDays, setSupplementalDays] = useState<string[]>([]);
@@ -656,10 +662,7 @@ if (activeEditSection) {
                   placeholder="Calories"
                   className="mt-4 h-12 w-full cursor-pointer rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
-                <div className="mt-3 rounded-xl border border-[#bfe4fa] bg-[#eaf6ff] px-4 py-3 text-[16px]">
-                  <span className="font-semibold text-[#01a1e8]">*e.g.:</span>{" "}
-                  Suggest 150 Total will equal on avg 750 for Goals
-                </div>
+               
               </div>
 
               <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
@@ -684,12 +687,7 @@ if (activeEditSection) {
                   placeholder="Steps"
                   className="mt-4 h-12 w-full rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
-                <div className="mt-3 rounded-xl border border-[#f1c8c1] bg-[#fff2f0] px-4 py-3 text-[16px]">
-                  <span className="font-semibold text-[#ff5328]">
-                    *Must enter
-                  </span>{" "}
-                  at least 3,000 Steps make walk-miles on top 10,000
-                </div>
+              
               </div>
             </div>
           </section>
@@ -698,76 +696,71 @@ if (activeEditSection) {
             <h2 className="text-2xl font-bold text-[#1a1a1a]">
               Set Training Days:
             </h2>
-            <div className="mt-5 grid gap-8 xl:grid-cols-2">
-              <MemoizedScheduleBlock
-                title="Preferred Workout Days:"
-                subtitle="Select all days of the week you usually train on (can select more than one)"
-                hint="*For Suggested: 5-6 Primary Workouts per week"
-               timeLabel={
-  getTimesCount("workout") &&
-  Object.values(getTimesCount("workout")).some((t) => t > 0)
-    ? "Times Selected"
-    : "Default Time 08:30 am"
-}
-                selected={workoutDays}
-                onChange={(days) => {
-                  void handleSectionDayChange("workout", days);
-                }}
-                onEditTimes={() => setActiveEditSection("workout")}
-                timesCount={getTimesCount("workout")}
-              />
-              <MemoizedScheduleBlock
-                title="Default Cardio Days:"
-                subtitle="Choose which days you like to use your cardio workouts"
-                hint="*For Suggested: 3-5 Cardio workouts per week"
-             timeLabel={
-  getTimesCount("cardio") &&
-  Object.values(getTimesCount("cardio")).some((t) => t > 0)
-    ? "Times Selected"
-    : "Default Time 07:30 pm"
-}
-                selected={cardioDays}
-                onChange={(days) => {
-                  void handleSectionDayChange("cardio", days);
-                }}
-                onEditTimes={() => setActiveEditSection("cardio")}
-                timesCount={getTimesCount("cardio")}
-              />
-              <MemoizedScheduleBlock
-                title="Preferred Supplemental Days:"
-                subtitle="Choose which days you like to use your supplemental workout days, based on your weekly target"
-                hint="*For Suggested: 2-4 Supplemental workouts, based on your weekly target"
-              timeLabel={
-  getTimesCount("supplemental") &&
-  Object.values(getTimesCount("supplemental")).some((t) => t > 0)
-    ? "Times Selected"
-    : "Default Time 01:30 pm"
-}
-                selected={supplementalDays}
-                onChange={(days) => {
-                  void handleSectionDayChange("supplemental", days);
-                }}
-                onEditTimes={() => setActiveEditSection("supplemental")}
-                timesCount={getTimesCount("supplemental")}
-              />
-              <MemoizedScheduleBlock
-                title="Preferred Conditioning Days:"
-                subtitle="Choose which days you like to use your conditioning workout days, based on your weekly target"
-                hint="*For Suggested: 2-3 Supplemental workouts (less cardio must...)"
-             timeLabel={
-  getTimesCount("conditioning") &&
-  Object.values(getTimesCount("conditioning")).some((t) => t > 0)
-    ? "Times Selected"
-    : "Default Time 04:30 pm"
-}
-                selected={conditioningDays}
-                onChange={(days) => {
-                  void handleSectionDayChange("conditioning", days);
-                }}
-                onEditTimes={() => setActiveEditSection("conditioning")}
-                timesCount={getTimesCount("conditioning")}
-              />
-            </div>
+      <div className="mt-5 grid gap-8 xl:grid-cols-2">
+  <MemoizedScheduleBlock
+    title="Preferred Workout Days:"
+    subtitle="Select all days of the week you usually train on (can select more than one)"
+    hint="*For Suggested: 5-6 Primary Workouts per week"
+    timeLabel={
+      getTimesCount("workout") &&
+      Object.values(getTimesCount("workout")).some((t) => t > 0)
+        ? "Times Selected"
+        : "Default Time 08:30 am"
+    }
+    selected={workoutDays}
+    onEditTimes={() => setActiveEditSection("workout")}
+    timesCount={getTimesCount("workout")}
+    sectionTimes={scheduleData.workout}  // Add this line
+  />
+  
+  <MemoizedScheduleBlock
+    title="Default Cardio Days:"
+    subtitle="Choose which days you like to use your cardio workouts"
+    hint="*For Suggested: 3-5 Cardio workouts per week"
+    timeLabel={
+      getTimesCount("cardio") &&
+      Object.values(getTimesCount("cardio")).some((t) => t > 0)
+        ? "Times Selected"
+        : "Default Time 07:30 pm"
+    }
+    selected={cardioDays}
+    onEditTimes={() => setActiveEditSection("cardio")}
+    timesCount={getTimesCount("cardio")}
+    sectionTimes={scheduleData.cardio}  // Add this line
+  />
+  
+  <MemoizedScheduleBlock
+    title="Preferred Supplemental Days:"
+    subtitle="Choose which days you like to use your supplemental workout days, based on your weekly target"
+    hint="*For Suggested: 2-4 Supplemental workouts, based on your weekly target"
+    timeLabel={
+      getTimesCount("supplemental") &&
+      Object.values(getTimesCount("supplemental")).some((t) => t > 0)
+        ? "Times Selected"
+        : "Default Time 01:30 pm"
+    }
+    selected={supplementalDays}
+    onEditTimes={() => setActiveEditSection("supplemental")}
+    timesCount={getTimesCount("supplemental")}
+    sectionTimes={scheduleData.supplemental}  // Add this line
+  />
+  
+  <MemoizedScheduleBlock
+    title="Preferred Conditioning Days:"
+    subtitle="Choose which days you like to use your conditioning workout days, based on your weekly target"
+    hint="*For Suggested: 2-3 Supplemental workouts (less cardio must...)"
+    timeLabel={
+      getTimesCount("conditioning") &&
+      Object.values(getTimesCount("conditioning")).some((t) => t > 0)
+        ? "Times Selected"
+        : "Default Time 04:30 pm"
+    }
+    selected={conditioningDays}
+    onEditTimes={() => setActiveEditSection("conditioning")}
+    timesCount={getTimesCount("conditioning")}
+    sectionTimes={scheduleData.conditioning}  // Add this line
+  />
+</div>
           </section>
 
           <section className="grid gap-5 xl:grid-cols-3">
@@ -858,7 +851,7 @@ if (activeEditSection) {
         ))}
       </div>
 
-   {showWeeklyTargetModal && (
+{showWeeklyTargetModal && (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
     <div className="w-full max-w-[620px] rounded-[28px] bg-white px-6 pb-6 pt-8 shadow-[0_25px_60px_rgba(0,0,0,0.30)] md:px-8">
       
@@ -909,6 +902,14 @@ if (activeEditSection) {
             }
             className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
           />
+          {/* Green message moved here */}
+          <div className="mt-2 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
+            *set based on your Cardio Schedule/Itinerary.
+            To make changes go to your{" "}
+            <a href="/itinerary/schedule" className="font-semibold underline">
+              Cardio Schedule
+            </a>
+          </div>
         </label>
 
         <label className="block">
@@ -942,14 +943,6 @@ if (activeEditSection) {
             className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
           />
         </label>
-      </div>
-
-      <div className="mt-5 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
-        *Cardio workouts are set based on your Cardio Schedule/Itinerary.
-        To make changes go to your{" "}
-        <a href="/itinerary/schedule" className="font-semibold underline">
-          Cardio Schedule
-        </a>
       </div>
 
       <div className="mt-7 flex justify-center gap-4">

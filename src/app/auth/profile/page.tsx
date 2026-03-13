@@ -59,47 +59,68 @@ export default function ProfileSetupPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (usernameStatus !== 'available' || !formData.fullName.trim()) return;
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  if (usernameStatus !== 'available' || !formData.fullName.trim()) return;
 
-    const email = sessionStorage.getItem('signup_email')?.trim();
-    const password = sessionStorage.getItem('signup_password');
+  const email = sessionStorage.getItem('signup_email')?.trim();
+  const password = sessionStorage.getItem('signup_password');
 
-    if (!email || !password) {
-      setError('Session expired. Please start signup again.');
-      router.replace('/auth/signup');
-      return;
-    }
+  if (!email || !password) {
+    setError('Session expired. Please start signup again.');
+    router.replace('/auth/signup');
+    return;
+  }
 
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
 
-    try {
-      // 1. Signup — token is saved inside signup()
-      await signup({
-        name: formData.fullName.trim(),
-        email,
-        password,
-        username: formData.username.trim(),
-        image: avatarFile ?? undefined,
-      });
+  try {
+    // 1. Signup — token is saved inside signup()
+    await signup({
+      name: formData.fullName.trim(),
+      email,
+      password,
+      username: formData.username.trim(),
+      image: avatarFile ?? undefined,
+    });
 
+    sessionStorage.removeItem('signup_email');
+    sessionStorage.removeItem('signup_password');
+
+    // 2. Check accountsetup status → redirect accordingly
+    const redirectTo = await checkAccountStatus();
+    router.replace(redirectTo);
+
+  } catch (err: any) {
+    console.error('Signup error:', err);
+    
+    // Check for email already exists error
+    const errorMessage = err.message || '';
+    if (
+      errorMessage.toLowerCase().includes('email already exists') ||
+      errorMessage.toLowerCase().includes('email already taken') ||
+      errorMessage.toLowerCase().includes('email has already been taken') ||
+      errorMessage.toLowerCase().includes('email already registered')
+    ) {
+      // Show the error message
+      setError('This email is already registered. Redirecting to login...');
+      
+      // Clear session storage
       sessionStorage.removeItem('signup_email');
       sessionStorage.removeItem('signup_password');
-
-      // 2. Check accountsetup status → redirect accordingly
-      // accountsetup === 1  →  /dashboard
-      // accountsetup === 0  →  /account-setup/newMember
-      const redirectTo = await checkAccountStatus();
-      router.replace(redirectTo);
-
-    } catch (err: any) {
-      setError(err.message || 'Unable to create account. Please try again.');
-    } finally {
-      setLoading(false);
+      
+      // Wait 3 seconds then redirect to login
+      setTimeout(() => {
+        router.replace('/auth/login?error=email_exists');
+      }, 3000);
+    } else {
+      setError(errorMessage || 'Unable to create account. Please try again.');
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   const isSubmitDisabled = usernameStatus !== 'available' || !formData.fullName.trim() || loading;
 

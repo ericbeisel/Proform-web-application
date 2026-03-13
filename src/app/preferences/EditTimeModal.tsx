@@ -129,7 +129,7 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
     0,
   );
 
-  return (
+return (
     <div className="flex flex-col min-h-screen bg-white w-full">
       {/* Header */}
       <div className="flex items-center border-b border-[#f0f0f0] px-4 py-5 md:px-8 lg:px-10 shrink-0">
@@ -140,12 +140,17 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
           <ArrowLeft size={24} className="text-[#333]" />
         </button>
         <h2 className="text-xl md:text-2xl font-bold text-[#1a1a1a]">
-          {title || "Edit Time"}
+          Edit Times
         </h2>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 py-8 md:px-8 lg:px-10 mx-auto w-full max-w-[1400px]">
+        {/* Section Title - Extract just the section name from title prop */}
+        <p className="text-[20px] font-bold text-black mb-2">
+          {title.replace("Edit ", "").replace(" Times", "")}
+        </p>
+        
         <p className="text-[14px] text-[#666] font-medium leading-relaxed mb-6">
           Select days and add up to 3 workout times per day. This helps us
           schedule your preferred workout times.
@@ -249,11 +254,11 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
                   </button>
                 </div>
               ))}
-{errors[expandedDay] && (
-  <p className="text-[12px] text-red-500 font-medium mb-3">
-    {errors[expandedDay]}
-  </p>
-)}
+              {errors[expandedDay] && (
+                <p className="text-[12px] text-red-500 font-medium mb-3">
+                  {errors[expandedDay]}
+                </p>
+              )}
               {(selectedTimes[expandedDay]?.length || 0) < 3 ? (
                 <button
                   onClick={() => addTimeSlot(expandedDay)}
