@@ -345,7 +345,7 @@ export default function ItineraryPage() {
 
   const toggleDay = (day: string) => {
     setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
     );
   };
 
@@ -370,7 +370,7 @@ export default function ItineraryPage() {
         Object.entries(workoutsByDay).map(([day, workouts]) => [
           day,
           workouts.filter((w) => w.filter === activeFilter),
-        ])
+        ]),
       )
     : workoutsByDay;
 
@@ -403,8 +403,12 @@ export default function ItineraryPage() {
                 : tab.color
             }`}
           >
-            <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full inline-block ${tab.dot}`} />
-            {isMobile && tab.label.length > 5 ? tab.label.slice(0, 4) + "..." : tab.label}
+            <span
+              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full inline-block ${tab.dot}`}
+            />
+            {isMobile && tab.label.length > 5
+              ? tab.label.slice(0, 4) + "..."
+              : tab.label}
             {tab.count !== undefined && (
               <span className="ml-0.5">({tab.count})</span>
             )}
@@ -437,26 +441,35 @@ export default function ItineraryPage() {
         {/* Dot rows */}
         <div className="bg-white py-2 sm:py-4 px-1 sm:px-2">
           {Array.from({ length: maxRows }).map((_, rowIdx) => (
-            <div key={rowIdx} className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3">
+            <div
+              key={rowIdx}
+              className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3"
+            >
               {Array.from({ length: 7 }).map((_, colIdx) => {
                 const dot = dotsByDay[colIdx][rowIdx];
-                if (!dot) return <div key={colIdx} className="flex justify-center" />;
-                
-                const isActive = activeFilter === null || dot.filter === activeFilter;
-                const opacity = activeFilter && dot.filter !== activeFilter ? "opacity-20" : "opacity-100";
-                
+                if (!dot)
+                  return <div key={colIdx} className="flex justify-center" />;
+
+                const isActive =
+                  activeFilter === null || dot.filter === activeFilter;
+                const opacity =
+                  activeFilter && dot.filter !== activeFilter
+                    ? "opacity-20"
+                    : "opacity-100";
+
                 return (
                   <div
                     key={dot.id}
-                  onClick={() => {
-  const workout =
-    WEEKLY_WORKOUTS.find(
-      (w) => w.dayIdx === dot.day && w.filter === dot.filter
-    ) ||
-    WEEKLY_WORKOUTS.find((w) => w.dayIdx === dot.day) ||
-    WEEKLY_WORKOUTS.find((w) => w.filter === dot.filter);
-  if (workout) setSelectedWorkout(workout);
-}}
+                    onClick={() => {
+                      const workout =
+                        WEEKLY_WORKOUTS.find(
+                          (w) =>
+                            w.dayIdx === dot.day && w.filter === dot.filter,
+                        ) ||
+                        WEEKLY_WORKOUTS.find((w) => w.dayIdx === dot.day) ||
+                        WEEKLY_WORKOUTS.find((w) => w.filter === dot.filter);
+                      if (workout) setSelectedWorkout(workout);
+                    }}
                     className={`w-2 h-2 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 rounded-full ${dot.color} ${opacity} cursor-pointer hover:scale-110 transition mx-auto`}
                   />
                 );
@@ -482,7 +495,8 @@ export default function ItineraryPage() {
             Weekly Schedule
           </h3>
           <p className="text-[10px] sm:text-[12px] text-gray-400 mt-0.5">
-            {Object.values(filteredWorkoutsByDay).flat().length} total Workout(s) on your schedule this week
+            {Object.values(filteredWorkoutsByDay).flat().length} total
+            Workout(s) on your schedule this week
           </p>
         </div>
 
@@ -490,7 +504,7 @@ export default function ItineraryPage() {
           {DAY_ORDER.map((day) => {
             const workouts = filteredWorkoutsByDay[day];
             if (!workouts || workouts.length === 0) return null;
-            
+
             return (
               <div key={day}>
                 <p className="text-[10px] sm:text-[12px] font-bold text-gray-500 mb-1 sm:mb-2">
@@ -523,14 +537,16 @@ export default function ItineraryPage() {
                       <div className="absolute top-2 left-2 flex items-center gap-1">
                         <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-green-400 inline-block" />
                         <span className="text-white text-[8px] sm:text-[9px] opacity-80">
-                          {isMobile ? w.time.split(' ')[0] : w.time}
+                          {isMobile ? w.time.split(" ")[0] : w.time}
                         </span>
                       </div>
 
                       {/* Content bottom */}
                       <div className="absolute bottom-0 left-0 right-0 px-2 sm:px-3 pb-1.5 sm:pb-2">
                         <p className="text-white text-[10px] sm:text-[12px] md:text-[13px] font-extrabold leading-tight tracking-wide uppercase">
-                          {isMobile && w.name.length > 12 ? w.name.slice(0, 10) + "..." : w.name}
+                          {isMobile && w.name.length > 12
+                            ? w.name.slice(0, 10) + "..."
+                            : w.name}
                         </p>
                         {w.sub && w.sub !== "N/A" && !isMobile && (
                           <p className="text-white/70 text-[8px] sm:text-[10px] mt-0.5">
@@ -572,13 +588,17 @@ export default function ItineraryPage() {
               <X size={isMobile ? 18 : 20} />
             </button>
 
-            <h2 className="text-[18px] sm:text-[20px] font-bold mb-4 sm:mb-6 pr-8">Add Workout</h2>
+            <h2 className="text-[18px] sm:text-[20px] font-bold mb-4 sm:mb-6 pr-8">
+              Add Workout
+            </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* LEFT SIDE */}
               <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <p className="text-xs sm:text-sm font-medium mb-1">Details:</p>
+                  <p className="text-xs sm:text-sm font-medium mb-1">
+                    Details:
+                  </p>
                   <input
                     className="w-full border rounded-xl p-2.5 sm:p-3 bg-gray-100 text-sm"
                     placeholder="Select workout"
@@ -619,10 +639,12 @@ export default function ItineraryPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs sm:text-sm font-medium mb-1">Set Time:</p>
-                  <input 
+                  <p className="text-xs sm:text-sm font-medium mb-1">
+                    Set Time:
+                  </p>
+                  <input
                     type="time"
-                    className="w-full border rounded-xl p-2.5 sm:p-3 bg-gray-100 text-sm" 
+                    className="w-full border rounded-xl p-2.5 sm:p-3 bg-gray-100 text-sm"
                   />
                 </div>
               </div>
@@ -631,7 +653,9 @@ export default function ItineraryPage() {
               <div>
                 <div className="flex justify-between mb-2">
                   <p className="text-xs sm:text-sm font-medium">Select Days</p>
-                  <p className="text-[10px] sm:text-xs text-gray-400">Select Multiple days</p>
+                  <p className="text-[10px] sm:text-xs text-gray-400">
+                    Select Multiple days
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -664,85 +688,106 @@ export default function ItineraryPage() {
       )}
 
       {/* ── Workout Detail Modal ── */}
-    {/* ── Workout Detail Modal ── */}
-{selectedWorkout && (
-  <div
-    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
-    onClick={() => setSelectedWorkout(null)}
-  >
-    <div
-      className="bg-white w-full sm:w-[520px] sm:max-w-[95%] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden relative"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-center relative px-6 py-4">
-        <h2 className="text-[15px] font-semibold text-gray-900">Workout</h2>
-        <button
+      {/* ── Workout Detail Modal ── */}
+      {selectedWorkout && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={() => setSelectedWorkout(null)}
-          className="absolute right-4 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-500 transition-colors"
         >
-          <X size={14} />
-        </button>
-      </div>
+          <div
+            className="bg-white w-full sm:w-[520px] sm:max-w-[95%] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-center relative px-6 py-4">
+              <h2 className="text-[15px] font-semibold text-gray-900">
+                Workout
+              </h2>
+              <button
+                onClick={() => setSelectedWorkout(null)}
+                className="absolute right-4 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-500 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
 
-      <div className="px-5 pb-6 space-y-4">
-        {/* Complete label */}
-        <p className="text-[12px] text-gray-500 font-medium">Complete:</p>
+            <div className="px-5 pb-6 space-y-4">
+              {/* Complete label */}
+              <p className="text-[12px] text-gray-500 font-medium">Complete:</p>
 
-        {/* Image card */}
-        <div className="relative h-[200px] sm:h-[230px] rounded-2xl overflow-hidden">
-          <div className={`absolute inset-0 ${selectedWorkout.imageBg}`} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4">
-            <p className="text-[11px] font-medium opacity-80 mb-1">{selectedWorkout.badge}</p>
-            <h3 className="text-[22px] sm:text-[26px] font-extrabold text-center text-purple-300 leading-tight">
-              {selectedWorkout.name.charAt(0).toUpperCase() + selectedWorkout.name.slice(1).toLowerCase()}
-            </h3>
-            {selectedWorkout.sub && selectedWorkout.sub !== "N/A" && (
-              <p className="text-[12px] opacity-80 mt-1">{selectedWorkout.sub}</p>
-            )}
+              {/* Image card */}
+              <div className="relative h-[200px] sm:h-[230px] rounded-2xl overflow-hidden">
+                <div
+                  className={`absolute inset-0 ${selectedWorkout.imageBg}`}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4">
+                  <p className="text-[11px] font-medium opacity-80 mb-1">
+                    {selectedWorkout.badge}
+                  </p>
+                  <h3 className="text-[22px] sm:text-[26px] font-extrabold text-center text-purple-300 leading-tight">
+                    {selectedWorkout.name.charAt(0).toUpperCase() +
+                      selectedWorkout.name.slice(1).toLowerCase()}
+                  </h3>
+                  {selectedWorkout.sub && selectedWorkout.sub !== "N/A" && (
+                    <p className="text-[12px] opacity-80 mt-1">
+                      {selectedWorkout.sub}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap justify-center gap-2">
+                {selectedWorkout.sub && selectedWorkout.sub !== "N/A" && (
+                  <span className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-600 uppercase tracking-wide">
+                    {selectedWorkout.sub}
+                  </span>
+                )}
+                <span className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-600 uppercase tracking-wide">
+                  {selectedWorkout.badge}
+                </span>
+              </div>
+
+              {/* Schedule row */}
+              <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-[13px] text-gray-700">
+                  <Calendar size={14} className="text-gray-400" />
+                  <span>
+                    {selectedWorkout.day} @{" "}
+                    {selectedWorkout.time.replace("By ", "")}
+                  </span>
+                </div>
+                <button className="w-8 h-8 bg-blue-100 hover:bg-blue-200 rounded-full flex items-center justify-center transition-colors">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-1">
+                <button className="flex-1 bg-purple-700 hover:bg-purple-800 text-white py-3.5 rounded-2xl font-bold text-[14px] transition-colors">
+                  View Workout
+                </button>
+                <button className="flex-1 border-2 border-purple-700 text-purple-700 hover:bg-purple-50 py-3.5 rounded-2xl font-bold text-[14px] transition-colors">
+                  View Queue
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Tags */}
-        <div className="flex flex-wrap justify-center gap-2">
-          {selectedWorkout.sub && selectedWorkout.sub !== "N/A" && (
-            <span className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-600 uppercase tracking-wide">
-              {selectedWorkout.sub}
-            </span>
-          )}
-          <span className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-600 uppercase tracking-wide">
-            {selectedWorkout.badge}
-          </span>
-        </div>
-
-        {/* Schedule row */}
-        <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2 text-[13px] text-gray-700">
-            <Calendar size={14} className="text-gray-400" />
-            <span>{selectedWorkout.day} @ {selectedWorkout.time.replace("By ", "")}</span>
-          </div>
-          <button className="w-8 h-8 bg-blue-100 hover:bg-blue-200 rounded-full flex items-center justify-center transition-colors">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3 pt-1">
-          <button className="flex-1 bg-purple-700 hover:bg-purple-800 text-white py-3.5 rounded-2xl font-bold text-[14px] transition-colors">
-            View Workout
-          </button>
-          <button className="flex-1 border-2 border-purple-700 text-purple-700 hover:bg-purple-50 py-3.5 rounded-2xl font-bold text-[14px] transition-colors">
-            View Queue
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </div>
   );
 }

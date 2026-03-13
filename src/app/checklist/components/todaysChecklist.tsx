@@ -74,94 +74,91 @@ export default function TodaysChecklist() {
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
       <div className="bg-white w-full overflow-hidden">
-        
         {/* ── Top bar ── */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-700 rounded-2xl flex items-center justify-center">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 gap-4 sm:gap-0">
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="w-12 h-12 bg-purple-700 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Calendar size={22} className="text-white" />
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 font-medium">
-                Daily Progress
-              </p>
-              <p className="text-[22px] font-extrabold text-gray-900 leading-tight">
+              <p className="text-xs text-gray-500 font-medium">Daily Progress</p>
+              <p className="text-2xl sm:text-[22px] font-extrabold text-gray-900 leading-tight">
                 {progress}%
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
             <button
               onClick={() => router.push("/checklist/missed-activity")}
-              className="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-500 text-[12px] font-semibold px-3 py-1.5 rounded-full"
+              className="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 text-xs sm:text-[12px] font-semibold px-3 py-1.5 rounded-full whitespace-nowrap"
             >
               <AlertCircle size={13} />
               1 Missed Activity
             </button>
 
-            <button className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors">
-              <Settings size={16} />
+            <button className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors flex-shrink-0">
+              <Settings size={18} className="sm:size-16" />
             </button>
 
-            <button className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors">
-              <X size={16} />
+            <button
+              onClick={() => router.back()}
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 hover:text-gray-800 transition-colors flex-shrink-0"
+              aria-label="Go back"
+            >
+              <X size={18} className="sm:size-16" />
             </button>
           </div>
         </div>
 
         {/* ── Title + Hide Suggested ── */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-2">
-          <h1 className="text-[28px] font-extrabold text-gray-900">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 pt-5 pb-3 gap-4 sm:gap-0">
+          <h1 className="text-3xl sm:text-[28px] font-extrabold text-gray-900">
             Today's Checklist
           </h1>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex items-center gap-2 cursor-pointer text-sm sm:text-[13px]">
             <input
               type="checkbox"
               checked={hideSuggested}
               onChange={() => setHideSuggested(!hideSuggested)}
               className="w-4 h-4 rounded border-gray-300 accent-purple-600"
             />
-            <span className="text-[13px] text-gray-500">
-              Hide Suggested
-            </span>
+            <span className="text-gray-600">Hide Suggested</span>
           </label>
         </div>
 
         {/* ── Progress bar ── */}
-        <div className="px-6 pb-4">
-          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="px-4 sm:px-6 pb-4">
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-orange-400 rounded-full transition-all duration-500"
+              className="h-full bg-orange-400 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
-
-          <p className="text-[11px] text-gray-400 mt-1.5">
+          <p className="text-xs text-gray-500 mt-2">
             {completed.length} of {ACTIVITIES.length} completed
           </p>
         </div>
 
-        <div className="px-6 pb-6">
-          
+        <div className="px-4 sm:px-6 pb-6">
           {/* ── Day header ── */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[22px] font-extrabold text-gray-900">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-4">
+            <h2 className="text-2xl sm:text-[22px] font-extrabold text-gray-900">
               Monday
             </h2>
 
             <button
               onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 bg-purple-700 hover:bg-purple-800 text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
+              className="flex items-center gap-2 bg-purple-700 hover:bg-purple-800 text-white text-sm sm:text-[13px] font-bold px-5 py-3 rounded-xl transition-colors w-full sm:w-auto justify-center"
             >
-              <Plus size={15} />
+              <Plus size={16} />
               Add Activity
             </button>
           </div>
 
           {/* ── Activity grid ── */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {ACTIVITIES.map((a) => {
               const done = completed.includes(a.id);
 
@@ -169,62 +166,55 @@ export default function TodaysChecklist() {
                 <div
                   key={a.id}
                   onClick={() => toggle(a.id)}
-                  className={`relative rounded-2xl border-2 p-4 cursor-pointer transition-all ${
+                  className={`relative rounded-2xl border-2 p-4 cursor-pointer transition-all duration-200 ${
                     a.overdue
-                      ? "border-red-400 bg-white"
+                      ? "border-red-400 bg-red-50/40"
                       : done
-                      ? "border-gray-200 bg-gray-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-gray-300 bg-gray-50"
+                      : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
                   }`}
                 >
-                  
                   {/* Type + Overdue badges */}
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${TYPE_COLORS[a.type]}`}
+                      className={`text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full ${TYPE_COLORS[a.type]}`}
                     >
                       {a.type}
                     </span>
 
                     {a.overdue && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-red-500 bg-red-50">
+                      <span className="text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full text-red-600 bg-red-50">
                         Overdue
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    
+                  <div className="flex items-start gap-3">
                     {/* Circle toggle */}
                     <div
-                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                        done ? `${a.ring} bg-opacity-20` : a.ring
+                      className={`w-10 h-10 sm:w-9 sm:h-9 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        done ? `${a.ring} bg-opacity-10` : a.ring
                       }`}
                     >
                       {done && (
                         <div
-                          className={`w-3 h-3 rounded-full ${a.color.replace(
-                            "text-",
-                            "bg-"
-                          )}`}
+                          className={`w-4 h-4 rounded-full ${a.color.replace("text-", "bg-")}`}
                         />
                       )}
                     </div>
 
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p
-                        className={`text-[14px] font-bold ${
-                          done
-                            ? "line-through text-gray-400"
-                            : "text-gray-900"
+                        className={`text-base sm:text-[14px] font-bold truncate ${
+                          done ? "line-through text-gray-500" : "text-gray-900"
                         }`}
                       >
                         {a.name}
                       </p>
 
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Clock size={11} className="text-gray-400" />
-                        <span className="text-[11px] text-gray-400">
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Clock size={12} className="text-gray-500 flex-shrink-0" />
+                        <span className="text-xs text-gray-500 truncate">
                           {a.time}
                         </span>
                       </div>
@@ -238,9 +228,9 @@ export default function TodaysChecklist() {
           {/* ── View Week ── */}
           <button
             onClick={() => router.push("/checklist/weekly-agenda")}
-            className="mt-5 w-full border-2 border-purple-700 text-purple-700 hover:bg-purple-50 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-colors text-[14px]"
+            className="mt-6 w-full border-2 border-purple-600 text-purple-700 hover:bg-purple-50 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-colors text-base sm:text-[14px]"
           >
-            <Calendar size={16} />
+            <Calendar size={18} />
             View Week
           </button>
         </div>
@@ -248,10 +238,7 @@ export default function TodaysChecklist() {
 
       {/* Add Activity Modal */}
       {showAdd && (
-        <AddActivityModal
-          onClose={() => setShowAdd(false)}
-          day="Monday"
-        />
+        <AddActivityModal onClose={() => setShowAdd(false)} day="Monday" />
       )}
     </div>
   );
