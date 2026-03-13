@@ -99,25 +99,35 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
   const newTimes = { ...selectedTimes };
   const daySlots = [...(newTimes[day] || [])];
 
-  // Check duplicate
+  // Normalize any time string to "HH:MM AM/PM" for comparison
+  const normalize = (timeStr: string) => {
+    if (timeStr.includes(" ")) return timeStr; // already "HH:MM AM/PM"
+    // convert "HH:mm" 24hr → "HH:MM AM/PM"
+    const [h, m] = timeStr.split(":");
+    let hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12 || 12;
+    return `${hour.toString().padStart(2, "0")}:${m} ${ampm}`;
+  };
+
+  const normalizedValue = normalize(value);
+
+  // Check duplicate against normalized existing slots
   const isDuplicate = daySlots.some(
-    (slot, i) => slot.startTime === value && i !== index
+    (slot, i) => normalize(slot.startTime) === normalizedValue && i !== index
   );
 
   if (isDuplicate) {
-  setErrors((prev) => ({
-  ...prev,
-  [day]: `You have duplicate time slot for ${day}`,
-}));
+    setErrors((prev) => ({
+      ...prev,
+      [day]: `You have a duplicate time slot for ${day}`,
+    }));
     return;
   }
 
-  // Clear error
   setErrors((prev) => ({ ...prev, [day]: "" }));
-
-  daySlots[index] = { startTime: value };
+  daySlots[index] = { startTime: normalizedValue }; // always store normalized
   newTimes[day] = daySlots;
-
   setSelectedTimes(newTimes);
 };
 
@@ -128,6 +138,8 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
     (acc, curr) => acc + (curr?.length || 0),
     0,
   );
+
+  const hasErrors = Object.values(errors).some((e) => e !== "");
 
 return (
     <div className="flex flex-col min-h-screen bg-white w-full">
@@ -281,20 +293,21 @@ return (
       </div>
 
       {/* Footer */}
-      <div className="flex flex-col items-center border-t border-[#f0f0f0] px-4 py-6 md:px-8 lg:px-10 shrink-0">
-        <button
-          onClick={() => {
-            onSave(selectedTimes);
-            onClose();
-          }}
-          className="w-full md:max-w-md h-14 bg-[#6202AC] hover:bg-[#500ba6] text-white rounded-full text-[18px] font-bold transition-colors mb-3 shadow-md mx-auto"
-        >
-          Save Schedule
-        </button>
-        <p className="text-[13px] font-medium text-[#888]">
-          {totalSelectedDays} day(s) selected • {totalSlots} total time slots
-        </p>
-      </div>
+ <button
+  onClick={() => {
+    if (hasErrors) return;
+    onSave(selectedTimes);
+    onClose();
+  }}
+  disabled={hasErrors}
+  className={`w-full md:max-w-md h-14 text-white rounded-full text-[18px] font-bold transition-colors mb-3 shadow-md mx-auto
+    ${hasErrors 
+      ? "bg-[#c084e8] cursor-not-allowed"   // greyed out
+      : "bg-[#6202AC] hover:bg-[#500ba6]"   // normal
+    }`}
+>
+  Save Schedule
+</button>
     </div>
   );
 };
