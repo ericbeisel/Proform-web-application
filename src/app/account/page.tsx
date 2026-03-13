@@ -53,6 +53,7 @@ const TOOL_ITEMS: ToolItem[] = [
   { label: "Join Challenges", href: "#" },
   { label: "Weekly Reports", href: "#" },
   { label: "Search Programs", href: "/programs" },
+    { label: "Location", href: "#" },
   { label: "More Options", href: "#" },
 ];
 

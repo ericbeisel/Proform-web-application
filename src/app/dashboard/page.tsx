@@ -30,8 +30,9 @@ export default function DashboardPage() {
       // Guard: if no token exists yet, redirect immediately instead of
       // firing requests that will all fail with "invalid credentials"
       const token = getAuthToken()
+      console.log("🔍 Checking auth token for dashboard:", token) // Debug log
       if (!token) {
-        router.replace("/login")
+        router.replace("/auth/login")
         return
       }
 
