@@ -114,18 +114,34 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
       preferenceApi.getActivityDays(SECTION_TO_API_TYPE.conditioning),
     ]);
 
-const toSectionTimes = (items: ActivityDay[]) => {
-  const sectionTimes: Record<string, TimeSlot[]> = {};
-  items.forEach((entry) => {
-    const mappedTimes = Array.isArray(entry.time)
-      ? entry.time.map((item) => ({ startTime: formatFromApiTime(item) }))
-      : [];
-    if (entry.day && mappedTimes.length > 0) {
-      sectionTimes[entry.day] = mappedTimes;
-    }
-  });
-  return normalizeSectionTimes(sectionTimes);
-};
+  console.log("workoutDays (raw):", workoutDays);
+  console.log("cardioDays (raw):", cardioDays);
+  console.log("supplementalDays (raw):", supplementalDays);
+  console.log("conditioningDays (raw):", conditioningDays);
+
+  // Ensure each days variable is an array
+  const ensureArray = (data: any): any[] => {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') return [data];
+    return [];
+  };
+
+  const toSectionTimes = (items: any) => {
+    const sectionTimes: Record<string, TimeSlot[]> = {};
+    const itemsArray = ensureArray(items);
+    
+    itemsArray.forEach((entry) => {
+      // Handle time which might be a string
+      const timeString = typeof entry.time === 'string' ? entry.time : '';
+      
+      if (entry.day && timeString) {
+        sectionTimes[entry.day] = [{
+          startTime: formatFromApiTime(timeString)
+        }];
+      }
+    });
+    return normalizeSectionTimes(sectionTimes);
+  };
 
   return {
     weeklyTargets: {
