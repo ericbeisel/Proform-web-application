@@ -119,27 +119,38 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
   console.log("supplementalDays (raw):", supplementalDays);
   console.log("conditioningDays (raw):", conditioningDays);
 
-  // Ensure each days variable is an array
-  const ensureArray = (data: any): any[] => {
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === 'object') return [data];
-    return [];
-  };
-
+  // This matches the old code's functionality but without the forEach error
   const toSectionTimes = (items: any) => {
     const sectionTimes: Record<string, TimeSlot[]> = {};
-    const itemsArray = ensureArray(items);
     
-    itemsArray.forEach((entry) => {
-      // Handle time which might be a string
-      const timeString = typeof entry.time === 'string' ? entry.time : '';
+    // Ensure items is an array (handle case when it's a single object)
+    const itemsArray = Array.isArray(items) ? items : (items ? [items] : []);
+    
+    // Use for loop instead of forEach to avoid any potential issues
+    for (let i = 0; i < itemsArray.length; i++) {
+      const entry = itemsArray[i];
       
-      if (entry.day && timeString) {
-        sectionTimes[entry.day] = [{
-          startTime: formatFromApiTime(timeString)
-        }];
+      // Skip if no day
+      if (!entry?.day) continue;
+      
+      // Handle time which might be a string or array
+      let timeSlots: TimeSlot[] = [];
+      
+      if (Array.isArray(entry.time)) {
+        // If it's an array, map each time
+        timeSlots = entry.time.map((item: string) => ({ 
+          startTime: formatFromApiTime(item) 
+        }));
+      } else if (typeof entry.time === 'string' && entry.time) {
+        // If it's a string, create a single slot (this is what the old code effectively did)
+        timeSlots = [{ startTime: formatFromApiTime(entry.time) }];
       }
-    });
+      
+      if (timeSlots.length > 0) {
+        sectionTimes[entry.day] = timeSlots;
+      }
+    }
+    
     return normalizeSectionTimes(sectionTimes);
   };
 
