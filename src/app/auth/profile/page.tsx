@@ -12,28 +12,82 @@ export default function ProfileSetupPage() {
   const [formData, setFormData] = useState({ fullName: '', username: '' });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  // const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const usernameTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const handleUsernameCheck = async (username: string) => {
-    if (!username.trim()) { setUsernameStatus('idle'); return; }
-    setUsernameStatus('checking');
-    try {
-      const data = await checkUsername(username.trim());
-      const isAvailable =
-        data.available === true ||
-        data.isAvailable === true ||
-        !data.exists ||
-        data.status === 'available';
-      setUsernameStatus(isAvailable ? 'available' : 'taken');
-    } catch (err: any) {
-      console.error('Username check failed:', err);
-      setUsernameStatus('idle');
+  const [usernameStatus, setUsernameStatus] = useState<
+  'idle' | 'checking' | 'available' | 'taken' | 'error'
+>('idle');
+const [usernameMessage, setUsernameMessage] = useState<string>('');
+
+// ────────────────────────────────────────────────
+// 2. Better username checker
+// ────────────────────────────────────────────────
+const handleUsernameCheck = async (username: string) => {
+  const trimmed = username.trim();
+
+  // No minimum length check anymore
+  if (!trimmed) {
+    setUsernameStatus('idle');
+    setUsernameMessage('');
+    return;
+  }
+
+  setUsernameStatus('checking');
+  setUsernameMessage('Checking availability...');
+
+  try {
+    const data = await checkUsername(trimmed);
+
+    // Flexible detection of "available" (adjust based on your actual API response shape)
+    const isAvailable =
+      data.available === true ||
+      data.isAvailable === true ||
+      data.exists === false ||
+      data.status === 'available' ||
+      data.available === 'true' ||
+      !data.taken ||
+      data.message?.toLowerCase().includes('available');
+
+    if (isAvailable) {
+      setUsernameStatus('available');
+      setUsernameMessage(`@${trimmed} is available`);
+    } else {
+      setUsernameStatus('taken');
+      setUsernameMessage('The username has already been taken.');
     }
-  };
+  } catch (err: any) {
+    console.error('Username check failed:', err);
+
+    setUsernameStatus('error');
+    setUsernameMessage(
+      err.message?.toLowerCase().includes('taken') ||
+      err.message?.toLowerCase().includes('already')
+        ? 'The username has already been taken.'
+        : 'Could not check username right now. Please try again.'
+    );
+  }
+};
+
+  // const handleUsernameCheck = async (username: string) => {
+  //   if (!username.trim()) { setUsernameStatus('idle'); return; }
+  //   setUsernameStatus('checking');
+  //   try {
+  //     const data = await checkUsername(username.trim());
+  //     const isAvailable =
+  //       data.available === true ||
+  //       data.isAvailable === true ||
+  //       !data.exists ||
+  //       data.status === 'available';
+  //     setUsernameStatus(isAvailable ? 'available' : 'taken');
+  //   } catch (err: any) {
+  //     console.error('Username check failed:', err);
+  //     setUsernameStatus('idle');
+  //   }
+  // };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -186,42 +240,73 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
           </div>
 
           {/* Username */}
-          <div>
-            <label htmlFor="username" className="block text-sm font-semibold text-black mb-2">Username</label>
-            <div className="relative">
-              <input
-                type="text" id="username" name="username" value={formData.username}
-                onChange={handleChange} placeholder="Enter your Username" disabled={loading} required
-                className={`w-full px-5 py-4 bg-white border rounded-xl focus:outline-none text-gray-900 placeholder:text-gray-400 pr-14 disabled:opacity-50
-                  ${usernameStatus === 'taken' ? 'border-red-500 focus:ring-red-500' : ''}
-                  ${usernameStatus === 'available' ? 'border-green-500 focus:ring-green-500' : ''}
-                  ${usernameStatus === 'idle' || usernameStatus === 'checking' ? 'border-gray-200 focus:ring-cyan-400' : ''}
-                `}
-              />
-              {usernameStatus === 'checking' && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <svg className="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                </div>
-              )}
-              {usernameStatus === 'taken' && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-                  <X size={18} color="white" />
-                </div>
-              )}
-              {usernameStatus === 'available' && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <Check size={18} color="white" />
-                </div>
-              )}
-            </div>
-            {usernameStatus === 'checking' && <p className="text-gray-400 text-sm mt-2">Checking availability...</p>}
-            {usernameStatus === 'taken' && <p className="text-red-500 text-sm mt-2 flex items-center gap-1"><X size={14} /> @{formData.username} is already taken</p>}
-            {usernameStatus === 'available' && <p className="text-green-600 text-sm mt-2 flex items-center gap-1"><Check size={14} /> @{formData.username} is available</p>}
-          </div>
+       <div>
+  <label htmlFor="username" className="block text-sm font-semibold text-black mb-2">
+    Username
+  </label>
+  <div className="relative">
+    <input
+      type="text"
+      id="username"
+      name="username"
+      value={formData.username}
+      onChange={handleChange}
+      placeholder="Enter your Username"
+      disabled={loading}
+      required
+      autoComplete="off"
+      className={`w-full px-5 py-4 bg-white border rounded-xl focus:outline-none text-gray-900 placeholder:text-gray-400 disabled:opacity-50 transition-colors
+        ${usernameStatus === 'taken' ? 'border-red-500 focus:ring-red-400' : ''}
+        ${usernameStatus === 'available' ? 'border-green-500 focus:ring-green-400' : ''}
+        ${usernameStatus === 'error' ? 'border-red-500 focus:ring-red-400' : ''}
+        ${usernameStatus === 'idle' || usernameStatus === 'checking'
+          ? 'border-gray-200 focus:ring-cyan-400'
+          : ''}
+        ${usernameStatus === 'taken' || usernameStatus === 'error' ? 'pr-5' : 'pr-14'}`} // ← reduced padding when no icon
+      />
+    
+    {/* Only show icon for checking and success — no icon when taken/error */}
+    {usernameStatus === 'checking' && (
+      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+        <svg className="animate-spin h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    )}
 
+    {usernameStatus === 'available' && (
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+        <Check size={18} color="white" />
+      </div>
+    )}
+
+    {/* Removed: taken & error icons — no X mark inside input */}
+  </div>
+
+  {/* Feedback message below */}
+  {usernameMessage && (
+    <p
+      className={`text-sm mt-2 flex items-center gap-1.5
+        ${usernameStatus === 'available' ? 'text-green-600' : ''}
+        ${usernameStatus === 'taken' ? 'text-red-600 font-medium' : ''}
+        ${usernameStatus === 'error' ? 'text-amber-700' : ''}
+        ${usernameStatus === 'checking' ? 'text-gray-500' : ''}
+      `}
+    >
+      {usernameStatus === 'checking' && (
+        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      )}
+      {usernameStatus === 'available' && <Check size={14} />}
+      {usernameStatus === 'taken' && <span className="text-red-600">!</span>} {/* small ! instead of big X */}
+      {usernameStatus === 'error' && <span className="text-amber-700">!</span>}
+      {usernameMessage}
+    </p>
+  )}
+</div>
           {/* Submit */}
           <button
             type="submit" disabled={isSubmitDisabled}

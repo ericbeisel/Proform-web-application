@@ -47,15 +47,36 @@ export default function PlayerProgress() {
     playerName: "Shweta Gharge",
   });
 
-  useEffect(() => {
-    const fetchProgress = async () => {
-      try {
-        setLoading(true);
-        const response = await getPlayerCardDetails();
-        const rows = Array.isArray(response?.data) ? response.data : [];
+useEffect(() => {
+  const fetchProgress = async () => {
+    try {
+      setLoading(true);
+      setError(""); // Clear previous errors
 
-        const formattedData = rows.map(
-          (item: PlayerCardDetail, index: number) => ({
+      console.log("🔄 Fetching player progress data...");
+
+      const response = await getPlayerCardDetails();
+
+      // Log the raw response from API
+      console.log("✅ Raw API Response:", response);
+
+      const rows = Array.isArray(response?.data) ? response.data : [];
+      console.log(`📋 Found ${rows.length} progress records in response.data`);
+
+      // Log first record (if any) to see structure
+      if (rows.length > 0) {
+        console.log("📌 Sample Record (First Item):", rows[0]);
+      }
+
+      const formattedData = rows.map(
+        (item: PlayerCardDetail, index: number) => {
+          const cleanedImage = item.inBodyScans
+            ? item.inBodyScans
+                .replace("https://paxlete.com//", "https://paxlete.com/")
+                .replace(/([^:]\/)\/+/g, "$1") // extra safety
+            : null;
+
+          const formattedItem = {
             id: item.id || index + 1,
             date: item.date || "N/A",
             weight: item.currentWeight ? `${item.currentWeight} lbs` : "0 lbs",
@@ -63,90 +84,110 @@ export default function PlayerProgress() {
             fat: item.bodyFat ? `${item.bodyFat}%` : "0%",
             score: item.bodyCampScore || 0,
             status: normalizeStatus(item.status),
-            inBodyScans:
-              item.inBodyScans?.replace(
-                "https://paxlete.com//",
-                "https://paxlete.com/",
-              ) || null,
-          }),
-        );
+            inBodyScans: cleanedImage,
+          };
 
-        setProgressData(formattedData);
+          console.log(`🖼️  Record #${formattedItem.id} Image URL:`, cleanedImage);
 
-        if (formattedData.length > 0) {
-          const sorted = [...formattedData].sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-          );
-          const latestScan = sorted[0];
-          const oldestScan = sorted[sorted.length - 1];
-          const latestWeight = parseFloat(latestScan.weight) || 0;
-          const oldestWeight = parseFloat(oldestScan.weight) || 0;
-          const weightDiff = (latestWeight - oldestWeight).toFixed(1);
-          const latestScore = latestScan.score || 0;
-          const oldestScore = oldestScan.score || 0;
-          const scoreDiff = latestScore - oldestScore;
-
-          setStats({
-            totalScans: response.total_scan ?? formattedData.length,
-            weightChange: `${weightDiff.startsWith("-") ? "" : "+"}${weightDiff} lbs`,
-            currentScore: latestScore,
-            improvement: response.improvement ?? scoreDiff,
-            playerName: response.name || rows[0]?.name || "Shweta Gharge",
-          });
-        } else {
-          setStats((prev) => ({
-            ...prev,
-            totalScans: response.total_scan ?? 0,
-            improvement: response.improvement ?? 0,
-            playerName: response.name || prev.playerName,
-          }));
+          return formattedItem;
         }
-      } catch (err: unknown) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load progress data",
+      );
+
+      console.log("✅ Final Formatted Data:", formattedData);
+
+      setProgressData(formattedData);
+
+      // Stats Calculation
+      if (formattedData.length > 0) {
+        const sorted = [...formattedData].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-        setProgressData([
-          {
-            id: 4,
-            date: "2/3/2026",
-            weight: "67 lbs",
-            smm: "52.4 lbs",
-            fat: "18.2%",
-            score: 85,
-            status: "Complete",
-          },
-          {
-            id: 3,
-            date: "1/15/2026",
-            weight: "68.5 lbs",
-            smm: "51.8 lbs",
-            fat: "19.1%",
-            score: 82,
-            status: "Complete",
-          },
-          {
-            id: 2,
-            date: "12/28/2025",
-            weight: "69.2 lbs",
-            smm: "51.2 lbs",
-            fat: "20%",
-            score: 79,
-            status: "Complete",
-          },
-        ]);
-        setStats({
-          totalScans: 3,
-          weightChange: "-2.2 lbs",
-          currentScore: 85,
-          improvement: 6,
-          playerName: "Shweta Gharge",
-        });
-      } finally {
-        setLoading(false);
+
+        const latestScan = sorted[0];
+        const oldestScan = sorted[sorted.length - 1];
+
+        const latestWeight = parseFloat(latestScan.weight) || 0;
+        const oldestWeight = parseFloat(oldestScan.weight) || 0;
+        const weightDiff = (latestWeight - oldestWeight).toFixed(1);
+
+        const latestScore = latestScan.score || 0;
+        const oldestScore = oldestScan.score || 0;
+        const scoreDiff = latestScore - oldestScore;
+
+        const finalStats = {
+          totalScans: response.total_scan ?? formattedData.length,
+          weightChange: `${weightDiff.startsWith("-") ? "" : "+"}${weightDiff} lbs`,
+          currentScore: latestScore,
+          improvement: response.improvement ?? scoreDiff,
+          playerName: response.name || rows[0]?.name || "Shweta Gharge",
+        };
+
+        console.log("📊 Calculated Stats:", finalStats);
+
+        setStats(finalStats);
+      } else {
+        console.log("⚠️ No progress records found.");
+        setStats((prev) => ({
+          ...prev,
+          totalScans: response.total_scan ?? 0,
+          improvement: response.improvement ?? 0,
+          playerName: response.name || prev.playerName,
+        }));
       }
-    };
-    fetchProgress();
-  }, []);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to load progress data";
+      console.error("❌ Error fetching progress:", err);
+      setError(errorMsg);
+
+      // Fallback data (you can keep this)
+      console.log("📥 Using fallback data due to error");
+      setProgressData([
+        {
+          id: 4,
+          date: "2/3/2026",
+          weight: "67 lbs",
+          smm: "52.4 lbs",
+          fat: "18.2%",
+          score: 85,
+          status: "Complete",
+          inBodyScans: "/images/svg.png",
+        },
+        {
+          id: 3,
+          date: "1/15/2026",
+          weight: "68.5 lbs",
+          smm: "51.8 lbs",
+          fat: "19.1%",
+          score: 82,
+          status: "Complete",
+          inBodyScans: "/images/svg.png",
+        },
+        {
+          id: 2,
+          date: "12/28/2025",
+          weight: "69.2 lbs",
+          smm: "51.2 lbs",
+          fat: "20%",
+          score: 79,
+          status: "Complete",
+          inBodyScans: "/images/svg.png",
+        },
+      ]);
+
+      setStats({
+        totalScans: 3,
+        weightChange: "-2.2 lbs",
+        currentScore: 85,
+        improvement: 6,
+        playerName: "Shweta Gharge",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProgress();
+}, []);
 
   if (loading) {
     return (

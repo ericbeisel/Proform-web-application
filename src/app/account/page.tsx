@@ -61,7 +61,7 @@ const TOOL_ITEMS: ToolItem[] = [
   { label: "Join Challenges", href: "#" },
   { label: "Weekly Reports", href: "#" },
   { label: "Search Programs", href: "/programs" },
-  { label: "Location", href: "#" },
+  { label: "Location", href: "/location" },
   { label: "More Options", href: "#" },
 ];
 
@@ -116,6 +116,8 @@ export default function AccountPage() {
 
   const handleLogout = () => {
     clearAuthSession();
+  
+    console.log("User logged out, redirecting to login page.");
     router.replace("/auth/login");
   };
 

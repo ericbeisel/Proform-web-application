@@ -40,11 +40,15 @@ export default function AdminPlayerCards() {
         setError("");
         const response = await getAdminPlayerCardList();
 
+        // ✅ FIX: Safely handle response
         if (response?.name) {
           setCoachName(`Coach ${response.name}`);
         }
 
-        const mapped = (response?.data || []).map((item: PlayerCardDetail) => ({
+        // ✅ FIX: Ensure data is an array before mapping
+        const dataArray = Array.isArray(response?.data) ? response.data : [];
+        
+        const mapped = dataArray.map((item: PlayerCardDetail) => ({
           id: item.id,
           name: item.name || normalizeDate(item.date) || "User",
           handle: item.status?.toLowerCase() === "reject" ? "Rejected card" : "",
@@ -57,6 +61,7 @@ export default function AdminPlayerCards() {
         setPlayers(mapped);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load admin player cards.");
+        setPlayers([]); // ✅ Reset to empty array on error
       } finally {
         setLoading(false);
       }

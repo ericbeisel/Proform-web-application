@@ -387,9 +387,9 @@ export default function PlayerCardPage() {
                     ) : (
                       <span className="text-xl font-black text-[#5b21b6]">
                         {heightInInches}
-                        <span className="text-sm text-gray-400 ml-1">
+                        {/* <span className="text-sm text-gray-400 ml-1">
                           ({data.height} ft)
-                        </span>
+                        </span> */}
                       </span>
                     )}
                   </div>
@@ -468,8 +468,7 @@ export default function PlayerCardPage() {
                   <CheckCircle size={16} />
                 </div>
                 <p className="text-xs font-bold text-[#ff7043]">
-                  Upload a body scan to submit a complete card and unlock all
-                  metrics!
+                  Upload a body scan to submit a complete card 
                 </p>
               </div>
             )}

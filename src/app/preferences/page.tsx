@@ -906,7 +906,7 @@ if (activeEditSection) {
           <div className="mt-2 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
             *set based on your Cardio Schedule/Itinerary.
             To make changes go to your{" "}
-            <a href="/itinerary/schedule" className="font-semibold underline">
+            <a href="/cardio" className="font-semibold underline">
               Cardio Schedule
             </a>
           </div>

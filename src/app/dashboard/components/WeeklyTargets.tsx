@@ -71,29 +71,57 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
     router.push('/cardio');
   };
 
+  // const handleWorkoutClick = () => {
+  //   router.push('/workout');
+  // }
+
+    const handleWorkoutClick = () => {
+    router.push('/location');
+  }
+
+  
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <h3 className="font-bold text-sm mb-3.5">Weekly Targets</h3>
-      {targetItems.map(item => (
-        <div
-          key={item.label}
-          onClick={item.label === 'Cardio' ? handleCardioClick : undefined} // Add onClick only for Cardio
-          className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor} ${
-            item.label === 'Cardio' ? 'cursor-pointer hover:opacity-80 transition-opacity' : '' // Add cursor style only for Cardio
-          }`}
-        >
-          <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-lg ${item.iconBg}`}>
-            <item.icon size={18} />
-          </div>
-          <div className="flex-1">
-            <div className="font-semibold text-sm">{item.label}</div>
-            <div className="text-[11px] text-[#8b879e]">{item.sub}</div>
-          </div>
-          <div className={`font-bold text-sm ${item.textColor}`}>
-            {item.count}
-          </div>
-        </div>
-      ))}
+    {targetItems.map(item => {
+  const handleClick = () => {
+    if (item.label === 'Cardio') {
+      router.push('/cardio');
+    }
+    if (item.label === 'Workout') {
+      router.push('/workout');
+    }
+  };
+
+  return (
+    <div
+      key={item.label}
+      onClick={
+        item.label === 'Cardio' || item.label === 'Workout'
+          ? handleClick
+          : undefined
+      }
+      className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor} ${
+        item.label === 'Cardio' || item.label === 'Workout'
+          ? 'cursor-pointer hover:opacity-80 transition-opacity'
+          : ''
+      }`}
+    >
+      <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-lg ${item.iconBg}`}>
+        <item.icon size={18} />
+      </div>
+
+      <div className="flex-1">
+        <div className="font-semibold text-sm">{item.label}</div>
+        <div className="text-[11px] text-[#8b879e]">{item.sub}</div>
+      </div>
+
+      <div className={`font-bold text-sm ${item.textColor}`}>
+        {item.count}
+      </div>
+    </div>
+  );
+})}
     </div>
   )
 }
