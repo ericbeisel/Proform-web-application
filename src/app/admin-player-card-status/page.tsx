@@ -53,11 +53,12 @@ export default function AdminPlayerCards() {
         const playersArray: PlayerCardDetail[] = [];
         
         if (response?.data && typeof response.data === 'object') {
+          const dataObj = response.data as Record<string, any>;
           // Convert the object with numeric keys to an array
-          Object.keys(response.data).forEach((key) => {
+          Object.keys(dataObj).forEach((key) => {
             // Check if key is numeric (index)
             if (!isNaN(Number(key))) {
-              playersArray.push(response.data[key]);
+              playersArray.push(dataObj[key]);
             }
           });
         }

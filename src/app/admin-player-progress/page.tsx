@@ -137,6 +137,11 @@ export default function PlayerProgress() {
                 inBodyScans: cleanImageUrl(item.inBodyScans),
                 progressImage: cleanImageUrl(item.progressImage),
                 type: item.type,
+                // Extract diffs from API response or default to "0"
+                weightDiff: (item.currentWeightDiff ?? item.weight_diff ?? "0").toString(),
+                smmDiff: (item.smmDiff ?? item.smm_diff ?? "0").toString(),
+                fatDiff: (item.bodyFatDiff ?? item.bf_diff ?? "0").toString(),
+                scoreDiff: Number(item.bodyCampScoreDiff ?? item.body_camp_diff ?? 0),
               };
 
               return formattedItem;
@@ -443,19 +448,18 @@ export default function PlayerProgress() {
       // Parse numeric values for comparison
       const currentWeight = parseFloat(item.weight);
       const prevWeight = prevItem ? parseFloat(prevItem.weight) : null;
-      const weightDiff = prevWeight ? (currentWeight - prevWeight).toFixed(1) : null;
-      
       const currentSMM = parseFloat(item.smm);
       const prevSMM = prevItem ? parseFloat(prevItem.smm) : null;
-      const smmDiff = prevSMM ? (currentSMM - prevSMM).toFixed(1) : null;
-      
       const currentFat = parseFloat(item.fat);
       const prevFat = prevItem ? parseFloat(prevItem.fat) : null;
-      const fatDiff = prevFat ? (currentFat - prevFat).toFixed(1) : null;
-      
       const currentScore = item.score;
       const prevScore = prevItem ? prevItem.score : null;
-      const scoreDiff = prevScore ? (currentScore - prevScore) : null;
+
+      // Use diffs from API if available, otherwise calculate manually or default to "0"
+      const weightDiff = item.weightDiff || (prevWeight !== null ? (currentWeight - prevWeight).toFixed(1) : "0");
+      const smmDiff = item.smmDiff || (prevSMM !== null ? (currentSMM - prevSMM).toFixed(1) : "0");
+      const fatDiff = item.fatDiff || (prevFat !== null ? (currentFat - prevFat).toFixed(1) : "0");
+      const scoreDiff = item.scoreDiff !== undefined && item.scoreDiff !== null ? item.scoreDiff : (prevScore !== null ? (currentScore - prevScore) : 0);
 
       return (
         <div
@@ -541,9 +545,7 @@ export default function PlayerProgress() {
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
           parseFloat(weightDiff) > 0 
             ? 'bg-red-100 text-red-600' 
-            : parseFloat(weightDiff) < 0 
-              ? 'bg-green-100 text-green-600' 
-              : 'bg-gray-100 text-gray-600'
+            : 'bg-green-100 text-green-600'
         }`}>
           {parseFloat(weightDiff) > 0 ? '+' : ''}{weightDiff}
         </span>
@@ -562,11 +564,9 @@ export default function PlayerProgress() {
       </span>
       {smmDiff && (
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-          parseFloat(smmDiff) > 0 
+          parseFloat(smmDiff) < 0 
             ? 'bg-red-100 text-red-600' 
-            : parseFloat(smmDiff) < 0 
-              ? 'bg-green-100 text-green-600' 
-              : 'bg-gray-100 text-gray-600'
+            : 'bg-green-100 text-green-600'
         }`}>
           {parseFloat(smmDiff) > 0 ? '+' : ''}{smmDiff}
         </span>
@@ -587,9 +587,7 @@ export default function PlayerProgress() {
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
           parseFloat(fatDiff) > 0 
             ? 'bg-red-100 text-red-600' 
-            : parseFloat(fatDiff) < 0 
-              ? 'bg-green-100 text-green-600' 
-              : 'bg-gray-100 text-gray-600'
+            : 'bg-green-100 text-green-600'
         }`}>
           {parseFloat(fatDiff) > 0 ? '+' : ''}{fatDiff}
         </span>
@@ -606,13 +604,11 @@ export default function PlayerProgress() {
       <span className="text-[#6d28d9] text-sm font-bold">
         {item.score}
       </span>
-      {scoreDiff && (
+      {scoreDiff !== undefined && scoreDiff !== null && (
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-          scoreDiff > 0 
-            ? 'bg-green-100 text-green-600' 
-            : scoreDiff < 0 
-              ? 'bg-red-100 text-red-600' 
-              : 'bg-gray-100 text-gray-600'
+          scoreDiff < 0 
+            ? 'bg-red-100 text-red-600' 
+            : 'bg-green-100 text-green-600'
         }`}>
           {scoreDiff > 0 ? '+' : ''}{scoreDiff}
         </span>

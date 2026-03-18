@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
 export interface PlayerCardData {
   date: string;
@@ -25,6 +26,18 @@ export interface PlayerCardDetail {
   bodyFat: number | null;
   height: number | null;
   name?: string;
+  // Diff fields from API
+  smm_diff?: string | number | null;
+  bf_diff?: string | number | null;
+  body_camp_diff?: string | number | null;
+  weight_diff?: string | number | null;
+  height_diff?: string | number | null;
+  smmDiff?: string | number | null;
+  bodyFatDiff?: string | number | null;
+  bodyCampScoreDiff?: string | number | null;
+  currentWeightDiff?: string | number | null;
+  heightDiff?: string | number | null;
+  type?: string | null;
 }
 
 export interface PlayerCardDetailsResponse {
@@ -59,7 +72,6 @@ export interface PlayerCardType {
 
 export interface PlayerCardTypeResponse extends Array<PlayerCardType> {}
 
-
 type ErrorPayload = {
   message?: string;
   error?: string;
@@ -67,7 +79,12 @@ type ErrorPayload = {
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError<ErrorPayload>(error)) {
-    return error.response?.data?.message || error.response?.data?.error || error.message || fallback;
+    return (
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
+      fallback
+    );
   }
   if (error instanceof Error && error.message) {
     return error.message;
@@ -117,11 +134,14 @@ export interface PlayerCardListResponse {
  */
 export const getPlayerCardList = async (): Promise<PlayerCardListResponse> => {
   try {
-    const { data } = await apiClient.get<PlayerCardListResponse>("/player-card-list");
+    const { data } =
+      await apiClient.get<PlayerCardListResponse>("/player-card-list");
     console.log("📋 Player card list response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch player card list."));
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch player card list."),
+    );
   }
 };
 
@@ -134,7 +154,9 @@ export const getPlayerCard = async (): Promise<PlayerCardData> => {
   }
 };
 
-export const createPlayerCard = async (formData: FormData): Promise<unknown> => {
+export const createPlayerCard = async (
+  formData: FormData,
+): Promise<unknown> => {
   try {
     const { data } = await apiClient.post("/create-player-card", formData, {
       headers: {
@@ -148,30 +170,62 @@ export const createPlayerCard = async (formData: FormData): Promise<unknown> => 
   }
 };
 
-export const getPlayerCardDetails = async (): Promise<PlayerCardDetailsResponse> => {
-  try {
-    const { data } = await apiClient.get<PlayerCardDetailsResponse>("/player-card-details");
-    return data;
-  } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch player card details."));
-  }
-};
+export const getPlayerCardDetails =
+  async (): Promise<PlayerCardDetailsResponse> => {
+    try {
+      const { data } = await apiClient.get<PlayerCardDetailsResponse>(
+        "/player-card-details",
+      );
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(error, "Failed to fetch player card details."),
+      );
+    }
+  };
 
-export const getAdminPlayerCardList = async (): Promise<PlayerCardDetailsResponse> => {
-  try {
-    const { data } = await apiClient.get<PlayerCardDetailsResponse>("/admin-playercard-list");
-    console.log("📋 Admin player card list response:", data);
-    return data;
-  } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch admin player card list."));
-  }
-};
+export const getAdminPlayerCardList =
+  async (): Promise<PlayerCardDetailsResponse> => {
+    try {
+      const { data } = await apiClient.get<PlayerCardDetailsResponse>(
+        "/admin-playercard-list",
+      );
+      console.log("📋 Admin player card list response:", data);
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(error, "Failed to fetch admin player card list."),
+      );
+    }
+  };
 
-export const getAdminPlayerCardById = async (id: number): Promise<PlayerCardDetail> => {
+export const getAdminPlayerCardById = async (
+  id: number,
+): Promise<PlayerCardDetail> => {
   try {
-    const { data } = await apiClient.get<{ message?: string; data?: PlayerCardDetail } | PlayerCardDetail>(
-      `/admin-playercard?id=${id}`,
+    const { data } = await apiClient.get<any>(`/view-player-card?id=${id}`);
+    console.log("Admin Player Data", data);
+
+    if (data && typeof data === "object" && "data" in data && data.data) {
+      // The diff fields are now directly inside the data object in the new API response
+      return data.data as PlayerCardDetail;
+    }
+
+    return data as PlayerCardDetail;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch admin player card details."),
     );
+  }
+};
+
+export const getAdminPlayerCardDetails = async (
+  id: number,
+): Promise<PlayerCardDetail> => {
+  try {
+    const { data } = await apiClient.get<
+      { message?: string; data?: PlayerCardDetail } | PlayerCardDetail
+    >(`/view-player-card?id=${id}`);
 
     if ("data" in data && data.data) {
       return data.data;
@@ -179,28 +233,15 @@ export const getAdminPlayerCardById = async (id: number): Promise<PlayerCardDeta
 
     return data as PlayerCardDetail;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch admin player card details."));
-  }
-};
-
-
-export const getAdminPlayerCardDetails = async (id: number): Promise<PlayerCardDetail> => {
-  try {
-    const { data } = await apiClient.get<{ message?: string; data?: PlayerCardDetail } | PlayerCardDetail>(
-      `/view-player-card?id=${id}`,
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch admin player card details."),
     );
-
-    if ("data" in data && data.data) {
-      return data.data;
-    }
-
-    return data as PlayerCardDetail;
-  } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch admin player card details."));
   }
 };
 
-export const acceptAdminPlayerCard = async (params: AcceptPlayerCardParams): Promise<unknown> => {
+export const acceptAdminPlayerCard = async (
+  params: AcceptPlayerCardParams,
+): Promise<unknown> => {
   try {
     const formData = new FormData();
     formData.append("currentWeight", params.currentWeight);
@@ -210,12 +251,16 @@ export const acceptAdminPlayerCard = async (params: AcceptPlayerCardParams): Pro
     formData.append("bodyCampScore", params.bodyCampScore);
     formData.append("id", params.id.toString());
 
-    const { data } = await apiClient.post("/accept-admin-playercard", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        Accept: "application/json",
+    const { data } = await apiClient.post(
+      "/accept-admin-playercard",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
       },
-    });
+    );
 
     return data;
   } catch (error: unknown) {
@@ -223,25 +268,29 @@ export const acceptAdminPlayerCard = async (params: AcceptPlayerCardParams): Pro
   }
 };
 
-export const rejectAdminPlayerCard = async (params: RejectPlayerCardParams): Promise<unknown> => {
+export const rejectAdminPlayerCard = async (
+  params: RejectPlayerCardParams,
+): Promise<unknown> => {
   try {
     const formData = new FormData();
     formData.append("reject_comment", params.reject_comment);
     formData.append("id", params.id.toString());
 
-    const { data } = await apiClient.post("/reject-admin-playercard", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        Accept: "application/json",
+    const { data } = await apiClient.post(
+      "/reject-admin-playercard",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
       },
-    });
+    );
 
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to reject player card."));
   }
-
-  
 };
 
 export const getPlayerCardTypes = async (): Promise<PlayerCardType[]> => {
@@ -250,6 +299,8 @@ export const getPlayerCardTypes = async (): Promise<PlayerCardType[]> => {
     console.log("📋 Player card types response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch player card types."));
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch player card types."),
+    );
   }
 };

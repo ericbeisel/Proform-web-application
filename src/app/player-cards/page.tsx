@@ -11,6 +11,7 @@ import {
   Award,
   Activity,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -26,6 +27,7 @@ import { useToast } from "@/components/ui/toast-provider";
 // Extend the PlayerCardData type to include inBodyScanUrl
 interface ExtendedPlayerCardData extends PlayerCardData {
   inBodyScanUrl?: string | null;
+  progressImage?: string | null;
 }
 
 // ✅ Small inline spinner shown in place of a metric value
@@ -64,21 +66,7 @@ export default function PlayerCardPage() {
     return Number(heightStr) * 12;
   };
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const role = parsed?.role ?? parsed?.role_id;
-        if (Number(role) === 3) {
-          router.replace("/admin-player-cards");
-          return;
-        }
-      }
-    } catch (err) {
-      console.error("Error checking role:", err);
-    }
-  }, [router]);
+
 
   const fetchAllData = useCallback(
     async (showSuccessToast: boolean) => {
@@ -331,31 +319,53 @@ export default function PlayerCardPage() {
       {/* MAIN CONTENT */}
       <div className="mx-auto max-w-[1200px]">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* LEFT COLUMN */}
-          <div className="lg:col-span-4 bg-white rounded-2xl p-4 shadow-xl shadow-gray-200/50 flex flex-col h-[500px] border border-gray-100">
-            <div className="flex-1 relative rounded-xl overflow-hidden bg-[#16181b] border border-gray-800">
-              <div
-                className="absolute inset-0 opacity-20"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(#4b5563 1px, transparent 1px)",
-                  backgroundSize: "24px 24px",
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center p-4">
-                <img
-                  src="/images/svg.png"
-                  alt="Human Asset"
-                  className="h-full object-contain drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]"
-                />
+          {/* LEFT COLUMN - PROGRESS PHOTO CARD */}
+          <div className="lg:col-span-4 bg-white rounded-[32px] p-6 shadow-xl shadow-gray-200/50 flex flex-col border border-gray-100 min-h-[500px]">
+            {/* Card Header */}
+            <div className="flex items-center justify-between mb-4 px-2">
+              <span className="flex-1 text-center text-xs font-bold text-purple-600/80 uppercase tracking-widest pl-6">
+                New Progress Photo <span className="text-gray-400 font-medium">(Optional)</span>
+              </span>
+              <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                <Clock size={16} />
               </div>
             </div>
-            <button
+
+            {/* Image Container */}
+            <div 
               onClick={() => setShowProgressModal(true)}
-              className="mt-3 text-center text-[#7c3aed] text-sm font-bold hover:underline underline-offset-4"
+              className="flex-1 relative rounded-3xl overflow-hidden bg-[#1a1c1e] cursor-pointer group transition-all duration-300 hover:ring-4 hover:ring-purple-100"
             >
-              Upload Progress Photo
-            </button>
+              <div
+                className="absolute inset-0 opacity-10"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+                  backgroundSize: "40px 40px",
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center p-8">
+                <img
+                  src={data.progressImage || "/images/svg.png"}
+                  alt="Progress Scan"
+                  className="h-full w-auto object-contain brightness-110 drop-shadow-[0_0_15px_rgba(109,40,217,0.4)] transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
+              
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-purple-900/0 group-hover:bg-purple-900/20 transition-all flex items-center justify-center">
+                <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-4 group-hover:translate-y-0 duration-300">
+                  <span className="text-[#7c3aed] text-xs font-bold uppercase tracking-wider">Update Photo</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Footer */}
+            <div className="mt-4 text-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                Last Updated : 20 Days Ago
+              </p>
+            </div>
           </div>
 
           {/* RIGHT COLUMN */}

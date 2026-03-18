@@ -2,6 +2,7 @@
 
 import { ArrowLeft, TrendingUp, Scan, Image, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   getPlayerCardList,
@@ -21,6 +22,10 @@ interface ProgressItem {
   inBodyScans?: string | null;
   progressImage?: string | null;
   type?: string | null;
+  weightDiff?: string | null;
+  smmDiff?: string | null;
+  fatDiff?: string | null;
+  scoreDiff?: number | null;
 }
 
 interface Stats {
@@ -132,6 +137,10 @@ export default function PlayerProgress() {
                 inBodyScans: cleanImageUrl(item.inBodyScans),
                 progressImage: cleanImageUrl(item.progressImage),
                 type: item.type,
+                weightDiff: (item.currentWeightDiff ?? item.weight_diff ?? "0").toString(),
+                smmDiff: (item.smmDiff ?? item.smm_diff ?? "0").toString(),
+                fatDiff: (item.bodyFatDiff ?? item.bf_diff ?? "0").toString(),
+                scoreDiff: Number(item.bodyCampScoreDiff ?? item.body_camp_diff ?? 0),
               };
 
               return formattedItem;
@@ -499,53 +508,103 @@ export default function PlayerProgress() {
                 </div>
 
                 {/* Arrow */}
-                <div className="p-1.5 sm:p-2 rounded-xl group-hover:bg-purple-50 text-gray-300 group-hover:text-[#6d28d9] transition-all cursor-pointer flex-shrink-0">
+                <Link
+                  href={`/player-card/${item.id}`}
+                  className="p-1.5 sm:p-2 rounded-xl group-hover:bg-purple-50 text-gray-300 group-hover:text-[#6d28d9] transition-all cursor-pointer flex-shrink-0"
+                >
                   <ArrowLeft
                     className="rotate-180"
                     size={16}
                     strokeWidth={2.5}
                   />
-                </div>
+                </Link>
               </div>
 
               {/* Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pl-0 sm:pl-[92px]">
-                {[
-                  {
-                    label: "Weight",
-                    value: item.weight,
-                    color: "text-[#6d28d9]",
-                  },
-                  {
-                    label: "SMM",
-                    value: item.smm,
-                    color: "text-sky-500",
-                  },
-                  {
-                    label: "Body Fat",
-                    value: item.fat,
-                    color: "text-orange-500",
-                  },
-                  {
-                    label: "Comp Score",
-                    value: item.score,
-                    color: "text-[#6d28d9]",
-                  },
-                ].map((m, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-col bg-gray-50 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0"
-                  >
-                    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
-                      {m.label}
+                {/* Weight */}
+                <div className="flex flex-col">
+                  <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                    Weight
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[#6d28d9] text-sm font-bold">
+                      {item.weight}
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`${m.color} text-sm font-bold`}>
-                        {m.value}
+                    {(item.weightDiff || index < filteredData.length - 1) && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        parseFloat(item.weightDiff || "0") > 0 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-green-100 text-green-600'
+                      }`}>
+                        {parseFloat(item.weightDiff || "0") > 0 ? '+' : ''}{item.weightDiff || "0"}
                       </span>
-                    </div>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                {/* SMM */}
+                <div className="flex flex-col">
+                  <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                    SMM
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sky-500 text-sm font-bold">
+                      {item.smm}
+                    </span>
+                    {(item.smmDiff || index < filteredData.length - 1) && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        parseFloat(item.smmDiff || "0") < 0 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-green-100 text-green-600'
+                      }`}>
+                        {parseFloat(item.smmDiff || "0") > 0 ? '+' : ''}{item.smmDiff || "0"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Body Fat */}
+                <div className="flex flex-col">
+                  <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                    Body Fat
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-orange-500 text-sm font-bold">
+                      {item.fat}
+                    </span>
+                    {(item.fatDiff || index < filteredData.length - 1) && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        parseFloat(item.fatDiff || "0") > 0 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-green-100 text-green-600'
+                      }`}>
+                        {parseFloat(item.fatDiff || "0") > 0 ? '+' : ''}{item.fatDiff || "0"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comp Score */}
+                <div className="flex flex-col">
+                  <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                    Comp Score
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[#6d28d9] text-sm font-bold">
+                      {item.score}
+                    </span>
+                    {(item.scoreDiff !== undefined || index < filteredData.length - 1) && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        (item.scoreDiff || 0) < 0 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-green-100 text-green-600'
+                      }`}>
+                        {(item.scoreDiff || 0) > 0 ? '+' : ''}{item.scoreDiff || 0}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}

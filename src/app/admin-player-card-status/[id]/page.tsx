@@ -27,14 +27,68 @@ type MetricsState = {
   bodyCampScore: string;
 };
 
+type DiffState = {
+  weight_diff: string;
+  height_diff: string;
+  smm_diff: string;
+  bf_diff: string;
+  body_camp_diff: string;
+};
+
 function initialMetrics(cardData?: PlayerCardDetail | null): MetricsState {
   return {
-    currentWeight: cardData?.currentWeight?.toString() || "0.00",
-    height: cardData?.height?.toString() || "0.00",
-    smm: cardData?.smm?.toString() || "0",
-    bodyFat: cardData?.bodyFat?.toString() || "0",
-    bodyCampScore: cardData?.bodyCampScore?.toString() || "00",
+    currentWeight: (cardData?.currentWeight ?? "0").toString(),
+    height: (cardData?.height ?? "0").toString(),
+    smm: (cardData?.smm ?? "0").toString(),
+    bodyFat: (cardData?.bodyFat ?? "0").toString(),
+    bodyCampScore: (cardData?.bodyCampScore ?? "0").toString(),
   };
+}
+
+function initialDiffs(cardData?: any | null): DiffState {
+  // Defensive field checking for diffs, prioritizing new camelCase fields from API
+  // Ensure "0" if values are null or undefined
+  return {
+    weight_diff: (cardData?.currentWeightDiff ?? cardData?.weight_diff ?? cardData?.current_weight_diff ?? "0")?.toString() || "0",
+    height_diff: (cardData?.heightDiff ?? cardData?.height_diff ?? "0")?.toString() || "0",
+    smm_diff: (cardData?.smmDiff ?? cardData?.smm_diff ?? "0")?.toString() || "0",
+    bf_diff: (cardData?.bodyFatDiff ?? cardData?.bf_diff ?? "0")?.toString() || "0",
+    body_camp_diff: (cardData?.bodyCampScoreDiff ?? cardData?.body_camp_diff ?? "0")?.toString() || "0",
+  };
+}
+
+/** Renders a small colored badge showing the diff value */
+function DiffBadge({ value, unit }: { value: string; unit: string }) {
+  const cleanVal = value.toString().replace(/[^\d.-]/g, "");
+  const num = parseFloat(cleanVal);
+  if (isNaN(num)) return null;
+
+  // Show neutral style for 0 change
+  if (num === 0) {
+    return (
+      <span className="ml-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] sm:text-[11px] font-bold tracking-wide shadow-sm border bg-gray-50 text-gray-500 border-gray-200">
+        0
+        {unit && <span className="opacity-70 ml-0.5">{unit}</span>}
+      </span>
+    );
+  }
+
+  const isPositive = num > 0;
+  // Format with explicit sign
+  const displayVal = isPositive ? `+${num}` : `${num}`;
+
+  return (
+    <span
+      className={`ml-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] sm:text-[11px] font-bold tracking-wide shadow-sm border ${
+        isPositive
+          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+          : "bg-red-50 text-red-500 border-red-200"
+      }`}
+    >
+      {displayVal}
+      {unit && <span className="opacity-70 ml-0.5">{unit}</span>}
+    </span>
+  );
 }
 
 function toastStyles(type: ToastType): string {
@@ -44,7 +98,7 @@ function toastStyles(type: ToastType): string {
 }
 
 function statusStyles(status: string): string {
-  const normalized = status.toLowerCase();
+  const normalized = (status || "").toLowerCase();
   if (normalized === "complete" || normalized === "approved" || normalized === "accepted") 
     return "bg-[#00daba] text-white";
   if (normalized === "reject" || normalized === "rejected") 
@@ -66,6 +120,7 @@ export default function AdminPlayerCardDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [cardData, setCardData] = useState<PlayerCardDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsState>(initialMetrics());
+  const [diffs, setDiffs] = useState<DiffState>(initialDiffs());
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectComment, setRejectComment] = useState("");
@@ -83,7 +138,8 @@ export default function AdminPlayerCardDetail() {
         const data = await getAdminPlayerCardById(parsedId);
         setCardData(data);
         setMetrics(initialMetrics(data));
-        console.log("Fetched card data:", data);
+        setDiffs(initialDiffs(data));
+        console.log("📊 Admin detail page: Fetched card data:", data);
       } catch (error: unknown) {
         setToast({
           type: "error",
@@ -105,6 +161,7 @@ export default function AdminPlayerCardDetail() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    // Allow dots for decimal numbers
     const safe = value.replace(/[^\d.]/g, "");
     setMetrics((prev) => ({ ...prev, [name]: safe }));
   };
@@ -198,7 +255,9 @@ export default function AdminPlayerCardDetail() {
 </div>
         </div>
 
-        <button className="flex items-center gap-2 bg-[#f8f9fc] border-2 border-[#6d28d9] text-[#6d28d9] px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-purple-50 transition-all shadow-sm uppercase tracking-wider">
+        <button 
+           onClick={() => router.push("/admin-player-progress")}
+           className="flex items-center gap-2 bg-[#f8f9fc] border-2 border-[#6d28d9] text-[#6d28d9] px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-purple-50 transition-all shadow-sm uppercase tracking-wider">
           <BarChart3 size={16} />
           View Player Progress
         </button>
@@ -281,14 +340,19 @@ export default function AdminPlayerCardDetail() {
                 </div>
               </div>
 
-              <input
-                type="text"
-                name="bodyCampScore"
-                value={metrics.bodyCampScore}
-                onChange={handleChange}
-                className="text-[80px] font-bold text-[#6d28d9] leading-none tracking-tighter w-full bg-transparent border-none outline-none focus:ring-0 p-0"
-                placeholder="00"
-              />
+              <div className="mt-3 flex items-end">
+                <input
+                  type="text"
+                  name="bodyCampScore"
+                  value={metrics.bodyCampScore}
+                  onChange={handleChange}
+                  className="text-[80px] font-bold text-[#6d28d9] leading-none tracking-tighter w-40 bg-transparent border-none outline-none focus:ring-0 p-0"
+                  placeholder="00"
+                />
+                <div className="pb-4">
+                   <DiffBadge value={diffs.body_camp_diff} unit="" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -310,14 +374,15 @@ export default function AdminPlayerCardDetail() {
                   <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
                     Current Wt (lbs):
                   </p>
-                  <div className="relative">
+                  <div className="flex items-center">
                     <input
                       type="text"
                       name="currentWeight"
                       value={metrics.currentWeight}
                       onChange={handleChange}
-                      className="text-2xl font-bold text-[#6d28d9] text-right w-24 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-20 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
                     />
+                    <DiffBadge value={diffs.weight_diff} unit=" lbs" />
                   </div>
                 </div>
 
@@ -327,14 +392,15 @@ export default function AdminPlayerCardDetail() {
                   <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
                     Height (Inches):
                   </p>
-                  <div className="relative">
+                  <div className="flex items-center">
                     <input
                       type="text"
                       name="height"
                       value={metrics.height}
                       onChange={handleChange}
-                      className="text-2xl font-bold text-[#6d28d9] text-right w-24 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
+                      className="text-2xl font-bold text-[#6d28d9] text-right w-20 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
                     />
+                    <DiffBadge value={diffs.height_diff} unit=" in" />
                   </div>
                 </div>
               </div>
@@ -356,7 +422,7 @@ export default function AdminPlayerCardDetail() {
                   <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
                     SMM (lbs):
                   </p>
-                  <div className="relative">
+                  <div className="flex items-center">
                     <input
                       type="text"
                       name="smm"
@@ -364,6 +430,7 @@ export default function AdminPlayerCardDetail() {
                       onChange={handleChange}
                       className="text-2xl font-bold text-[#6d28d9] text-right w-16 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
                     />
+                    <DiffBadge value={diffs.smm_diff} unit=" lbs" />
                   </div>
                 </div>
 
@@ -373,7 +440,7 @@ export default function AdminPlayerCardDetail() {
                   <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
                     Body Fat (%):
                   </p>
-                  <div className="relative">
+                  <div className="flex items-center">
                     <input
                       type="text"
                       name="bodyFat"
@@ -381,6 +448,7 @@ export default function AdminPlayerCardDetail() {
                       onChange={handleChange}
                       className="text-2xl font-bold text-[#6d28d9] text-right w-16 bg-transparent border-b border-transparent focus:border-purple-200 outline-none transition-all"
                     />
+                    <DiffBadge value={diffs.bf_diff} unit="%" />
                   </div>
                 </div>
               </div>

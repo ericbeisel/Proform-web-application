@@ -265,10 +265,7 @@ const handleLogout = async () => {
           <h2 className="mb-5 text-xl md:text-2xl font-bold text-gray-900">Tools</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredToolItems.map((tool) => {
-              let href = tool.href;
-              if (tool.label === "Player Cards") {
-                href = roleId === 3 ? "/admin-player-cards" : "/player-cards";
-              }
+              const href = tool.href;
 
               const content = (
                 <div
