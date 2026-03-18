@@ -38,24 +38,33 @@ export default function LoginPage() {
     setError('');
 
     try {
-   const data = await login(formData.email, formData.password);
+      const data = await login(formData.email, formData.password);
 
-if (data.token) {
-  localStorage.setItem("token", data.token); // ADD THIS
-}
+      console.log('🔐 Login Response:', data);
 
-if (data.user) {
-  setAuthUser({
-    id: data.user.id,
-    name: data.user.name,
-    username: data.user.username,
-    email: data.user.email || data.user.email_id,
-    role: data.user.role || data.user.role_id,
-  });
-}
+      // Save token
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        console.log('✅ Token saved to localStorage');
+      }
 
-      console.log('Login successful:', data);
+      // Extract role (support both role and role_id)
+      const userRole = data.user?.role ?? data.user?.role_id ?? 1;
+      console.log('👤 User Role Detected:', userRole, '(type:', typeof userRole, ')');
 
+      // Save user data with role
+      if (data.user) {
+        setAuthUser({
+          id: data.user.id,
+          name: data.user.name,
+          username: data.user.username,
+          email: data.user.email || data.user.email_id,
+          role: userRole,                    // ← Important: Saving role
+        });
+        console.log('✅ User data saved with role:', userRole);
+      }
+
+      // Check account status & redirect
       const redirectTo = await checkAccountStatus();
       const nextPath = searchParams.get('next');
       const safeNextPath =
@@ -63,12 +72,16 @@ if (data.user) {
           ? nextPath
           : null;
 
+      console.log('🔀 Redirecting to:', safeNextPath || redirectTo);
+
       router.replace(
         redirectTo === '/dashboard' && safeNextPath ? safeNextPath : redirectTo
       );
+
     } catch (err: any) {
-      setError(err.message || 'Unable to login. Please try again.');
-      console.error('Login error:', err);
+      const errorMsg = err.message || 'Unable to login. Please try again.';
+      setError(errorMsg);
+      console.error('❌ Login error:', err);
     } finally {
       setLoading(false);
     }
@@ -91,10 +104,7 @@ if (data.user) {
       <form onSubmit={handleSubmit} className="space-y-5 px-4">
         {/* Email */}
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-semibold text-black mb-2"
-          >
+          <label htmlFor="email" className="block text-sm font-semibold text-black mb-2">
             Email*
           </label>
           <input
@@ -112,10 +122,7 @@ if (data.user) {
 
         {/* Password */}
         <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-semibold text-black mb-2"
-          >
+          <label htmlFor="password" className="block text-sm font-semibold text-black mb-2">
             Password*
           </label>
           <div className="relative">
@@ -142,31 +149,7 @@ if (data.user) {
           </div>
         </div>
 
-        {/* Terms */}
-        {/* <div className="flex items-start gap-3 pt-1">
-          <input
-            type="checkbox"
-            id="terms"
-            className="mt-0.5 w-4 h-4 text-[#6202AC] border-gray-300 rounded focus:ring-[#6202AC]"
-            required
-            disabled={loading}
-          />
-          <label
-            htmlFor="terms"
-            className="text-sm text-gray-600 leading-relaxed"
-          >
-            By continuing, you agree to our{' '}
-            <Link href="/terms" className="text-[#8B5CF6] hover:text-[#6202AC]">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="text-[#8B5CF6] hover:text-[#6202AC]">
-              Privacy Policy
-            </Link>
-          </label>
-        </div> */}
-
-        {/* Submit Button with loader */}
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={loading}
@@ -180,19 +163,8 @@ if (data.user) {
                 fill="none"
                 viewBox="0 0 24 24"
               >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               Logging in...
             </>
@@ -204,10 +176,7 @@ if (data.user) {
 
       <p className="text-center text-gray-600 text-sm mt-8">
         Don't have an account?{' '}
-        <Link
-          href="/auth/signup"
-          className="text-[#2233ee] hover:text-[#0015fb] font-semibold"
-        >
+        <Link href="/auth/signup" className="text-[#2233ee] hover:text-[#0015fb] font-semibold">
           Sign Up
         </Link>
       </p>

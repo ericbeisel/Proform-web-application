@@ -19,10 +19,33 @@ export default function DashboardHeader({
 }: Props) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    clearAuthSession();
-    router.replace("/auth/login");
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+
+      // Clear auth session
+      clearAuthSession();
+
+      // Also clear user data from localStorage (important!)
+      localStorage.removeItem("user");
+
+      console.log("✅ Logout successful - Redirecting to login");
+
+      // Small delay for better UX and to ensure storage is cleared
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      router.replace("/auth/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Force redirect even if something fails
+      router.replace("/auth/login");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const navItems = ["Home", "Teams", "Search Workouts", "Programs"];
@@ -63,13 +86,26 @@ export default function DashboardHeader({
             <BarChart2 size={18} />
           </button>
 
-          {/* Logout */}
+          {/* Logout Button - Desktop */}
           <button
             onClick={handleLogout}
-            className="hidden sm:flex items-center gap-1 px-3 h-9 rounded-[10px] border border-[#e8e6f0] text-[#8b879e] hover:border-red-300 hover:text-red-500 transition-all text-sm"
+            disabled={isLoggingOut}
+            className="hidden sm:flex items-center gap-1 px-3 h-9 rounded-[10px] border border-[#e8e6f0] text-[#8b879e] hover:border-red-300 hover:text-red-500 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogOut size={16} />
-            Logout
+            {isLoggingOut ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Logging out...
+              </span>
+            ) : (
+              <>
+                <LogOut size={16} />
+                Logout
+              </>
+            )}
           </button>
 
           {/* Avatar */}
@@ -114,12 +150,26 @@ export default function DashboardHeader({
             </button>
           ))}
 
+          {/* Mobile Logout */}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg"
+            disabled={isLoggingOut}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogOut size={16} />
-            Logout
+            {isLoggingOut ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Logging out...
+              </>
+            ) : (
+              <>
+                <LogOut size={16} />
+                Logout
+              </>
+            )}
           </button>
         </div>
       )}

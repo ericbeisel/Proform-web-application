@@ -21,6 +21,11 @@ interface ProgressItem {
   inBodyScans?: string | null;
   progressImage?: string | null;
   type?: string | null;
+  // Add these if your API returns them
+  weightDiff?: string | null;
+  smmDiff?: string | null;
+  fatDiff?: string | null;
+  scoreDiff?: number | null;
 }
 
 interface Stats {
@@ -87,9 +92,9 @@ export default function PlayerProgress() {
 
         const [progressResponse, typesResponse] = await Promise.allSettled([
           getPlayerCardList(),
+          
           getPlayerCardTypes(),
         ]);
-
         console.log("✅ Progress Response:", progressResponse);
         console.log("✅ Types Response:", typesResponse);
 
@@ -413,150 +418,226 @@ export default function PlayerProgress() {
       </div>
 
       {/* Progress Timeline */}
-      <div className="bg-white rounded-2xl sm:rounded-[32px] border border-gray-100 shadow-sm p-4 sm:p-6 md:p-8">
-        <h2 className="text-base sm:text-lg font-bold text-[#1a1c1e] mb-4 sm:mb-6 tracking-tight">
-          Progress Timeline
-        </h2>
+    {/* Progress Timeline */}
+<div className="bg-white rounded-2xl sm:rounded-[32px] border border-gray-100 shadow-sm p-4 sm:p-6 md:p-8">
+  <h2 className="text-base sm:text-lg font-bold text-[#1a1c1e] mb-4 sm:mb-6 tracking-tight">
+    Progress Timeline
+  </h2>
 
-        {/* Image Legend */}
-        <div className="flex items-center gap-4 mb-4 px-2">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-purple-600"></div>
-            <span className="text-xs text-gray-600 flex items-center gap-1">
-              <Scan size={14} className="text-purple-600" />
-              InBody Scan
-            </span>
-          </div>
-        </div>
+  {/* Image Legend */}
+  <div className="flex items-center gap-4 mb-4 px-2">
+    <div className="flex items-center gap-2">
+      <div className="w-4 h-4 rounded-full bg-purple-600"></div>
+      <span className="text-xs text-gray-600 flex items-center gap-1">
+        <Scan size={14} className="text-purple-600" />
+        InBody Scan
+      </span>
+    </div>
+  </div>
 
-        <div className="space-y-3 sm:space-y-4">
-          {filteredData.map((item, index) => (
-            <div
-              key={item.id}
-              className="group border border-gray-100 bg-white rounded-2xl p-3 sm:p-4 hover:shadow-md transition-all duration-200"
-            >
-              {/* Top row: id + images + date + status + arrow */}
-              <div className="flex items-center gap-2 sm:gap-3 mb-3">
-                {/* ID Badge */}
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#6d28d9] to-[#7c3aed] text-white flex items-center justify-center font-bold text-sm sm:text-lg flex-shrink-0 shadow-md shadow-purple-500/10">
-                  #{item.id}
-                </div>
+  <div className="space-y-3 sm:space-y-4">
+    {filteredData.map((item, index) => {
+      // Calculate differences from previous item if needed
+      const prevItem = index < filteredData.length - 1 ? filteredData[index + 1] : null;
+      
+      // Parse numeric values for comparison
+      const currentWeight = parseFloat(item.weight);
+      const prevWeight = prevItem ? parseFloat(prevItem.weight) : null;
+      const weightDiff = prevWeight ? (currentWeight - prevWeight).toFixed(1) : null;
+      
+      const currentSMM = parseFloat(item.smm);
+      const prevSMM = prevItem ? parseFloat(prevItem.smm) : null;
+      const smmDiff = prevSMM ? (currentSMM - prevSMM).toFixed(1) : null;
+      
+      const currentFat = parseFloat(item.fat);
+      const prevFat = prevItem ? parseFloat(prevItem.fat) : null;
+      const fatDiff = prevFat ? (currentFat - prevFat).toFixed(1) : null;
+      
+      const currentScore = item.score;
+      const prevScore = prevItem ? prevItem.score : null;
+      const scoreDiff = prevScore ? (currentScore - prevScore) : null;
 
-                {/* Images Container */}
-                <div className="flex gap-2">
-                  {/* InBody Scan with Label */}
-                  {item.inBodyScans ? (
-                    <div className="relative group/image">
-                      <button
-                        onClick={() => setSelectedImage({
-                          url: item.inBodyScans!,
-                          type: 'inbody',
-                          date: item.date
-                        })}
-                        className="relative w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 rounded-xl overflow-hidden border-2 border-purple-200 hover:border-purple-500 transition-all"
-                        title="Click to view InBody Scan"
-                      >
-                        <img
-                          src={item.inBodyScans}
-                          alt="InBody Scan"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <span className="text-white text-xs opacity-0 hover:opacity-100">🔍</span>
-                        </div>
-                      </button>
-                      {/* Small Label Badge */}
-                      <div className="absolute -bottom-1 -right-1 bg-purple-600 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
-                        <Scan size={8} />
-                        <span>InBody</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 rounded-xl border-2 border-purple-200 border-dashed flex flex-col items-center justify-center">
-                      <Scan size={14} className="text-purple-300" />
-                      <span className="text-[6px] text-purple-300 mt-0.5">No Scan</span>
-                    </div>
-                  )}
-                </div>
+      return (
+        <div
+          key={item.id}
+          className="group border border-gray-100 bg-white rounded-2xl p-3 sm:p-4 hover:shadow-md transition-all duration-200"
+        >
+          {/* Top row: id + images + date + status */}
+          <div className="flex items-center gap-2 sm:gap-3 mb-3">
+            {/* ID Badge */}
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#6d28d9] to-[#7c3aed] text-white flex items-center justify-center font-bold text-sm sm:text-lg flex-shrink-0 shadow-md shadow-purple-500/10">
+              #{item.id}
+            </div>
 
-                {/* Date + status + type */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[13px] sm:text-base font-bold text-[#1a1c1e] truncate">
-                      {item.date}
-                    </p>
-                    {item.type && (
-                      <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                        {item.type}
-                      </span>
-                    )}
-                    <span
-                      className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0 ${statusBadgeClass(item.status)}`}
-                    >
-                      {item.status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Arrow */}
-                <div className="p-1.5 sm:p-2 rounded-xl group-hover:bg-purple-50 text-gray-300 group-hover:text-[#6d28d9] transition-all cursor-pointer flex-shrink-0">
-                  <ArrowLeft
-                    className="rotate-180"
-                    size={16}
-                    strokeWidth={2.5}
-                  />
-                </div>
-              </div>
-
-              {/* Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pl-0 sm:pl-[92px]">
-                {[
-                  {
-                    label: "Weight",
-                    value: item.weight,
-                    color: "text-[#6d28d9]",
-                  },
-                  {
-                    label: "SMM",
-                    value: item.smm,
-                    color: "text-sky-500",
-                  },
-                  {
-                    label: "Body Fat",
-                    value: item.fat,
-                    color: "text-orange-500",
-                  },
-                  {
-                    label: "Comp Score",
-                    value: item.score,
-                    color: "text-[#6d28d9]",
-                  },
-                ].map((m, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-col bg-gray-50 sm:bg-transparent rounded-xl sm:rounded-none p-2 sm:p-0"
+            {/* Images Container */}
+            <div className="flex gap-2">
+              {item.inBodyScans ? (
+                <div className="relative group/image">
+                  <button
+                    onClick={() => setSelectedImage({
+                      url: item.inBodyScans!,
+                      type: 'inbody',
+                      date: item.date
+                    })}
+                    className="relative w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 rounded-xl overflow-hidden border-2 border-purple-200 hover:border-purple-500 transition-all"
+                    title="Click to view InBody Scan"
                   >
-                    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
-                      {m.label}
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`${m.color} text-sm font-bold`}>
-                        {m.value}
-                      </span>
+                    <img
+                      src={item.inBodyScans}
+                      alt="InBody Scan"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <span className="text-white text-xs opacity-0 hover:opacity-100">🔍</span>
                     </div>
+                  </button>
+                  {/* Small Label Badge */}
+                  <div className="absolute -bottom-1 -right-1 bg-purple-600 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                    <Scan size={8} />
+                    <span>InBody</span>
                   </div>
-                ))}
+                </div>
+              ) : (
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 rounded-xl border-2 border-purple-200 border-dashed flex flex-col items-center justify-center">
+                  <Scan size={14} className="text-purple-300" />
+                  <span className="text-[6px] text-purple-300 mt-0.5">No Scan</span>
+                </div>
+              )}
+            </div>
+
+            {/* Date + status + type */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[13px] sm:text-base font-bold text-[#1a1c1e]">
+                  {item.date}
+                </p>
+                {item.type && (
+                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    {item.type}
+                  </span>
+                )}
+                <span
+                  className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0 ${statusBadgeClass(item.status)}`}
+                >
+                  {item.status}
+                </span>
               </div>
             </div>
-          ))}
+          </div>
 
-          {filteredData.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/40 px-5 py-6 text-center text-sm font-semibold text-gray-400">
-              No progress cards match the selected filter.
+          {/* Metrics Grid */}
+       {/* Metrics Grid */}
+<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+  {/* Weight */}
+  <div className="flex flex-col">
+    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+      Weight
+    </span>
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[#6d28d9] text-sm font-bold">
+        {item.weight}
+      </span>
+      {weightDiff && (
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          parseFloat(weightDiff) > 0 
+            ? 'bg-red-100 text-red-600' 
+            : parseFloat(weightDiff) < 0 
+              ? 'bg-green-100 text-green-600' 
+              : 'bg-gray-100 text-gray-600'
+        }`}>
+          {parseFloat(weightDiff) > 0 ? '+' : ''}{weightDiff}
+        </span>
+      )}
+    </div>
+  </div>
+
+  {/* SMM */}
+  <div className="flex flex-col">
+    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+      SMM
+    </span>
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-sky-500 text-sm font-bold">
+        {item.smm}
+      </span>
+      {smmDiff && (
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          parseFloat(smmDiff) > 0 
+            ? 'bg-red-100 text-red-600' 
+            : parseFloat(smmDiff) < 0 
+              ? 'bg-green-100 text-green-600' 
+              : 'bg-gray-100 text-gray-600'
+        }`}>
+          {parseFloat(smmDiff) > 0 ? '+' : ''}{smmDiff}
+        </span>
+      )}
+    </div>
+  </div>
+
+  {/* Body Fat */}
+  <div className="flex flex-col">
+    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+      Body Fat
+    </span>
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-orange-500 text-sm font-bold">
+        {item.fat}
+      </span>
+      {fatDiff && (
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          parseFloat(fatDiff) > 0 
+            ? 'bg-red-100 text-red-600' 
+            : parseFloat(fatDiff) < 0 
+              ? 'bg-green-100 text-green-600' 
+              : 'bg-gray-100 text-gray-600'
+        }`}>
+          {parseFloat(fatDiff) > 0 ? '+' : ''}{fatDiff}
+        </span>
+      )}
+    </div>
+  </div>
+
+  {/* Comp Score */}
+  <div className="flex flex-col">
+    <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+      Comp Score
+    </span>
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[#6d28d9] text-sm font-bold">
+        {item.score}
+      </span>
+      {scoreDiff && (
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          scoreDiff > 0 
+            ? 'bg-green-100 text-green-600' 
+            : scoreDiff < 0 
+              ? 'bg-red-100 text-red-600' 
+              : 'bg-gray-100 text-gray-600'
+        }`}>
+          {scoreDiff > 0 ? '+' : ''}{scoreDiff}
+        </span>
+      )}
+    </div>
+  </div>
+</div>
+
+          {/* Show message for pending items */}
+          {item.status === 'Pending' && (
+            <div className="mt-3 text-xs text-gray-400 italic">
+              Scan not completed yet
             </div>
           )}
         </div>
+      );
+    })}
+
+    {filteredData.length === 0 && (
+      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/40 px-5 py-6 text-center text-sm font-semibold text-gray-400">
+        No progress cards match the selected filter.
       </div>
+    )}
+  </div>
+</div>
 
       {/* Footer Banner */}
       <div className="mt-6 sm:mt-8 mb-4 overflow-hidden rounded-2xl">

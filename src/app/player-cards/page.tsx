@@ -10,12 +10,15 @@ import {
   MapPin,
   Award,
   Activity,
+  ChevronDown,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   getPlayerCard,
   createPlayerCard,
+  getPlayerCardTypes,
   PlayerCardData,
+  PlayerCardType,
 } from "@/api/player-card/route";
 import { dashboardApi } from "@/api/dashboard/route";
 import { useToast } from "@/components/ui/toast-provider";
@@ -48,6 +51,8 @@ export default function PlayerCardPage() {
   const [playerData, setPlayerData] = useState<ExtendedPlayerCardData | null>(
     null,
   );
+  const [cardTypes, setCardTypes] = useState<PlayerCardType[]>([]);
+  const [selectedCardType, setSelectedCardType] = useState<string>("");
   const [measurementUnit, setMeasurementUnit] = useState<string>("kg");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -80,14 +85,18 @@ export default function PlayerCardPage() {
       try {
         setLoading(true);
 
-        const [playerCardResult, dashboardResult] = await Promise.allSettled([
+        const [playerCardResult, dashboardResult, cardTypesResult] = await Promise.allSettled([
           getPlayerCard(),
           dashboardApi.getDashboardSummary(),
+          getPlayerCardTypes(),
         ]);
+        
         console.log("📊 Data fetch results:", {
           playerCardResult,
           dashboardResult,
+          cardTypesResult,
         });
+
         if (playerCardResult.status === "fulfilled") {
           setPlayerData(playerCardResult.value as ExtendedPlayerCardData);
         } else {
@@ -104,6 +113,14 @@ export default function PlayerCardPage() {
           }
         } else {
           console.error("Failed to fetch dashboard:", dashboardResult.reason);
+        }
+
+        if (cardTypesResult.status === "fulfilled") {
+          const typesData = cardTypesResult.value as PlayerCardType[];
+          console.log("📋 Processed card types:", typesData);
+          setCardTypes(typesData);
+        } else {
+          console.error("Failed to fetch card types:", cardTypesResult.reason);
         }
 
         setError("");
@@ -127,16 +144,29 @@ export default function PlayerCardPage() {
     void fetchAllData(true);
   }, [fetchAllData]);
 
+  // Handle card type selection from dropdown
+  const handleCardTypeSelect = (typeId: string) => {
+    setSelectedCardType(typeId);
+    const selectedType = cardTypes.find(type => type.id.toString() === typeId);
+    
+    if (selectedType) {
+      console.log("Selected card type:", selectedType);
+      toast.success(`Selected: ${selectedType.name}`);
+    }
+  };
+
+  // ✅ CHANGED - Only InBody Scan triggers metrics loading
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setSelectedFile(file);
-    if (file) setMetricsLoading(true);
+    if (file) setMetricsLoading(true); // Only for InBody Scan
   };
 
+  // ✅ NEW - Progress photo should NOT trigger metrics loading
   const handleProgressFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setProgressFile(file);
-    if (file) setMetricsLoading(true);
+    // Do NOT call setMetricsLoading(true) here
   };
 
   useEffect(() => {
@@ -160,48 +190,55 @@ export default function PlayerCardPage() {
   }, [progressFile]);
 
   const hasChanges = !!selectedFile || !!progressFile;
-
-  // ✅ Check if body scan exists (either from API or newly uploaded)
   const hasBodyScan = !!(playerData?.inBodyScanUrl || selectedFilePreview);
 
-  const handleSubmitCard = async () => {
-    if (!hasChanges) {
-      setMetricsLoading(false);
-      return;
+ const handleSubmitCard = async () => {
+  // Check if we have a selected file AND a selected card type
+  if (!selectedFile) {
+    toast.error("Please select a scan file first");
+    return;
+  }
+
+  if (!selectedCardType) {
+    toast.error("Please select a scan type");
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    setMetricsLoading(true);
+
+    const formData = new FormData();
+    formData.append("inBodyScans", selectedFile);
+    if (progressFile) formData.append("progressImage", progressFile);
+    formData.append("type", selectedCardType); // Make sure to use "type" as the field name
+
+    console.log("📤 Submitting player card payload:");
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value);
     }
 
-    try {
-      setSubmitting(true);
+    const result = await createPlayerCard(formData);
+    console.log("✅ Update successful:", result);
+    toast.success("Player card submitted successfully.");
 
-      const formData = new FormData();
-      if (selectedFile) formData.append("inBodyScans", selectedFile);
-      if (progressFile) formData.append("progressImage", progressFile);
+    setSelectedFile(null);
+    setProgressFile(null);
+    setSelectedCardType("");
+    if (fileRef.current) fileRef.current.value = "";
+    if (progressFileRef.current) progressFileRef.current.value = "";
 
-      console.log("📤 Submitting player card payload:");
-      for (const [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
-      }
-
-      const result = await createPlayerCard(formData);
-      console.log("✅ Update successful:", result);
-      toast.success("Player card submitted successfully.");
-
-      setSelectedFile(null);
-      setProgressFile(null);
-      if (fileRef.current) fileRef.current.value = "";
-      if (progressFileRef.current) progressFileRef.current.value = "";
-
-      await fetchAllData(true);
-    } catch (error: unknown) {
-      console.error("❌ Update error:", error);
-      const message =
-        error instanceof Error ? error.message : "Failed to update card";
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-      setMetricsLoading(false);
-    }
-  };
+    await fetchAllData(true);
+  } catch (error: unknown) {
+    console.error("❌ Update error:", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to update card";
+    toast.error(message);
+  } finally {
+    setSubmitting(false);
+    setMetricsLoading(false);
+  }
+};
 
   if (loading && !playerData) {
     return (
@@ -387,9 +424,6 @@ export default function PlayerCardPage() {
                     ) : (
                       <span className="text-xl font-black text-[#5b21b6]">
                         {heightInInches}
-                        {/* <span className="text-sm text-gray-400 ml-1">
-                          ({data.height} ft)
-                        </span> */}
                       </span>
                     )}
                   </div>
@@ -499,12 +533,15 @@ export default function PlayerCardPage() {
         </div>
       </div>
 
-      {/* BODY SCAN MODAL */}
+      {/* BODY SCAN MODAL - WITH DROPDOWN */}
       {showBodyScanModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
           <div className="bg-white rounded-2xl p-5 w-full max-w-[400px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
             <button
-              onClick={() => setShowBodyScanModal(false)}
+              onClick={() => {
+                setShowBodyScanModal(false);
+                setSelectedCardType("");
+              }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 transition-colors"
             >
               <X size={16} strokeWidth={2.5} />
@@ -528,6 +565,33 @@ export default function PlayerCardPage() {
 
             <div className="w-full h-px bg-gray-100 mb-4" />
 
+            {/* Dropdown for card types */}
+            {cardTypes.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-gray-700 mb-2">
+                  Select Scan Type
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedCardType}
+                    onChange={(e) => handleCardTypeSelect(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d28d9] appearance-none cursor-pointer text-sm"
+                  >
+                    <option value="">Select a scan type</option>
+                    {cardTypes.map((type) => (
+                      <option key={type.id} value={type.id.toString()}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <ChevronDown size={16} className="text-gray-400" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Image upload area */}
             <div
               onClick={() => fileRef.current?.click()}
               className="group border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
@@ -584,23 +648,29 @@ export default function PlayerCardPage() {
             </div>
 
             <div className="flex flex-col gap-3 mt-4">
+           <button
+  disabled={!selectedFile || !selectedCardType}
+  onClick={() => {
+    if (!selectedFile || !selectedCardType) {
+      toast.error("Please select both a scan file and type");
+      return;
+    }
+    setShowBodyScanModal(false);
+    toast.success("Body scan saved. Tap Submit Card to upload.");
+  }}
+  className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
+    selectedFile && selectedCardType
+      ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
+      : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+  }`}
+>
+  {selectedFile && selectedCardType ? "Save Scan" : "Select File & Type"}
+</button>
               <button
-                disabled={!selectedFile}
                 onClick={() => {
-                  if (!selectedFile) return;
                   setShowBodyScanModal(false);
-                  toast.success("Body scan saved. Tap Submit Card to upload.");
+                  setSelectedCardType("");
                 }}
-                className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
-                  selectedFile
-                    ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
-                    : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                {selectedFile ? "Save Scan" : "Select a File First"}
-              </button>
-              <button
-                onClick={() => setShowBodyScanModal(false)}
                 className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
               >
                 Close
@@ -612,7 +682,7 @@ export default function PlayerCardPage() {
                 <span className="text-xs">💡</span>
                 <span className="text-gray-400 font-medium">Tip:</span>
                 <span className="text-purple-600/80 text-[10px]">
-                  Clear photos of scan results for best accuracy
+                  Select scan type (Inbody, DEXA, or Other) and upload your image
                 </span>
               </p>
             </div>

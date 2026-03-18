@@ -15,6 +15,7 @@ import {
   Settings,
   User,
   Users,
+  Shield,
 } from "lucide-react";
 import { clearAuthSession } from "@/lib/auth/session";
 
@@ -31,6 +32,7 @@ type MenuItem = {
   icon: ComponentType<{ size?: number; className?: string }>;
   href?: string;
   isHighlight?: boolean;
+  adminOnly?: boolean; // New property for admin-only items
 };
 
 const MAIN_MENU: MenuItem[] = [
@@ -42,11 +44,14 @@ const MAIN_MENU: MenuItem[] = [
   { label: "My Preferences", icon: Settings, href: "/preferences" },
   { label: "Payments", icon: CreditCard },
   { label: "Connect TV", icon: Monitor, isHighlight: true },
+  // Admin-only menu item
+  { label: "Admin Player Status", icon: Shield, href: "/admin-player-card-status", adminOnly: true },
 ];
 
 type ToolItem = {
   label: string;
   href: string;
+  adminOnly?: boolean; // New property for admin-only tools
 };
 
 const TOOL_ITEMS: ToolItem[] = [
@@ -56,13 +61,16 @@ const TOOL_ITEMS: ToolItem[] = [
   { label: "Macros", href: "#" },
   { label: "Hydration", href: "#" },
   { label: "Recovery", href: "#" },
-  { label: "Player Cards", href: "/player-cards" },
+  { label: "Player Cards", href: "/player-cards" }, // This will be conditionally routed based on role
+  {label : "admin player status", href: "/admin-player-card-status", adminOnly: true},
   { label: "Find Courses", href: "#" },
   { label: "Join Challenges", href: "#" },
   { label: "Weekly Reports", href: "#" },
   { label: "Search Programs", href: "/programs" },
   { label: "Location", href: "/location" },
   { label: "More Options", href: "#" },
+  // Admin-only tool
+  { label: "Admin Dashboard", href: "/admin/dashboard", adminOnly: true },
 ];
 
 export default function AccountPage() {
@@ -70,6 +78,7 @@ export default function AccountPage() {
 
   const [roleId, setRoleId] = useState(1);
   const [accountName, setAccountName] = useState("Account");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     // Hydrate from localStorage
@@ -84,7 +93,9 @@ export default function AccountPage() {
 
         const localRole = parsed?.role ?? parsed?.role_id;
         if (localRole !== undefined && localRole !== null) {
-          setRoleId(Number(localRole) || 1);
+          const roleNum = Number(localRole) || 1;
+          setRoleId(roleNum);
+          setIsAdmin(roleNum === 3);
         }
       }
     } catch {
@@ -104,7 +115,9 @@ export default function AccountPage() {
 
         const apiRole = user?.role ?? user?.role_id;
         if (apiRole !== undefined && apiRole !== null) {
-          setRoleId(Number(apiRole) || 1);
+          const roleNum = Number(apiRole) || 1;
+          setRoleId(roleNum);
+          setIsAdmin(roleNum === 3);
         }
       } catch (err) {
         console.error("Failed to fetch dashboard role:", err);
@@ -114,12 +127,46 @@ export default function AccountPage() {
     void fetchProfile();
   }, []);
 
-  const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    // Optional: Call backend logout API if you have one
+    // await logoutApi();   // ← uncomment if you create this
+
+    // Clear everything locally
     clearAuthSession();
-  
-    console.log("User logged out, redirecting to login page.");
+    
+    // Also clear user data from localStorage
+    localStorage.removeItem("user");
+
+    console.log("✅ Logout successful. Redirecting to login...");
+
+    // Use replace + small delay for reliability
     router.replace("/auth/login");
-  };
+
+  } catch (err) {
+    console.error("Logout error:", err);
+    // Even if something fails, force redirect
+    router.replace("/auth/login");
+  }
+};
+
+  // Filter main menu items based on admin status
+  const filteredMainMenu = MAIN_MENU.filter(item => {
+    // If item is adminOnly and user is not admin, hide it
+    if (item.adminOnly && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
+
+  // Filter tool items based on admin status
+  const filteredToolItems = TOOL_ITEMS.filter(item => {
+    // If item is adminOnly and user is not admin, hide it
+    if (item.adminOnly && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <main className="min-h-screen bg-gray-50 pb-8 md:pb-12">
@@ -141,6 +188,11 @@ export default function AccountPage() {
                 <span className="text-base font-semibold text-gray-700">
                   25 Points
                 </span>
+                {isAdmin && (
+                  <span className="ml-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                    Admin
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -150,7 +202,7 @@ export default function AccountPage() {
         <section className="pt-8 pb-10">
           <h2 className="mb-5 text-xl md:text-2xl font-bold text-gray-900">Main Menu</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {MAIN_MENU.map((item) => {
+            {filteredMainMenu.map((item) => {
               const Icon = item.icon;
               const isHighlighted = item.isHighlight;
 
@@ -212,7 +264,7 @@ export default function AccountPage() {
         <section className="pb-10">
           <h2 className="mb-5 text-xl md:text-2xl font-bold text-gray-900">Tools</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {TOOL_ITEMS.map((tool) => {
+            {filteredToolItems.map((tool) => {
               let href = tool.href;
               if (tool.label === "Player Cards") {
                 href = roleId === 3 ? "/admin-player-cards" : "/player-cards";

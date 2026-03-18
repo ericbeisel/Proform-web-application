@@ -50,6 +50,16 @@ export interface RejectPlayerCardParams {
   reject_comment: string;
 }
 
+export interface PlayerCardType {
+  id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayerCardTypeResponse extends Array<PlayerCardType> {}
+
+
 type ErrorPayload = {
   message?: string;
   error?: string;
@@ -84,6 +94,36 @@ apiClient.interceptors.request.use(
   },
   (error) => Promise.reject(error),
 );
+
+// Add or update this interface
+export interface PlayerCardListResponse {
+  message: string;
+  total_scan: number;
+  filter: {
+    id: number;
+    name: string;
+    created_at: string;
+    updated_at: string;
+  }[];
+  smm_diff: string;
+  body_camp_diff: string;
+  bf_diff: string;
+  name: string;
+  data: PlayerCardDetail[];
+}
+
+/**
+ * Get player card list (history of all scans)
+ */
+export const getPlayerCardList = async (): Promise<PlayerCardListResponse> => {
+  try {
+    const { data } = await apiClient.get<PlayerCardListResponse>("/player-card-list");
+    console.log("📋 Player card list response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch player card list."));
+  }
+};
 
 export const getPlayerCard = async (): Promise<PlayerCardData> => {
   try {
@@ -120,11 +160,29 @@ export const getPlayerCardDetails = async (): Promise<PlayerCardDetailsResponse>
 export const getAdminPlayerCardList = async (): Promise<PlayerCardDetailsResponse> => {
   try {
     const { data } = await apiClient.get<PlayerCardDetailsResponse>("/admin-playercard-list");
+    console.log("📋 Admin player card list response:", data);
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch admin player card list."));
   }
 };
+
+export const getAdminPlayerCardById = async (id: number): Promise<PlayerCardDetail> => {
+  try {
+    const { data } = await apiClient.get<{ message?: string; data?: PlayerCardDetail } | PlayerCardDetail>(
+      `/admin-playercard?id=${id}`,
+    );
+
+    if ("data" in data && data.data) {
+      return data.data;
+    }
+
+    return data as PlayerCardDetail;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch admin player card details."));
+  }
+};
+
 
 export const getAdminPlayerCardDetails = async (id: number): Promise<PlayerCardDetail> => {
   try {
@@ -181,5 +239,17 @@ export const rejectAdminPlayerCard = async (params: RejectPlayerCardParams): Pro
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to reject player card."));
+  }
+
+  
+};
+
+export const getPlayerCardTypes = async (): Promise<PlayerCardType[]> => {
+  try {
+    const { data } = await apiClient.get<PlayerCardType[]>("/player-card-type");
+    console.log("📋 Player card types response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch player card types."));
   }
 };
