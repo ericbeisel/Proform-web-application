@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { X, Plus, MapPin, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Check, Loader2, ChevronRight, Dumbbell, Save } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { equipmentApi, Equipment, LocationItem } from "@/api/location/route";
 
@@ -13,179 +13,142 @@ function SelectEquipContent() {
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [selectedLocation, setSelectedLocation] = useState("");
-  
-  // NEW STATES
   const [newLocationName, setNewLocationName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  const selectedCount = equipments.filter(eq => eq.selected).length;
 
   useEffect(() => {
     const init = async () => {
-      await fetchLocations();
-      const allEquip = await equipmentApi.getAllEquipment();
-      
-      if (locationIdFromUrl) {
-        setSelectedLocation(locationIdFromUrl);
-        try {
+      try {
+        setInitialLoading(true);
+        const [allEquip, locList] = await Promise.all([
+          equipmentApi.getAllEquipment(),
+          equipmentApi.getLocationList()
+        ]);
+        setLocations(locList);
+        
+        if (locationIdFromUrl) {
+          setSelectedLocation(locationIdFromUrl);
           const detail = await equipmentApi.getLocationDetail(locationIdFromUrl);
           const activeIds = detail.equipmentList.map((e) => e.id);
-          setEquipments(allEquip.map(eq => ({
-            ...eq,
-            selected: activeIds.includes(eq.id)
-          })));
-        } catch (err) {
-          setEquipments(allEquip);
+          setNewLocationName(detail.name);
+          setEquipments(allEquip.map(eq => ({ ...eq, selected: activeIds.includes(eq.id) })));
+        } else {
+          setEquipments(allEquip.map(eq => ({ ...eq, selected: false })));
         }
-      } else {
-        setEquipments(allEquip);
-      }
+      } catch (err) { console.error(err); } finally { setInitialLoading(false); }
     };
     init();
   }, [locationIdFromUrl]);
-
-  const fetchLocations = async () => {
-    const data = await equipmentApi.getLocationList();
-    setLocations(data);
-  };
 
   const handleLocationChange = async (id: string) => {
     setSelectedLocation(id);
     if (!id) return;
     const detail = await equipmentApi.getLocationDetail(id);
+    setNewLocationName(detail.name);
     const ids = detail.equipmentList.map((e) => e.id);
-    setEquipments((prev) =>
-      prev.map((eq) => ({ ...eq, selected: ids.includes(eq.id) }))
-    );
+    setEquipments((prev) => prev.map((eq) => ({ ...eq, selected: ids.includes(eq.id) })));
   };
 
   const toggleEquipment = (id: number) => {
-    setEquipments((prev) =>
-      prev.map((eq) => eq.id === id ? { ...eq, selected: !eq.selected } : eq)
-    );
+    setEquipments((prev) => prev.map((eq) => eq.id === id ? { ...eq, selected: !eq.selected } : eq));
   };
 
-  // HANDLE CREATE AND START
   const handleStartWorkout = async () => {
-    if (!newLocationName.trim()) {
-      alert("Please enter a name for this location configuration.");
-      return;
-    }
-
-    const selectedIds = equipments
-      .filter((eq: any) => eq.selected)
-      .map((eq) => eq.id)
-      .join(",");
-
-    if (!selectedIds) {
-      alert("Please select at least one piece of equipment.");
-      return;
-    }
+    if (!newLocationName.trim()) return alert("Please name this configuration.");
+    if (selectedCount === 0) return alert("Select at least one piece of equipment.");
 
     setIsSubmitting(true);
     try {
       await equipmentApi.createLocation({
         location_name: newLocationName,
-        equipments: selectedIds,
+        equipments: equipments.filter(eq => eq.selected).map(eq => eq.id).join(","),
         default_location: 0,
       });
-      
-      // Navigate to the next step of your workout flow
-    } catch (err: any) {
-      alert(err.message || "Failed to save location");
-    } finally {
-      setIsSubmitting(false);
-    }
+      router.push("/workout/session");
+    } catch (err: any) { alert(err.message || "Failed to save"); } finally { setIsSubmitting(false); }
   };
 
+  if (initialLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-[#7c3aed]" size={40} /></div>;
+  }
+
   return (
-    <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e] pb-20">
+    <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e] pb-40">
       
       {/* HEADER */}
-      <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10">
-        <div className="flex items-center gap-2 sm:gap-3.5">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#7c3aed] rounded-full flex items-center justify-center text-white flex-shrink-0 shadow-sm">
-            <Plus size={18} />
-          </div>
+      <div className="bg-white px-4 sm:px-8 py-6 flex items-center justify-between sticky top-0 z-50 border-b border-gray-50">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">
+            <ArrowLeft size={20} />
+          </button>
           <div>
-            <h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">Equipment Needed</h1>
-            <p className="text-[10px] sm:text-xs text-[#999] m-0">Customize your session gear</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">Gear Checklist</h1>
+            <p className="text-xs sm:text-sm text-gray-400 m-0 font-medium">Pick gear for this session</p>
           </div>
         </div>
-        <button onClick={() => router.back()} className="p-2 text-gray-400 hover:text-gray-600">
-          <X size={24} />
-        </button>
+        {selectedCount > 0 && (
+          <div className="bg-[#7c3aed]/10 text-[#7c3aed] px-3 py-1 rounded-full text-xs font-bold">
+            {selectedCount} Selected
+          </div>
+        )}
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-7">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 mt-6">
         
-        {/* QUICK SELECT DROPDOWN */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-8">
-          <label className="flex items-center gap-1.5 text-xs font-bold text-[#555] mb-3 uppercase tracking-wider">
-            <MapPin size={14} className="text-[#7c3aed]" /> Quick Select by Location
-          </label>
+        {/* TOP: QUICK RELOAD */}
+        <div className="mb-8 p-4 bg-gray-50 rounded-2xl flex items-center gap-4 border border-gray-100">
+          <MapPin size={20} className="text-[#7c3aed] ml-2" />
           <select
             value={selectedLocation}
             onChange={(e) => handleLocationChange(e.target.value)}
-            className="w-full p-4 border border-gray-200 rounded-xl text-base font-bold text-[#1a1a2e] bg-gray-50 outline-none focus:border-[#7c3aed] focus:bg-white transition-all appearance-none cursor-pointer"
+            className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-gray-700 cursor-pointer"
           >
-            <option value="">Choose a saved location...</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
+            <option value="">Load gear from a saved location...</option>
+            {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
           </select>
         </div>
 
         {/* EQUIPMENT GRID */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {equipments.map((eq: any) => (
             <div
               key={eq.id}
               onClick={() => toggleEquipment(eq.id)}
-              className={`relative p-4 rounded-2xl border transition-all duration-200 text-center cursor-pointer bg-white shadow-sm
-                ${eq.selected ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10" : "border-gray-100"}`}
+              className={`relative cursor-pointer rounded-2xl border p-6 flex flex-col items-center justify-center transition-all
+                ${eq.selected ? "border-[#7c3aed] bg-[#7c3aed]/5 ring-1 ring-[#7c3aed] scale-[1.02]" : "border-gray-100 bg-white hover:border-gray-200"}`}
             >
-              {eq.selected && (
-                <div className="absolute -top-1.5 -right-1.5 bg-[#7c3aed] text-white rounded-full p-1 z-10">
-                  <Check size={10} strokeWidth={4} />
-                </div>
-              )}
-              <div className="h-12 w-12 mx-auto mb-2 flex items-center justify-center">
-                <img src={eq.icon} alt={eq.name} className="max-h-full max-w-full object-contain" />
-              </div>
-              <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${eq.selected ? 'text-[#7c3aed]' : 'text-gray-500'}`}>
-                {eq.name}
-              </p>
+              {eq.selected && <div className="absolute top-2 right-2 bg-[#7c3aed] text-white rounded-full p-1"><Check size={10} strokeWidth={4} /></div>}
+              <div className="h-12 w-12 mb-3"><img src={eq.icon} alt={eq.name} className="h-full w-full object-contain" /></div>
+              <p className={`text-[10px] font-bold uppercase tracking-wide text-center ${eq.selected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{eq.name}</p>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* LOCATION NAME INPUT & START BUTTON */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-gray-100 flex flex-col items-center gap-6">
-          <div className="w-full max-w-md">
-            <label className="block text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Name this Configuration
-            </label>
+      {/* STICKY FOOTER ACTION BAR */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 sm:p-6 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.04)]">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
+            <Save size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input 
               type="text"
-              placeholder="e.g. My Home Gym, Planet Fitness..."
+              placeholder="Name this configuration (e.g. Hotel Gym)"
               value={newLocationName}
               onChange={(e) => setNewLocationName(e.target.value)}
-              className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center font-bold text-[#1a1a2e] outline-none focus:border-[#7c3aed] focus:bg-white transition-all shadow-inner"
+              className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-[#7c3aed]/20 transition-all"
             />
           </div>
-
           <button 
             onClick={handleStartWorkout}
-            disabled={isSubmitting}
-            className="w-full max-w-md bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-full text-white py-5 font-black shadow-2xl uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+            disabled={isSubmitting || selectedCount === 0}
+            className="w-full sm:w-auto px-10 py-4 bg-[#7c3aed] text-white rounded-full font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50 disabled:grayscale"
           >
-            {isSubmitting ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              "Save & Start Workout"
-            )}
+            {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Start Session"}
           </button>
         </div>
-
       </div>
     </div>
   );
@@ -193,7 +156,7 @@ function SelectEquipContent() {
 
 export default function SelectNeededEquipments() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#7c3aed]" size={40} /></div>}>
       <SelectEquipContent />
     </Suspense>
   );

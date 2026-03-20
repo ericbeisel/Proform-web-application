@@ -5,7 +5,7 @@ export const login = async (email: string, password: string) => {
   try {
     const { data } = await axios.post(
       `${process.env.NEXT_PUBLIC_API_BASE_URL}/login`,
-      { email, password }
+      { email, password,  type: "web", }
     );
 
     // Save token immediately (common pattern)

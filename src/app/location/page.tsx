@@ -6,8 +6,6 @@ import {
   Plus, 
   Pencil, 
   Trash2, 
-  ChevronUp, 
-  ChevronDown, 
   MapPin, 
   Dumbbell 
 } from "lucide-react";
@@ -17,10 +15,8 @@ import { equipmentApi } from "@/api/location/route";
 export default function LocationList() {
   const router = useRouter();
   const [locations, setLocations] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
 
   const fetchLocations = async () => {
     try {
@@ -32,180 +28,190 @@ export default function LocationList() {
   };
 
   const handleDelete = async (id: number) => {
-  try {
-    await equipmentApi.deleteLocation(id);
-
-    setLocations((prev) => prev.filter((loc) => loc.id !== id));
-  } catch (err) {
-    console.error(err);
-  }
-};
+    try {
+      await equipmentApi.deleteLocation(id);
+      setLocations((prev) => prev.filter((loc) => loc.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     fetchLocations();
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
+    <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
       
-      {/* Top Bar - Styled exactly like Workout Dashboard */}
-      <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10">
-        <div className="flex items-center gap-2 sm:gap-3.5">
-          <button 
+      {/* MATCHED HEADER STYLE */}
+      <div className="bg-white px-4 sm:px-8 py-6 flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
+        <div className="flex items-center gap-4">
+          <button
             onClick={() => router.back()}
-            className="w-9 h-9 sm:w-10 sm:h-10 bg-white border border-[#e8e8f0] rounded-full flex items-center justify-center text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white transition-colors flex-shrink-0 shadow-sm"
+            className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">My Locations</h1>
-            <p className="text-[10px] sm:text-xs text-[#999] m-0">
+            <h1 className="text-2xl font-bold text-gray-900 m-0">My Locations</h1>
+            <p className="text-sm text-gray-400 m-0 font-medium">
               {locations.length} locations saved • Customize your experience
             </p>
           </div>
         </div>
+
         <button 
           onClick={() => router.push("/location/addLocation")}
-          className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] border-none rounded-lg text-white px-3 sm:px-5 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-semibold text-xs sm:text-sm whitespace-nowrap shadow-md"
+          className="bg-[#7c3aed] text-white px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 shadow-sm hover:opacity-90 transition-opacity"
         >
-          <Plus size={16} /> <span className="hidden xs:inline">Add</span>
+          <Plus size={18} /> 
+          <span>Create Location</span>
         </button>
       </div>
 
       {/* Main Content Area */}
-      <div className="p-4 sm:p-5 lg:p-7 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-5 lg:p-7 max-w-7xl mx-auto">
         
-        {/* Header/Hero Section */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 mb-8 text-center flex flex-col items-center">
-          <div className="w-16 h-16 mb-4 bg-indigo-50 rounded-full flex items-center justify-center text-[#7c3aed]">
-            <MapPin size={32} />
-          </div>
-             <h1 className="text-lg font-semibold text-purple-600">
-            My Locations:
-          </h1>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Create and edit your locations to customize your workout experience
-          </p>
-        </div>
-
-        {/* Location List - Using the Dark Card style from your Sessions list */}
-        <div className="flex flex-col gap-3.5">
-          <h3 className="font-bold text-base text-[#1a1a2e] mb-1">Registered Locations</h3>
-          
+        <div className="mt-6">
           {locations.length === 0 ? (
-             <div className="text-center py-10 text-[#aaa] italic">No locations found. Add one to get started!</div>
+            <div className="flex flex-col items-center justify-center text-center py-20">
+              <div className="w-28 h-28 mb-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <MapPin size={40} className="text-purple-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">No Locations Yet</h2>
+              <p className="text-sm text-gray-500 max-w-md mb-6">
+                Add your first location to customize workouts based on available equipment.
+              </p>
+              <button
+                onClick={() => router.push("/location/addLocation")}
+                className="flex items-center gap-2 bg-[#7c3aed] text-white px-6 py-3 rounded-full font-semibold shadow-md hover:opacity-90 transition"
+              >
+                <Plus size={18} /> Create Your First Location
+              </button>
+            </div>
           ) : (
-            locations.map((location) => {
-              const isExpanded = expanded === location.id;
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Your Locations</h2>
+              <p className="text-sm text-gray-400 mb-8 font-medium">
+                {locations.length} location{locations.length !== 1 ? "s" : ""} saved
+              </p>
 
-              return (
-                <div
-                  key={location.id}
-                  className={`rounded-xl p-4 sm:p-5 flex flex-col transition-all bg-[#1e1e2e] shadow-lg`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div 
-                      className="flex items-center gap-3 sm:gap-4 cursor-pointer flex-1"
-                      onClick={() => router.push(`/location/${location.id}`)}
-                    >
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#7c3aed]/20 border-2 border-[#7c3aed] flex items-center justify-center">
-                        <Dumbbell size={16} className="text-[#7c3aed]" />
+              {/* Location Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {locations.map((location) => (
+                  <div
+                    key={location.id}
+                    onClick={() => router.push(`/location/${location.id}`)}
+                    className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-[#7c3aed] hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between cursor-pointer group"
+                  >
+                    <div>
+                      {/* Card Header */}
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-14 h-14 rounded-full bg-[#7c3aed] flex items-center justify-center text-white flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
+                          <MapPin size={24}  />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-xl text-gray-900 leading-tight">
+                            {location.name}
+                          </h3>
+                          <p className="text-sm text-gray-400 font-medium tracking-wide">
+                            {location.equipmentList?.length || 0} equipment items
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-sm sm:text-base text-white m-0">
-                          {location.name}
-                        </p>
-                        <p className="text-xs text-[#888] mt-0.5">
-                          {location.equipmentList?.length || 0} pieces of equipment
-                        </p>
+
+                      {/* Equipment Chips */}
+                      <div className="flex flex-wrap gap-2 mb-8 items-center">
+                        {location.equipmentList?.slice(0, 3).map((eq: any) => (
+                          <span
+                            key={eq.id}
+                            className="px-4 py-2 text-[10px] font-bold bg-[#f3f0ff] text-[#7c3aed] rounded-full flex items-center gap-1.5 uppercase tracking-wider"
+                          >
+                            <Dumbbell size={12} />
+                            {eq.name}
+                          </span>
+                        ))}
+
+                        {location.equipmentList?.length > 3 && (
+                          <span className="text-[10px] font-bold text-gray-400 ml-1 uppercase tracking-tight">
+                            + {location.equipmentList.length - 3} more
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+                      {/* Action Buttons - stopPropagation prevents triggering the card click */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => router.push(`/location/edit/${location.id}`)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#fff7ed] text-[#f97316] text-xs font-bold py-3.5 rounded-2xl hover:bg-orange-100 transition-colors"
+                        >
+                          <Pencil size={16} /> Edit
+                        </button>
+
+                        <button
+                          onClick={() => setDeleteTarget(location.id)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#fef2f2] text-[#ef4444] text-xs font-bold py-3.5 rounded-2xl hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      </div>
+
+                      {/* View Details Button */}
                       <button
-                        onClick={() => setExpanded(isExpanded ? null : location.id)}
-                        className="bg-[#2a2a3e] text-white p-2 rounded-lg hover:bg-[#3b3b54] transition-colors"
+                        onClick={() => router.push(`/location/${location.id}`)}
+                        className="w-full text-[11px] font-bold uppercase tracking-widest text-[#7c3aed] bg-[#f8faff] py-4 rounded-2xl hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
                       >
-                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        View Full Details <span className="text-lg leading-none">›</span>
                       </button>
-                  <button 
-  onClick={(e) => {
-    e.stopPropagation();
-    router.push(`/location/edit/${location.id}`);
-  }}
-  className="bg-[#2a2a3e] text-[#888] p-2 rounded-lg hover:text-white transition-colors"
->
-  <Pencil size={18} />
-</button>
-                   <button 
-  onClick={(e) => {
-    e.stopPropagation(); 
-    setDeleteTarget(location.id);
-  }}
-  className="bg-[#2a2a3e] text-[#ef4444] p-2 rounded-lg hover:bg-red-500/10 transition-colors"
->
-  <Trash2 size={18} />
-</button>
                     </div>
                   </div>
-
-                  {/* Expanded Equipment List - Styled like the Tips box */}
-                  {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-white/10">
-                      <div className="bg-[#2a2a3e] rounded-lg p-3">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-[#7c3aed] mb-2">Available Equipment</p>
-                        <p className="text-sm text-gray-300 leading-relaxed">
-                          {location.equipmentList?.length > 0 
-                            ? location.equipmentList.map((eq: any) => eq.name).join(" • ")
-                            : "No equipment listed for this location."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
-   {deleteTarget !== null && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <div className="bg-[#1e1e2e] rounded-xl shadow-lg p-6 max-w-sm w-full text-center">
-      <p className="text-white font-semibold mb-4">
-        Are you sure you want to delete this location?
-      </p>
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={() => setDeleteTarget(null)}
-          className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={async () => {
-            if (deleteTarget === null) return;
-            try {
-              setIsDeleting(true);
-              await handleDelete(deleteTarget);
-              setDeleteTarget(null);
-            } catch (err) {
-              console.error(err);
-            } finally {
-              setIsDeleting(false);
-            }
-          }}
-          className={`px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors ${
-            isDeleting ? "opacity-70 cursor-not-allowed" : ""
-          }`}
-          disabled={isDeleting}
-        >
-          {isDeleting ? "Deleting..." : "Delete"}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+
+      {/* Delete Modal */}
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#1e1e2e] rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center border border-gray-700">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-5">
+              <Trash2 size={30} />
+            </div>
+            <h3 className="text-white font-bold text-xl mb-2">Delete Location?</h3>
+            <p className="text-gray-400 text-sm mb-8">This action cannot be undone. All equipment associations will be removed.</p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 px-4 py-3 rounded-xl border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async (e) => {
+                  if (deleteTarget === null) return;
+                  try {
+                    setIsDeleting(true);
+                    await handleDelete(deleteTarget);
+                    setDeleteTarget(null);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className={`flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors ${
+                  isDeleting ? "opacity-70 cursor-not-allowed" : ""
+                }`}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
