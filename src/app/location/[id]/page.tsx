@@ -136,26 +136,54 @@ export default function LocationDetailPage() {
     </p>
   </div>
 </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {location.equipmentList?.map((equipment) => (
-            <div
-              key={equipment.id}
-              className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm border border-gray-100"
-            >
-              <div className="h-16 w-16 mb-4 flex items-center justify-center bg-gray-50 rounded-xl p-2">
-                <img
-                  src={equipment.icon}
-                  alt={equipment.name}
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-              <p className="text-xs font-bold text-gray-900 text-center m-0 uppercase tracking-wide">
-                {equipment.name}
-              </p>
-              
-            </div>
-          ))}
+     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+  {location.equipmentList?.map((equipment) => {
+    // 1. Split keywords by comma
+    const rawKeywords = equipment.keyword ? equipment.keyword.split(",") : [];
+    
+    // 2. Exact string deduplication (Remove "balance pad" if "balance pad" already exists)
+    // We trim whitespace to ensure " word" and "word" are treated as the same.
+    const uniqueKeywords = Array.from(
+      new Set(rawKeywords.map((k) => k.trim()))
+    ).filter(Boolean);
+
+    return (
+      <div
+        key={equipment.id}
+        className="bg-white rounded-2xl p-5 flex flex-col items-center border border-gray-100 shadow-sm hover:border-[#7c3aed]/20 transition-all"
+      >
+        {/* ICON & NAME SECTION */}
+        <div className="h-16 w-16 mb-3 flex items-center justify-center bg-gray-50 rounded-xl p-2">
+          <img
+            src={equipment.icon}
+            alt={equipment.name}
+            className="max-h-full max-w-full object-contain"
+          />
         </div>
+        
+        <p className="text-[11px] font-black text-gray-900 text-center uppercase tracking-tight mb-3 line-clamp-2">
+          {equipment.name}
+        </p>
+
+        {/* KEYWORDS SECTION */}
+        {uniqueKeywords.length > 0 && (
+          <div className="w-full pt-3 border-t border-gray-50">
+            <div className="flex flex-wrap gap-1 justify-center max-h-[60px] overflow-y-auto no-scrollbar">
+              {uniqueKeywords.map((word, idx) => (
+                <span 
+                  key={idx}
+                  className="text-[9px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md whitespace-nowrap border border-gray-100"
+                >
+                  {word}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  })}
+</div>
       </div>
 
       {/* DELETE MODAL */}

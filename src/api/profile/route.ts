@@ -36,6 +36,44 @@ export interface ProfileResponse {
   data: ProfileData;
 }
 
+export interface DetailedSocialMedia {
+  id: number;
+  type: string;
+  url: string;
+  hide: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  logo: string;
+}
+
+export interface SocialMediaListResponse {
+  message: string;
+  data: DetailedSocialMedia[];
+}
+
+export interface EditSocialMediaPayload {
+  user_id: number | string;
+  type: string; // "youtube", "instagram", etc.
+  url: string;
+  hide?: string; // "0" or "1"
+}
+
+export interface FollowPayload {
+  user_id: number | string; // The person being followed
+  follower_id: number | string; // The person who is logged in
+}
+
+export interface UnfollowPayload {
+  user_id: number | string; // The person being unfollowed
+  follower_id: number | string; // The person who is logged in
+}
+
+export interface FollowActionPayload {
+  user_id: number | string; // The ID of the profile being viewed
+  follower_username: string; // The username of the logged-in user
+}
+
 // ===========================================
 // ERROR HANDLER
 // ===========================================
@@ -77,33 +115,76 @@ apiClient.interceptors.request.use((config) => {
 // ===========================================
 
 export const profileApi = {
-  /**
-   * Fetch profile data by username
-   */
+ 
   getProfileByUsername: async (username: string): Promise<ProfileData> => {
     try {
       const res = await apiClient.get<ProfileResponse>(
-        `/my-profile?username=${username}`
+        `/my-profile?username=${username}`,
       );
 
       return res.data.data;
     } catch (err) {
       throw new Error(
-        extractErrorMessage(err, "Failed to fetch profile data.")
+        extractErrorMessage(err, "Failed to fetch profile data."),
       );
     }
   },
 
-  /**
-   * Example: Update profile data
-   */
-  updateProfile: async (payload: Partial<ProfileData>): Promise<void> => {
+  getSocialMedia: async (
+    userId: number | string,
+  ): Promise<DetailedSocialMedia[]> => {
     try {
-      await apiClient.post(`/update-profile`, payload);
+      const res = await apiClient.get<SocialMediaListResponse>(
+        "/get-social-media",
+        {
+          params: { user_id: userId },
+        },
+      );
+      return res.data.data || [];
     } catch (err) {
       throw new Error(
-        extractErrorMessage(err, "Failed to update profile.")
+        extractErrorMessage(err, "Failed to fetch social media."),
       );
+    }
+  },
+
+  editSocialMedia: async (payload: EditSocialMediaPayload): Promise<void> => {
+    try {
+      await apiClient.post("/edit-social-media", payload);
+    } catch (err) {
+      throw new Error(
+        extractErrorMessage(err, "Failed to update social media link."),
+      );
+    }
+  },
+
+  updateProfile: async (
+    payload: Partial<ProfileData> & { user_id: number | string },
+  ): Promise<void> => {
+    try {
+      await apiClient.post("/edit-profile", payload);
+    } catch (err) {
+      throw new Error(
+        extractErrorMessage(err, "Failed to update profile information."),
+      );
+    }
+  },
+
+  followUser: async (payload: FollowActionPayload): Promise<any> => {
+    try {
+      const res = await apiClient.post("/follow-user", payload);
+      return res.data;
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, "Failed to follow user."));
+    }
+  },
+
+  unfollowUser: async (payload: FollowActionPayload): Promise<any> => {
+    try {
+      const res = await apiClient.post("/unfollow-user", payload);
+      return res.data;
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, "Failed to unfollow user."));
     }
   },
 };
