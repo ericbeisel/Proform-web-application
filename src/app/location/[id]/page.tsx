@@ -18,6 +18,7 @@ export default function LocationDetailPage() {
     try {
       const data = await equipmentApi.getLocationDetail(params.id as string);
       setLocation(data);
+      console.log("Fetched location detail:", data);
     } catch (err) {
       console.error("Failed to fetch location:", err);
     } finally {
@@ -151,40 +152,53 @@ export default function LocationDetailPage() {
               <p className="text-xs font-bold text-gray-900 text-center m-0 uppercase tracking-wide">
                 {equipment.name}
               </p>
+              
             </div>
           ))}
         </div>
       </div>
 
       {/* DELETE MODAL */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-[#1e1e2e] rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center border border-gray-700">
-            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-5">
-              <Trash2 size={30} />
-            </div>
-            <h3 className="text-white font-bold text-xl mb-2">Delete Location?</h3>
-            <p className="text-gray-400 text-sm mb-8">Are you sure you want to remove "{location.name}"? This cannot be undone.</p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-3 rounded-xl border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className={`flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors ${
-                  isDeleting ? "opacity-70 cursor-not-allowed" : ""
-                }`}
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    {showDeleteModal && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+    {/* White Modal Container */}
+    <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 max-w-sm w-full text-center border border-slate-100 animate-in fade-in zoom-in duration-200">
+      
+      {/* Warning Icon */}
+      <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-5">
+        <Trash2 size={30} />
+      </div>
+
+      {/* Text Content */}
+      <h3 className="text-slate-900 font-black text-xl mb-2">Delete Location?</h3>
+      <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
+        Are you sure you want to remove <span className="text-slate-900 font-bold">"{location.name}"</span>? 
+        This action cannot be undone.
+      </p>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className={`w-full py-4 rounded-2xl bg-red-600 text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-red-100 hover:bg-red-700 transition-all active:scale-95 ${
+            isDeleting ? "opacity-70 cursor-not-allowed" : ""
+          }`}
+        >
+          {isDeleting ? "Removing..." : "Confirm Delete"}
+        </button>
+
+        <button
+          onClick={() => setShowDeleteModal(false)}
+          disabled={isDeleting}
+          className="w-full py-4 rounded-2xl bg-slate-50 text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-slate-100 transition-all active:scale-95"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

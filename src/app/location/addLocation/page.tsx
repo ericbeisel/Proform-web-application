@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { X, Check, MapPin, Dumbbell } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { X, Check, MapPin, Dumbbell, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { equipmentApi, Equipment } from "@/api/location/route";
 
@@ -12,8 +12,8 @@ export default function AddLocationPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [locationName, setLocationName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Requirement Check: Must have a name AND at least one equipment selected
   const isReadyToSave = locationName.trim().length > 0 && selected.length > 0;
 
   useEffect(() => {
@@ -28,6 +28,12 @@ export default function AddLocationPage() {
     fetchEquipment();
   }, []);
 
+  const filteredEquipment = useMemo(() => {
+    return equipment.filter((item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [equipment, searchQuery]);
+
   const toggleEquipment = (id: number) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]
@@ -36,7 +42,6 @@ export default function AddLocationPage() {
 
   const handleCreate = async () => {
     if (!isReadyToSave) return;
-
     try {
       setLoading(true);
       await equipmentApi.createLocation({
@@ -71,33 +76,46 @@ export default function AddLocationPage() {
           </div>
         </div>
 
-        {/* Save Button controlled by isReadyToSave */}
-        <button
-          onClick={handleCreate}
-          disabled={loading || !isReadyToSave}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm transition-all shadow-sm
-            ${isReadyToSave 
-              ? "bg-[#7c3aed] text-white hover:opacity-90 shadow-purple-200" 
-              : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            }`}
-        >
-          {loading ? (
-             <span className="flex items-center gap-2">Saving...</span>
-          ) : (
-            <>
-              <Check size={18} />
-              <span>Save Location</span>
-            </>
-          )}
-        </button>
+        {/* HEADER ACTIONS: Search Bar + Save Button */}
+        <div className="flex items-center gap-4">
+          <div className="relative hidden md:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text"
+              placeholder="Search gear..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-sm font-medium outline-none focus:ring-2 focus:ring-[#7c3aed]/10 transition-all w-48 lg:w-64"
+            />
+          </div>
+
+          <button
+            onClick={handleCreate}
+            disabled={loading || !isReadyToSave}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm transition-all shadow-sm
+              ${isReadyToSave 
+                ? "bg-[#7c3aed] text-white hover:opacity-90 shadow-purple-200" 
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+          >
+            {loading ? (
+                <span className="flex items-center gap-2">Saving...</span>
+            ) : (
+              <>
+                <Check size={18} />
+                <span>Save Location</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20">
         
         {/* TOP SECTION: Location Details Card */}
-        <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12">
+        <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12 mt-4">
           <div className="w-20 h-20 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-lg flex-shrink-0">
-            <MapPin size={36}  />
+            <MapPin size={36} />
           </div>
           <div className="flex-1 w-full text-left">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Location Details</h2>
@@ -119,6 +137,20 @@ export default function AddLocationPage() {
           </div>
         </div>
 
+        {/* SEARCH BAR FOR MOBILE (Shows only on small screens) */}
+        <div className="md:hidden mb-6">
+            <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                type="text"
+                placeholder="Search equipment..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-[#7c3aed]/10 transition-all"
+                />
+            </div>
+        </div>
+
         {/* EQUIPMENT SECTION */}
         <div className="mb-6 text-left">
           <h2 className="text-xl font-bold text-gray-900 mb-1">Available Equipment</h2>
@@ -128,7 +160,7 @@ export default function AddLocationPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
-          {equipment.map((item) => {
+          {filteredEquipment.map((item) => {
             const isSelected = selected.includes(item.id);
 
             return (
@@ -155,21 +187,13 @@ export default function AddLocationPage() {
             );
           })}
         </div>
-
-        {/* BOTTOM CTA (Optional) */}
-        <div className="mt-12 flex justify-center">
-             <button
-                onClick={handleCreate}
-                disabled={loading || !isReadyToSave}
-                className={`w-full max-w-md py-4 rounded-full font-bold text-lg transition-all shadow-lg
-                    ${isReadyToSave 
-                    ? "bg-[#7c3aed] text-white hover:opacity-90" 
-                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    }`}
-            >
-                {loading ? "Creating..." : "Create Location"}
-            </button>
-        </div>
+        
+        {/* EMPTY STATE */}
+        {filteredEquipment.length === 0 && (
+            <div className="text-center py-20">
+                <p className="text-gray-400 font-medium font-['DM_Sans',_sans-serif]">No equipment matches your search.</p>
+            </div>
+        )}
       </div>
     </div>
   );
