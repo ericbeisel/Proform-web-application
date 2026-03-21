@@ -100,12 +100,16 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = getAuthToken();
-
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  config.headers["Content-Type"] = "application/json";
+  // CRITICAL: If data is FormData, let the browser handle the Content-Type header
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  } else {
+    config.headers["Content-Type"] = "application/json";
+  }
 
   return config;
 });
@@ -158,15 +162,20 @@ export const profileApi = {
     }
   },
 
-  updateProfile: async (
-    payload: Partial<ProfileData> & { user_id: number | string },
-  ): Promise<void> => {
+updateProfile: async (payload: { name: string; image?: File | null }): Promise<void> => {
     try {
-      await apiClient.post("/edit-profile", payload);
+      const formData = new FormData();
+      formData.append("name", payload.name);
+      
+      // If there is an image, append it. If not, don't append it at all (matches Postman)
+      if (payload.image) {
+        formData.append("image", payload.image);
+      }
+
+      const res = await apiClient.post("/edit-profile", formData);
+      console.log("✅ Server Response:", res.data);
     } catch (err) {
-      throw new Error(
-        extractErrorMessage(err, "Failed to update profile information."),
-      );
+      throw new Error(extractErrorMessage(err, "Failed to update profile."));
     }
   },
 

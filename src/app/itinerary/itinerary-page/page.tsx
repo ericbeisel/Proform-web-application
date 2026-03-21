@@ -424,60 +424,64 @@ export default function ItineraryPage() {
         </span>
       </div>
 
-      {/* ── Dot Grid Calendar ── */}
-      <div className="mx-4 sm:mx-6 my-2 sm:my-3 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 bg-white border-b border-gray-100">
-          {(isMobile ? DAYS_SHORT : DAYS_FULL).map((d, i) => (
-            <div
-              key={i}
-              className="text-center text-[10px] sm:text-[11px] font-semibold text-gray-500 py-2 sm:py-3"
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {/* Dot rows */}
-        <div className="bg-white py-2 sm:py-4 px-1 sm:px-2">
-          {Array.from({ length: maxRows }).map((_, rowIdx) => (
-            <div
-              key={rowIdx}
-              className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3"
-            >
-              {Array.from({ length: 7 }).map((_, colIdx) => {
-                const dot = dotsByDay[colIdx][rowIdx];
-                if (!dot)
-                  return <div key={colIdx} className="flex justify-center" />;
-
-                const isActive =
-                  activeFilter === null || dot.filter === activeFilter;
-                const opacity =
-                  activeFilter && dot.filter !== activeFilter
-                    ? "opacity-20"
-                    : "opacity-100";
-
-                return (
-                  <div
-                    key={dot.id}
-                    onClick={() => {
-                      const workout =
-                        WEEKLY_WORKOUTS.find(
-                          (w) =>
-                            w.dayIdx === dot.day && w.filter === dot.filter,
-                        ) ||
-                        WEEKLY_WORKOUTS.find((w) => w.dayIdx === dot.day) ||
-                        WEEKLY_WORKOUTS.find((w) => w.filter === dot.filter);
-                      if (workout) setSelectedWorkout(workout);
-                    }}
-                    className={`w-2 h-2 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 rounded-full ${dot.color} ${opacity} cursor-pointer hover:scale-110 transition mx-auto`}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+    {/* ── Dot Grid Calendar ── */}
+<div className="mx-4 sm:mx-6 my-2 sm:my-3 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  {/* Day headers */}
+  <div className="grid grid-cols-7 bg-white border-b border-gray-100">
+    {(isMobile ? DAYS_SHORT : DAYS_FULL).map((d, i) => (
+      <div
+        key={`day-header-${i}`} // Stable unique key for headers
+        className="text-center text-[10px] sm:text-[11px] font-semibold text-gray-500 py-2 sm:py-3"
+      >
+        {d}
       </div>
+    ))}
+  </div>
+
+  {/* Dot rows */}
+  <div className="bg-white py-2 sm:py-4 px-1 sm:px-2">
+    {Array.from({ length: maxRows }).map((_, rowIdx) => (
+      <div
+        key={`row-${rowIdx}`} // Stable unique key for rows
+        className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3"
+      >
+        {Array.from({ length: 7 }).map((_, colIdx) => {
+          // 1. Get dots for this specific day
+          const dotsInThisDay = dotsByDay[colIdx] || [];
+          
+          // 2. Filter them so they "shift up"
+          const filteredDotsInDay = activeFilter 
+            ? dotsInThisDay.filter(d => d.filter === activeFilter)
+            : dotsInThisDay;
+
+          const dot = filteredDotsInDay[rowIdx];
+          
+          // Use a combined key of column and row index for the empty placeholders
+          if (!dot) {
+            return <div key={`empty-${colIdx}-${rowIdx}`} className="flex justify-center" />;
+          }
+
+          return (
+            <div
+              key={`dot-${dot.id}-${colIdx}-${rowIdx}`} // High-uniqueness key to prevent React collisions
+              onClick={() => {
+                const workout =
+                  WEEKLY_WORKOUTS.find(
+                    (w) =>
+                      w.dayIdx === dot.day && w.filter === dot.filter,
+                  ) ||
+                  WEEKLY_WORKOUTS.find((w) => w.dayIdx === dot.day) ||
+                  WEEKLY_WORKOUTS.find((w) => w.filter === dot.filter);
+                if (workout) setSelectedWorkout(workout);
+              }}
+              className={`w-2 h-2 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 rounded-full ${dot.color} cursor-pointer hover:scale-110 transition-all duration-300 mx-auto`}
+            />
+          );
+        })}
+      </div>
+    ))}
+  </div>
+</div>
 
       {/* ── Add Workout CTA ── */}
       <button

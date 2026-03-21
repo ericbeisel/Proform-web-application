@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { Upload, BarChart3, Camera } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import SplitLayout from '@/components/account-setup/SplitLayout';
-import { useToast } from '@/components/ui/toast-provider';
+import React, { useState, useEffect } from "react";
+import { Upload, BarChart3, Camera } from "lucide-react";
+import { useRouter } from "next/navigation";
+import SplitLayout from "@/components/account-setup/SplitLayout";
+import { useToast } from "@/components/ui/toast-provider";
 
 export default function ProgressMetricsPage() {
   const router = useRouter();
@@ -15,12 +15,12 @@ export default function ProgressMetricsPage() {
 
   // 1. Restore preview from sessionStorage on mount
   useEffect(() => {
-    const saved = sessionStorage.getItem('accountSetup');
+    const saved = sessionStorage.getItem("accountSetup");
     if (!saved) return;
 
     try {
       const data = JSON.parse(saved);
-      if (data.progressPhotoPreview?.startsWith('data:image')) {
+      if (data.progressPhotoPreview?.startsWith("data:image")) {
         setPhotoPreview(data.progressPhotoPreview);
       }
     } catch {
@@ -32,18 +32,23 @@ export default function ProgressMetricsPage() {
   useEffect(() => {
     if (!photoPreview) {
       // Optional: clean up when removed
-      const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+      const existing = JSON.parse(
+        sessionStorage.getItem("accountSetup") || "{}",
+      );
       delete existing.progressPhotoPreview;
-      sessionStorage.setItem('accountSetup', JSON.stringify(existing));
+      sessionStorage.setItem("accountSetup", JSON.stringify(existing));
       return;
     }
 
-    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
-    sessionStorage.setItem('accountSetup', JSON.stringify({
-      ...existing,
-      progressPhotoPreview: photoPreview, // base64 string
-      // You could also store: fileName, fileType, uploadTimestamp if useful later
-    }));
+    const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
+    sessionStorage.setItem(
+      "accountSetup",
+      JSON.stringify({
+        ...existing,
+        progressPhotoPreview: photoPreview, // base64 string
+        // You could also store: fileName, fileType, uploadTimestamp if useful later
+      }),
+    );
   }, [photoPreview]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,12 +56,12 @@ export default function ProgressMetricsPage() {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
+      toast.error("File size must be less than 10MB");
       return;
     }
 
-    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) {
-      toast.error('Please upload a JPG, PNG or HEIC file');
+    if (!["image/jpeg", "image/png", "image/heic"].includes(file.type)) {
+      toast.error("Please upload a JPG, PNG or HEIC file");
       return;
     }
 
@@ -66,7 +71,7 @@ export default function ProgressMetricsPage() {
     reader.onloadend = () => {
       const result = reader.result as string;
       setPhotoPreview(result);
-      toast.success('Progress photo selected');
+      toast.success("Progress photo selected");
     };
     reader.readAsDataURL(file);
   };
@@ -74,30 +79,38 @@ export default function ProgressMetricsPage() {
   const removePhoto = () => {
     setProgressPhoto(null);
     setPhotoPreview(null);
-    toast.info('Photo removed');
+    toast.info("Photo removed");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Optional: you could do extra validation or logging here
-    router.push('/account-setup/yourSchedule');
+    router.push("/account-setup/yourSchedule");
   };
 
   return (
     <>
       <SplitLayout
         leftContent={{
-          title: 'Progress Metrics',
-          description: 'Document your starting point to track visible change over time.',
+          title: "Progress Metrics",
+          description:
+            "Document your starting point to track visible change over time.",
         }}
         showProgress
-        progressData={{ currentStep: 5, totalSteps: 9, nextStep: 'Your Schedule' }}
+        progressData={{
+          currentStep: 5,
+          totalSteps: 9,
+          nextStep: "Your Schedule",
+        }}
       />
 
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Add a progress photo</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">
+          Add a progress photo
+        </h1>
         <p className="text-gray-500 text-sm sm:text-base">
-          Upload a photo to visually track your transformation alongside your metrics.
+          Upload a photo to visually track your transformation alongside your
+          metrics.
         </p>
       </div>
 
@@ -141,8 +154,12 @@ export default function ProgressMetricsPage() {
                   <Upload size={26} className="text-[#6202AC]" />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold text-gray-900 text-sm sm:text-base mb-1">Upload a photo</p>
-                  <p className="text-xs sm:text-sm text-gray-400">JPG, PNG or HEIC (max 10MB)</p>
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base mb-1">
+                    Upload a photo
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-400">
+                    JPG, PNG or HEIC (max 10MB)
+                  </p>
                 </div>
               </label>
             )}
@@ -154,8 +171,9 @@ export default function ProgressMetricsPage() {
             <span className="font-semibold inline-flex items-center gap-1.5">
               <BarChart3 size={14} />
               Progress Tracking:
-            </span>{' '}
-            Regular photos and metrics help you see real changes that the scale might not show.
+            </span>{" "}
+            Regular photos and metrics help you see real changes that the scale
+            might not show.
           </p>
         </div>
 
@@ -168,7 +186,7 @@ export default function ProgressMetricsPage() {
 
         <button
           type="button"
-          onClick={() => router.push('/account-setup/yourSchedule')}
+          onClick={() => router.push("/account-setup/yourSchedule")}
           className="w-full text-[#6202AC] font-semibold text-sm sm:text-base py-2 hover:text-[#4e0288] transition-colors"
         >
           Skip For Now

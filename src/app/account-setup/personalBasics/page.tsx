@@ -1,22 +1,27 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { User, Cake, Activity, Ruler } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import SplitLayout from '@/components/account-setup/SplitLayout';
-import { fetchActivityLevels, ActivityLevelOption } from '@/api/account-setup/route';
+import React, { useState, useEffect } from "react";
+import { User, Cake, Activity, Ruler } from "lucide-react";
+import { useRouter } from "next/navigation";
+import SplitLayout from "@/components/account-setup/SplitLayout";
+import {
+  fetchActivityLevels,
+  ActivityLevelOption,
+} from "@/api/account-setup/route";
 
 export default function PersonalBasicsPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [activityLevels, setActivityLevels] = useState<ActivityLevelOption[]>([]);
+  const [activityLevels, setActivityLevels] = useState<ActivityLevelOption[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    gender: '',
-    birthday: '',
-    activityLevel: '',
-    unitPreference: 'metric',
+    gender: "",
+    birthday: "",
+    activityLevel: "",
+    unitPreference: "metric",
   });
 
   // Fetch activity levels from API on component mount
@@ -27,20 +32,27 @@ export default function PersonalBasicsPage() {
         setError(null);
         const levels = await fetchActivityLevels();
         setActivityLevels(levels);
-        
+
         // Load saved data from sessionStorage if exists
-        const savedData = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
-        if (savedData.gender || savedData.birthday || savedData.activityLevel || savedData.unitPreference) {
+        const savedData = JSON.parse(
+          sessionStorage.getItem("accountSetup") || "{}",
+        );
+        if (
+          savedData.gender ||
+          savedData.birthday ||
+          savedData.activityLevel ||
+          savedData.unitPreference
+        ) {
           setFormData({
-            gender: savedData.gender || '',
-            birthday: savedData.birthday || '',
-            activityLevel: savedData.activityLevel || '',
-            unitPreference: savedData.unitPreference || 'metric',
+            gender: savedData.gender || "",
+            birthday: savedData.birthday || "",
+            activityLevel: savedData.activityLevel || "",
+            unitPreference: savedData.unitPreference || "metric",
           });
         }
       } catch (err: any) {
-        console.error('Failed to load activity levels:', err);
-        setError(err.message || 'Failed to load activity levels');
+        console.error("Failed to load activity levels:", err);
+        setError(err.message || "Failed to load activity levels");
       } finally {
         setIsLoading(false);
       }
@@ -53,29 +65,33 @@ export default function PersonalBasicsPage() {
     const today = new Date();
     today.setFullYear(today.getFullYear() - 13);
     today.setDate(today.getDate() - 1);
-    return today.toISOString().split('T')[0];
+    return today.toISOString().split("T")[0];
   };
 
   const maxBirthdayDate = getMaxBirthday();
-  const isFormValid = formData.gender && formData.birthday && formData.activityLevel;
+  const isFormValid =
+    formData.gender && formData.birthday && formData.activityLevel;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // ── Save this step's data to sessionStorage ──
-    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
-    sessionStorage.setItem('accountSetup', JSON.stringify({
-      ...existing,
-      gender: formData.gender,
-      birthday: formData.birthday,
-      activityLevel: formData.activityLevel, // This now stores the ID (1,2,3,4)
-      unitPreference: formData.unitPreference,
-    }));
-    router.push('/account-setup/goalPreferences');
+    const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
+    sessionStorage.setItem(
+      "accountSetup",
+      JSON.stringify({
+        ...existing,
+        gender: formData.gender,
+        birthday: formData.birthday,
+        activityLevel: formData.activityLevel, // This now stores the ID (1,2,3,4)
+        unitPreference: formData.unitPreference,
+      }),
+    );
+    router.push("/account-setup/goalPreferences");
   };
 
   // Helper function to get display name from activity level ID
   const getActivityLevelName = (id: string) => {
-    const level = activityLevels.find(l => String(l.id) === id);
+    const level = activityLevels.find((l) => String(l.id) === id);
     return level?.name || id;
   };
 
@@ -83,16 +99,25 @@ export default function PersonalBasicsPage() {
     <>
       <SplitLayout
         leftContent={{
-          title: 'Personal Basics',
-          description: 'Help us personalize your gym experience by sharing a few details about yourself.',
+          title: "Personal Basics",
+          description:
+            "Help us personalize your gym experience by sharing a few details about yourself.",
         }}
         showProgress
-        progressData={{ currentStep: 1, totalSteps: 9, nextStep: 'Goals & Preferences' }}
+        progressData={{
+          currentStep: 1,
+          totalSteps: 9,
+          nextStep: "Goals & Preferences",
+        }}
       />
 
       <div className="mb-8 sm:mb-10">
-        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">Tell us about yourself</h1>
-        <p className="text-gray-500 text-sm sm:text-base">This information helps us create a customized training plan</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-black mb-2 sm:mb-3">
+          Tell us about yourself
+        </h1>
+        <p className="text-gray-500 text-sm sm:text-base">
+          This information helps us create a customized training plan
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
@@ -103,15 +128,21 @@ export default function PersonalBasicsPage() {
             Gender*
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {['Male', 'Female', 'Prefer not to say'].map((option) => (
+            {["Male", "Female", "Prefer not to say"].map((option) => (
               <button
                 key={option}
                 type="button"
-                onClick={() => setFormData({ ...formData, gender: option.toLowerCase().replace(/ /g, '-') })}
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    gender: option.toLowerCase().replace(/ /g, "-"),
+                  })
+                }
                 className={`py-3 px-2 rounded-xl border-2 font-medium transition-all text-xs
-                  ${formData.gender === option.toLowerCase().replace(/ /g, '-')
-                    ? 'border-[#6202AC] bg-purple-50 text-[#6202AC]'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  ${
+                    formData.gender === option.toLowerCase().replace(/ /g, "-")
+                      ? "border-[#6202AC] bg-purple-50 text-[#6202AC]"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                   }`}
               >
                 {option}
@@ -130,12 +161,16 @@ export default function PersonalBasicsPage() {
             <input
               type="date"
               value={formData.birthday}
-              onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, birthday: e.target.value })
+              }
               max={maxBirthdayDate}
               className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-sm text-gray-700"
               required
             />
-            <p className="text-xs text-gray-500 mt-2">Must be 13 years or older</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Must be 13 years or older
+            </p>
           </div>
 
           <div>
@@ -156,7 +191,12 @@ export default function PersonalBasicsPage() {
                 <>
                   <select
                     value={formData.activityLevel}
-                    onChange={(e) => setFormData({ ...formData, activityLevel: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        activityLevel: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] text-sm text-gray-700 appearance-none cursor-pointer [&:not([value=''])]:text-gray-900"
                     required
                   >
@@ -171,13 +211,19 @@ export default function PersonalBasicsPage() {
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                     <svg width="11" height="7" viewBox="0 0 11 7" fill="none">
-                      <path d="M1 1L5.5 5.5L10 1" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M1 1L5.5 5.5L10 1"
+                        stroke="#9CA3AF"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </div>
                 </>
               )}
             </div>
-            
+
             {/* Show selected activity level details (optional) */}
             {formData.activityLevel && !isLoading && !error && (
               <p className="text-xs text-gray-500 mt-2">
@@ -194,15 +240,21 @@ export default function PersonalBasicsPage() {
             Unit Preference
           </label>
           <div className="grid grid-cols-2 gap-3">
-            {[{ value: 'metric', label: 'Metric (kg)' }, { value: 'imperial', label: 'Imperial (lbs)' }].map((u) => (
+            {[
+              { value: "metric", label: "Metric (kg)" },
+              { value: "imperial", label: "Imperial (lbs)" },
+            ].map((u) => (
               <button
                 key={u.value}
                 type="button"
-                onClick={() => setFormData({ ...formData, unitPreference: u.value })}
+                onClick={() =>
+                  setFormData({ ...formData, unitPreference: u.value })
+                }
                 className={`py-3.5 px-4 rounded-xl font-semibold transition-all text-sm
-                  ${formData.unitPreference === u.value
-                    ? 'bg-[#6202AC] text-white'
-                    : 'bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300'
+                  ${
+                    formData.unitPreference === u.value
+                      ? "bg-[#6202AC] text-white"
+                      : "bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
               >
                 {u.label}
@@ -215,12 +267,13 @@ export default function PersonalBasicsPage() {
           type="submit"
           disabled={!isFormValid || isLoading}
           className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200
-            ${isFormValid && !isLoading
-              ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            ${
+              isFormValid && !isLoading
+                ? "bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}
         >
-          {isLoading ? 'Loading...' : 'Continue to Next Step'}
+          {isLoading ? "Loading..." : "Continue to Next Step"}
         </button>
       </form>
     </>

@@ -21,6 +21,7 @@ import {
 } from "@/api/preferences/route";
 
 const DAYS = ["M", "T", "W", "Th", "F", "Sa", "Su"];
+
 const DAY_MAP: Record<string, string> = {
   M: "Monday",
   T: "Tuesday",
@@ -30,10 +31,12 @@ const DAY_MAP: Record<string, string> = {
   Sa: "Saturday",
   Su: "Sunday",
 };
+
 const REVERSE_DAY_MAP: Record<string, string> = Object.entries(DAY_MAP).reduce(
   (acc, [short, full]) => ({ ...acc, [full]: short }),
   {},
 );
+
 const SECTION_TO_API_TYPE: Record<ScheduleSection, string> = {
   workout: "Workout",
   cardio: "Cardio",
@@ -95,24 +98,36 @@ function toInt(value: string): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function normalizeSectionTimes(times: Record<string, TimeSlot[]>): Record<string, TimeSlot[]> {
+function normalizeSectionTimes(
+  times: Record<string, TimeSlot[]>,
+): Record<string, TimeSlot[]> {
   return Object.fromEntries(
-    Object.entries(times).filter(([, slots]) => Array.isArray(slots) && slots.length > 0),
+    Object.entries(times).filter(
+      ([, slots]) => Array.isArray(slots) && slots.length > 0,
+    ),
   );
 }
 
 const fetchPreferences = async (): Promise<PreferencesQueryData> => {
-  const [prefData, targetData, cardioData, stepData, workoutDays, cardioDays, supplementalDays, conditioningDays] =
-    await Promise.all([
-      preferenceApi.getPreferencesData(),
-      preferenceApi.getWeeklyTarget(),
-      preferenceApi.getCardioGoal(),
-      preferenceApi.getAvgSteps(),
-      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.workout),
-      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.cardio),
-      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.supplemental),
-      preferenceApi.getActivityDays(SECTION_TO_API_TYPE.conditioning),
-    ]);
+  const [
+    prefData,
+    targetData,
+    cardioData,
+    stepData,
+    workoutDays,
+    cardioDays,
+    supplementalDays,
+    conditioningDays,
+  ] = await Promise.all([
+    preferenceApi.getPreferencesData(),
+    preferenceApi.getWeeklyTarget(),
+    preferenceApi.getCardioGoal(),
+    preferenceApi.getAvgSteps(),
+    preferenceApi.getActivityDays(SECTION_TO_API_TYPE.workout),
+    preferenceApi.getActivityDays(SECTION_TO_API_TYPE.cardio),
+    preferenceApi.getActivityDays(SECTION_TO_API_TYPE.supplemental),
+    preferenceApi.getActivityDays(SECTION_TO_API_TYPE.conditioning),
+  ]);
 
   console.log("workoutDays (raw):", workoutDays);
   console.log("cardioDays (raw):", cardioDays);
@@ -122,35 +137,35 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
   // This matches the old code's functionality but without the forEach error
   const toSectionTimes = (items: any) => {
     const sectionTimes: Record<string, TimeSlot[]> = {};
-    
+
     // Ensure items is an array (handle case when it's a single object)
-    const itemsArray = Array.isArray(items) ? items : (items ? [items] : []);
-    
+    const itemsArray = Array.isArray(items) ? items : items ? [items] : [];
+
     // Use for loop instead of forEach to avoid any potential issues
     for (let i = 0; i < itemsArray.length; i++) {
       const entry = itemsArray[i];
-      
+
       // Skip if no day
       if (!entry?.day) continue;
-      
+
       // Handle time which might be a string or array
       let timeSlots: TimeSlot[] = [];
-      
+
       if (Array.isArray(entry.time)) {
         // If it's an array, map each time
-        timeSlots = entry.time.map((item: string) => ({ 
-          startTime: formatFromApiTime(item) 
+        timeSlots = entry.time.map((item: string) => ({
+          startTime: formatFromApiTime(item),
         }));
-      } else if (typeof entry.time === 'string' && entry.time) {
+      } else if (typeof entry.time === "string" && entry.time) {
         // If it's a string, create a single slot (this is what the old code effectively did)
         timeSlots = [{ startTime: formatFromApiTime(entry.time) }];
       }
-      
+
       if (timeSlots.length > 0) {
         sectionTimes[entry.day] = timeSlots;
       }
     }
-    
+
     return normalizeSectionTimes(sectionTimes);
   };
 
@@ -159,10 +174,14 @@ const fetchPreferences = async (): Promise<PreferencesQueryData> => {
       resistance: String(targetData?.workout ?? prefData?.workout ?? 0),
       cardio: String(targetData?.cardio ?? prefData?.cardio ?? 0),
       supplemental: String(targetData?.supplement ?? prefData?.supplement ?? 0),
-      conditioning: String(targetData?.conditioning ?? prefData?.conditioning ?? 0),
+      conditioning: String(
+        targetData?.conditioning ?? prefData?.conditioning ?? 0,
+      ),
     },
     calories: String(cardioData?.calories_goal ?? prefData?.calories_goal ?? 0),
-    steps: String(stepData?.avarage_daily_steps ?? prefData?.avarage_daily_steps ?? 0),
+    steps: String(
+      stepData?.avarage_daily_steps ?? prefData?.avarage_daily_steps ?? 0,
+    ),
     schedule: {
       workout: toSectionTimes(workoutDays),
       cardio: toSectionTimes(cardioDays),
@@ -178,7 +197,11 @@ type DayGridProps = {
   sectionTimes?: Record<string, TimeSlot[]>;
 };
 
-function DayGrid({ selected, timesCount = {}, sectionTimes = {} }: DayGridProps) {
+function DayGrid({
+  selected,
+  timesCount = {},
+  sectionTimes = {},
+}: DayGridProps) {
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -199,12 +222,12 @@ function DayGrid({ selected, timesCount = {}, sectionTimes = {} }: DayGridProps)
           );
         })}
       </div>
-      
+
       {/* Show times in format: Mo:3:30 PM, Fr:10:00 AM */}
       {selected.length > 0 && (
         <div className="mt-2 text-[12px] font-medium text-[#6202AC]">
           {selected
-            .map(day => {
+            .map((day) => {
               const fullDay = DAY_MAP[day];
               const times = sectionTimes[fullDay] || [];
               if (times.length === 0) return null;
@@ -212,7 +235,7 @@ function DayGrid({ selected, timesCount = {}, sectionTimes = {} }: DayGridProps)
               return `${day}:${times[0].startTime}`;
             })
             .filter(Boolean)
-            .join(' • ')}
+            .join(" • ")}
         </div>
       )}
     </>
@@ -229,7 +252,7 @@ function ScheduleBlock({
   selected,
   onEditTimes,
   timesCount = {},
-  sectionTimes = {},  // Add this line
+  sectionTimes = {}, // Add this line
 }: {
   title: string;
   subtitle: string;
@@ -238,7 +261,7 @@ function ScheduleBlock({
   selected: string[];
   onEditTimes: () => void;
   timesCount?: Record<string, number>;
-  sectionTimes?: Record<string, TimeSlot[]>;  // Add this line
+  sectionTimes?: Record<string, TimeSlot[]>; // Add this line
 }) {
   return (
     <div>
@@ -256,7 +279,7 @@ function ScheduleBlock({
         <MemoizedDayGrid
           selected={selected}
           timesCount={timesCount}
-          sectionTimes={sectionTimes}  // Pass it down to DayGrid
+          sectionTimes={sectionTimes} // Pass it down to DayGrid
         />
       </div>
 
@@ -275,26 +298,31 @@ const MemoizedScheduleBlock = React.memo(ScheduleBlock);
 export default function PreferencesPage() {
   const router = useRouter();
 
-//   const { data: preferencesData, isLoading, isError, error } = useQuery({
-//   queryKey: ["preferences"],
-//   queryFn: fetchPreferences,
-//   staleTime: 1000 * 60 * 5, // cache for 5 minutes
-// })
+  //   const { data: preferencesData, isLoading, isError, error } = useQuery({
+  //   queryKey: ["preferences"],
+  //   queryFn: fetchPreferences,
+  //   staleTime: 1000 * 60 * 5, // cache for 5 minutes
+  // })
 
-const { data: preferencesData, isLoading, isError, error } = useQuery({
-  queryKey: ["preferences"],
-  queryFn: fetchPreferences,
-  staleTime: 1000 * 60 * 5,  // don't refetch for 5 minutes
-  gcTime: 1000 * 60 * 10,    // keep in cache for 10 minutes
-});
+  const {
+    data: preferencesData,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["preferences"],
+    queryFn: fetchPreferences,
+    staleTime: 1000 * 60 * 5, // don't refetch for 5 minutes
+    gcTime: 1000 * 60 * 10, // keep in cache for 10 minutes
+  });
   const [workoutDays, setWorkoutDays] = useState<string[]>([]);
   const [cardioDays, setCardioDays] = useState<string[]>([]);
   const [supplementalDays, setSupplementalDays] = useState<string[]>([]);
   const [conditioningDays, setConditioningDays] = useState<string[]>([]);
-
-  const [activeEditSection, setActiveEditSection] = useState<ScheduleSection | null>(
-    null,
-  );
+const [showStepsModal, setShowStepsModal] = useState(false);
+const [newSteps, setNewSteps] = useState("0");
+  const [activeEditSection, setActiveEditSection] =
+    useState<ScheduleSection | null>(null);
   const [scheduleData, setScheduleData] = useState<
     Record<string, Record<string, TimeSlot[]>>
   >({
@@ -337,16 +365,23 @@ const { data: preferencesData, isLoading, isError, error } = useQuery({
       setScheduleData(preferencesData.schedule);
       setWorkoutDays(getSelectedDays(preferencesData.schedule.workout));
       setCardioDays(getSelectedDays(preferencesData.schedule.cardio));
-      setSupplementalDays(getSelectedDays(preferencesData.schedule.supplemental));
-      setConditioningDays(getSelectedDays(preferencesData.schedule.conditioning));
+      setSupplementalDays(
+        getSelectedDays(preferencesData.schedule.supplemental),
+      );
+      setConditioningDays(
+        getSelectedDays(preferencesData.schedule.conditioning),
+      );
       setNewCardioGoal(preferencesData.calories);
-       console.log('Preferences data schedule:', preferencesData.schedule);
+      console.log("Preferences data schedule:", preferencesData.schedule);
     }
   }, [preferencesData]);
 
   useEffect(() => {
     if (isError) {
-      showToast("error", (error as Error)?.message || "Failed to load preferences.");
+      showToast(
+        "error",
+        (error as Error)?.message || "Failed to load preferences.",
+      );
     }
   }, [error, isError, showToast]);
 
@@ -379,10 +414,12 @@ const { data: preferencesData, isLoading, isError, error } = useQuery({
       showSuccess = false,
     ) => {
       const type = SECTION_TO_API_TYPE[section];
-      const activity: ActivityDay[] = Object.entries(times).map(([day, slots]) => ({
-        day,
-        time: slots.map((slot) => formatToApiTime(slot.startTime)),
-      }));
+      const activity: ActivityDay[] = Object.entries(times).map(
+        ([day, slots]) => ({
+          day,
+          time: slots.map((slot) => formatToApiTime(slot.startTime)),
+        }),
+      );
 
       await preferenceApi.addActivityDays(type, activity);
       if (showSuccess) {
@@ -392,49 +429,48 @@ const { data: preferencesData, isLoading, isError, error } = useQuery({
     [showToast],
   );
 
- // Add this constant near the top of your file (or inside the component)
-// Update this constant to use the correct 12-hour format with AM/PM
-const DEFAULT_TIMES: Record<ScheduleSection, string> = {
-  workout: "08:30 AM",
-  cardio: "07:30 PM",     // This is correct for 19:30
-  supplemental: "01:30 PM", // This is correct for 13:30
-  conditioning: "04:30 PM", // This is correct for 16:30
-};
 
-const handleSectionDayChange = useCallback(
-  async (section: ScheduleSection, nextSelectedDays: string[]) => {
-    const currentSection = scheduleData[section] || {};
-    const nextSectionTimes: Record<string, TimeSlot[]> = {};
+  const DEFAULT_TIMES: Record<ScheduleSection, string> = {
+    workout: "08:30 AM",
+    cardio: "07:30 PM", // This is correct for 19:30
+    supplemental: "01:30 PM", // This is correct for 13:30
+    conditioning: "04:30 PM", // This is correct for 16:30
+  };
 
-    nextSelectedDays.forEach((shortDay) => {
-      const fullDay = DAY_MAP[shortDay];
-      if (!fullDay) return;
+  const handleSectionDayChange = useCallback(
+    async (section: ScheduleSection, nextSelectedDays: string[]) => {
+      const currentSection = scheduleData[section] || {};
+      const nextSectionTimes: Record<string, TimeSlot[]> = {};
 
-      // Use existing times if they exist, otherwise use the section-specific default
-      nextSectionTimes[fullDay] = currentSection[fullDay]?.length
-        ? currentSection[fullDay]
-        : [{ startTime: DEFAULT_TIMES[section] }]; // This is already in "HH:MM AM/PM" format
-    });
+      nextSelectedDays.forEach((shortDay) => {
+        const fullDay = DAY_MAP[shortDay];
+        if (!fullDay) return;
 
-    const normalized = normalizeSectionTimes(nextSectionTimes);
-    setSelectedDaysForSection(section, nextSelectedDays);
-    setScheduleData((prev) => ({
-      ...prev,
-      [section]: normalized,
-    }));
+        // Use existing times if they exist, otherwise use the section-specific default
+        nextSectionTimes[fullDay] = currentSection[fullDay]?.length
+          ? currentSection[fullDay]
+          : [{ startTime: DEFAULT_TIMES[section] }]; // This is already in "HH:MM AM/PM" format
+      });
 
-    try {
-      await saveActivityDays(section, normalized, true);
-    } catch (saveError: unknown) {
-      showToast(
-        "error",
-        (saveError as Error)?.message ||
-          `Failed to update ${SECTION_TO_API_TYPE[section]} schedule.`,
-      );
-    }
-  },
-  [saveActivityDays, scheduleData, setSelectedDaysForSection, showToast],
-);
+      const normalized = normalizeSectionTimes(nextSectionTimes);
+      setSelectedDaysForSection(section, nextSelectedDays);
+      setScheduleData((prev) => ({
+        ...prev,
+        [section]: normalized,
+      }));
+
+      try {
+        await saveActivityDays(section, normalized, true);
+      } catch (saveError: unknown) {
+        showToast(
+          "error",
+          (saveError as Error)?.message ||
+            `Failed to update ${SECTION_TO_API_TYPE[section]} schedule.`,
+        );
+      }
+    },
+    [saveActivityDays, scheduleData, setSelectedDaysForSection, showToast],
+  );
 
   const handleSaveTimes = useCallback(
     (times: Record<string, TimeSlot[]>) => {
@@ -537,40 +573,68 @@ const handleSectionDayChange = useCallback(
     } catch (saveError: unknown) {
       showToast(
         "error",
-        (saveError as Error)?.message || "Failed to update average daily steps.",
+        (saveError as Error)?.message ||
+          "Failed to update average daily steps.",
       );
     } finally {
       setIsSavingSteps(false);
     }
   }, [isSavingSteps, showToast, steps]);
 
- const formatNumber = (value: string) => {
-  const n = Number(value || "0");
-  if (Number.isNaN(n)) return "0";
-  return n.toString();
-};
+  const handleSaveStepsFromModal = useCallback(async () => {
+  const parsed = Number.parseInt(newSteps, 10);
 
-if (activeEditSection) {
-  // Get the times for the active section
-  const sectionTimes = scheduleData[activeEditSection] || {};
-  
-  // Log to debug (remove after fixing)
-  console.log('Active section:', activeEditSection);
-  console.log('Section times:', sectionTimes);
-  
-  return (
-    <EditTimeModal
-      isOpen={true}
-      onClose={() => setActiveEditSection(null)}
-      onSave={handleSaveTimes}
-      title={activeEditSection === "workout" ? "Edit Workout Times" : 
-             activeEditSection === "cardio" ? "Edit Cardio Times" :
-             activeEditSection === "supplemental" ? "Edit Supplemental Times" :
-             "Edit Conditioning Times"}
-      initialTimes={sectionTimes}
-    />
-  );
-}
+  if (Number.isNaN(parsed)) {
+    showToast("error", "Please enter a valid step count.");
+    return;
+  }
+
+  try {
+    await preferenceApi.updateAvgSteps(parsed);
+    const value = String(parsed);
+
+    setSteps(value);
+    setNewSteps(value);
+    setShowStepsModal(false);
+
+    showToast("success", "Average daily steps updated successfully.");
+  } catch (err: any) {
+    showToast("error", err.message || "Failed to update steps.");
+  }
+}, [newSteps, showToast]);
+
+  const formatNumber = (value: string) => {
+    const n = Number(value || "0");
+    if (Number.isNaN(n)) return "0";
+    return n.toString();
+  };
+
+  if (activeEditSection) {
+    // Get the times for the active section
+    const sectionTimes = scheduleData[activeEditSection] || {};
+
+    // Log to debug (remove after fixing)
+    console.log("Active section:", activeEditSection);
+    console.log("Section times:", sectionTimes);
+
+    return (
+      <EditTimeModal
+        isOpen={true}
+        onClose={() => setActiveEditSection(null)}
+        onSave={handleSaveTimes}
+        title={
+          activeEditSection === "workout"
+            ? "Edit Workout Times"
+            : activeEditSection === "cardio"
+              ? "Edit Cardio Times"
+              : activeEditSection === "supplemental"
+                ? "Edit Supplemental Times"
+                : "Edit Conditioning Times"
+        }
+        initialTimes={sectionTimes}
+      />
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f4f6f9] p-4 md:p-8">
@@ -662,33 +726,35 @@ if (activeEditSection) {
                   placeholder="Calories"
                   className="mt-4 h-12 w-full cursor-pointer rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
                 />
-               
               </div>
 
-              <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
-                <h3 className="text-2xl font-bold text-[#1a1a1a]">
-                  Avg. Daily Steps
-                </h3>
-                <p className="mt-2 text-[14px] text-[#737d8a]">
-                  Set a daily step goal for most accurate cardio goal
-                </p>
-                <input
-                  value={steps}
-                  onChange={(e) => setSteps(e.target.value.replace(/[^\d]/g, ""))}
-                  onBlur={() => {
-                    void handleSaveAvgSteps();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.currentTarget.blur();
-                      void handleSaveAvgSteps();
-                    }
-                  }}
-                  placeholder="Steps"
-                  className="mt-4 h-12 w-full rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
-                />
-              
-              </div>
+             <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
+  <div className="flex items-center justify-between">
+    <h3 className="text-2xl font-bold text-[#1a1a1a]">
+      Avg. Daily Steps
+    </h3>
+
+    <button
+      onClick={() => {
+        setNewSteps(steps.trim() || "0");
+        setShowStepsModal(true);
+      }}
+      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eadcff] text-[#6b17c6]"
+    >
+      <Pencil size={14} />
+    </button>
+  </div>
+
+  <p className="mt-2 text-[14px] text-[#737d8a]">
+    Set a daily step goal for most accurate cardio goal
+  </p>
+
+  <input
+    value={steps}
+    readOnly
+    className="mt-4 h-12 w-full cursor-pointer rounded-xl border border-[#d1d7df] bg-[#f8fafc] px-4 text-[18px] text-[#1a1a1a] outline-none"
+  />
+</div>
             </div>
           </section>
 
@@ -696,71 +762,75 @@ if (activeEditSection) {
             <h2 className="text-2xl font-bold text-[#1a1a1a]">
               Set Training Days:
             </h2>
-      <div className="mt-5 grid gap-8 xl:grid-cols-2">
-  <MemoizedScheduleBlock
-    title="Preferred Workout Days:"
-    subtitle="Select all days of the week you usually train on (can select more than one)"
-    hint="*For Suggested: 5-6 Primary Workouts per week"
-    timeLabel={
-      getTimesCount("workout") &&
-      Object.values(getTimesCount("workout")).some((t) => t > 0)
-        ? "Times Selected"
-        : "Default Time 08:30 am"
-    }
-    selected={workoutDays}
-    onEditTimes={() => setActiveEditSection("workout")}
-    timesCount={getTimesCount("workout")}
-    sectionTimes={scheduleData.workout}  // Add this line
-  />
-  
-  <MemoizedScheduleBlock
-    title="Default Cardio Days:"
-    subtitle="Choose which days you like to use your cardio workouts"
-    hint="*For Suggested: 3-5 Cardio workouts per week"
-    timeLabel={
-      getTimesCount("cardio") &&
-      Object.values(getTimesCount("cardio")).some((t) => t > 0)
-        ? "Times Selected"
-        : "Default Time 07:30 pm"
-    }
-    selected={cardioDays}
-    onEditTimes={() => setActiveEditSection("cardio")}
-    timesCount={getTimesCount("cardio")}
-    sectionTimes={scheduleData.cardio}  // Add this line
-  />
-  
-  <MemoizedScheduleBlock
-    title="Preferred Supplemental Days:"
-    subtitle="Choose which days you like to use your supplemental workout days, based on your weekly target"
-    hint="*For Suggested: 2-4 Supplemental workouts, based on your weekly target"
-    timeLabel={
-      getTimesCount("supplemental") &&
-      Object.values(getTimesCount("supplemental")).some((t) => t > 0)
-        ? "Times Selected"
-        : "Default Time 01:30 pm"
-    }
-    selected={supplementalDays}
-    onEditTimes={() => setActiveEditSection("supplemental")}
-    timesCount={getTimesCount("supplemental")}
-    sectionTimes={scheduleData.supplemental}  // Add this line
-  />
-  
-  <MemoizedScheduleBlock
-    title="Preferred Conditioning Days:"
-    subtitle="Choose which days you like to use your conditioning workout days, based on your weekly target"
-    hint="*For Suggested: 2-3 Supplemental workouts (less cardio must...)"
-    timeLabel={
-      getTimesCount("conditioning") &&
-      Object.values(getTimesCount("conditioning")).some((t) => t > 0)
-        ? "Times Selected"
-        : "Default Time 04:30 pm"
-    }
-    selected={conditioningDays}
-    onEditTimes={() => setActiveEditSection("conditioning")}
-    timesCount={getTimesCount("conditioning")}
-    sectionTimes={scheduleData.conditioning}  // Add this line
-  />
-</div>
+            <div className="mt-5 grid gap-8 xl:grid-cols-2">
+              <MemoizedScheduleBlock
+                title="Preferred Workout Days:"
+                subtitle="Select all days of the week you usually train on (can select more than one)"
+                hint="*For Suggested: 5-6 Primary Workouts per week"
+                timeLabel={
+                  getTimesCount("workout") &&
+                  Object.values(getTimesCount("workout")).some((t) => t > 0)
+                    ? "Times Selected"
+                    : "Default Time 08:30 am"
+                }
+                selected={workoutDays}
+                onEditTimes={() => setActiveEditSection("workout")}
+                timesCount={getTimesCount("workout")}
+                sectionTimes={scheduleData.workout} // Add this line
+              />
+
+              <MemoizedScheduleBlock
+                title="Default Cardio Days:"
+                subtitle="Choose which days you like to use your cardio workouts"
+                hint="*For Suggested: 3-5 Cardio workouts per week"
+                timeLabel={
+                  getTimesCount("cardio") &&
+                  Object.values(getTimesCount("cardio")).some((t) => t > 0)
+                    ? "Times Selected"
+                    : "Default Time 07:30 pm"
+                }
+                selected={cardioDays}
+                onEditTimes={() => setActiveEditSection("cardio")}
+                timesCount={getTimesCount("cardio")}
+                sectionTimes={scheduleData.cardio} // Add this line
+              />
+
+              <MemoizedScheduleBlock
+                title="Preferred Supplemental Days:"
+                subtitle="Choose which days you like to use your supplemental workout days, based on your weekly target"
+                hint="*For Suggested: 2-4 Supplemental workouts, based on your weekly target"
+                timeLabel={
+                  getTimesCount("supplemental") &&
+                  Object.values(getTimesCount("supplemental")).some(
+                    (t) => t > 0,
+                  )
+                    ? "Times Selected"
+                    : "Default Time 01:30 pm"
+                }
+                selected={supplementalDays}
+                onEditTimes={() => setActiveEditSection("supplemental")}
+                timesCount={getTimesCount("supplemental")}
+                sectionTimes={scheduleData.supplemental} // Add this line
+              />
+
+              <MemoizedScheduleBlock
+                title="Preferred Conditioning Days:"
+                subtitle="Choose which days you like to use your conditioning workout days, based on your weekly target"
+                hint="*For Suggested: 2-3 Supplemental workouts (less cardio must...)"
+                timeLabel={
+                  getTimesCount("conditioning") &&
+                  Object.values(getTimesCount("conditioning")).some(
+                    (t) => t > 0,
+                  )
+                    ? "Times Selected"
+                    : "Default Time 04:30 pm"
+                }
+                selected={conditioningDays}
+                onEditTimes={() => setActiveEditSection("conditioning")}
+                timesCount={getTimesCount("conditioning")}
+                sectionTimes={scheduleData.conditioning} // Add this line
+              />
+            </div>
           </section>
 
           <section className="grid gap-5 xl:grid-cols-3">
@@ -851,196 +921,283 @@ if (activeEditSection) {
         ))}
       </div>
 
-{showWeeklyTargetModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-    <div className="w-full max-w-[620px] rounded-[28px] bg-white px-6 pb-6 pt-8 shadow-[0_25px_60px_rgba(0,0,0,0.30)] md:px-8">
-      
-      <div className="flex justify-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-[0_12px_20px_rgba(0,0,0,0.22)]">
-          <Crosshair size={34} />
-        </div>
-      </div>
+      {showWeeklyTargetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-[620px] rounded-[28px] bg-white px-6 pb-6 pt-8 shadow-[0_25px_60px_rgba(0,0,0,0.30)] md:px-8">
+            <div className="flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-[0_12px_20px_rgba(0,0,0,0.22)]">
+                <Crosshair size={34} />
+              </div>
+            </div>
 
-      <h3 className="mt-5 text-center text-2xl font-bold leading-none text-[#1a1a1a]">
-        Set Weekly Targets
-      </h3>
+            <h3 className="mt-5 text-center text-2xl font-bold leading-none text-[#1a1a1a]">
+              Set Weekly Targets
+            </h3>
 
-      <div className="mx-auto mt-3 h-[3px] w-full max-w-[160px] bg-[#6202AC]" />
+            <div className="mx-auto mt-3 h-[3px] w-full max-w-[160px] bg-[#6202AC]" />
 
-      <p className="mt-3 text-center text-sm text-[#666]">
-        Set weekly targets to stay on track to meet your goals
-      </p>
+            <p className="mt-3 text-center text-sm text-[#666]">
+              Set weekly targets to stay on track to meet your goals
+            </p>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Primary Workouts *
-          </span>
-          <input
-            value={weeklyTargets.resistance}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                resistance: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-          />
-        </label>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-semibold text-[#6202AC]">
+                  Primary Workouts *
+                </span>
+                <input
+                  value={weeklyTargets.resistance}
+                  onChange={(e) =>
+                    setWeeklyTargets((prev) => ({
+                      ...prev,
+                      resistance: e.target.value.replace(/[^\d]/g, ""),
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+                />
+              </label>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Cardio Workouts *
-          </span>
-          <input
-            value={weeklyTargets.cardio}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                cardio: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-          />
-          {/* Green message moved here */}
-          <div className="mt-2 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
-            *set based on your Cardio Schedule/Itinerary.
-            To make changes go to your{" "}
-            <a href="/cardio" className="font-semibold underline">
-              Cardio Schedule
-            </a>
+              <label className="block">
+                <span className="text-sm font-semibold text-[#6202AC]">
+                  Cardio Workouts *
+                </span>
+                <input
+                  value={weeklyTargets.cardio}
+                  onChange={(e) =>
+                    setWeeklyTargets((prev) => ({
+                      ...prev,
+                      cardio: e.target.value.replace(/[^\d]/g, ""),
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+                />
+                {/* Green message moved here */}
+                <div className="mt-2 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
+                  *set based on your Cardio Schedule/Itinerary. To make changes
+                  go to your{" "}
+                  <a href="/cardio" className="font-semibold underline">
+                    Cardio Schedule
+                  </a>
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-[#6202AC]">
+                  Supplemental Workouts *
+                </span>
+                <input
+                  value={weeklyTargets.supplemental}
+                  onChange={(e) =>
+                    setWeeklyTargets((prev) => ({
+                      ...prev,
+                      supplemental: e.target.value.replace(/[^\d]/g, ""),
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-[#6202AC]">
+                  Field Workouts *
+                </span>
+                <input
+                  value={weeklyTargets.conditioning}
+                  onChange={(e) =>
+                    setWeeklyTargets((prev) => ({
+                      ...prev,
+                      conditioning: e.target.value.replace(/[^\d]/g, ""),
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
+                />
+              </label>
+            </div>
+
+            <div className="mt-7 flex justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setShowWeeklyTargetModal(false)}
+                className="h-11 rounded-full border border-[#d1d7df] px-8 text-base font-semibold text-[#566071]"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSaveWeeklyTargets();
+                }}
+                className="h-11 min-w-[180px] rounded-full bg-[#6202AC] px-8 text-base font-semibold text-white shadow-md hover:bg-[#500ba6]"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
-        </label>
+        </div>
+      )}
 
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Supplemental Workouts *
-          </span>
-          <input
-            value={weeklyTargets.supplemental}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                supplemental: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Field Workouts *
-          </span>
-          <input
-            value={weeklyTargets.conditioning}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                conditioning: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg text-[#1a1a1a] outline-none"
-          />
-        </label>
-      </div>
-
-      <div className="mt-7 flex justify-center gap-4">
-        <button
-          type="button"
-          onClick={() => setShowWeeklyTargetModal(false)}
-          className="h-11 rounded-full border border-[#d1d7df] px-8 text-base font-semibold text-[#566071]"
+      {showCardioGoalModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setShowCardioGoalModal(false)}
         >
-          Cancel
-        </button>
+          <div
+            className="w-full max-w-[520px] rounded-[22px] bg-white px-6 md:px-7 pb-8 pt-8 shadow-[0_25px_70px_rgba(0,0,0,0.35)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-center text-lg font-semibold text-[#6b7384]">
+              You&apos;re adjusting:
+            </p>
 
-        <button
-          type="button"
-          onClick={() => {
-            void handleSaveWeeklyTargets();
-          }}
-          className="h-11 min-w-[180px] rounded-full bg-[#6202AC] px-8 text-base font-semibold text-white shadow-md hover:bg-[#500ba6]"
-        >
-          Save Changes
-        </button>
-      </div>
+            <h3 className="mt-2 text-center text-3xl font-bold leading-none text-[#1a1a1a]">
+              Cardio Goal
+            </h3>
 
-    </div>
-  </div>
-)}
+            <div className="mx-auto mt-4 h-[4px] w-[110px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
 
-   {showCardioGoalModal && (
+            <div className="mt-7 grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+              {/* Current */}
+              <div className="rounded-[18px] border border-[#cfd5dd] px-4 py-7 text-center">
+                <p className="text-3xl font-bold leading-none text-[#697286]">
+                  {formatNumber(calories)}
+                </p>
+                <p className="mt-2 text-base font-semibold text-[#1f2229]">
+                  Current
+                </p>
+                <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
+              </div>
+
+              {/* Arrow */}
+              <div className="flex items-center justify-center text-[#11a9d5]">
+                <ArrowRight
+                  size={28}
+                  strokeWidth={3}
+                  className="rotate-90 md:rotate-0"
+                />
+              </div>
+
+              {/* New */}
+              <div className="rounded-[18px] border-[3px] border-[#10aad3] px-4 py-7 text-center">
+                <input
+                  value={newCardioGoal}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, "") || "0";
+                    setNewCardioGoal(next);
+                  }}
+                  className="w-full bg-transparent text-center text-3xl font-bold leading-none text-[#6202AC] outline-none"
+                />
+                <p className="mt-2 text-base font-semibold text-[#1f2229]">
+                  New
+                </p>
+                <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
+              </div>
+            </div>
+
+            <p className="mx-auto mt-6 max-w-[360px] text-center text-sm text-[#6d7688]">
+              Set a weekly cardio calorie goal that aligns with your fitness
+              objectives
+            </p>
+
+            {/* Save Button */}
+            <div className="mx-auto mt-5 w-full max-w-[260px]">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSaveCardioGoal();
+                }}
+                className="h-[50px] w-full rounded-full bg-[#6202AC] px-6 text-[20px] font-semibold text-white shadow-md hover:bg-[#500ba6]"
+              >
+                Save Cardio Goal
+              </button>
+            </div>
+
+            {/* Suggestions */}
+            <p className="mt-7 text-center text-sm text-[#a3acb9]">
+              Quick suggestions:
+            </p>
+
+            <div className="mt-3 flex flex-wrap justify-center gap-3">
+              {["3000", "4000", "5000", "6000"].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    setNewCardioGoal(suggestion);
+                  }}
+                  className="rounded-[14px] border border-[#d1d7df] bg-white px-4 py-2 text-[14px] font-bold text-[#6202AC] hover:bg-gray-50"
+                >
+                  {formatNumber(suggestion)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStepsModal && (
   <div
     className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-    onClick={() => setShowCardioGoalModal(false)}
+    onClick={() => setShowStepsModal(false)}
   >
     <div
       className="w-full max-w-[520px] rounded-[22px] bg-white px-6 md:px-7 pb-8 pt-8 shadow-[0_25px_70px_rgba(0,0,0,0.35)]"
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-center text-lg font-semibold text-[#6b7384]">
-        You&apos;re adjusting:
+        You're adjusting:
       </p>
 
-      <h3 className="mt-2 text-center text-3xl font-bold leading-none text-[#1a1a1a]">
-        Cardio Goal
+      <h3 className="mt-2 text-center text-3xl font-bold text-[#1a1a1a]">
+        Daily Steps
       </h3>
 
       <div className="mx-auto mt-4 h-[4px] w-[110px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
 
       <div className="mt-7 grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-
         {/* Current */}
         <div className="rounded-[18px] border border-[#cfd5dd] px-4 py-7 text-center">
-          <p className="text-3xl font-bold leading-none text-[#697286]">
-            {formatNumber(calories)}
+          <p className="text-3xl font-bold text-[#697286]">
+            {steps}
           </p>
           <p className="mt-2 text-base font-semibold text-[#1f2229]">
             Current
           </p>
-          <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
+          <p className="mt-1 text-xs text-[#a3acb9]">steps/day</p>
         </div>
 
         {/* Arrow */}
         <div className="flex items-center justify-center text-[#11a9d5]">
-          <ArrowRight
-            size={28}
-            strokeWidth={3}
-            className="rotate-90 md:rotate-0"
-          />
+          <ArrowRight size={28} strokeWidth={3} />
         </div>
 
         {/* New */}
         <div className="rounded-[18px] border-[3px] border-[#10aad3] px-4 py-7 text-center">
           <input
-            value={newCardioGoal}
+            value={newSteps}
             onChange={(e) => {
-              const next = e.target.value.replace(/[^\d]/g, "") || "0";
-              setNewCardioGoal(next);
+              const val = e.target.value.replace(/[^\d]/g, "") || "0";
+              setNewSteps(val);
             }}
-            className="w-full bg-transparent text-center text-3xl font-bold leading-none text-[#6202AC] outline-none"
+            className="w-full bg-transparent text-center text-3xl font-bold text-[#6202AC] outline-none"
           />
-          <p className="mt-2 text-base font-semibold text-[#1f2229]">New</p>
-          <p className="mt-1 text-xs text-[#a3acb9]">kcal per week</p>
+          <p className="mt-2 text-base font-semibold text-[#1f2229]">
+            New
+          </p>
+          <p className="mt-1 text-xs text-[#a3acb9]">steps/day</p>
         </div>
-
       </div>
 
-      <p className="mx-auto mt-6 max-w-[360px] text-center text-sm text-[#6d7688]">
-        Set a weekly cardio calorie goal that aligns with your fitness
-        objectives
+      <p className="mt-6 text-center text-sm text-[#6d7688]">
+        Set a daily step goal to track your activity and fitness
       </p>
 
-      {/* Save Button */}
       <div className="mx-auto mt-5 w-full max-w-[260px]">
         <button
-          type="button"
-          onClick={() => {
-            void handleSaveCardioGoal();
-          }}
-          className="h-[50px] w-full rounded-full bg-[#6202AC] px-6 text-[20px] font-semibold text-white shadow-md hover:bg-[#500ba6]"
+          onClick={() => handleSaveStepsFromModal()}
+          className="h-[50px] w-full rounded-full bg-[#6202AC] text-[20px] font-semibold text-white hover:bg-[#500ba6]"
         >
-          Save Cardio Goal
+          Save Steps
         </button>
       </div>
 
@@ -1050,20 +1207,16 @@ if (activeEditSection) {
       </p>
 
       <div className="mt-3 flex flex-wrap justify-center gap-3">
-        {["3000", "4000", "5000", "6000"].map((suggestion) => (
+        {["5000", "8000", "10000", "12000"].map((val) => (
           <button
-            key={suggestion}
-            type="button"
-            onClick={() => {
-              setNewCardioGoal(suggestion);
-            }}
-            className="rounded-[14px] border border-[#d1d7df] bg-white px-4 py-2 text-[14px] font-bold text-[#6202AC] hover:bg-gray-50"
+            key={val}
+            onClick={() => setNewSteps(val)}
+            className="rounded-[14px] border border-[#d1d7df] px-4 py-2 text-[14px] font-bold text-[#6202AC] hover:bg-gray-50"
           >
-            {formatNumber(suggestion)}
+            {val}
           </button>
         ))}
       </div>
-
     </div>
   </div>
 )}

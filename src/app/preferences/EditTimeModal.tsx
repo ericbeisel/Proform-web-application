@@ -40,9 +40,10 @@ const EditTimeModal = ({
   title,
   initialTimes = {},
 }: EditTimeModalProps) => {
-  const [selectedTimes, setSelectedTimes] = useState<Record<string, TimeSlot[]>>(initialTimes);
+  const [selectedTimes, setSelectedTimes] =
+    useState<Record<string, TimeSlot[]>>(initialTimes);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
-const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     if (isOpen) {
       setSelectedTimes(initialTimes);
@@ -73,16 +74,17 @@ const [errors, setErrors] = useState<Record<string, string>>({});
       const sectionKey = title.toLowerCase().includes("workout")
         ? "workout"
         : title.toLowerCase().includes("cardio")
-        ? "cardio"
-        : title.toLowerCase().includes("supplemental")
-        ? "supplemental"
-        : title.toLowerCase().includes("conditioning")
-        ? "conditioning"
-        : null;
+          ? "cardio"
+          : title.toLowerCase().includes("supplemental")
+            ? "supplemental"
+            : title.toLowerCase().includes("conditioning")
+              ? "conditioning"
+              : null;
 
-      const defaultTime = sectionKey && DEFAULT_TIMES_BY_SECTION[sectionKey]
-        ? DEFAULT_TIMES_BY_SECTION[sectionKey]
-        : "09:00";
+      const defaultTime =
+        sectionKey && DEFAULT_TIMES_BY_SECTION[sectionKey]
+          ? DEFAULT_TIMES_BY_SECTION[sectionKey]
+          : "09:00";
 
       newTimes[day] = [...(newTimes[day] || []), { startTime: defaultTime }];
       setSelectedTimes(newTimes);
@@ -95,41 +97,41 @@ const [errors, setErrors] = useState<Record<string, string>>({});
     setSelectedTimes(newTimes);
   };
 
-const updateTimeSlot = (day: string, index: number, value: string) => {
-  const newTimes = { ...selectedTimes };
-  const daySlots = [...(newTimes[day] || [])];
+  const updateTimeSlot = (day: string, index: number, value: string) => {
+    const newTimes = { ...selectedTimes };
+    const daySlots = [...(newTimes[day] || [])];
 
-  // Normalize any time string to "HH:MM AM/PM" for comparison
-  const normalize = (timeStr: string) => {
-    if (timeStr.includes(" ")) return timeStr; // already "HH:MM AM/PM"
-    // convert "HH:mm" 24hr → "HH:MM AM/PM"
-    const [h, m] = timeStr.split(":");
-    let hour = parseInt(h, 10);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    hour = hour % 12 || 12;
-    return `${hour.toString().padStart(2, "0")}:${m} ${ampm}`;
+    // Normalize any time string to "HH:MM AM/PM" for comparison
+    const normalize = (timeStr: string) => {
+      if (timeStr.includes(" ")) return timeStr; // already "HH:MM AM/PM"
+      // convert "HH:mm" 24hr → "HH:MM AM/PM"
+      const [h, m] = timeStr.split(":");
+      let hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? "PM" : "AM";
+      hour = hour % 12 || 12;
+      return `${hour.toString().padStart(2, "0")}:${m} ${ampm}`;
+    };
+
+    const normalizedValue = normalize(value);
+
+    // Check duplicate against normalized existing slots
+    const isDuplicate = daySlots.some(
+      (slot, i) => normalize(slot.startTime) === normalizedValue && i !== index,
+    );
+
+    if (isDuplicate) {
+      setErrors((prev) => ({
+        ...prev,
+        [day]: `You have a duplicate time slot for ${day}`,
+      }));
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, [day]: "" }));
+    daySlots[index] = { startTime: normalizedValue }; // always store normalized
+    newTimes[day] = daySlots;
+    setSelectedTimes(newTimes);
   };
-
-  const normalizedValue = normalize(value);
-
-  // Check duplicate against normalized existing slots
-  const isDuplicate = daySlots.some(
-    (slot, i) => normalize(slot.startTime) === normalizedValue && i !== index
-  );
-
-  if (isDuplicate) {
-    setErrors((prev) => ({
-      ...prev,
-      [day]: `You have a duplicate time slot for ${day}`,
-    }));
-    return;
-  }
-
-  setErrors((prev) => ({ ...prev, [day]: "" }));
-  daySlots[index] = { startTime: normalizedValue }; // always store normalized
-  newTimes[day] = daySlots;
-  setSelectedTimes(newTimes);
-};
 
   const totalSelectedDays = Object.keys(selectedTimes).filter(
     (d) => selectedTimes[d]?.length > 0,
@@ -141,7 +143,7 @@ const updateTimeSlot = (day: string, index: number, value: string) => {
 
   const hasErrors = Object.values(errors).some((e) => e !== "");
 
-return (
+  return (
     <div className="flex flex-col min-h-screen bg-white w-full">
       {/* Header */}
       <div className="flex items-center border-b border-[#f0f0f0] px-4 py-5 md:px-8 lg:px-10 shrink-0">
@@ -162,7 +164,7 @@ return (
         <p className="text-[20px] font-bold text-black mb-2">
           {title.replace("Edit ", "").replace(" Times", "")}
         </p>
-        
+
         <p className="text-[14px] text-[#666] font-medium leading-relaxed mb-6">
           Select days and add up to 3 workout times per day. This helps us
           schedule your preferred workout times.
@@ -289,25 +291,25 @@ return (
             </div>
           </div>
         )}
-        
       </div>
 
       {/* Footer */}
- <button
-  onClick={() => {
-    if (hasErrors) return;
-    onSave(selectedTimes);
-    onClose();
-  }}
-  disabled={hasErrors}
-  className={`w-full md:max-w-md h-14 text-white rounded-full text-[18px] font-bold transition-colors mb-3 shadow-md mx-auto
-    ${hasErrors 
-      ? "bg-[#c084e8] cursor-not-allowed"   // greyed out
-      : "bg-[#6202AC] hover:bg-[#500ba6]"   // normal
+      <button
+        onClick={() => {
+          if (hasErrors) return;
+          onSave(selectedTimes);
+          onClose();
+        }}
+        disabled={hasErrors}
+        className={`w-full md:max-w-md h-14 text-white rounded-full text-[18px] font-bold transition-colors mb-3 shadow-md mx-auto
+    ${
+      hasErrors
+        ? "bg-[#c084e8] cursor-not-allowed" // greyed out
+        : "bg-[#6202AC] hover:bg-[#500ba6]" // normal
     }`}
->
-  Save Schedule
-</button>
+      >
+        Save Schedule
+      </button>
     </div>
   );
 };

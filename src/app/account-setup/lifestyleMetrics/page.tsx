@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, Footprints, Flame, Camera, Upload, BarChart3, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import SplitLayout from '@/components/account-setup/SplitLayout';
-import { useToast } from '@/components/ui/toast-provider';
+import React, { useState, useEffect } from "react";
+import {
+  ChevronUp,
+  ChevronDown,
+  Footprints,
+  Flame,
+  Camera,
+  Upload,
+  BarChart3,
+  Loader2,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import SplitLayout from "@/components/account-setup/SplitLayout";
+import { useToast } from "@/components/ui/toast-provider";
 
 function NumberInput({
   value,
@@ -25,8 +34,8 @@ function NumberInput({
 }) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value.trim();
-    if (inputValue === '') {
-      onChange('');
+    if (inputValue === "") {
+      onChange("");
       return;
     }
     // Only allow whole integers, no decimals
@@ -89,25 +98,25 @@ export default function LifestyleMetricsPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-  dailySteps: '',
-  cardioCalorieGoal: '',
-  progressPhoto: null as File | null,
-});
+    dailySteps: "",
+    cardioCalorieGoal: "",
+    progressPhoto: null as File | null,
+  });
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
+    const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
 
-  sessionStorage.setItem(
-    "accountSetup",
-    JSON.stringify({
-      ...existing,
-      dailySteps: formData.dailySteps || "0",
-      cardioCalorieGoal: formData.cardioCalorieGoal || "",
-    })
-  );
-}, [formData.dailySteps, formData.cardioCalorieGoal]);
+    sessionStorage.setItem(
+      "accountSetup",
+      JSON.stringify({
+        ...existing,
+        dailySteps: formData.dailySteps || "0",
+        cardioCalorieGoal: formData.cardioCalorieGoal || "",
+      }),
+    );
+  }, [formData.dailySteps, formData.cardioCalorieGoal]);
 
   // const [formData, setFormData] = useState<{
   //   dailySteps: string;
@@ -141,13 +150,16 @@ useEffect(() => {
 
   // Auto-save to sessionStorage when relevant fields change
   useEffect(() => {
-    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
+    const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
 
-    sessionStorage.setItem('accountSetup', JSON.stringify({
-      ...existing,
-      dailySteps: formData.dailySteps || '0',
-      cardioCalorieGoal: formData.cardioCalorieGoal || '',
-    }));
+    sessionStorage.setItem(
+      "accountSetup",
+      JSON.stringify({
+        ...existing,
+        dailySteps: formData.dailySteps || "0",
+        cardioCalorieGoal: formData.cardioCalorieGoal || "",
+      }),
+    );
   }, [formData.dailySteps, formData.cardioCalorieGoal]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,12 +167,12 @@ useEffect(() => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
+      toast.error("File size must be less than 10MB");
       return;
     }
 
-    if (!['image/jpeg', 'image/png', 'image/heic'].includes(file.type)) {
-      toast.error('Please upload a JPG, PNG or HEIC file');
+    if (!["image/jpeg", "image/png", "image/heic"].includes(file.type)) {
+      toast.error("Please upload a JPG, PNG or HEIC file");
       return;
     }
 
@@ -172,7 +184,7 @@ useEffect(() => {
     };
     reader.readAsDataURL(file);
 
-    toast.success('Progress photo selected');
+    toast.success("Progress photo selected");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,26 +198,33 @@ useEffect(() => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Final save (useEffect already keeps it in sync)
-    const existing = JSON.parse(sessionStorage.getItem('accountSetup') || '{}');
-    sessionStorage.setItem('accountSetup', JSON.stringify({
-      ...existing,
-      dailySteps: formData.dailySteps || '0',
-      cardioCalorieGoal: formData.cardioCalorieGoal || '',
-    }));
+    const existing = JSON.parse(sessionStorage.getItem("accountSetup") || "{}");
+    sessionStorage.setItem(
+      "accountSetup",
+      JSON.stringify({
+        ...existing,
+        dailySteps: formData.dailySteps || "0",
+        cardioCalorieGoal: formData.cardioCalorieGoal || "",
+      }),
+    );
 
     setIsSubmitting(false);
-    router.push('/account-setup/progressMetrics');
+    router.push("/account-setup/progressMetrics");
   };
 
   return (
     <>
       <SplitLayout
         leftContent={{
-          title: 'Lifestyle Metrics',
+          title: "Lifestyle Metrics",
           description: "Let's understand your activity level.",
         }}
         showProgress
-        progressData={{ currentStep: 4, totalSteps: 9, nextStep: 'Progress Metrics' }}
+        progressData={{
+          currentStep: 4,
+          totalSteps: 9,
+          nextStep: "Progress Metrics",
+        }}
       />
 
       <div className="mb-8 sm:mb-10">
@@ -213,7 +232,8 @@ useEffect(() => {
           Let's understand your activity level
         </h1>
         <p className="text-gray-500 text-sm sm:text-base">
-          Enter your average daily steps and weekly cardio goal to personalize your experience.
+          Enter your average daily steps and weekly cardio goal to personalize
+          your experience.
         </p>
       </div>
 
@@ -226,7 +246,9 @@ useEffect(() => {
             </label>
             <NumberInput
               value={formData.dailySteps}
-              onChange={(v) => setFormData((prev) => ({ ...prev, dailySteps: v }))}
+              onChange={(v) =>
+                setFormData((prev) => ({ ...prev, dailySteps: v }))
+              }
               placeholder="e.g. 10000"
               min={0}
               max={50000}
@@ -241,7 +263,9 @@ useEffect(() => {
             </label>
             <NumberInput
               value={formData.cardioCalorieGoal}
-              onChange={(v) => setFormData((prev) => ({ ...prev, cardioCalorieGoal: v }))}
+              onChange={(v) =>
+                setFormData((prev) => ({ ...prev, cardioCalorieGoal: v }))
+              }
               placeholder="e.g. 1500"
               min={0}
               max={10000}
@@ -253,7 +277,9 @@ useEffect(() => {
 
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
           <p className="text-xs text-orange-900">
-            <span className="font-semibold">🔥 For weight loss:</span> Aim for 1,500–2,500 calories per week through cardio to effectively burn fat and create a calorie deficit.
+            <span className="font-semibold">🔥 For weight loss:</span> Aim for
+            1,500–2,500 calories per week through cardio to effectively burn fat
+            and create a calorie deficit.
           </p>
         </div>
 
@@ -265,8 +291,9 @@ useEffect(() => {
             <span className="font-semibold inline-flex items-center gap-1.5">
               <BarChart3 size={14} />
               Progress Tracking:
-            </span>{' '}
-            Regular photos and metrics help you see real changes that the scale might not show.
+            </span>{" "}
+            Regular photos and metrics help you see real changes that the scale
+            might not show.
           </p>
         </div>
 
@@ -275,8 +302,8 @@ useEffect(() => {
           disabled={!formData.cardioCalorieGoal || isSubmitting}
           className={`w-full font-semibold text-base py-4 rounded-full transition-all duration-200 flex items-center justify-center gap-2 ${
             formData.cardioCalorieGoal && !isSubmitting
-              ? 'bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              ? "bg-[#6202AC] hover:bg-[#50018C] text-white shadow-md hover:shadow-lg"
+              : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >
           {isSubmitting ? (
@@ -285,7 +312,7 @@ useEffect(() => {
               Processing...
             </>
           ) : (
-            'Continue'
+            "Continue"
           )}
         </button>
       </form>
