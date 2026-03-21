@@ -1,4 +1,12 @@
+import { Suspense } from "react";
 import ProfilePage from "./components/ProfilePage";
+
+export const dynamic = "force-dynamic";
+
 export default function Page() {
-  return <ProfilePage />;
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProfilePage />
+    </Suspense>
+  );
 }
