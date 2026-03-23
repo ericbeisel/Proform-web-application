@@ -656,45 +656,51 @@ const [newSteps, setNewSteps] = useState("");
 
         <div className="space-y-5 px-4 py-6 md:px-10 md:py-8">
           <section className="grid gap-5 xl:grid-cols-2">
-            <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
-              <h2 className="text-2xl font-bold text-[#1a1a1a]">
-                Weekly Targets:
-              </h2>
-              <p className="mt-2 text-[14px] text-[#737d8a]">
-                Select an amount of each type when you open your app regularly
-              </p>
+        <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
+  {/* Header with ONE edit button */}
+  <div className="flex items-center justify-between">
+    <h2 className="text-2xl font-bold text-[#1a1a1a]">
+      Weekly Targets:
+    </h2>
 
-              <div className="mt-5 space-y-3">
-                {[
-                  ["A. Primary Workout", weeklyTargets.resistance],
-                  ["B. Cardio Workout", weeklyTargets.cardio],
-                  ["C. Supplemental Workout", weeklyTargets.supplemental],
-                  ["D. Conditioning Workout", weeklyTargets.conditioning],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between rounded-xl border border-[#EEEEEE] bg-[#F9F9F9] px-4 py-4"
-                  >
-                    <span className="text-[14px] font-medium text-[#333]">
-                      {label}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[16px] font-bold text-[#6202AC]">
-                        {value}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowWeeklyTargetModal(true)}
-                        className="rounded-full text-[#888] hover:bg-[#eceff4]"
-                        aria-label="Edit weekly targets"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+    <button
+      type="button"
+      onClick={() => setShowWeeklyTargetModal(true)}
+      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eadcff] text-[#6b17c6]"
+      aria-label="Edit weekly targets"
+    >
+      <Pencil size={14} />
+    </button>
+  </div>
+
+  <p className="mt-2 text-[14px] text-[#737d8a]">
+    Select an amount of each type when you open your app regularly
+  </p>
+
+  {/* List */}
+  <div className="mt-5 space-y-3">
+    {[
+      ["A. Primary Workout", weeklyTargets.resistance],
+      ["B. Cardio Workout", weeklyTargets.cardio],
+      ["C. Supplemental Workout", weeklyTargets.supplemental],
+      ["D. Conditioning Workout", weeklyTargets.conditioning],
+    ].map(([label, value]) => (
+      <div
+        key={label}
+        className="flex items-center justify-between rounded-xl border border-[#EEEEEE] bg-[#F9F9F9] px-4 py-4"
+      >
+        <span className="text-[14px] font-medium text-[#333]">
+          {label}
+        </span>
+
+        {/* Only value (NO edit button here) */}
+        <span className="text-[16px] font-bold text-[#6202AC]">
+          {value}
+        </span>
+      </div>
+    ))}
+  </div>
+</div>
 
             <div className="space-y-5">
               <div className="rounded-3xl border border-[#cfd5dd] bg-[#f8fafc] p-6">
@@ -704,10 +710,10 @@ const [newSteps, setNewSteps] = useState("");
                   </h3>
                   <button
                     type="button"
-                    onClick={() => {
-                      setNewCardioGoal(calories.trim() || "0");
-                      setShowCardioGoalModal(true);
-                    }}
+                 onClick={() => {
+  setNewCardioGoal("0");
+  setShowCardioGoalModal(true);
+}}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eadcff] text-[#6b17c6]"
                     aria-label="Edit cardio goal"
                   >
@@ -736,10 +742,10 @@ const [newSteps, setNewSteps] = useState("");
     </h3>
 
     <button
-      onClick={() => {
-        setNewSteps(steps.trim() || "0");
-        setShowStepsModal(true);
-      }}
+     onClick={() => {
+  setNewSteps("0");
+  setShowStepsModal(true);
+}}
       className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eadcff] text-[#6b17c6]"
     >
       <Pencil size={14} />

@@ -1,82 +1,45 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, Loader2, Check, Globe } from "lucide-react";
+import { 
+  Loader2, 
+  Eye, 
+  EyeOff,
+  ArrowLeft
+} from "lucide-react";
 import { profileApi, DetailedSocialMedia } from "@/api/profile/route";
-const SOCIAL_PLATFORMS = [
-  {
-    key: "discord",
-    label: "Discord",
-    placeholder: "Enter your Discord URL",
-    iconBg: "bg-indigo-500",
-  },
-  { key: "x", label: "X", placeholder: "Enter your X URL", iconBg: "bg-black" },
-  {
-    key: "youtube",
-    label: "YouTube",
-    placeholder: "Enter your YouTube URL",
-    iconBg: "bg-red-500",
-  },
-  {
-    key: "linkedin",
-    label: "LinkedIn",
-    placeholder: "Enter your LinkedIn URL",
-    iconBg: "bg-blue-600",
-  },
-  {
-    key: "github",
-    label: "GitHub",
-    placeholder: "Enter your GitHub URL",
-    iconBg: "bg-gray-900",
-  },
-  {
-    key: "instagram",
-    label: "Instagram",
-    placeholder: "Enter your Instagram URL",
-    iconBg: "bg-gradient-to-br from-pink-500 via-red-500 to-yellow-400",
-  },
-  {
-    key: "proform",
-    label: "Proform",
-    placeholder: "Enter your Proform URL",
-    iconBg: "bg-orange-500",
-  },
-];
 
 interface SocialLinksPageProps {
   userId: number | string;
   onClose?: () => void;
 }
 
-export default function SocialLinksPage({
-  userId,
-  onClose,
-}: SocialLinksPageProps) {
+export default function SocialLinksPage({ userId, onClose }: SocialLinksPageProps) {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [links, setLinks] = useState<
-    Record<string, { url: string; hide: string }>
-  >(
-    Object.fromEntries(
-      SOCIAL_PLATFORMS.map((p) => [p.key, { url: "", hide: "0" }]),
-    ),
-  );
+  
+  // Store the list from API to handle dynamic logos and platforms
+  const [platforms, setPlatforms] = useState<DetailedSocialMedia[]>([]);
+  const [links, setLinks] = useState<Record<string, { url: string; hide: string }>>({});
 
-  // 1. Fetch existing social media on mount
   useEffect(() => {
     const fetchSocials = async () => {
       try {
         setLoading(true);
-        const data: DetailedSocialMedia[] =
-          await profileApi.getSocialMedia(userId);
-console.log("Fetched social media:", data); 
-        const newLinks = { ...links };
+        const data: DetailedSocialMedia[] = await profileApi.getSocialMedia(userId);
+        console.log("Fetched socials:", data);
+        
+        // Map API data to our state
+        const initialLinks: Record<string, { url: string; hide: string }> = {};
         data.forEach((item) => {
-          if (newLinks[item.type]) {
-            newLinks[item.type] = { url: item.url, hide: item.hide };
-          }
+          initialLinks[item.type] = { 
+            url: item.url || "", 
+            hide: item.hide || "0" 
+          };
         });
-        setLinks(newLinks);
+
+        setPlatforms(data);
+        setLinks(initialLinks);
       } catch (err) {
         console.error("Failed to load socials", err);
       } finally {
@@ -86,7 +49,6 @@ console.log("Fetched social media:", data);
     fetchSocials();
   }, [userId]);
 
-  // 2. Save individual platform
   const handleSavePlatform = async (key: string) => {
     try {
       setSavingKey(key);
@@ -96,7 +58,6 @@ console.log("Fetched social media:", data);
         url: links[key].url,
         hide: links[key].hide,
       });
-      // Optional: Show a brief success toast/state
     } catch (err) {
       alert(`Failed to save ${key}`);
     } finally {
@@ -104,111 +65,119 @@ console.log("Fetched social media:", data);
     }
   };
 
-  const toggleHide = (key: string) => {
-    const newHide = links[key].hide === "0" ? "1" : "0";
-    setLinks((prev) => ({
+  const toggleHide = async (key: string) => {
+    const newHide = links[key].hide === "1" ? "0" : "1";
+    
+    setLinks(prev => ({
       ...prev,
-      [key]: { ...prev[key], hide: newHide },
+      [key]: { ...prev[key], hide: newHide }
     }));
-    // Auto-save toggle change
-    setTimeout(() => handleSavePlatform(key), 100);
+
+    try {
+      await profileApi.editSocialMedia({
+        user_id: userId,
+        type: key,
+        url: links[key].url,
+        hide: newHide,
+      });
+    } catch (err) {
+      console.error("Failed to sync visibility", err);
+    }
   };
 
-  if (loading)
-    return (
-      <div className="h-[400px] flex items-center justify-center">
-        <Loader2 className="animate-spin text-purple-600" size={32} />
-      </div>
-    );
+  if (loading) return (
+    <div className="h-[400px] flex items-center justify-center">
+      <Loader2 className="animate-spin text-[#6202AC]" size={32} />
+    </div>
+  );
 
   return (
-    <div
-      className="min-h-[400px] bg-white flex flex-col"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
-    >
+    <div className="min-h-screen bg-white flex flex-col font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100 bg-white rounded-t-2xl">
-        <div className="flex items-center gap-3">
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              <ChevronLeft size={22} />
-            </button>
-          )}
+      <div className="flex items-center justify-between px-6 py-6 border-b border-gray-100 bg-white sticky top-0 z-20">
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+            <ArrowLeft size={20} className="text-gray-600" />
+          </button>
           <div>
-            <h1 className="text-[20px] font-extrabold text-gray-900">
-              Social Links
-            </h1>
-            <p className="text-[12px] text-gray-400">
-              Manage your connected profiles
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">Social Links</h1>
+            <p className="text-sm text-gray-500">Add your social media profiles to share with followers</p>
           </div>
         </div>
-        {/* <button
+        <button 
           onClick={onClose}
-          className="bg-purple-700 hover:bg-purple-800 text-white text-[13px] font-bold px-6 py-2 rounded-xl transition-colors "
+          className="bg-[#6202AC] hover:bg-[#4d018a] text-white px-8 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all"
         >
           Done
-        </button> */}
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="p-5 sm:p-6 overflow-y-auto max-h-[70vh]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {SOCIAL_PLATFORMS.map((platform) => (
-            <div
-              key={platform.key}
-              className="bg-gray-50 rounded-2xl border border-gray-100 p-4 transition-all hover:border-purple-100"
+      {/* Grid Content */}
+      <div className="p-6 max-w-7xl mx-auto w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {platforms.map((platform) => (
+            <div 
+              key={platform.type} 
+              className="bg-[#F9FAFB] rounded-[2rem] border border-gray-100 p-8 flex flex-col gap-5 shadow-sm hover:shadow-md transition-shadow"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full ${platform.iconBg} flex items-center justify-center text-white`}
-                  >
-                    <Globe size={16} /> {/* Replace with your SVGs */}
-                  </div>
-                  <p className="text-[13px] font-bold text-gray-900">
-                    {platform.label}
-                  </p>
+              {/* Card Header with Dynamic Logo */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm overflow-hidden border border-gray-100">
+                  {platform.logo ? (
+                    <img 
+                      src={platform.logo} 
+                      alt={platform.type} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="bg-gray-200 w-full h-full flex items-center justify-center font-bold text-gray-400 uppercase text-[10px]">
+                      {platform.type.substring(0, 2)}
+                    </div>
+                  )}
                 </div>
-
-                {links[platform.key].url && (
-                  <button
-                    onClick={() => handleSavePlatform(platform.key)}
-                    disabled={savingKey === platform.key}
-                    className="text-purple-600 text-[11px] font-bold hover:underline"
-                  >
-                    {savingKey === platform.key ? "Saving..." : "Save"}
-                  </button>
-                )}
+                <span className="text-base font-bold text-gray-900 capitalize">
+                  {platform.type === "247Sporys" ? "247 Sports" : platform.type}
+                </span>
               </div>
 
-              <input
-                type="url"
-                value={links[platform.key].url}
-                onChange={(e) =>
-                  setLinks((prev) => ({
+              {/* Input Area */}
+              <div className="space-y-4">
+                <input
+                  type="url"
+                  value={links[platform.type]?.url || ""}
+                  onChange={(e) => setLinks(prev => ({
                     ...prev,
-                    [platform.key]: {
-                      ...prev[platform.key],
-                      url: e.target.value,
-                    },
-                  }))
-                }
-                placeholder={platform.placeholder}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-[12px] focus:ring-2 focus:ring-purple-100 focus:border-purple-300 outline-none transition"
-              />
+                    [platform.type]: { ...prev[platform.type], url: e.target.value }
+                  }))}
+                  placeholder={`Enter your ${platform.type} URL`}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-5 py-4 text-sm focus:ring-2 focus:ring-[#6202AC]/10 focus:border-[#6202AC] outline-none transition-all"
+                />
 
-              <button
-                onClick={() => toggleHide(platform.key)}
-                className={`mt-2 text-[10px] font-bold transition-colors ${links[platform.key].hide === "1" ? "text-red-500" : "text-gray-400 hover:text-gray-600"}`}
-              >
-                {links[platform.key].hide === "1"
-                  ? "Hidden from profile"
-                  : "Visible on profile"}
-              </button>
+                {/* Hide Toggle */}
+                <button
+                  onClick={() => toggleHide(platform.type)}
+                  className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors ml-1"
+                >
+                  {links[platform.type]?.hide === "1" ? (
+                    <><EyeOff size={16} /> Hide from profile</>
+                  ) : (
+                    <><Eye size={16} /> Hide from profile</>
+                  )}
+                </button>
+
+                {/* Save Button */}
+                <button
+                  onClick={() => handleSavePlatform(platform.type)}
+                  disabled={savingKey === platform.type}
+                  className="w-full bg-[#6202AC] hover:bg-[#4d018a] text-white font-bold py-4 rounded-2xl transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+                >
+                  {savingKey === platform.type ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
             </div>
           ))}
         </div>
