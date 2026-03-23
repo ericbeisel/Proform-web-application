@@ -168,13 +168,13 @@ export default function ProfilePage() {
       label: "Strength Score",
       valueCls: "text-purple-500",
     },
-    {
-      icon: <Flame size={20} className="text-orange-400" />,
-      bg: "bg-orange-50",
-      value: profile.optimalWellnessScore,
-      label: "Wellness",
-      valueCls: "text-orange-500",
-    },
+    // {
+    //   icon: <Flame size={20} className="text-orange-400" />,
+    //   bg: "bg-orange-50",
+    //   value: profile.optimalWellnessScore,
+    //   label: "Wellness",
+    //   valueCls: "text-orange-500",
+    // },
   ];
 
   const HIGHLIGHTS = [
@@ -279,17 +279,7 @@ export default function ProfilePage() {
         <p className="text-[13px] text-gray-400 font-medium mb-1">
           @{profile.username}
         </p>
-        <div className="flex flex-wrap items-center gap-3 text-[12px] text-gray-400 mb-2">
-          <span className="flex items-center gap-1">
-            <MapPin size={12} /> San Francisco, CA
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar size={12} /> Joined March 2026
-          </span>
-        </div>
-        <p className="text-[13px] text-gray-600 leading-relaxed">
-          Fitness enthusiast 💪 | Training hard | Goal: {profile.optimalWellnessScore}% Wellness
-        </p>
+       
       </div>
 
       {/* Follow button */}
