@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createTeam } from '@/api/create-team/route';
 
-export default function CreateTeamPage() {
+function CreateTeamContent() {
   const [teamName, setTeamName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const source = searchParams.get('source');
 
   const handleSubmit = async () => {
     if (!teamName.trim()) {
@@ -21,12 +23,13 @@ export default function CreateTeamPage() {
 
     try {
       const response = await createTeam(teamName);
-      
       console.log('Team created successfully:', response);
       
-      // Success - redirect to team dashboard
-      // You can pass team data if needed
-      router.push("/team-dashboard");
+      if (source === 'checklist') {
+        router.push("/dashboard"); 
+      } else {
+        router.push("/team-dashboard");
+      }
       
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -143,5 +146,17 @@ export default function CreateTeamPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function CreateTeamPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+      </div>
+    }>
+      <CreateTeamContent />
+    </Suspense>
   );
 }

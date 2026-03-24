@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getAuthToken } from '@/lib/auth/session';
+import { invalidateDashboardCache } from '../dashboard/route';
 
 // ─── Helper: always send whole integers to the API ────────────────────────────
 function toInt(val: string | number | undefined | null): string {
@@ -380,7 +381,7 @@ export const submitAccountSetup = async (input: AccountSetupInput) => {
     );
 
     console.log('[submitAccountSetup] SUCCESS response:', JSON.stringify(data, null, 2));
-    
+     invalidateDashboardCache();
     // After successful account setup, clear sessionStorage
     sessionStorage.removeItem('accountSetup');
     

@@ -643,7 +643,8 @@ const [newSteps, setNewSteps] = useState("");
         <header className="flex items-center gap-4 border-b border-[#d4d9e0] px-4 py-6 md:px-10">
           <button
             type="button"
-            onClick={() => router.push("/account")}
+            // onClick={() => router.push("/account")}
+            onClick={() => router.back()}
             className="flex h-12 w-12 items-center justify-center rounded-full bg-[#eceff3] text-[#1e2024]"
             aria-label="Back to account"
           >
@@ -928,128 +929,59 @@ const [newSteps, setNewSteps] = useState("");
         ))}
       </div>
 
-     {showWeeklyTargetModal && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-    onClick={() => setShowWeeklyTargetModal(false)}
-  >
-    <div
-      className="relative w-full max-w-[620px] rounded-[28px] bg-white px-6 pb-6 pt-8 shadow-[0_25px_60px_rgba(0,0,0,0.30)] md:px-8"
+{showWeeklyTargetModal && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-4" onClick={() => setShowWeeklyTargetModal(false)}>
+    <div 
+      className="relative w-full max-w-[620px] max-h-[92vh] overflow-y-auto rounded-[24px] sm:rounded-[28px] bg-white px-5 pb-6 pt-10 shadow-2xl md:px-8"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* ❌ Close Button */}
+      {/* ❌ Close Button - High Z-Index & Sticky placement */}
       <button
         onClick={() => setShowWeeklyTargetModal(false)}
-        className="absolute right-4 top-4 rounded-full bg-gray-100 p-2 text-[#1a1a1a] shadow hover:bg-gray-200"
+        className="absolute right-4 top-4 z-20 rounded-full bg-gray-100 p-2 text-[#1a1a1a] shadow-sm hover:bg-gray-200 transition-colors"
       >
-        <X size={22} />
+        <X size={20} />
       </button>
 
       <div className="flex justify-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-[0_12px_20px_rgba(0,0,0,0.22)]">
-          <Crosshair size={34} />
+        <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-[#6b17c6] text-white shadow-lg">
+          <Crosshair size={30} className="sm:size-[34px]" />
         </div>
       </div>
 
-      <h3 className="mt-5 text-center text-2xl font-bold leading-none text-[#1a1a1a]">
-        Set Weekly Targets
-      </h3>
+      <h3 className="mt-5 text-center text-xl sm:text-2xl font-bold text-[#1a1a1a]">Set Weekly Targets</h3>
+      <div className="mx-auto mt-2 h-[3px] w-32 bg-[#6202AC]" />
+      <p className="mt-3 text-center text-xs sm:text-sm text-[#666] px-2">Set weekly targets to stay on track to meet your goals</p>
 
-      <div className="mx-auto mt-3 h-[3px] w-full max-w-[160px] bg-[#6202AC]" />
-
-      <p className="mt-3 text-center text-sm text-[#666]">
-        Set weekly targets to stay on track to meet your goals
-      </p>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {/* Primary */}
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Primary Workouts *
-          </span>
-          <input
-            value={weeklyTargets.resistance}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                resistance: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg outline-none"
-          />
-        </label>
-
-        {/* Cardio */}
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Cardio Workouts *
-          </span>
-          <input
-            value={weeklyTargets.cardio}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                cardio: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg outline-none"
-          />
-
-          <div className="mt-2 rounded-xl border-l-4 border-[#11b988] bg-[#e8f8f2] px-4 py-3 text-sm text-[#14916f]">
-            *set based on your Cardio Schedule. Go to{" "}
-            <a href="/cardio" className="font-semibold underline">
-              Cardio Schedule
-            </a>
-          </div>
-        </label>
-
-        {/* Supplemental */}
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Supplemental Workouts *
-          </span>
-          <input
-            value={weeklyTargets.supplemental}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                supplemental: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg outline-none"
-          />
-        </label>
-
-        {/* Field */}
-        <label className="block">
-          <span className="text-sm font-semibold text-[#6202AC]">
-            Field Workouts *
-          </span>
-          <input
-            value={weeklyTargets.conditioning}
-            onChange={(e) =>
-              setWeeklyTargets((prev) => ({
-                ...prev,
-                conditioning: e.target.value.replace(/[^\d]/g, ""),
-              }))
-            }
-            className="mt-2 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg outline-none"
-          />
-        </label>
+      <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2">
+        {[
+          { label: "Primary Workouts", key: "resistance" },
+          { label: "Cardio Workouts", key: "cardio" },
+          { label: "Supplemental", key: "supplemental" },
+          { label: "Field Workouts", key: "conditioning" }
+        ].map((item) => (
+          <label key={item.key} className="block">
+            <span className="text-xs font-bold text-[#6202AC] uppercase tracking-wide">{item.label} *</span>
+            <input
+              type="number"
+              value={weeklyTargets[item.key as keyof typeof weeklyTargets]}
+              onChange={(e) => setWeeklyTargets(prev => ({ ...prev, [item.key]: e.target.value.replace(/\D/g, "") }))}
+              className="mt-1.5 h-11 w-full rounded-xl border border-[#d1d7df] px-4 text-lg outline-none focus:ring-2 focus:ring-purple-200 focus:border-[#6202AC] transition-all"
+            />
+            {item.key === "cardio" && (
+              <div className="mt-2 rounded-lg border-l-4 border-[#11b988] bg-[#e8f8f2] p-2 text-[11px] text-[#14916f]">
+                Based on <a href="/cardio" className="font-bold underline">Cardio Schedule</a>
+              </div>
+            )}
+          </label>
+        ))}
       </div>
 
-      <div className="mt-7 flex justify-center gap-4">
-        <button
-          onClick={() => setShowWeeklyTargetModal(false)}
-          className="h-11 rounded-full border px-8 font-semibold text-[#566071]"
-        >
+      <div className="mt-8 flex flex-col-reverse sm:flex-row justify-center gap-3">
+        <button onClick={() => setShowWeeklyTargetModal(false)} className="h-11 w-full sm:w-auto rounded-full border border-gray-200 px-8 font-semibold text-[#566071]">
           Cancel
         </button>
-
-        <button
-          onClick={() => void handleSaveWeeklyTargets()}
-          className="h-11 min-w-[180px] rounded-full bg-[#6202AC] px-8 font-semibold text-white hover:bg-[#500ba6]"
-        >
+        <button onClick={() => void handleSaveWeeklyTargets()} className="h-11 w-full sm:min-w-[180px] rounded-full bg-[#6202AC] px-8 font-semibold text-white shadow-md hover:bg-[#500ba6]">
           Save Changes
         </button>
       </div>
@@ -1057,185 +989,117 @@ const [newSteps, setNewSteps] = useState("");
   </div>
 )}
 
-  {showCardioGoalModal && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-    onClick={() => setShowCardioGoalModal(false)}
-  >
-    <div
-      className="relative w-full max-w-[520px] rounded-[22px] bg-white px-6 md:px-7 pb-8 pt-8 shadow-[0_25px_70px_rgba(0,0,0,0.35)]"
+{showCardioGoalModal && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-4" onClick={() => setShowCardioGoalModal(false)}>
+    <div 
+      className="relative w-full max-w-[520px] max-h-[92vh] overflow-y-auto rounded-[22px] bg-white px-5 sm:px-8 pb-8 pt-12 shadow-2xl"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* ❌ Close Button */}
-      <button
-        onClick={() => setShowCardioGoalModal(false)}
-        className="absolute right-4 top-4 rounded-full bg-gray-100 p-2 text-[#1a1a1a] shadow hover:bg-gray-200"
-      >
-        <X size={22} />
+      <button onClick={() => setShowCardioGoalModal(false)} className="absolute right-4 top-4 z-20 rounded-full bg-gray-100 p-2 text-[#1a1a1a]">
+        <X size={20} />
       </button>
 
-      <p className="text-center text-lg font-semibold text-[#6b7384]">
-        You're adjusting:
-      </p>
+      <p className="text-center text-sm font-semibold text-[#6b7384] uppercase tracking-widest">Adjusting</p>
+      <h3 className="mt-1 text-center text-2xl sm:text-3xl font-bold text-[#1a1a1a]">Cardio Goal</h3>
+      <div className="mx-auto mt-3 h-[4px] w-20 bg-gradient-to-r from-[#12a9db] to-[#6202AC] rounded-full" />
 
-      <h3 className="mt-2 text-center text-3xl font-bold text-[#1a1a1a]">
-        Cardio Goal
-      </h3>
-
-      <div className="mx-auto mt-4 h-[4px] w-[110px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
-
-      <div className="mt-7 grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-        {/* Current */}
-        <div className="rounded-[18px] border px-4 py-7 text-center">
-          <p className="text-3xl font-bold text-[#697286]">
-            {formatNumber(calories)}
-          </p>
-          <p className="mt-2 font-semibold">Current</p>
-          <p className="text-xs text-[#a3acb9]">kcal per week</p>
+      <div className="mt-8 grid items-center gap-3 grid-cols-1 md:grid-cols-[1fr_auto_1fr]">
+        <div className="rounded-[18px] border bg-gray-50/50 px-3 py-5 sm:py-7 text-center">
+          <p className="text-2xl sm:text-3xl font-bold text-[#697286]">{formatNumber(calories)}</p>
+          <p className="mt-1 text-sm font-semibold text-gray-500">Current</p>
+          <p className="text-[10px] text-[#a3acb9]">kcal / week</p>
         </div>
 
-        {/* Arrow */}
-        <div className="flex justify-center text-[#11a9d5]">
-          <ArrowRight size={28} strokeWidth={3} />
+        <div className="flex justify-center rotate-90 md:rotate-0 text-[#11a9d5]">
+          <ArrowRight size={24} strokeWidth={3} />
         </div>
 
-        {/* New */}
-        <div className="rounded-[18px] border-[3px] border-[#10aad3] px-4 py-7 text-center">
+        <div className="rounded-[18px] border-[3px] border-[#10aad3] bg-white px-3 py-5 sm:py-7 text-center shadow-sm">
           <input
+            type="number"
             value={newCardioGoal}
-            onChange={(e) =>
-              setNewCardioGoal(e.target.value.replace(/[^\d]/g, ""))
-            }
-            placeholder="Enter value"
-            className="w-full bg-transparent text-center text-3xl font-bold text-[#6202AC] outline-none"
+            onChange={(e) => setNewCardioGoal(e.target.value.replace(/\D/g, ""))}
+            placeholder="0"
+            className="w-full bg-transparent text-center text-2xl sm:text-3xl font-bold text-[#6202AC] outline-none"
           />
-          <p className="mt-2 font-semibold">New</p>
-          <p className="text-xs text-[#a3acb9]">kcal per week</p>
+          <p className="mt-1 text-sm font-semibold text-[#10aad3]">New Goal</p>
+          <p className="text-[10px] text-[#a3acb9]">kcal / week</p>
         </div>
       </div>
 
-      <p className="mt-6 text-center text-sm text-[#6d7688]">
-        Set a weekly cardio calorie goal aligned with your fitness objectives
-      </p>
-
-      <div className="mx-auto mt-5 w-full max-w-[260px]">
-        <button
-          onClick={() => void handleSaveCardioGoal()}
-          className="h-[50px] w-full rounded-full bg-[#6202AC] text-lg font-semibold text-white hover:bg-[#500ba6]"
-        >
+      <div className="mt-8 space-y-4">
+        <button onClick={() => void handleSaveCardioGoal()} className="h-[52px] w-full rounded-full bg-[#6202AC] text-lg font-semibold text-white shadow-lg shadow-purple-100 hover:bg-[#500ba6]">
           Save Cardio Goal
         </button>
-      </div>
 
-      <p className="mt-7 text-center text-sm text-[#a3acb9]">
-        Quick suggestions:
-      </p>
-
-      <div className="mt-3 flex flex-wrap justify-center gap-3">
-        {["3000", "4000", "5000", "6000"].map((val) => (
-          <button
-            key={val}
-            onClick={() => setNewCardioGoal(val)}
-            className="rounded-[14px] border px-4 py-2 font-bold text-[#6202AC] hover:bg-gray-50"
-          >
-            {formatNumber(val)}
-          </button>
-        ))}
+        <div className="pt-2">
+          <p className="text-center text-xs font-medium text-[#a3acb9] mb-3">Quick suggestions:</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["3000", "4000", "5000", "6000"].map((val) => (
+              <button key={val} onClick={() => setNewCardioGoal(val)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-[#6202AC] hover:bg-purple-50 hover:border-purple-200 transition-all">
+                {formatNumber(val)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   </div>
 )}
 
-   {showStepsModal && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-    onClick={() => setShowStepsModal(false)}
-  >
-    <div
-      className="relative w-full max-w-[520px] rounded-[22px] bg-white px-6 md:px-7 pb-8 pt-8 shadow-[0_25px_70px_rgba(0,0,0,0.35)]"
+ {showStepsModal && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-4" onClick={() => setShowStepsModal(false)}>
+    <div 
+      className="relative w-full max-w-[520px] max-h-[92vh] overflow-y-auto rounded-[22px] bg-white px-5 sm:px-8 pb-8 pt-12 shadow-2xl"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* ❌ Close Button */}
-      <button
-        onClick={() => setShowStepsModal(false)}
-        className="absolute right-4 top-4 rounded-full bg-gray-100 p-2 text-[#1a1a1a] shadow hover:bg-gray-200"
-      >
-        <X size={22} />
+      <button onClick={() => setShowStepsModal(false)} className="absolute right-4 top-4 z-20 rounded-full bg-gray-100 p-2 text-[#1a1a1a]">
+        <X size={20} />
       </button>
 
-      <p className="text-center text-lg font-semibold text-[#6b7384]">
-        You're adjusting:
-      </p>
+      <p className="text-center text-sm font-semibold text-[#6b7384] uppercase tracking-widest">Adjusting</p>
+      <h3 className="mt-1 text-center text-2xl sm:text-3xl font-bold text-[#1a1a1a]">Daily Steps</h3>
+      <div className="mx-auto mt-3 h-[4px] w-20 bg-gradient-to-r from-[#12a9db] to-[#6202AC] rounded-full" />
 
-      <h3 className="mt-2 text-center text-3xl font-bold text-[#1a1a1a]">
-        Daily Steps
-      </h3>
-
-      <div className="mx-auto mt-4 h-[4px] w-[110px] bg-gradient-to-r from-[#12a9db] to-[#6202AC]" />
-
-      <div className="mt-7 grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-        {/* Current */}
-        <div className="rounded-[18px] border border-[#cfd5dd] px-4 py-7 text-center">
-          <p className="text-3xl font-bold text-[#697286]">
-            {steps}
-          </p>
-          <p className="mt-2 text-base font-semibold text-[#1f2229]">
-            Current
-          </p>
-          <p className="mt-1 text-xs text-[#a3acb9]">steps/day</p>
+      <div className="mt-8 grid items-center gap-3 grid-cols-1 md:grid-cols-[1fr_auto_1fr]">
+        <div className="rounded-[18px] border bg-gray-50/50 px-3 py-5 sm:py-7 text-center">
+          <p className="text-2xl sm:text-3xl font-bold text-[#697286]">{steps}</p>
+          <p className="mt-1 text-sm font-semibold text-gray-500">Current</p>
+          <p className="text-[10px] text-[#a3acb9]">steps / day</p>
         </div>
 
-        {/* Arrow */}
-        <div className="flex items-center justify-center text-[#11a9d5]">
-          <ArrowRight size={28} strokeWidth={3} />
+        <div className="flex justify-center rotate-90 md:rotate-0 text-[#11a9d5]">
+          <ArrowRight size={24} strokeWidth={3} />
         </div>
 
-        {/* New */}
-        <div className="rounded-[18px] border-[3px] border-[#10aad3] px-4 py-7 text-center">
+        <div className="rounded-[18px] border-[3px] border-[#10aad3] bg-white px-3 py-5 sm:py-7 text-center shadow-sm">
           <input
+            type="number"
             value={newSteps}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^\d]/g, "");
-              setNewSteps(val);
-            }}
-            placeholder="Enter steps"
-            className="w-full bg-transparent text-center text-3xl font-bold text-[#6202AC] outline-none"
+            onChange={(e) => setNewSteps(e.target.value.replace(/\D/g, ""))}
+            placeholder="0"
+            className="w-full bg-transparent text-center text-2xl sm:text-3xl font-bold text-[#6202AC] outline-none"
           />
-          <p className="mt-2 text-base font-semibold text-[#1f2229]">
-            New
-          </p>
-          <p className="mt-1 text-xs text-[#a3acb9]">steps/day</p>
+          <p className="mt-1 text-sm font-semibold text-[#10aad3]">New Goal</p>
+          <p className="text-[10px] text-[#a3acb9]">steps / day</p>
         </div>
       </div>
 
-      <p className="mt-6 text-center text-sm text-[#6d7688]">
-        Set a daily step goal to track your activity and fitness
-      </p>
-
-      <div className="mx-auto mt-5 w-full max-w-[260px]">
-        <button
-          onClick={() => handleSaveStepsFromModal()}
-          className="h-[50px] w-full rounded-full bg-[#6202AC] text-[20px] font-semibold text-white hover:bg-[#500ba6]"
-        >
+      <div className="mt-8 space-y-4">
+        <button onClick={() => handleSaveStepsFromModal()} className="h-[52px] w-full rounded-full bg-[#6202AC] text-lg font-semibold text-white shadow-lg shadow-purple-100 hover:bg-[#500ba6]">
           Save Steps
         </button>
-      </div>
 
-      {/* Suggestions */}
-      <p className="mt-7 text-center text-sm text-[#a3acb9]">
-        Quick suggestions:
-      </p>
-
-      <div className="mt-3 flex flex-wrap justify-center gap-3">
-        {["5000", "8000", "10000", "12000"].map((val) => (
-          <button
-            key={val}
-            onClick={() => setNewSteps(val)}
-            className="rounded-[14px] border border-[#d1d7df] px-4 py-2 text-[14px] font-bold text-[#6202AC] hover:bg-gray-50"
-          >
-            {val}
-          </button>
-        ))}
+        <div className="pt-2">
+          <p className="text-center text-xs font-medium text-[#a3acb9] mb-3">Quick suggestions:</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["5000", "8000", "10000", "12000"].map((val) => (
+              <button key={val} onClick={() => setNewSteps(val)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-[#6202AC] hover:bg-purple-50 hover:border-purple-200 transition-all">
+                {val}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   </div>

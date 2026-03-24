@@ -23,8 +23,18 @@ import {
 import EditProfilePage from "./EditProfilePage";
 import SocialLinksPage from "./SocialLinksPage";
 import { profileApi, ProfileData, DetailedSocialMedia } from "@/api/profile/route";
+import { getDashboardData } from "@/api/auth/dashboard/route";
 
 type Modal = "edit" | "social" | null;
+
+interface UserData {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  role_id: string;
+  image: string | null;
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -41,11 +51,62 @@ export default function ProfilePage() {
     name: string;
   } | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Function to fetch current user data from API and store in localStorage
+  const fetchCurrentUserData = async () => {
+    try {
+      console.log("🔄 Fetching current user data from dashboard API...");
+      const dashboard = await getDashboardData();
+      const user = dashboard?.user;
+      
+      if (user) {
+        // Type assertion to ensure we have the correct shape
+        const userData: UserData = {
+          id: Number(user.id),
+          name: String(user.name || ""),
+          username: String(user.username || ""),
+          email: String(user.email || ""),
+          role_id: String(user.role_id || "1"),
+          image: user.image ? String(user.image) : null,
+        };
+        
+        // Store user data in localStorage for future use
+        localStorage.setItem("user", JSON.stringify(userData));
+        console.log("✅ Stored user data in localStorage:", userData);
+        
+        // Return the data for currentUser state
+        return {
+          id: userData.id,
+          name: userData.name,
+          username: userData.username,
+        };
+      }
+    } catch (err) {
+      console.error("❌ Failed to fetch current user:", err);
+    }
+    return null;
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
+    console.log("📦 localStorage user data:", storedUser);
     if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
+      try {
+        const parsed = JSON.parse(storedUser);
+        setCurrentUser({
+          id: Number(parsed.id),
+          name: String(parsed.name),
+          username: String(parsed.username),
+        });
+        console.log("👤 Current user parsed:", {
+          id: Number(parsed.id),
+          name: String(parsed.name),
+          username: String(parsed.username),
+        });
+      } catch (err) {
+        console.error("Error parsing stored user:", err);
+      }
     }
     setUserLoaded(true);
   }, []);
@@ -55,15 +116,58 @@ export default function ProfilePage() {
       setLoading(true);
       setError(null);
       
+      console.log(`🔍 Fetching profile for username: "${username}"`);
+      console.log(`📡 API call: /my-profile?username=${username}`);
+      
       // 1. Fetch Basic Profile
       const profileData = await profileApi.getProfileByUsername(username);
+      console.log("✅ Profile data received:", profileData);
+      console.log("📊 Profile details:", {
+        id: profileData.id,
+        name: profileData.name,
+        username: profileData.username,
+        image: profileData.image,
+        role_id: profileData.role_id,
+        workoutCount: profileData.workoutCount,
+        FollowsCount: profileData.FollowsCount,
+        Strength: profileData.Strength,
+        Bench_CMP: profileData.Bench_CMP,
+        Squat_CMP: profileData.Squat_CMP,
+        Deadlift_CMP: profileData.Deadlift_CMP,
+        followtype: profileData.followtype,
+        SocialMedia: profileData.SocialMedia
+      });
+      
       setProfile(profileData);
       
       // 2. Fetch Social Media for the icons
+      console.log(`🔍 Fetching social media for user ID: ${profileData.id}`);
       const socialMediaLinks = await profileApi.getSocialMedia(profileData.id);
+      console.log("✅ Social media data received:", socialMediaLinks);
+      console.log("📱 Social media count:", socialMediaLinks.length);
+      socialMediaLinks.forEach((social, idx) => {
+        console.log(`  ${idx + 1}. ${social.type}: ${social.url} (hide: ${social.hide})`);
+      });
+      
       setSocials(socialMediaLinks);
       
     } catch (err: any) {
+      console.error("❌ Error fetching profile:", err);
+      console.error("Error details:", {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data
+      });
+      
+      // If profile not found and we have retries left, wait and retry
+      if (err.message?.includes("not found") && retryCount < 3) {
+        console.log(`🔄 Profile not found, retrying... (${retryCount + 1}/3)`);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+        }, 1000);
+        return;
+      }
+      
       setError(err.message);
     } finally {
       setLoading(false);
@@ -73,19 +177,54 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!userLoaded) return;
 
-    const urlUsername = searchParams.get("username");
-    const storedUser = localStorage.getItem("user");
-    const parsed = storedUser ? JSON.parse(storedUser) : null;
-    const resolvedUsername = urlUsername || parsed?.username || "";
+    const resolveUsername = async () => {
+      const urlUsername = searchParams.get("username");
+      const storedUser = localStorage.getItem("user");
+      let parsed = null;
+      
+      try {
+        if (storedUser) {
+          parsed = JSON.parse(storedUser);
+        }
+      } catch (err) {
+        console.error("Error parsing stored user:", err);
+      }
+      
+      let resolvedUsername = urlUsername || parsed?.username || "";
+      
+      // If no username and no stored user, try to fetch from API
+      if (!resolvedUsername) {
+        console.log("📌 No username found in URL or localStorage, fetching from API...");
+        const currentUserData = await fetchCurrentUserData();
+        if (currentUserData) {
+          resolvedUsername = currentUserData.username;
+          setCurrentUser(currentUserData);
+          console.log("✅ Got current user from API:", currentUserData);
+        }
+      } else if (parsed) {
+        setCurrentUser({
+          id: Number(parsed.id),
+          name: String(parsed.name),
+          username: String(parsed.username),
+        });
+      }
+      
+      console.log("🔗 URL parameters:", searchParams.toString());
+      console.log("👤 URL username param:", urlUsername);
+      console.log("👤 Stored user:", parsed);
+      console.log("✅ Resolved username:", resolvedUsername);
 
-    if (!resolvedUsername) {
-      setLoading(false);
-      setError("No user found. Please log in.");
-      return;
-    }
+      if (!resolvedUsername) {
+        setLoading(false);
+        setError("No user found. Please log in.");
+        return;
+      }
 
-    fetchProfileData(resolvedUsername);
-  }, [userLoaded, searchParams]);
+      fetchProfileData(resolvedUsername);
+    };
+
+    resolveUsername();
+  }, [userLoaded, searchParams, retryCount]);
 
   const handleFollowToggle = async () => {
     if (!profile || !currentUser) return;
@@ -95,6 +234,8 @@ export default function ProfilePage() {
       user_id: profile.id,
       follower_username: currentUser.username,
     };
+    
+    console.log(`👥 Follow action: ${isFollowing ? 'Unfollowing' : 'Following'}`, payload);
 
     try {
       if (isFollowing) {
@@ -113,26 +254,55 @@ export default function ProfilePage() {
         });
       }
     } catch (err: any) {
+      console.error("❌ Follow action failed:", err);
       alert(err.message || "Action failed");
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        {retryCount > 0 && (
+          <p className="text-sm text-gray-500 mt-4">
+            Loading profile... ({retryCount}/3)
+          </p>
+        )}
       </div>
     );
   }
 
   if (error || !profile) {
+    // Check if we're coming from the checklist/onboarding flow
+    const isOnboardingFlow = typeof window !== 'undefined' && (
+      window.location.pathname.includes("newMember") || 
+      window.location.pathname.includes("account-setup")
+    );
+    
+    console.log(`🏁 Onboarding flow detected: ${isOnboardingFlow}`);
+    
+    if (isOnboardingFlow) {
+      // If this is part of onboarding, show a loading state instead of error
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <p className="text-sm text-gray-500 mt-4">
+            Setting up your profile...
+          </p>
+        </div>
+      );
+    }
+    
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
         <X size={32} className="text-red-500 mb-4" />
         <h2 className="text-xl font-bold text-gray-900">Profile Not Found</h2>
         <p className="text-gray-500 mt-2 mb-6">{error}</p>
-        <button onClick={() => window.location.reload()} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold">
-          Try Again
+        <button 
+          onClick={() => router.push("/dashboard")} 
+          className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold"
+        >
+          Go to Dashboard
         </button>
       </div>
     );
@@ -142,6 +312,7 @@ export default function ProfilePage() {
   
   // Filter for visible social icons (hide === "0" and has a URL)
   const visibleSocials = socials.filter(s => s.hide === "0" && s.url);
+  console.log(`👁️ Visible socials (hide=0):`, visibleSocials.map(s => s.type));
 
   const STATS = [
     { icon: <Zap size={20} className="text-orange-500" />, bg: "bg-yellow-50", value: profile.workoutCount, label: "Total Workouts", valueCls: "text-gray-900" },
@@ -157,59 +328,58 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-    <div className="relative">
-  {/* Left - Back Button */}
-  <div className="absolute top-4 left-4 z-10">
-    <button onClick={() => router.back()} className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors">
-      <ChevronLeft size={18} />
-    </button>
-  </div>
-
-  {/* Right - Share Button (Added This) */}
-  <div className="absolute top-4 right-4 z-10">
-    <button 
-      onClick={() => {
-        if (navigator.share) {
-          navigator.share({
-            title: profile.name,
-            url: window.location.href,
-          });
-        } else {
-          // Fallback: Copy to clipboard
-          navigator.clipboard.writeText(window.location.href);
-          alert("Link copied to clipboard!");
-        }
-      }} 
-      className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
-    >
-      <Share2 size={18} />
-    </button>
-  </div>
-
-  <div className="h-44 sm:h-52 w-full bg-gradient-to-r from-gray-700 via-gray-600 to-gray-800 relative overflow-hidden">
-    <div className="absolute inset-0 bg-cover bg-center opacity-70" style={{ backgroundImage: `url(${profile.image || "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200&q=80"})` }} />
-    <div className="absolute bottom-4 left-44 sm:left-52 flex flex-col sm:flex-row items-start sm:items-center gap-2">
-      <h1 className="text-white text-[18px] sm:text-[20px] font-extrabold drop-shadow">{profile.name}</h1>
-      <div className="flex gap-2">
-        <button onClick={() => setModal("social")} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur text-white text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/30 transition-all">
-          <LinkIcon size={11} /> Social Links
-        </button>
-        {isOwnProfile && (
-          <button onClick={() => setModal("edit")} className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-lg transition-all">
-            <Settings size={11} /> Edit Profile
+      <div className="relative">
+        {/* Left - Back Button */}
+        <div className="absolute top-4 left-4 z-10">
+          <button onClick={() => router.back()} className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors">
+            <ChevronLeft size={18} />
           </button>
-        )}
-      </div>
-    </div>
-  </div>
+        </div>
 
-  <div className="absolute left-4 sm:left-6 bottom-[-52px]">
-    <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-purple-700 flex items-center justify-center text-white text-[32px] sm:text-[38px] font-extrabold border-[5px] border-white shadow-xl overflow-hidden">
-      {profile.image ? <img src={profile.image} alt={profile.name} className="w-full h-full object-cover" /> : profile.name.substring(0, 2).toUpperCase()}
-    </div>
-    <span className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white" />
-  </div>
-</div>
+        {/* Right - Share Button */}
+        <div className="absolute top-4 right-4 z-10">
+          <button 
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({
+                  title: profile.name,
+                  url: window.location.href,
+                });
+              } else {
+                navigator.clipboard.writeText(window.location.href);
+                alert("Link copied to clipboard!");
+              }
+            }} 
+            className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
+          >
+            <Share2 size={18} />
+          </button>
+        </div>
+
+        <div className="h-44 sm:h-52 w-full bg-gradient-to-r from-gray-700 via-gray-600 to-gray-800 relative overflow-hidden">
+          <div className="absolute inset-0 bg-cover bg-center opacity-70" style={{ backgroundImage: `url(${profile.image || "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200&q=80"})` }} />
+          <div className="absolute bottom-4 left-44 sm:left-52 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <h1 className="text-white text-[18px] sm:text-[20px] font-extrabold drop-shadow">{profile.name}</h1>
+            <div className="flex gap-2">
+              <button onClick={() => setModal("social")} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur text-white text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/30 transition-all">
+                <LinkIcon size={11} /> Social Links
+              </button>
+              {isOwnProfile && (
+                <button onClick={() => setModal("edit")} className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-lg transition-all">
+                  <Settings size={11} /> Edit Profile
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute left-4 sm:left-6 bottom-[-52px]">
+          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-purple-700 flex items-center justify-center text-white text-[32px] sm:text-[38px] font-extrabold border-[5px] border-white shadow-xl overflow-hidden">
+            {profile.image ? <img src={profile.image} alt={profile.name} className="w-full h-full object-cover" /> : profile.name.substring(0, 2).toUpperCase()}
+          </div>
+          <span className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white" />
+        </div>
+      </div>
 
       <div className="pt-16 px-4 sm:px-6 pb-2 bg-white">
         <p className="text-[13px] text-gray-400 font-medium mb-1">@{profile.username}</p>
@@ -239,21 +409,21 @@ export default function ProfilePage() {
         </div>
       </div>
 
-   <div className="flex justify-center mt-4">
-  <button
-    onClick={handleFollowToggle}
-    disabled={isOwnProfile}
-    className={`w-[90%] sm:w-[320px] py-3 rounded-full text-sm font-bold transition-all ${
-      isOwnProfile 
-        ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-80" // Style for Self
-        : profile.followtype === "Following"
-          ? "bg-gray-100 text-gray-700 border border-gray-200"
-          : "bg-purple-600 text-white shadow-md hover:bg-purple-700"
-    }`}
-  >
-    {isOwnProfile ? "Follow Me!" : (profile.followtype === "Following" ? "Following" : "Follow Me!")}
-  </button>
-</div>
+      <div className="flex justify-center mt-4">
+        <button
+          onClick={handleFollowToggle}
+          disabled={isOwnProfile}
+          className={`w-[90%] sm:w-[320px] py-3 rounded-full text-sm font-bold transition-all ${
+            isOwnProfile 
+              ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-80"
+              : profile.followtype === "Following"
+                ? "bg-gray-100 text-gray-700 border border-gray-200"
+                : "bg-purple-600 text-white shadow-md hover:bg-purple-700"
+          }`}
+        >
+          {isOwnProfile ? "Follow Me!" : (profile.followtype === "Following" ? "Following" : "Follow Me!")}
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 sm:px-6 py-4">
         {STATS.map((s, i) => (

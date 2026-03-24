@@ -11,7 +11,6 @@ import {
   Award,
   Activity,
   ChevronDown,
-  Clock,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -35,19 +34,23 @@ const ValueLoader = () => (
   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600" />
 );
 
+// Accountability Tools Item Type
+interface AccountabilityTool {
+  id: string;
+  title: string;
+  file: File | null;
+  preview: string | null;
+  isExpanded: boolean;
+  allowUpload: boolean; // New flag to control upload visibility
+}
+
 export default function PlayerCardPage() {
   const router = useRouter();
   const toast = useToast();
   const [showBodyScanModal, setShowBodyScanModal] = useState(false);
-  const [showProgressModal, setShowProgressModal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const progressFileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [progressFile, setProgressFile] = useState<File | null>(null);
   const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(
-    null,
-  );
-  const [progressFilePreview, setProgressFilePreview] = useState<string | null>(
     null,
   );
   const [playerData, setPlayerData] = useState<ExtendedPlayerCardData | null>(
@@ -61,24 +64,32 @@ export default function PlayerCardPage() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Accountability Tools State - Only first one allows upload
+  const [accountabilityTools, setAccountabilityTools] = useState<AccountabilityTool[]>([
+    { id: "progress-photo", title: "Progress Photo", file: null, preview: null, isExpanded: false, allowUpload: true },
+    { id: "blood-pressure", title: "Blood Pressure Test", file: null, preview: null, isExpanded: false, allowUpload: false },
+    { id: "breathing", title: "Breathing Test", file: null, preview: null, isExpanded: false, allowUpload: false },
+    { id: "hydration", title: "Hydration Test (Urine Test)", file: null, preview: null, isExpanded: false, allowUpload: false },
+    { id: "bloodwork", title: "Bloodwork (Hormone) Results", file: null, preview: null, isExpanded: false, allowUpload: false },
+  ]);
+
   const convertHeightToInches = (heightStr: string | number | null): number => {
     if (!heightStr) return 0;
     return Number(heightStr) * 12;
   };
-
-
 
   const fetchAllData = useCallback(
     async (showSuccessToast: boolean) => {
       try {
         setLoading(true);
 
-        const [playerCardResult, dashboardResult, cardTypesResult] = await Promise.allSettled([
-          getPlayerCard(),
-          dashboardApi.getDashboardSummary(),
-          getPlayerCardTypes(),
-        ]);
-        
+        const [playerCardResult, dashboardResult, cardTypesResult] =
+          await Promise.allSettled([
+            getPlayerCard(),
+            dashboardApi.getDashboardSummary(),
+            getPlayerCardTypes(),
+          ]);
+
         console.log("📊 Data fetch results:", {
           playerCardResult,
           dashboardResult,
@@ -135,26 +146,44 @@ export default function PlayerCardPage() {
   // Handle card type selection from dropdown
   const handleCardTypeSelect = (typeId: string) => {
     setSelectedCardType(typeId);
-    const selectedType = cardTypes.find(type => type.id.toString() === typeId);
-    
+    const selectedType = cardTypes.find(
+      (type) => type.id.toString() === typeId,
+    );
+
     if (selectedType) {
       console.log("Selected card type:", selectedType);
       toast.success(`Selected: ${selectedType.name}`);
     }
   };
 
-  // ✅ CHANGED - Only InBody Scan triggers metrics loading
+  // Handle file change for body scan
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setSelectedFile(file);
-    if (file) setMetricsLoading(true); // Only for InBody Scan
+    if (file) setMetricsLoading(true);
   };
 
-  // ✅ NEW - Progress photo should NOT trigger metrics loading
-  const handleProgressFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setProgressFile(file);
-    // Do NOT call setMetricsLoading(true) here
+  // Handle file change for progress photo (only first tool)
+  const handleProgressPhotoChange = (file: File | null) => {
+    setAccountabilityTools((prev) =>
+      prev.map((tool) => {
+        if (tool.id === "progress-photo") {
+          const preview = file ? URL.createObjectURL(file) : null;
+          return { ...tool, file, preview, isExpanded: false };
+        }
+        return tool;
+      })
+    );
+  };
+
+  // Toggle tool expansion
+  const toggleToolExpansion = (toolId: string) => {
+    setAccountabilityTools((prev) =>
+      prev.map((tool) => ({
+        ...tool,
+        isExpanded: tool.id === toolId ? !tool.isExpanded : false,
+      }))
+    );
   };
 
   useEffect(() => {
@@ -167,66 +196,60 @@ export default function PlayerCardPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [selectedFile]);
 
-  useEffect(() => {
-    if (!progressFile) {
-      setProgressFilePreview(null);
+  const hasChanges = !!selectedFile;
+  const hasBodyScan = !!(playerData?.inBodyScanUrl || selectedFilePreview);
+  const progressPhoto = accountabilityTools.find(t => t.id === "progress-photo")?.file;
+
+  const handleSubmitCard = async () => {
+    if (!selectedFile) {
+      toast.error("Please select a scan file first");
       return;
     }
-    const objectUrl = URL.createObjectURL(progressFile);
-    setProgressFilePreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [progressFile]);
 
-  const hasChanges = !!selectedFile || !!progressFile;
-  const hasBodyScan = !!(playerData?.inBodyScanUrl || selectedFilePreview);
-
- const handleSubmitCard = async () => {
-  // Check if we have a selected file AND a selected card type
-  if (!selectedFile) {
-    toast.error("Please select a scan file first");
-    return;
-  }
-
-  if (!selectedCardType) {
-    toast.error("Please select a scan type");
-    return;
-  }
-
-  try {
-    setSubmitting(true);
-    setMetricsLoading(true);
-
-    const formData = new FormData();
-    formData.append("inBodyScans", selectedFile);
-    if (progressFile) formData.append("progressImage", progressFile);
-    formData.append("type", selectedCardType); // Make sure to use "type" as the field name
-
-    console.log("📤 Submitting player card payload:");
-    for (const [key, value] of formData.entries()) {
-      console.log(`  ${key}:`, value);
+    if (!selectedCardType) {
+      toast.error("Please select a scan type");
+      return;
     }
 
-    const result = await createPlayerCard(formData);
-    console.log("✅ Update successful:", result);
-    toast.success("Player card submitted successfully.");
+    try {
+      setSubmitting(true);
+      setMetricsLoading(true);
 
-    setSelectedFile(null);
-    setProgressFile(null);
-    setSelectedCardType("");
-    if (fileRef.current) fileRef.current.value = "";
-    if (progressFileRef.current) progressFileRef.current.value = "";
+      const formData = new FormData();
+      formData.append("inBodyScans", selectedFile);
+      formData.append("type", selectedCardType);
 
-    await fetchAllData(true);
-  } catch (error: unknown) {
-    console.error("❌ Update error:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to update card";
-    toast.error(message);
-  } finally {
-    setSubmitting(false);
-    setMetricsLoading(false);
-  }
-};
+      // Add progress photo if exists
+      if (progressPhoto) {
+        formData.append("progressImage", progressPhoto);
+      }
+
+      console.log("📤 Submitting player card payload:");
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value);
+      }
+
+      const result = await createPlayerCard(formData);
+      console.log("✅ Update successful:", result);
+      toast.success("Player card submitted successfully.");
+
+      setSelectedFile(null);
+      setSelectedCardType("");
+      // Reset progress photo
+      handleProgressPhotoChange(null);
+      if (fileRef.current) fileRef.current.value = "";
+
+      await fetchAllData(true);
+    } catch (error: unknown) {
+      console.error("❌ Update error:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to update card";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+      setMetricsLoading(false);
+    }
+  };
 
   if (loading && !playerData) {
     return (
@@ -265,7 +288,7 @@ export default function PlayerCardPage() {
     bodyFat: 0,
     inBodyScanUrl: null,
   };
-  // Frontend calculated composition score
+
   const frontendCompositionScore =
     data.smm && data.currentWeight && data.bodyFat
       ? (
@@ -274,7 +297,6 @@ export default function PlayerCardPage() {
         ).toFixed(1)
       : null;
 
-  // Use frontend calc if available, fallback to backend score
   const displayScore = frontendCompositionScore ?? data.bodyCampScore ?? "—";
   const heightInInches = convertHeightToInches(data.height);
   const weightUnit = measurementUnit;
@@ -319,56 +341,111 @@ export default function PlayerCardPage() {
       {/* MAIN CONTENT */}
       <div className="mx-auto max-w-[1200px]">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* LEFT COLUMN - PROGRESS PHOTO CARD */}
-          <div className="lg:col-span-4 bg-white rounded-[32px] p-6 shadow-xl shadow-gray-200/50 flex flex-col border border-gray-100 min-h-[500px]">
-            {/* Card Header */}
-            <div className="flex items-center justify-between mb-4 px-2">
-              <span className="flex-1 text-center text-xs font-bold text-purple-600/80 uppercase tracking-widest pl-6">
-                New Progress Photo <span className="text-gray-400 font-medium">(Optional)</span>
-              </span>
-              <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
-                <Clock size={16} />
-              </div>
-            </div>
-
-            {/* Image Container */}
-            <div 
-              onClick={() => setShowProgressModal(true)}
-              className="flex-1 relative rounded-3xl overflow-hidden bg-[#1a1c1e] cursor-pointer group transition-all duration-300 hover:ring-4 hover:ring-purple-100"
-            >
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center p-8">
-                <img
-                  src={data.progressImage || "/images/svg.png"}
-                  alt="Progress Scan"
-                  className="h-full w-auto object-contain brightness-110 drop-shadow-[0_0_15px_rgba(109,40,217,0.4)] transition-transform duration-500 group-hover:scale-105"
-                />
-              </div>
-              
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-purple-900/0 group-hover:bg-purple-900/20 transition-all flex items-center justify-center">
-                <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-4 group-hover:translate-y-0 duration-300">
-                  <span className="text-[#7c3aed] text-xs font-bold uppercase tracking-wider">Update Photo</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card Footer */}
-            <div className="mt-4 text-center">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                Last Updated : 20 Days Ago
+          {/* LEFT COLUMN - ACCOUNTABILITY TOOLS */}
+          <div className="lg:col-span-4 bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Accountability Tools</h2>
+              <p className="text-xs text-gray-400 mt-1">
+                Track your health metrics and progress
               </p>
+            </div>
+
+            <div className="space-y-3">
+              {accountabilityTools.map((tool) => (
+                <div
+                  key={tool.id}
+                  className="border border-gray-100 rounded-xl overflow-hidden"
+                >
+                  {/* Tool Header */}
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Expanded Content */}
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50">
+                      {tool.allowUpload ? (
+                        // Only Progress Photo shows upload option
+                        <div
+                          onClick={() => {
+                            const input = document.createElement("input");
+                            input.type = "file";
+                            input.accept = "image/*";
+                            input.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (file) handleProgressPhotoChange(file);
+                            };
+                            input.click();
+                          }}
+                          className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
+                        >
+                          {tool.preview ? (
+                            <div className="space-y-2">
+                              <img
+                                src={tool.preview}
+                                alt={tool.title}
+                                className="h-24 w-full object-contain rounded-lg"
+                              />
+                              <p className="text-xs text-purple-600 truncate">
+                                {tool.file?.name}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProgressPhotoChange(null);
+                                }}
+                                className="text-xs text-red-500"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-center mb-2">
+                                <img
+                                  src="/images/svg.png"
+                                  alt="Upload"
+                                  className="h-12 w-auto object-contain opacity-50"
+                                />
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                Click to upload photo
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        // Other tools show informational message
+                        <div className="text-center py-6">
+                          <div className="flex justify-center mb-2">
+                            <img
+                              src="/images/svg.png"
+                              alt="Info"
+                              className="h-12 w-auto object-contain opacity-30"
+                            />
+                          </div>
+                        
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* RIGHT COLUMN */}
+          {/* RIGHT COLUMN - REST OF THE PAGE */}
           <div className="lg:col-span-8 flex flex-col gap-4">
             {/* PROFILE INFO CARD */}
             <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
@@ -505,14 +582,14 @@ export default function PlayerCardPage() {
               </div>
             </div>
 
-            {/* ✅ ALERT BANNER - Only show if NO body scan exists */}
+            {/* ALERT BANNER */}
             {!hasBodyScan && (
               <div className="bg-[#fff1ed] rounded-xl p-3 border-l-4 border-[#ff7043] flex items-center justify-center gap-2">
                 <div className="text-[#ff7043]">
                   <CheckCircle size={16} />
                 </div>
                 <p className="text-xs font-bold text-[#ff7043]">
-                  Upload a body scan to submit a complete card 
+                  Upload a body scan to submit a complete card
                 </p>
               </div>
             )}
@@ -543,276 +620,161 @@ export default function PlayerCardPage() {
         </div>
       </div>
 
-      {/* BODY SCAN MODAL - WITH DROPDOWN */}
-      {showBodyScanModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-[400px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
-            <button
-              onClick={() => {
-                setShowBodyScanModal(false);
-                setSelectedCardType("");
-              }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 transition-colors"
+      {/* BODY SCAN MODAL */}
+   {/* BODY SCAN MODAL */}
+{showBodyScanModal && (
+  <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
+    <div className="bg-white rounded-2xl p-5 w-full max-w-[400px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
+      <button
+        onClick={() => {
+          setShowBodyScanModal(false);
+          setSelectedCardType("");
+        }}
+        className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 transition-colors"
+      >
+        <X size={16} strokeWidth={2.5} />
+      </button>
+
+      <div className="text-center mb-0">
+        <p className="text-gray-400 text-xs font-bold mb-0.5">
+          Add a new
+        </p>
+        <h2 className="text-2xl font-black text-[#1a1c1e] leading-none mb-2 relative inline-block">
+          Inbody Scan
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#6d28d9] rounded-full" />
+        </h2>
+      </div>
+
+      <div className="flex justify-center mb-4 pt-1">
+        <div className="w-[52px] h-[52px] rounded-full flex items-center justify-center bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#00d1e0] text-white shadow-xl shadow-purple-500/30 transform -rotate-6">
+          <Heart size={24} fill="currentColor" strokeWidth={0} />
+        </div>
+      </div>
+
+      <div className="w-full h-px bg-gray-100 mb-4" />
+
+      {cardTypes.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs font-bold text-gray-700 mb-2">
+            Select Scan Type
+          </label>
+          <div className="relative">
+            <select
+              value={selectedCardType}
+              onChange={(e) => handleCardTypeSelect(e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d28d9] appearance-none cursor-pointer text-sm"
             >
-              <X size={16} strokeWidth={2.5} />
-            </button>
-
-            <div className="text-center mb-0">
-              <p className="text-gray-400 text-xs font-bold mb-0.5">
-                Add a new
-              </p>
-              <h2 className="text-2xl font-black text-[#1a1c1e] leading-none mb-2 relative inline-block">
-                Inbody Scan
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#6d28d9] rounded-full" />
-              </h2>
-            </div>
-
-            <div className="flex justify-center mb-4 pt-1">
-              <div className="w-[52px] h-[52px] rounded-full flex items-center justify-center bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#00d1e0] text-white shadow-xl shadow-purple-500/30 transform -rotate-6">
-                <Heart size={24} fill="currentColor" strokeWidth={0} />
-              </div>
-            </div>
-
-            <div className="w-full h-px bg-gray-100 mb-4" />
-
-            {/* Dropdown for card types */}
-            {cardTypes.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-700 mb-2">
-                  Select Scan Type
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedCardType}
-                    onChange={(e) => handleCardTypeSelect(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d28d9] appearance-none cursor-pointer text-sm"
-                  >
-                    <option value="">Select a scan type</option>
-                    {cardTypes.map((type) => (
-                      <option key={type.id} value={type.id.toString()}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <ChevronDown size={16} className="text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Image upload area */}
-            <div
-              onClick={() => fileRef.current?.click()}
-              className="group border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
-            >
-              {selectedFilePreview ? (
-                <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                  <img
-                    src={selectedFilePreview}
-                    alt="Selected body scan"
-                    className="h-32 w-full object-contain"
-                  />
-                </div>
-              ) : playerData?.inBodyScanUrl ? (
-                <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                  <img
-                    src={playerData.inBodyScanUrl}
-                    alt="Current body scan"
-                    className="h-32 w-full object-contain"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Current scan</p>
-                </div>
-              ) : (
-                <>
-                  <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
-                    <Upload
-                      className="text-[#6d28d9]"
-                      size={18}
-                      strokeWidth={2.5}
-                    />
-                  </div>
-                  <p className="text-base font-bold text-[#1a1c1e] mb-1">
-                    Upload Image
-                  </p>
-                  <p className="text-gray-400 text-xs font-medium mb-0.5">
-                    or drag and drop
-                  </p>
-                  <p className="text-gray-300 text-[10px] font-medium">
-                    Max File Size 15MB
-                  </p>
-                </>
-              )}
-              {selectedFile && (
-                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">
-                  {selectedFile.name}
-                </p>
-              )}
-              <input
-                type="file"
-                ref={fileRef}
-                className="hidden"
-                onChange={handleFileChange}
-                accept="image/*"
-              />
-            </div>
-
-            <div className="flex flex-col gap-3 mt-4">
-           <button
-  disabled={!selectedFile || !selectedCardType}
-  onClick={() => {
-    if (!selectedFile || !selectedCardType) {
-      toast.error("Please select both a scan file and type");
-      return;
-    }
-    setShowBodyScanModal(false);
-    toast.success("Body scan saved. Tap Submit Card to upload.");
-  }}
-  className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
-    selectedFile && selectedCardType
-      ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
-      : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
-  }`}
->
-  {selectedFile && selectedCardType ? "Save Scan" : "Select File & Type"}
-</button>
-              <button
-                onClick={() => {
-                  setShowBodyScanModal(false);
-                  setSelectedCardType("");
-                }}
-                className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 bg-[#f0f0ff] rounded-lg p-2 border border-purple-100/50">
-              <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1">
-                <span className="text-xs">💡</span>
-                <span className="text-gray-400 font-medium">Tip:</span>
-                <span className="text-purple-600/80 text-[10px]">
-                  Select scan type (Inbody, DEXA, or Other) and upload your image
-                </span>
-              </p>
+              <option value="">Select a scan type</option>
+              {cardTypes.map((type) => (
+                <option key={type.id} value={type.id.toString()}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <ChevronDown size={16} className="text-gray-400" />
             </div>
           </div>
         </div>
       )}
 
-      {/* PROGRESS PHOTO MODAL */}
-      {showProgressModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-[#1a1c1e]/40 backdrop-blur-md p-4 z-50 transition-all duration-300">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-[400px] relative shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border border-white/20 transform animate-in fade-in zoom-in duration-300">
-            <button
-              onClick={() => setShowProgressModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 transition-colors"
-            >
-              <X size={16} strokeWidth={2.5} />
-            </button>
-
-            <div className="text-center mb-0">
-              <p className="text-gray-400 text-xs font-bold mb-0.5">
-                Add a new
-              </p>
-              <h2 className="text-2xl font-black text-[#1a1c1e] leading-none mb-2 relative inline-block">
-                Progress Photo
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#6d28d9] rounded-full" />
-              </h2>
-            </div>
-
-            <div className="flex justify-center mb-4 pt-1">
-              <div className="w-[52px] h-[52px] rounded-full flex items-center justify-center bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#00d1e0] text-white shadow-xl shadow-purple-500/30 transform -rotate-6">
-                <Camera size={24} fill="currentColor" strokeWidth={0} />
-              </div>
-            </div>
-
-            <div className="w-full h-px bg-gray-100 mb-4" />
-
-            <div
-              onClick={() => progressFileRef.current?.click()}
-              className="group border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
-            >
-              {progressFilePreview ? (
-                <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                  <img
-                    src={progressFilePreview}
-                    alt="Selected progress photo"
-                    className="h-32 w-full object-contain"
-                  />
-                </div>
-              ) : (
-                <>
-                  <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
-                    <Upload
-                      className="text-[#6d28d9]"
-                      size={18}
-                      strokeWidth={2.5}
-                    />
-                  </div>
-                  <p className="text-base font-bold text-[#1a1c1e] mb-1">
-                    Upload Image
-                  </p>
-                  <p className="text-gray-400 text-xs font-medium mb-0.5">
-                    or drag and drop
-                  </p>
-                  <p className="text-gray-300 text-[10px] font-medium">
-                    Max File Size 15MB
-                  </p>
-                </>
-              )}
-              {progressFile && (
-                <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">
-                  {progressFile.name}
-                </p>
-              )}
-              <input
-                type="file"
-                ref={progressFileRef}
-                className="hidden"
-                onChange={handleProgressFileChange}
-                accept="image/*"
+      <div
+        onClick={() => fileRef.current?.click()}
+        className="group border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-[#6d28d9] hover:bg-purple-50/30 transition-all duration-300"
+      >
+        {selectedFilePreview ? (
+          <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+            <img
+              src={selectedFilePreview}
+              alt="Selected body scan"
+              className="h-32 w-full object-contain"
+            />
+          </div>
+        ) : playerData?.inBodyScanUrl ? (
+          <div className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+            <img
+              src={playerData.inBodyScanUrl}
+              alt="Current body scan"
+              className="h-32 w-full object-contain"
+            />
+            <p className="text-xs text-gray-500 mt-1">Current scan</p>
+          </div>
+        ) : (
+          <>
+            <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
+              <Upload
+                className="text-[#6d28d9]"
+                size={18}
+                strokeWidth={2.5}
               />
             </div>
+            <p className="text-base font-bold text-[#1a1c1e] mb-1">
+              Upload Image
+            </p>
+            <p className="text-gray-400 text-xs font-medium mb-0.5">
+              or drag and drop
+            </p>
+            <p className="text-gray-300 text-[10px] font-medium">
+              Max File Size 15MB
+            </p>
+          </>
+        )}
+        {selectedFile && (
+          <p className="mt-2 text-xs font-semibold text-[#6d28d9] truncate">
+            {selectedFile.name}
+          </p>
+        )}
+        <input
+          type="file"
+          ref={fileRef}
+          className="hidden"
+          onChange={handleFileChange}
+          accept="image/*"
+        />
+      </div>
 
-            <div className="flex flex-col gap-3 mt-4">
-              <button
-                disabled={!progressFile}
-                onClick={() => {
-                  if (!progressFile) return;
-                  setShowProgressModal(false);
-                  toast.success(
-                    "Progress photo saved. Tap Submit Card to upload.",
-                  );
-                }}
-                className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
-                  progressFile
-                    ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
-                    : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                {progressFile ? "Save Photo" : "Select a File First"}
-              </button>
-              <button
-                onClick={() => setShowProgressModal(false)}
-                className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
-              >
-                Close
-              </button>
-            </div>
+      <div className="flex flex-col gap-3 mt-4">
+        <button
+          disabled={!selectedFile || !selectedCardType}
+          onClick={() => {
+            if (!selectedFile || !selectedCardType) {
+              toast.error("Please select both a scan file and type");
+              return;
+            }
+            setShowBodyScanModal(false);
+            toast.success("Body scan saved. Tap Submit Card to upload.");
+          }}
+          className={`w-full py-3 rounded-xl text-base font-bold shadow-lg transition-all duration-300 ${
+            selectedFile && selectedCardType
+              ? "bg-[#6d28d9] text-white hover:bg-[#5b21b6] shadow-purple-500/25 active:scale-[0.98]"
+              : "bg-[#dadddf] text-gray-500 cursor-not-allowed"
+          }`}
+        >
+          {selectedFile && selectedCardType ? "Save Scan" : "Select a File First"}
+        </button>
+        <button
+          onClick={() => {
+            setShowBodyScanModal(false);
+            setSelectedCardType("");
+          }}
+          className="text-[#00d1e0] text-sm font-bold hover:opacity-80 transition-opacity"
+        >
+          Close
+        </button>
+      </div>
 
-            <div className="mt-4 bg-[#e6f9fb] rounded-lg p-2 border border-cyan-100/50">
-              <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1">
-                <span className="text-xs">💡</span>
-                <span className="text-gray-400 font-medium">Tip:</span>
-                <span className="text-cyan-600/80 text-[10px]">
-                  Clear photos of physique for best accuracy
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="mt-4 bg-[#f0f0ff] rounded-lg p-2 border border-purple-100/50">
+        <p className="text-xs font-bold text-gray-600 flex items-center justify-center gap-1">
+          <span className="text-xs">💡</span>
+          <span className="text-gray-400 font-medium">Tip:</span>
+          <span className="text-purple-600/80 text-[10px]">
+            Clear photos of scan results for best accuracy
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }

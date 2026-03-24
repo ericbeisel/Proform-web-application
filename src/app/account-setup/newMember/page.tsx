@@ -14,21 +14,34 @@ function NewMemberChecklistContent() {
   const [accountSetupComplete, setAccountSetupComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 8;
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const setupCompleted = searchParams.get("setup") === "completed";
 
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const checkAccountSetup = async () => {
       try {
-        console.log("Fetching dashboard data...");
+        if (!isMounted) return;
+        setLoading(true);
+        
+        // Add cache-busting timestamp to prevent API caching
+        const timestamp = Date.now();
+        console.log(`Fetching dashboard data... (attempt ${retryCount + 1}/${maxRetries}) at ${timestamp}`);
+        
         const rawData = await dashboardApi.getDashboardData();
+        
+        if (!isMounted) return;
         console.log("Dashboard data received:", rawData);
 
         const details = rawData.user.OtherDetail;
         console.log("OtherDetail:", details);
-        console.log("accountsetup value:", details.accountsetup);
+        console.log("accountsetup value:", details.accountsetup, "type:", typeof details.accountsetup);
 
         // Check if account setup is complete
         const isSetupComplete =
@@ -38,23 +51,60 @@ function NewMemberChecklistContent() {
           Number(details.accountsetup) === 1;
 
         console.log("Is account setup complete?", isSetupComplete);
-        setAccountSetupComplete(isSetupComplete);
-
-        // Show success message if coming from completed setup
-        if (setupCompleted && isSetupComplete) {
-          setShowSuccessMessage(true);
-          // Auto-hide success message after 3 seconds
-          setTimeout(() => setShowSuccessMessage(false), 3000);
+        
+        // If we came from completed setup and it's not complete yet, retry
+        if (setupCompleted && !isSetupComplete && retryCount < maxRetries - 1) {
+          console.log(`Setup not ready yet. Retrying in 1 second... (${retryCount + 1}/${maxRetries})`);
+          timeoutId = setTimeout(() => {
+            if (isMounted) {
+              setRetryCount(prev => prev + 1);
+            }
+          }, 1000);
+          return;
         }
+        
+        // Set the final state
+        if (isMounted) {
+          setAccountSetupComplete(isSetupComplete);
+          
+          // Show success message if coming from completed setup and it's complete
+          if (setupCompleted && isSetupComplete) {
+            setShowSuccessMessage(true);
+            setTimeout(() => {
+              if (isMounted) setShowSuccessMessage(false);
+            }, 3000);
+          }
+        }
+        
       } catch (error) {
         console.error("Failed to check account setup status:", error);
+        // If error and we have retries left, try again
+        if (setupCompleted && retryCount < maxRetries - 1) {
+          console.log(`Error occurred. Retrying in 1 second...`);
+          timeoutId = setTimeout(() => {
+            if (isMounted) {
+              setRetryCount(prev => prev + 1);
+            }
+          }, 1000);
+          return;
+        }
+        if (isMounted) {
+          setAccountSetupComplete(false);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     checkAccountSetup();
-  }, [setupCompleted]);
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [retryCount, setupCompleted]);
 
   // Define steps - step 3 only shows when account setup is complete
   const steps = [
@@ -88,9 +138,7 @@ function NewMemberChecklistContent() {
   const handleClose = () => {
     if (isClosing) return;
     setIsClosing(true);
-
-    // flicker / reload same page
-    window.location.reload();
+    router.replace("/dashboard");
   };
 
   const handleDontShowAgain = async (checked: boolean) => {
@@ -109,9 +157,9 @@ function NewMemberChecklistContent() {
 
   const handlePrimaryAction = () => {
     if (accountSetupComplete) {
-      router.push("/teams/create"); // Navigate to create team page
+      router.push("/team/createTeam?source=checklist");
     } else {
-      router.push("/account-setup/personalBasics"); // Navigate to account setup
+      router.push("/account-setup/personalBasics");
     }
   };
 
@@ -136,8 +184,16 @@ function NewMemberChecklistContent() {
           }}
           hideBackButton
         />
-        <div className="flex justify-center items-center py-20">
+        <div className="flex flex-col justify-center items-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6202AC]" />
+          <p className="text-sm text-gray-500 mt-4">
+            {setupCompleted ? "Finalizing your setup..." : "Loading your checklist..."}
+          </p>
+          {setupCompleted && retryCount > 0 && (
+            <p className="text-xs text-gray-400 mt-2">
+              Waiting for server to update... ({retryCount}/{maxRetries})
+            </p>
+          )}
         </div>
       </>
     );
@@ -283,26 +339,6 @@ function NewMemberChecklistContent() {
         </button>
       </div>
 
-      {/* Only show "Don't show again" when account setup is not complete */}
-      {/* {!accountSetupComplete && (
-        <div className="flex items-center justify-center gap-2">
-          <input
-            type="checkbox"
-            id="dontShow"
-            checked={dontShowAgain}
-            onChange={(e) => {
-              void handleDontShowAgain(e.target.checked);
-            }}
-            className="w-4 h-4 accent-[#6202AC] cursor-pointer rounded"
-          />
-          <label
-            htmlFor="dontShow"
-            className="text-xs sm:text-sm text-gray-500 cursor-pointer select-none"
-          >
-            Don&apos;t show me this again
-          </label>
-        </div>
-      )} */}
       <div className="flex items-center justify-center gap-2">
         <input
           type="checkbox"

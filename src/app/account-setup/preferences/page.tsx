@@ -201,7 +201,11 @@ export default function PreferencesPage() {
 
       // Don't remove sessionStorage yet
       // Don't call removeMemberChecklist yet
-
+ sessionStorage.removeItem("accountSetup");
+    
+    // ✅ Add a small delay to ensure the database is updated
+    // This gives the backend time to process and update the accountsetup field
+    await new Promise(resolve => setTimeout(resolve, 1000));
       // Redirect to the new member checklist page with a query param to show success
       router.push("/account-setup/newMember?setup=completed");
     } catch (err: unknown) {
