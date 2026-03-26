@@ -337,24 +337,36 @@ export default function ProfilePage() {
         </div>
 
         {/* Right - Share Button */}
-        <div className="absolute top-4 right-4 z-10">
-          <button 
-            onClick={() => {
-              if (navigator.share) {
-                navigator.share({
-                  title: profile.name,
-                  url: window.location.href,
-                });
-              } else {
-                navigator.clipboard.writeText(window.location.href);
-                alert("Link copied to clipboard!");
-              }
-            }} 
-            className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
-          >
-            <Share2 size={18} />
-          </button>
-        </div>
+    {/* Right - Actions (Search + Share) */}
+<div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+  
+  {/* 🔍 Search Button */}
+  <button
+  onClick={() => router.push("/profile/components/UserList")}
+    className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
+  >
+    <Search size={18} />
+  </button>
+
+  {/* 📤 Share Button */}
+  <button 
+    onClick={() => {
+      if (navigator.share) {
+        navigator.share({
+          title: profile.name,
+          url: window.location.href,
+        });
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        alert("Link copied to clipboard!");
+      }
+    }} 
+    className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
+  >
+    <Share2 size={18} />
+  </button>
+
+</div>
 
         <div className="h-44 sm:h-52 w-full bg-gradient-to-r from-gray-700 via-gray-600 to-gray-800 relative overflow-hidden">
           <div className="absolute inset-0 bg-cover bg-center opacity-70" style={{ backgroundImage: `url(${profile.image || "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200&q=80"})` }} />

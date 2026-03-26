@@ -75,6 +75,25 @@ export interface FollowActionPayload {
 }
 
 // ===========================================
+// USER SEARCH TYPES
+// ===========================================
+
+export interface SearchUser {
+  id: number;
+  name: string;
+  username: string;
+  image: string | null;
+  role_id: string;
+  followtype: string;
+  followersCount: number;
+}
+
+export interface UserSearchResponse {
+  message: string;
+  data: SearchUser[];
+}
+
+// ===========================================
 // ERROR HANDLER
 // ===========================================
 
@@ -162,12 +181,11 @@ export const profileApi = {
     }
   },
 
-updateProfile: async (payload: { name: string; image?: File | null }): Promise<void> => {
+  updateProfile: async (payload: { name: string; image?: File | null }): Promise<void> => {
     try {
       const formData = new FormData();
       formData.append("name", payload.name);
       
-      // If there is an image, append it. If not, don't append it at all (matches Postman)
       if (payload.image) {
         formData.append("image", payload.image);
       }
@@ -194,6 +212,24 @@ updateProfile: async (payload: { name: string; image?: File | null }): Promise<v
       return res.data;
     } catch (err) {
       throw new Error(extractErrorMessage(err, "Failed to unfollow user."));
+    }
+  },
+
+  // ===========================================
+  // USER SEARCH API
+  // ===========================================
+
+  searchUsers: async (page: number = 1, search?: string): Promise<UserSearchResponse> => {
+    try {
+      let url = `/user-search?page=${page}`;
+      if (search) {
+        url += `&search=${encodeURIComponent(search)}`;
+      }
+      
+      const res = await apiClient.get<UserSearchResponse>(url);
+      return res.data;
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, "Failed to search users."));
     }
   },
 };

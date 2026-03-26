@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, TrendingUp, Scan, Image, ChevronDown } from "lucide-react";
+import { ArrowLeft, TrendingUp, Scan, Image, ChevronDown, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -10,6 +10,7 @@ import {
   PlayerCardDetail,
   PlayerCardType,
 } from "@/api/player-card/route";
+import { dashboardApi } from "@/api/dashboard/route"; // Add this import
 
 interface ProgressItem {
   id: number;
@@ -73,7 +74,7 @@ export default function PlayerProgress() {
     smmDiff: "0",
     bodyFatDiff: "0",
     compScoreDiff: "0",
-    playerName: "Shweta Gharge",
+    playerName: "",
     measurementUnit: "lbs",
   });
   const [selectedImage, setSelectedImage] = useState<{
@@ -90,19 +91,33 @@ export default function PlayerProgress() {
 
         console.log("🔄 Fetching player progress data...");
 
-        const [progressResponse, typesResponse] = await Promise.allSettled([
+        // Fetch all data in parallel
+        const [progressResponse, typesResponse, dashboardResponse] = await Promise.allSettled([
           getPlayerCardList(),
           getPlayerCardTypes(),
+          dashboardApi.getDashboardSummary(),
         ]);
 
         console.log("✅ Progress Response:", progressResponse);
         console.log("✅ Types Response:", typesResponse);
+        console.log("✅ Dashboard Response:", dashboardResponse);
 
         // Process card types
         if (typesResponse.status === "fulfilled") {
           const typesData = typesResponse.value as PlayerCardType[];
           console.log("📋 Card types:", typesData);
           setCardTypes(typesData);
+        }
+
+        // Get measurement unit from dashboard
+        let measurementUnit = "lbs";
+        if (dashboardResponse.status === "fulfilled") {
+          const dashboardData = dashboardResponse.value;
+          console.log("📊 Dashboard Data:", dashboardData);
+          if (dashboardData.measurementUnit) {
+            measurementUnit = dashboardData.measurementUnit;
+            console.log("📏 Measurement Unit from Dashboard:", measurementUnit);
+          }
         }
 
         // Process progress data
@@ -120,6 +135,22 @@ export default function PlayerProgress() {
           const rows = Array.isArray(response?.data) ? response.data : [];
           console.log(`📋 Found ${rows.length} progress records in response.data`);
 
+          if (rows.length === 0) {
+            // No data found - show empty state
+            setProgressData([]);
+            setFilteredData([]);
+            setStats({
+              totalScans: 0,
+              smmDiff: "0",
+              bodyFatDiff: "0",
+              compScoreDiff: "0",
+              playerName: response.name || "",
+              measurementUnit: measurementUnit,
+            });
+            setLoading(false);
+            return;
+          }
+
           if (rows.length > 0) {
             console.log("📌 Sample Record (First Item):", rows[0]);
           }
@@ -129,8 +160,8 @@ export default function PlayerProgress() {
               const formattedItem: ProgressItem = {
                 id: item.id || index + 1,
                 date: item.date || "N/A",
-                weight: item.currentWeight ? `${item.currentWeight} lbs` : "0 lbs",
-                smm: item.smm ? `${item.smm} lbs` : "0 lbs",
+                weight: item.currentWeight ? `${item.currentWeight} ${measurementUnit}` : `0 ${measurementUnit}`,
+                smm: item.smm ? `${item.smm} ${measurementUnit}` : `0 ${measurementUnit}`,
                 fat: item.bodyFat ? `${item.bodyFat}%` : "0%",
                 score: item.bodyCampScore || 0,
                 status: normalizeStatus(item.status),
@@ -152,59 +183,27 @@ export default function PlayerProgress() {
           setProgressData(formattedData);
           setFilteredData(formattedData);
 
-          // Update stats from API response
+          // Update stats from API response with dynamic measurement unit
           setStats({
             totalScans: response.total_scan ?? formattedData.length,
             smmDiff: response.smm_diff || "0",
             bodyFatDiff: response.bf_diff || "0",
             compScoreDiff: response.body_camp_diff || "0",
-            playerName: response.name || rows[0]?.name || "Shweta Gharge",
-            measurementUnit: "lbs",
+            playerName: response.name || rows[0]?.name || "",
+            measurementUnit: measurementUnit, // Use the dynamic measurement unit
           });
+        } else {
+          // API call failed
+          setError("Failed to load progress data");
+          setProgressData([]);
+          setFilteredData([]);
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Failed to load progress data";
         console.error("❌ Error fetching progress:", err);
         setError(errorMsg);
-
-        // Fallback data
-        setProgressData([
-          {
-            id: 4,
-            date: "2/3/2026",
-            weight: "67 lbs",
-            smm: "52.4 lbs",
-            fat: "18.2%",
-            score: 85,
-            status: "Complete",
-            inBodyScans: "/images/svg.png",
-            progressImage: "/images/svg.png",
-            type: "Inbody",
-          },
-        ]);
-        setFilteredData([
-          {
-            id: 4,
-            date: "2/3/2026",
-            weight: "67 lbs",
-            smm: "52.4 lbs",
-            fat: "18.2%",
-            score: 85,
-            status: "Complete",
-            inBodyScans: "/images/svg.png",
-            progressImage: "/images/svg.png",
-            type: "Inbody",
-          },
-        ]);
-
-        setStats({
-          totalScans: 3,
-          smmDiff: "-2.5",
-          bodyFatDiff: "-1.2",
-          compScoreDiff: "+6",
-          playerName: "Shweta Gharge",
-          measurementUnit: "lbs",
-        });
+        setProgressData([]);
+        setFilteredData([]);
       } finally {
         setLoading(false);
       }
@@ -224,6 +223,15 @@ export default function PlayerProgress() {
       setFilteredData(progressData);
     }
   }, [selectedType, progressData]);
+
+  // Log SMM diff value when it changes
+  useEffect(() => {
+    console.log("📊 SMM DIFF VALUE:", {
+      smmDiff: stats.smmDiff,
+      measurementUnit: stats.measurementUnit,
+      formattedValue: `${stats.smmDiff} ${stats.measurementUnit}`
+    });
+  }, [stats.smmDiff, stats.measurementUnit]);
 
   // Image Modal Component
   const ImageModal = () => {
@@ -266,7 +274,6 @@ export default function PlayerProgress() {
             </button>
           </div>
           
-          {/* Image Container with max dimensions */}
           <div className="flex items-center justify-center p-4 bg-gray-50 max-h-[70vh]">
             <img
               src={selectedImage.url}
@@ -285,7 +292,7 @@ export default function PlayerProgress() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+      <main className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700 mx-auto mb-4" />
           <p className="text-gray-600">Loading progress data...</p>
@@ -294,10 +301,10 @@ export default function PlayerProgress() {
     );
   }
 
-  if (error && progressData.length === 0) {
+  if (error) {
     return (
-      <main className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow">
+      <main className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-2xl shadow max-w-md">
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
@@ -305,6 +312,27 @@ export default function PlayerProgress() {
           >
             Try Again
           </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (progressData.length === 0) {
+    return (
+      <main className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-2xl shadow max-w-md">
+          <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mx-auto mb-4">
+            <Scan size={32} className="text-purple-400" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">No Scans Yet</h2>
+          <p className="text-gray-500 mb-6">Upload your first body scan to start tracking your progress!</p>
+          <Link
+            href="/player-cards/upload"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#6d28d9] text-white rounded-xl hover:bg-[#5b21b6] transition-all shadow-md"
+          >
+            <Plus size={18} />
+            <span>Upload Your First Scan</span>
+          </Link>
         </div>
       </main>
     );
@@ -343,11 +371,17 @@ export default function PlayerProgress() {
             </p>
           </div>
         </div>
+        <Link
+          href="/player-cards/upload"
+          className="flex items-center gap-2 px-4 py-2 bg-[#6d28d9] text-white rounded-xl hover:bg-[#5b21b6] transition-all shadow-md"
+        >
+          <Plus size={18} />
+          <span className="text-sm font-medium">New Scan</span>
+        </Link>
       </div>
 
       {/* Stats Grid - 4 Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        {/* Total Scans Card */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-white">
           <p className="text-gray-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1">
             Total Scans
@@ -357,7 +391,6 @@ export default function PlayerProgress() {
           </p>
         </div>
 
-        {/* SMM Card */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-white">
           <p className="text-gray-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1">
             SMM ({stats.measurementUnit})
@@ -367,7 +400,6 @@ export default function PlayerProgress() {
           </p>
         </div>
 
-        {/* Body Fat Card */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-white">
           <p className="text-gray-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1">
             Body Fat
@@ -377,7 +409,6 @@ export default function PlayerProgress() {
           </p>
         </div>
 
-        {/* Composition Score Card */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-white">
           <p className="text-gray-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1">
             Comp Score
@@ -389,35 +420,26 @@ export default function PlayerProgress() {
       </div>
 
       {/* Filter Section */}
-      <div className="bg-white rounded-2xl sm:rounded-[32px] border border-gray-100 shadow-sm p-4 sm:p-6 md:p-8 mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-6">
+        <div className="flex items-center gap-3">
           <div className="flex-1">
-            <label className="block text-xs font-bold text-gray-700 mb-2">
-              Filter by Scan Type
-            </label>
-            <div className="relative">
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d28d9] appearance-none cursor-pointer text-sm"
-              >
-                <option value="">All Scan Types</option>
-                {cardTypes.map((type) => (
-                  <option key={type.id} value={type.name}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                <ChevronDown size={16} className="text-gray-400" />
-              </div>
-            </div>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d28d9] appearance-none cursor-pointer text-sm"
+            >
+              <option value="">All Scan Types</option>
+              {cardTypes.map((type) => (
+                <option key={type.id} value={type.name}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="sm:self-end pb-1">
-            <p className="text-sm text-gray-500">
-              Showing {filteredData.length} of {progressData.length} scans
-            </p>
-          </div>
+          <p className="text-xs text-gray-500 whitespace-nowrap">
+            {filteredData.length}/{progressData.length}
+          </p>
+          <ChevronDown size={14} className="text-gray-400" />
         </div>
       </div>
 
@@ -427,7 +449,6 @@ export default function PlayerProgress() {
           Progress Timeline
         </h2>
 
-        {/* Image Legend */}
         <div className="flex items-center gap-4 mb-4 px-2">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-full bg-purple-600"></div>
@@ -453,7 +474,6 @@ export default function PlayerProgress() {
 
                 {/* Images Container */}
                 <div className="flex gap-2">
-                  {/* InBody Scan with Label */}
                   {item.inBodyScans ? (
                     <div className="relative group/image">
                       <button
@@ -474,7 +494,6 @@ export default function PlayerProgress() {
                           <span className="text-white text-xs opacity-0 hover:opacity-100">🔍</span>
                         </div>
                       </button>
-                      {/* Small Label Badge */}
                       <div className="absolute -bottom-1 -right-1 bg-purple-600 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
                         <Scan size={8} />
                         <span>InBody</span>
@@ -491,9 +510,9 @@ export default function PlayerProgress() {
                 {/* Date + status + type */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[13px] sm:text-base font-bold text-[#1a1c1e] truncate">
-                      {item.date}
-                    </p>
+                      <p className="text-[13px] sm:text-base font-bold text-[#1a1c1e] truncate">
+      {item.date.split(' ')[0] || item.date.split('T')[0] || item.date}
+    </p>
                     {item.type && (
                       <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                         {item.type}

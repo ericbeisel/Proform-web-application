@@ -9,11 +9,15 @@ import {
   Target,
   Award,
   TrendingUp as TrendingUpIcon,
+  ChevronDown,
+  Scan,
+  Image,
 } from "lucide-react";
 import {
   getAdminPlayerCardById,
   PlayerCardDetail,
 } from "@/api/player-card/route";
+import { dashboardApi } from "@/api/dashboard/route"; // Add this import
 
 type MetricsState = {
   currentWeight: string;
@@ -30,6 +34,17 @@ type DiffState = {
   bf_diff: string;
   body_camp_diff: string;
 };
+
+// Accountability Tools Item Type - Same as upload page
+interface AccountabilityTool {
+  id: string;
+  title: string;
+  file: File | null;
+  preview: string | null;
+  isExpanded: boolean;
+  allowUpload: boolean; // This will be false for all on detail page
+  uploadedUrl?: string | null; // For displaying existing uploaded files
+}
 
 function initialMetrics(cardData?: PlayerCardDetail | null): MetricsState {
   return {
@@ -51,13 +66,20 @@ function initialDiffs(cardData?: any | null): DiffState {
   };
 }
 
+// Helper function to clean image URLs
+function cleanImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url
+    .replace("https://paxlete.com//", "https://paxlete.com/")
+    .replace(/([^:]\/)\/+/g, "$1");
+}
+
 /** Renders a small colored badge showing the diff value */
 function DiffBadge({ value, unit }: { value: string; unit: string }) {
   const cleanVal = value.toString().replace(/[^\d.-]/g, "");
   const num = parseFloat(cleanVal);
   if (isNaN(num)) return null;
 
-  // Show positive style for 0 change by default for user per previous request on progress page
   if (num === 0) {
     return (
       <span className="ml-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] sm:text-[11px] font-bold tracking-wide shadow-sm border bg-green-50 text-green-600 border-green-200">
@@ -69,8 +91,6 @@ function DiffBadge({ value, unit }: { value: string; unit: string }) {
 
   const isPositive = num > 0;
   
-  // Weight/Fat: positive is bad (red), negative is good (green)
-  // SMM/Score: positive is good (green), negative is bad (red)
   let useBadColor = false;
   if (unit === " lbs" || unit === "%" || unit === " in") {
     useBadColor = isPositive;
@@ -117,6 +137,26 @@ export default function PlayerCardDetailView() {
   const [cardData, setCardData] = useState<PlayerCardDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsState>(initialMetrics());
   const [diffs, setDiffs] = useState<DiffState>(initialDiffs());
+  const [measurementUnit, setMeasurementUnit] = useState<string>("lbs"); // Add measurement unit state
+
+  // Accountability Tools State - Same structure as upload page, but allowUpload false for all
+  const [accountabilityTools, setAccountabilityTools] = useState<AccountabilityTool[]>([
+    { id: "progress-photo", title: "Progress Photo", file: null, preview: null, isExpanded: false, allowUpload: false, uploadedUrl: null },
+    { id: "blood-pressure", title: "Blood Pressure Test", file: null, preview: null, isExpanded: false, allowUpload: false, uploadedUrl: null },
+    { id: "breathing", title: "Breathing Test", file: null, preview: null, isExpanded: false, allowUpload: false, uploadedUrl: null },
+    { id: "hydration", title: "Hydration Test (Urine Test)", file: null, preview: null, isExpanded: false, allowUpload: false, uploadedUrl: null },
+    { id: "bloodwork", title: "Bloodwork (Hormone) Results", file: null, preview: null, isExpanded: false, allowUpload: false, uploadedUrl: null },
+  ]);
+
+  // Toggle tool expansion
+  const toggleToolExpansion = (toolId: string) => {
+    setAccountabilityTools((prev) =>
+      prev.map((tool) => ({
+        ...tool,
+        isExpanded: tool.id === toolId ? !tool.isExpanded : false,
+      }))
+    );
+  };
 
   useEffect(() => {
     if (parsedId === null) {
@@ -124,13 +164,52 @@ export default function PlayerCardDetailView() {
       return;
     }
 
-    const fetchCard = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getAdminPlayerCardById(parsedId);
-        setCardData(data);
-        setMetrics(initialMetrics(data));
-        setDiffs(initialDiffs(data));
+        
+        // Fetch both card details and dashboard data in parallel
+        const [cardResponse, dashboardResponse] = await Promise.allSettled([
+          getAdminPlayerCardById(parsedId),
+          dashboardApi.getDashboardSummary(),
+        ]);
+
+        // Process card data
+        if (cardResponse.status === "fulfilled") {
+          const data = cardResponse.value;
+          setCardData(data);
+          setMetrics(initialMetrics(data));
+          setDiffs(initialDiffs(data));
+          
+          // Update accountability tools with existing uploaded files from API
+          setAccountabilityTools((prev) =>
+            prev.map((tool) => {
+              if (tool.id === "progress-photo" && data.progressImage) {
+                return { 
+                  ...tool, 
+                  uploadedUrl: cleanImageUrl(data.progressImage),
+                  preview: cleanImageUrl(data.progressImage)
+                };
+              }
+              return tool;
+            })
+          );
+        } else {
+          console.error("Failed to fetch card details:", cardResponse.reason);
+        }
+
+        // Process dashboard data for measurement unit
+        if (dashboardResponse.status === "fulfilled") {
+          const dashboardData = dashboardResponse.value;
+          console.log("📊 Dashboard Data:", dashboardData);
+          if (dashboardData.measurementUnit) {
+            setMeasurementUnit(dashboardData.measurementUnit);
+            console.log("📏 Measurement Unit from Dashboard:", dashboardData.measurementUnit);
+          }
+        } else {
+          console.error("Failed to fetch dashboard data:", dashboardResponse.reason);
+        }
+        
       } catch (error: unknown) {
         console.error("Failed to load player card details:", error);
       } finally {
@@ -138,7 +217,7 @@ export default function PlayerCardDetailView() {
       }
     };
 
-    void fetchCard();
+    void fetchData();
   }, [parsedId]);
 
   const scanDate = cardData?.date ? cardData.date.split(" ")[0] : "N/A";
@@ -191,41 +270,138 @@ export default function PlayerCardDetailView() {
       </div>
 
       <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-4 h-full">
-          <div 
-            onClick={() => router.push("/player-progress-photos")}
-            className="bg-white rounded-[40px] p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] border border-white h-full relative overflow-hidden flex flex-col items-center cursor-pointer group hover:shadow-[0_48px_80px_-16px_rgba(0,0,0,0.12)] transition-all duration-500"
-          >
-            <div className="absolute inset-0 bg-[#1a1c1e] m-4 rounded-[32px] overflow-hidden group-hover:m-3 transition-all duration-500">
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
-              />
-              <div className="relative h-full w-full flex items-center justify-center p-12">
-                <img
-                  src={cardData?.progressImage || "/images/svg.png"}
-                  alt="Human Asset"
-                  className="h-full w-auto object-contain brightness-110 group-hover:scale-105 transition-transform duration-700"
-                />
-                
-                {/* View All Overlay */}
-                <div className="absolute inset-0 bg-[#6d28d9]/0 group-hover:bg-[#6d28d9]/10 transition-colors flex items-center justify-center">
-                  <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                    <span className="text-[#6d28d9] text-[10px] font-bold uppercase tracking-widest">View All Photos</span>
-                  </div>
-                </div>
-              </div>
+        {/* LEFT COLUMN - ACCOUNTABILITY TOOLS (Same as upload page) */}
+        <div className="lg:col-span-4">
+          <div className="bg-white rounded-2xl p-5 shadow-xl shadow-gray-200/50 border border-gray-100">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Accountability Tools</h2>
+              <p className="text-xs text-gray-400 mt-1">
+                Track your health metrics and progress
+              </p>
             </div>
 
-            <div className="h-[500px] w-full" />
+            <div className="space-y-3">
+              {accountabilityTools.map((tool) => (
+                <div
+                  key={tool.id}
+                  className="border border-gray-100 rounded-xl overflow-hidden"
+                >
+                  {/* Tool Header */}
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
 
-            <span className="mt-6 text-[#6d28d9] text-xs font-bold uppercase tracking-widest relative z-10 group-hover:underline underline-offset-4">
-              Progress Photo
-            </span>
+                  {/* Expanded Content */}
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50">
+                      {tool.allowUpload ? (
+                        // Upload functionality (not used on detail page)
+                        <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center">
+                          <div className="flex justify-center mb-2">
+                            <img
+                              src="/images/svg.png"
+                              alt="Upload"
+                              className="h-12 w-auto object-contain opacity-50"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Upload option not available on view page
+                          </p>
+                        </div>
+                      ) : (
+                        // Show existing uploaded file or placeholder
+                        <div className="text-center">
+                          {(tool.preview || tool.uploadedUrl) ? (
+                            <div className="space-y-3">
+                              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                                <img
+                                  src={tool.preview || tool.uploadedUrl || "/images/svg.png"}
+                                  alt={tool.title}
+                                  className="h-32 w-full object-contain rounded-lg"
+                                />
+                              </div>
+                              <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                                {tool.id === "progress-photo" && (
+                                  <>
+                                    <Image size={12} />
+                                    <span>Progress Photo</span>
+                                  </>
+                                )}
+                                {tool.id === "blood-pressure" && (
+                                  <>
+                                    <span>🩺</span>
+                                    <span>Blood Pressure Test Result</span>
+                                  </>
+                                )}
+                                {tool.id === "breathing" && (
+                                  <>
+                                    <span>🌬️</span>
+                                    <span>Breathing Test Result</span>
+                                  </>
+                                )}
+                                {tool.id === "hydration" && (
+                                  <>
+                                    <span>💧</span>
+                                    <span>Hydration Test Result</span>
+                                  </>
+                                )}
+                                {tool.id === "bloodwork" && (
+                                  <>
+                                    <span>🧪</span>
+                                    <span>Bloodwork Results</span>
+                                  </>
+                                )}
+                              </div>
+                              {tool.id === "progress-photo" && (
+                                <button
+                                  onClick={() => {
+                                    if (tool.uploadedUrl) {
+                                      window.open(tool.uploadedUrl, '_blank');
+                                    }
+                                  }}
+                                  className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                                >
+                                  View Full Size
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-center mb-2">
+                                <img
+                                  src="/images/svg.png"
+                                  alt="No file"
+                                  className="h-12 w-auto object-contain opacity-30"
+                                />
+                              </div>
+                              <p className="text-xs text-gray-400">
+                                No {tool.title.toLowerCase()} uploaded for this scan
+                              </p>
+                              {tool.id === "progress-photo" && (
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                  Progress photos help track your transformation
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -248,9 +424,9 @@ export default function PlayerCardDetailView() {
             </div>
             <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 border border-gray-100">
               <img
-                src={cardData?.inBodyScans || "/images/svg.png"}
+                src={cleanImageUrl(cardData?.inBodyScans) || "/images/svg.png"}
                 alt="Scan Thumbnail"
-                className="w-full h-full object-cover grayscale opacity-60"
+                className="w-full h-full object-contain"
               />
             </div>
           </div>
@@ -298,13 +474,13 @@ export default function PlayerCardDetailView() {
             <div className="space-y-6">
               <div className="flex items-center justify-between group">
                 <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
-                  Current Wt (lbs):
+                  Current Wt ({measurementUnit}):
                 </p>
                 <div className="flex items-center">
                   <span className="text-2xl font-bold text-[#6d28d9] text-right">
                     {metrics.currentWeight}
                   </span>
-                  <DiffBadge value={diffs.weight_diff} unit=" lbs" />
+                  <DiffBadge value={diffs.weight_diff} unit={` ${measurementUnit}`} />
                 </div>
               </div>
 
@@ -312,13 +488,13 @@ export default function PlayerCardDetailView() {
 
               <div className="flex items-center justify-between group">
                 <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
-                  Height (Inches):
+                  Height:
                 </p>
                 <div className="flex items-center">
                   <span className="text-2xl font-bold text-[#6d28d9] text-right">
                     {metrics.height}
                   </span>
-                  <DiffBadge value={diffs.height_diff} unit=" in" />
+                  <DiffBadge value={diffs.height_diff} unit="" />
                 </div>
               </div>
             </div>
@@ -338,13 +514,13 @@ export default function PlayerCardDetailView() {
             <div className="space-y-6">
               <div className="flex items-center justify-between group">
                 <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">
-                  SMM (lbs):
+                  SMM ({measurementUnit}):
                 </p>
                 <div className="flex items-center">
                   <span className="text-2xl font-bold text-[#6d28d9] text-right">
                     {metrics.smm}
                   </span>
-                  <DiffBadge value={diffs.smm_diff} unit=" lbs" />
+                  <DiffBadge value={diffs.smm_diff} unit={` ${measurementUnit}`} />
                 </div>
               </div>
 
@@ -362,12 +538,6 @@ export default function PlayerCardDetailView() {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-[#f0f9ff] rounded-2xl p-4 border border-blue-100">
-            <p className="text-[11px] font-bold text-blue-600 uppercase tracking-widest text-center">
-              Consistency is the key to progress! 🚀
-            </p>
           </div>
         </div>
       </div>
