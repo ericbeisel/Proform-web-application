@@ -28,7 +28,7 @@ export interface ProfileData {
   SocialMedia: SocialMedia[];
   workoutCount: number;
   followtype: string;
-  FollowsCount: number;
+  followersCount: number;
 }
 
 export interface ProfileResponse {

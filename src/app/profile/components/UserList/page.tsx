@@ -7,6 +7,17 @@ import { profileApi, SearchUser } from "@/api/profile/route";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Debug logger - can be turned off
+const DEBUG = true;
+const logger = {
+  api: (...args: unknown[]) => DEBUG && console.log("🔌 [API]", ...args),
+  state: (...args: unknown[]) => DEBUG && console.log("📊 [STATE]", ...args),
+  action: (...args: unknown[]) => DEBUG && console.log("⚡ [ACTION]", ...args),
+  error: (...args: unknown[]) => console.error("❌ [ERROR]", ...args),
+  warn: (...args: unknown[]) => DEBUG && console.warn("⚠️ [WARN]", ...args),
+  follow: (...args: unknown[]) => DEBUG && console.log("👥 [FOLLOW]", ...args),
+};
+
 const formatFollowers = (count: number): string => {
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
   return count.toString();
@@ -47,6 +58,7 @@ export default function FindUsersPage() {
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [pendingActions, setPendingActions] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -54,32 +66,60 @@ export default function FindUsersPage() {
       try {
         const parsed = JSON.parse(storedUser);
         setCurrentUser({ username: parsed.username });
+        logger.action(`Current user: ${parsed.username}`);
       } catch (err) {
-        console.error("Error parsing user:", err);
+        logger.error("Error parsing user:", err);
       }
     }
   }, []);
 
-  const fetchUsers = useCallback(async (page: number, search?: string): Promise<void> => {
-    try {
-      const response = await profileApi.searchUsers(page, search);
-      if (response.data && Array.isArray(response.data)) {
-        if (page === 1) {
-          setUsers(response.data);
-        } else {
-          setUsers((prev: SearchUser[]) => [...prev, ...response.data]);
+const fetchUsers = useCallback(async (page: number, search?: string): Promise<void> => {
+  try {
+    const response = await profileApi.searchUsers(page, search);
+
+    if (response.data && Array.isArray(response.data)) {
+      const normalized = response.data.map((user) => {
+        const persisted = getPersistedFollowStatus(user.id);
+        if (persisted !== null) {
+          return { ...user, followtype: persisted ? "Following" : "Follow Me!" };
         }
-        setHasMore(response.data.length === 20);
-      }
-    } catch (err) {
-      const error = err as Error;
-      console.error("Error fetching users:", error);
-      setError(error.message || "Failed to load users");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+        return user;
+      });
+
+      setUsers((prev) => {
+        // If it's page 1, we reset the list entirely to avoid duplicates
+        if (page === 1) return normalized;
+        
+        // If appending, filter out any users that might already be in the list 
+        // (This is a safety "de-dupe" layer)
+        const existingIds = new Set(prev.map(u => u.id));
+        const uniqueNewUsers = normalized.filter(u => !existingIds.has(u.id));
+        return [...prev, ...uniqueNewUsers];
+      });
+
+      setHasMore(response.data.length === 20);
     }
-  }, []);
+  } catch (err) {
+    const error = err as Error;
+    logger.error("Failed to load users:", error);
+    setError(error.message || "Failed to load users");
+  } finally {
+    setLoading(false);
+    setLoadingMore(false);
+  }
+}, []);
+
+// ── Search Debounce Logic ──
+useEffect(() => {
+  const timer = setTimeout(() => {
+    // IMPORTANT: Reset page state first
+    setCurrentPage(1);
+    // Trigger fetch for page 1 explicitly
+    fetchUsers(1, searchTerm || undefined);
+  }, 500);
+  
+  return () => clearTimeout(timer);
+}, [searchTerm]); // Removed fetchUsers from deps to prevent unnecessary cycles
 
   useEffect(() => {
     fetchUsers(1);
@@ -114,33 +154,88 @@ export default function FindUsersPage() {
 
   const handleFollowToggle = async (userId: number, currentFollowType: string): Promise<void> => {
     if (!currentUser) return;
+    
+    if (pendingActions.has(userId)) return;
+    
+    const isCurrentlyFollowing = currentFollowType === "Following" || currentFollowType === "Unfollow";
     const payload = { user_id: userId, follower_username: currentUser.username };
+    
+    logger.follow(`${isCurrentlyFollowing ? 'Unfollowing' : 'Following'} user ${userId} (was: ${currentFollowType})`);
+
+    setPendingActions(prev => new Set(prev).add(userId));
+
     try {
-      if (currentFollowType === "Following") {
+      if (isCurrentlyFollowing) {
         await profileApi.unfollowUser(payload);
-        setUsers((prev: SearchUser[]) =>
+        setUsers((prev) =>
           prev.map((u) =>
             u.id === userId
-              ? { ...u, followtype: "Follow Me!", followersCount: Math.max(0, u.followersCount - 1) }
+              ? { 
+                  ...u, 
+                  followtype: "Follow Me!", 
+                  followersCount: Math.max(0, (Number(u.followersCount) || 0) - 1) 
+                }
               : u
           )
         );
+        logger.follow(`✅ Unfollowed user ${userId}`);
       } else {
         await profileApi.followUser(payload);
-        setUsers((prev: SearchUser[]) =>
+        setUsers((prev) =>
           prev.map((u) =>
             u.id === userId
-              ? { ...u, followtype: "Following", followersCount: u.followersCount + 1 }
+              ? { 
+                  ...u, 
+                  followtype: "Following", 
+                  followersCount: (Number(u.followersCount) || 0) + 1 
+                }
               : u
           )
         );
+        logger.follow(`✅ Followed user ${userId}`);
       }
+      
+      // Update localStorage persistence
+      updatePersistedFollowStatus(userId, !isCurrentlyFollowing);
+      
     } catch (err) {
-      const error = err as Error;
-      console.error("Follow action failed:", error);
-      alert(error.message || "Action failed");
+      logger.error("Follow/unfollow failed:", err);
+      alert("Could not update follow status. Please try again.");
+    } finally {
+      setPendingActions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
     }
   };
+  
+  const updatePersistedFollowStatus = (userId: number, isFollowing: boolean) => {
+    try {
+      const storedFollows = localStorage.getItem("userFollows");
+      let follows = storedFollows ? JSON.parse(storedFollows) : {};
+      follows[userId] = isFollowing;
+      localStorage.setItem("userFollows", JSON.stringify(follows));
+    } catch (err) {
+      logger.error("Error persisting follow status:", err);
+    }
+  };
+  
+  const getPersistedFollowStatus = (userId: number): boolean | null => {
+    try {
+      const storedFollows = localStorage.getItem("userFollows");
+      if (storedFollows) {
+        const follows = JSON.parse(storedFollows);
+        return follows[userId] || null;
+      }
+    } catch (err) {
+      logger.error("Error getting persisted follow status:", err);
+    }
+    return null;
+  };
+
+  // Apply persisted follow status to users when they're loaded
+
 
   return (
     <div className="fu-page">
@@ -149,7 +244,6 @@ export default function FindUsersPage() {
         <div className="fu-header-bg-grid" />
 
         <div className="fu-header-inner">
-          {/* Title row */}
           <div className="fu-title-row">
             <button className="fu-back-btn" onClick={() => router.back()}>
               <ArrowLeft size={18} color="#fff" />
@@ -157,7 +251,6 @@ export default function FindUsersPage() {
             <h1 className="fu-title">Find Users</h1>
           </div>
 
-          {/* Search bar */}
           <div className="fu-search-wrap">
             <Search size={17} className="fu-search-icon" />
             <input
@@ -171,10 +264,7 @@ export default function FindUsersPage() {
         </div>
       </div>
 
-      {/* ── Content ── */}
       <div className="fu-content">
-
-        {/* Loading */}
         {loading && users.length === 0 && (
           <div className="fu-center-state">
             <Loader2 size={32} color="#7C3AED" className="fu-spinner" />
@@ -182,7 +272,6 @@ export default function FindUsersPage() {
           </div>
         )}
 
-        {/* Error */}
         {error && !loading && (
           <div className="fu-center-state">
             <div className="fu-error-icon-wrap">
@@ -195,7 +284,6 @@ export default function FindUsersPage() {
           </div>
         )}
 
-        {/* Grid */}
         {!error && (
           <>
             {!loading && users.length === 0 ? (
@@ -209,7 +297,12 @@ export default function FindUsersPage() {
             ) : (
               <div className="fu-grid">
                 {users.map((user) => (
-                  <UserCard key={user.id} user={user} onFollowToggle={handleFollowToggle} />
+                  <UserCard 
+                    key={user.id} 
+                    user={user} 
+                    onFollowToggle={handleFollowToggle}
+                    isPending={pendingActions.has(user.id)}
+                  />
                 ))}
               </div>
             )}
@@ -227,7 +320,6 @@ export default function FindUsersPage() {
         )}
       </div>
 
-      {/* ── Styles ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap');
 
@@ -235,14 +327,12 @@ export default function FindUsersPage() {
 
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* Page */
         .fu-page {
           min-height: 100vh;
           background: #F3F4F8;
           font-family: 'Sora', 'DM Sans', sans-serif;
         }
 
-        /* Header */
         .fu-header {
           position: relative;
           overflow: hidden;
@@ -320,21 +410,18 @@ export default function FindUsersPage() {
         }
         .fu-search-input:focus { border-color: #7C3AED; }
 
-        /* Content */
         .fu-content {
           max-width: 1100px;
           margin: 0 auto;
           padding: 20px 20px 60px;
         }
 
-        /* Grid — mobile first: 1 col by default */
         .fu-grid {
           display: grid;
           grid-template-columns: 1fr;
           gap: 12px;
         }
 
-        /* States */
         .fu-center-state {
           display: flex;
           flex-direction: column;
@@ -363,7 +450,6 @@ export default function FindUsersPage() {
           color: #9CA3AF; font-size: 13px;
         }
 
-        /* Card */
         .fu-card {
           background: #fff;
           border-radius: 18px;
@@ -414,26 +500,11 @@ export default function FindUsersPage() {
           border: 1.5px solid #E5E7EB;
         }
         .fu-follow-btn.following:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
-
-        /* ── Responsive — mobile-first ── */
-
-        /* Small mobile adjustments */
-        @media (max-width: 400px) {
-          .fu-header { padding: 12px 12px 14px; }
-          .fu-content { padding: 12px 12px 60px; }
-          .fu-title { font-size: 17px; }
-          .fu-title-row { margin-bottom: 10px; }
-          .fu-search-input { font-size: 13px; padding-top: 11px; padding-bottom: 11px; }
-          .fu-card { padding: 14px; border-radius: 14px; }
-          .fu-card-inner { gap: 12px; }
-          .fu-avatar { width: 46px; height: 46px; font-size: 14px; }
-          .fu-avatar img { width: 46px; height: 46px; }
-          .fu-card-name { font-size: 14px; }
-          .fu-card-username { font-size: 12px; }
-          .fu-follow-btn { font-size: 13px; padding: 9px 0; margin-top: 10px; }
+        .fu-follow-btn.disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
-        /* Phablet — 2 col */
         @media (min-width: 540px) {
           .fu-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -442,7 +513,6 @@ export default function FindUsersPage() {
           .fu-content { padding: 16px 16px 60px; }
         }
 
-        /* Tablet */
         @media (min-width: 768px) {
           .fu-header { padding: 16px 24px 20px; }
           .fu-content { padding: 20px 24px 60px; }
@@ -450,7 +520,6 @@ export default function FindUsersPage() {
           .fu-title { font-size: 22px; }
         }
 
-        /* Desktop — 2 col with wider cards */
         @media (min-width: 1024px) {
           .fu-content { padding: 24px 32px 60px; }
           .fu-grid {
@@ -463,16 +532,12 @@ export default function FindUsersPage() {
   );
 }
 
-// ── UserCard ───────────────────────────────────────────────────────────────
-
-function UserCard({ user, onFollowToggle }: UserCardProps) {
-  const isFollowing = user.followtype === "Following";
+function UserCard({ user, onFollowToggle, isPending = false }: UserCardProps & { isPending?: boolean }) {
+  const isFollowing = user.followtype === "Following" || user.followtype === "Unfollow";
 
   return (
     <div className="fu-card">
       <div className="fu-card-inner">
-
-        {/* Avatar */}
         {user.image ? (
           <div className="fu-avatar"><img src={user.image} alt={user.name} /></div>
         ) : (
@@ -481,7 +546,6 @@ function UserCard({ user, onFollowToggle }: UserCardProps) {
           </div>
         )}
 
-        {/* Info */}
         <div className="fu-card-info">
           <div className="fu-card-name-row">
             <span className="fu-card-name">{user.name}</span>
@@ -489,13 +553,23 @@ function UserCard({ user, onFollowToggle }: UserCardProps) {
           </div>
 
           <p className="fu-card-username">@{user.username}</p>
-          <p className="fu-card-followers">{formatFollowers(user.followersCount)} followers</p>
+          
+          <p className="fu-card-followers">
+            {formatFollowers(Number(user.followersCount) || 0)} followers
+          </p>
 
           <button
-            className={`fu-follow-btn ${isFollowing ? "following" : "follow"}`}
-            onClick={() => onFollowToggle(user.id, user.followtype)}
+            className={`fu-follow-btn ${isFollowing ? "following" : "follow"} ${isPending ? "disabled" : ""}`}
+            onClick={() => !isPending && onFollowToggle(user.id, user.followtype)}
+            disabled={isPending}
           >
-            {isFollowing ? <><UserCheck size={15} /> Following</> : <><UserPlus size={15} /> Follow</>}
+            {isPending ? (
+              <><Loader2 size={15} className="fu-spinner" /> Processing...</>
+            ) : isFollowing ? (
+              <><UserCheck size={15} /> Following</>
+            ) : (
+              <><UserPlus size={15} /> Follow</>
+            )}
           </button>
         </div>
       </div>

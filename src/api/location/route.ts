@@ -162,12 +162,11 @@ createLocation: async (
       "/create-location",
       payload
     );
-
     return res.data.data;
   } catch (err) {
-    throw new Error(
-      extractErrorMessage(err, "Failed to create location.")
-    );
+    // DO NOT wrap this in 'new Error()' yet, 
+    // throw the original 'err' so we can access err.response
+    throw err; 
   }
 },
 

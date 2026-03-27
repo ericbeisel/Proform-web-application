@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { X, Check, MapPin, Dumbbell, Search } from "lucide-react";
+import { X, Check, MapPin, Dumbbell, Search, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { equipmentApi, Equipment } from "@/api/location/route";
 
@@ -13,6 +13,9 @@ export default function AddLocationPage() {
   const [locationName, setLocationName] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // New State for handling "Name Already Exists" error
+  const [nameError, setNameError] = useState("");
 
   const isReadyToSave = locationName.trim().length > 0 && selected.length > 0;
 
@@ -22,7 +25,7 @@ export default function AddLocationPage() {
         const data = await equipmentApi.getAllEquipment();
         setEquipment(data);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch equipment:", err);
       }
     };
     fetchEquipment();
@@ -40,29 +43,49 @@ export default function AddLocationPage() {
     );
   };
 
-  const handleCreate = async () => {
-    if (!isReadyToSave) return;
-    try {
-      setLoading(true);
-      await equipmentApi.createLocation({
-        location_name: locationName,
-        equipments: selected.join(","),
-        default_location: 0,
-      });
-      router.push("/location");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to create location");
-    } finally {
-      setLoading(false);
+const handleCreate = async () => {
+  if (!isReadyToSave) return;
+  
+  setNameError(""); // Reset error state
+  setLoading(true);
+
+  try {
+    await equipmentApi.createLocation({
+      location_name: locationName.trim(),
+      equipments: selected.join(","),
+      default_location: 0,
+    });
+    router.push("/location");
+  } catch (err: any) {
+    console.error("Debug Error:", err);
+
+    // Get the message from the API response
+    const apiMessage = err.response?.data?.message || "";
+    const statusCode = err.response?.status;
+
+    // Check if the name is a duplicate
+    // We check for 409 (Conflict), 422 (Validation), or the specific text
+    if (
+      statusCode === 409 || 
+      statusCode === 422 || 
+      apiMessage.toLowerCase().includes("exists") || 
+      apiMessage.toLowerCase().includes("already taken")
+    ) {
+      setNameError("This location name already exists. Please choose a unique name.");
+    } else {
+      // If it's something else (like a 500 error or internet connection)
+      alert(apiMessage || "Failed to create location. Please try again.");
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
       
       {/* HEADER */}
-      <div className="bg-white px-4 sm:px-8 py-6 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-white px-4 sm:px-8 py-6 flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -76,7 +99,6 @@ export default function AddLocationPage() {
           </div>
         </div>
 
-        {/* HEADER ACTIONS: Search Bar + Save Button */}
         <div className="flex items-center gap-4">
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -98,9 +120,7 @@ export default function AddLocationPage() {
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
           >
-            {loading ? (
-                <span className="flex items-center gap-2">Saving...</span>
-            ) : (
+            {loading ? "Saving..." : (
               <>
                 <Check size={18} />
                 <span>Save Location</span>
@@ -129,15 +149,30 @@ export default function AddLocationPage() {
               </label>
               <input
                 value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
+                onChange={(e) => {
+                  setLocationName(e.target.value);
+                  if (nameError) setNameError(""); // Clear error message as user types
+                }}
                 placeholder="e.g., Home Gym, LA Fitness, Garage Setup"
-                className="w-full p-4 border border-gray-100 rounded-2xl text-base font-medium text-gray-900 bg-white outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all"
+                className={`w-full p-4 border rounded-2xl text-base font-medium transition-all outline-none 
+                  ${nameError 
+                    ? "border-red-500 bg-red-50/30 focus:ring-2 focus:ring-red-200" 
+                    : "border-gray-100 bg-white focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed]"
+                  }`}
               />
+              
+              {/* ERROR MESSAGE DISPLAY */}
+              {nameError && (
+                <div className="flex items-center gap-1.5 text-red-500 mt-1 ml-1 animate-in fade-in slide-in-from-top-1">
+                  <AlertCircle size={14} />
+                  <p className="text-xs font-bold">{nameError}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* SEARCH BAR FOR MOBILE (Shows only on small screens) */}
+        {/* MOBILE SEARCH */}
         <div className="md:hidden mb-6">
             <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -170,7 +205,7 @@ export default function AddLocationPage() {
                 className={`cursor-pointer rounded-2xl border p-8 flex flex-col items-center justify-center transition-all duration-200 group
                 ${isSelected
                     ? "border-[#7c3aed] bg-[#7c3aed]/5 ring-1 ring-[#7c3aed] scale-[1.02]"
-                    : "border-gray-100 bg-white hover:border-gray-200 shadow-sm"
+                    : "border-gray-100 bg-white hover:border-gray-200 shadow-sm hover:shadow-md"
                 }`}
               >
                 <div className="h-16 flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
@@ -188,10 +223,9 @@ export default function AddLocationPage() {
           })}
         </div>
         
-        {/* EMPTY STATE */}
         {filteredEquipment.length === 0 && (
             <div className="text-center py-20">
-                <p className="text-gray-400 font-medium font-['DM_Sans',_sans-serif]">No equipment matches your search.</p>
+                <p className="text-gray-400 font-medium">No equipment matches your search.</p>
             </div>
         )}
       </div>

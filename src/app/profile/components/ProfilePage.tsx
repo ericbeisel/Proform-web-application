@@ -129,7 +129,7 @@ export default function ProfilePage() {
         image: profileData.image,
         role_id: profileData.role_id,
         workoutCount: profileData.workoutCount,
-        FollowsCount: profileData.FollowsCount,
+        FollowsCount: profileData.followersCount,
         Strength: profileData.Strength,
         Bench_CMP: profileData.Bench_CMP,
         Squat_CMP: profileData.Squat_CMP,
@@ -226,38 +226,41 @@ export default function ProfilePage() {
     resolveUsername();
   }, [userLoaded, searchParams, retryCount]);
 
-  const handleFollowToggle = async () => {
-    if (!profile || !currentUser) return;
+ const handleFollowToggle = async () => {
+  if (!profile || !currentUser) return;
 
-    const isFollowing = profile.followtype === "Following";
-    const payload = {
-      user_id: profile.id,
-      follower_username: currentUser.username,
-    };
-    
-    console.log(`👥 Follow action: ${isFollowing ? 'Unfollowing' : 'Following'}`, payload);
-
-    try {
-      if (isFollowing) {
-        await profileApi.unfollowUser(payload);
-        setProfile({
-          ...profile,
-          followtype: "Follow Me!",
-          FollowsCount: profile.FollowsCount - 1,
-        });
-      } else {
-        await profileApi.followUser(payload);
-        setProfile({
-          ...profile,
-          followtype: "Following",
-          FollowsCount: profile.FollowsCount + 1,
-        });
-      }
-    } catch (err: any) {
-      console.error("❌ Follow action failed:", err);
-      alert(err.message || "Action failed");
-    }
+  // 1. UPDATED LOGIC: Your API uses "Unfollow" to indicate you are ALREADY following.
+  const isFollowing = profile.followtype === "Following" || profile.followtype === "Unfollow";
+  
+  const payload = {
+    user_id: profile.id,
+    follower_username: currentUser.username,
   };
+  
+  // 2. SAFETY: Ensure we have a valid number to start with
+  const currentCount = Number(profile.followersCount || 0);
+
+  try {
+    if (isFollowing) {
+      await profileApi.unfollowUser(payload);
+      setProfile({
+        ...profile,
+        followtype: "Follow Me!",
+        followersCount: Math.max(0, currentCount - 1), // Use lowercase 'f'
+      });
+    } else {
+      await profileApi.followUser(payload);
+      setProfile({
+        ...profile,
+        followtype: "Following",
+        followersCount: currentCount + 1, // Use lowercase 'f'
+      });
+    }
+  } catch (err: any) {
+    console.error("❌ Follow action failed:", err);
+    alert(err.message || "Action failed");
+  }
+};
 
   if (loading) {
     return (
@@ -316,7 +319,7 @@ export default function ProfilePage() {
 
   const STATS = [
     { icon: <Zap size={20} className="text-orange-500" />, bg: "bg-yellow-50", value: profile.workoutCount, label: "Total Workouts", valueCls: "text-gray-900" },
-    { icon: <Users size={20} className="text-blue-500" />, bg: "bg-blue-50", value: profile.FollowsCount, label: "Followers", valueCls: "text-blue-500" },
+    { icon: <Users size={20} className="text-blue-500" />, bg: "bg-blue-50", value: profile.followersCount, label: "Followers", valueCls: "text-blue-500" },
     { icon: <Star size={20} className="text-purple-500" />, bg: "bg-purple-50", value: profile.Strength, label: "Strength Score", valueCls: "text-purple-500" },
   ];
 
