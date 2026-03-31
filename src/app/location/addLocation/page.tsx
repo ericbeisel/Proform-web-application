@@ -100,6 +100,14 @@ const handleCreate = async () => {
         </div>
 
         <div className="flex items-center gap-4">
+          {selected.length > 0 && (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-full border border-purple-100 animate-in fade-in zoom-in">
+      <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-pulse" />
+      <span className="text-[11px] font-bold text-[#7c3aed] whitespace-nowrap">
+        {selected.length} SELECTED
+      </span>
+    </div>
+  )}
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 

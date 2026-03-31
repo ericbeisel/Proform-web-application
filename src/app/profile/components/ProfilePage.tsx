@@ -39,7 +39,7 @@ interface UserData {
 export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
+const [refreshingSocials, setRefreshingSocials] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [socials, setSocials] = useState<DetailedSocialMedia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,6 +225,22 @@ export default function ProfilePage() {
 
     resolveUsername();
   }, [userLoaded, searchParams, retryCount]);
+
+  // Add this function to refresh social links
+const refreshSocialLinks = async () => {
+  if (!profile?.id) return;
+  
+  setRefreshingSocials(true);
+  try {
+    const updatedSocials = await profileApi.getSocialMedia(profile.id);
+    console.log("🔄 Refreshed social links:", updatedSocials);
+    setSocials(updatedSocials);
+  } catch (err) {
+    console.error("Failed to refresh social links:", err);
+  } finally {
+    setRefreshingSocials(false);
+  }
+};
 
  const handleFollowToggle = async () => {
   if (!profile || !currentUser) return;
@@ -485,7 +501,10 @@ export default function ProfilePage() {
               <X size={14} />
             </button>
             {modal === "edit" && <EditProfilePage profileData={profile} onClose={() => setModal(null)} onUpdateSuccess={() => fetchProfileData(profile.username)} />}
-            {modal === "social" && <SocialLinksPage userId={profile.id} onClose={() => setModal(null)} />}
+            {modal === "social" && <SocialLinksPage userId={profile.id} onClose={async () => {
+              setModal(null);
+              await refreshSocialLinks();
+            }} />}
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function JoiningCodePage() {
@@ -22,9 +23,15 @@ export default function JoiningCodePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center px-4 mt-4">
-      <div className="w-full max-w-xl flex flex-col items-center">
+   <div className="min-h-screen bg-gray-50 flex justify-center px-4 pt-10 relative">
+    <div className="w-full max-w-xl flex flex-col items-center">
 
+      {/* CLOSE BUTTON */}
+      <button
+        onClick={() => router.push('/team/teams')} // Adjust route as needed
+className="absolute top-0 right-8 md:right-0 w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:shadow-md transition-all group z-20"      >
+        <X size={20} className="group-hover:rotate-90 transition-transform duration-200" />
+      </button>
         {/* Icon */}
         <div className="w-24 h-24 rounded-full bg-gradient-to-r from-[#00B8DB] to-[#06B6D4] flex items-center justify-center shadow-lg shadow-violet-200 mb-7">
           <svg
