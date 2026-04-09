@@ -74,7 +74,10 @@
     { label: "Location", href: "/location" },
     { label: "More Options", href: "#" },
     // Admin-only tool
-    { label: "Admin Dashboard", href: "/admin/dashboard", adminOnly: true },
+    {
+      label: "Admin Dashboard", adminOnly: true,
+      href: ""
+    },
   ];
 
   export default function AccountPage() {

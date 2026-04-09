@@ -41,6 +41,11 @@ export default function EditProfilePage({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith("image/")) {
+    alert("Please select an image file.");
+    return;
+  }
+
     // Basic validation
     const validTypes = ["image/jpeg", "image/png", "image/gif"];
     if (!validTypes.includes(file.type)) {
@@ -84,14 +89,14 @@ export default function EditProfilePage({
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
       {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
+    <input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*" // Use wildcard for best compatibility across devices
+  className="absolute inset-0 w-0 h-0 opacity-0" // Better than 'hidden' for iOS
+  onChange={handleFileChange}
+  aria-hidden="true"
+/>
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-white shadow-sm sm:shadow-none rounded-t-2xl">
         <div className="flex items-center gap-3">
@@ -142,12 +147,16 @@ export default function EditProfilePage({
                     )}
                   </div>
                   {/* Camera button triggers file picker */}
-                  <button
-                    onClick={triggerFilePicker}
+                <button
+  type="button" // Prevents any form-submission interference
+  onClick={(e) => {
+    e.preventDefault(); // Stop any bubbling
+    triggerFilePicker();
+  }}
                     className="absolute bottom-1 sm:bottom-2 right-1 sm:right-2 w-9 h-9 sm:w-10 sm:h-10 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center text-white shadow-md transition-colors"
-                  >
-                    <Camera size={16} />
-                  </button>
+  >
+  <Camera size={16} />
+</button>
                 </div>
 
                 {/* Upload button also triggers file picker */}

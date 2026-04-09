@@ -159,91 +159,93 @@ function DayTimesPopup({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[620px] rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative w-full max-w-[450px] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 bg-[#f8f5fd] border-b border-[#ede8f7]">
+        {/* Header - More compact */}
+        <div className="flex items-center justify-between px-5 py-3 bg-[#f8f5fd] border-b border-[#ede8f7] shrink-0">
           <div>
-            <p className="text-[11px] font-bold text-[#6202AC] uppercase tracking-wide">Time Slots</p>
-            <h3 className="text-[18px] font-bold text-[#1a1a1a]">{day}</h3>
+            <p className="text-[10px] font-bold text-[#6202AC] uppercase tracking-wide">Time Slots</p>
+            <h3 className="text-[16px] font-bold text-[#1a1a1a]">{day}</h3>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full bg-white p-1.5 shadow hover:bg-gray-50 transition-colors"
+            className="rounded-full bg-white p-1 shadow-sm hover:bg-gray-50 transition-colors"
           >
             <X size={18} className="text-[#555]" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 pt-3 pb-4">
-
-          {/* ⚠️ Duplicate warning — always reserves space so popup does not resize */}
-          <div className="h-[48px] mb-4">
-            {error && (
-              <div className="flex items-center gap-2 bg-[#fff2f2] border border-[#fcc] rounded-xl px-4 h-full">
-                <span className="text-sm">⚠️</span>
-                <p className="text-[12px] font-bold text-red-600 truncate">{error}</p>
-              </div>
-            )}
-          </div>
+        {/* Body - Scrollable area */}
+        <div className="px-5 py-4 overflow-y-auto custom-scrollbar">
+          {/* Error Message - Only shows when needed to save space */}
+          {error && (
+            <div className="flex items-center gap-2 bg-[#fff2f2] border border-[#fcc] rounded-xl px-3 py-2 mb-4 animate-in fade-in slide-in-from-top-1">
+              <span className="text-sm">⚠️</span>
+              <p className="text-[11px] font-bold text-red-600 leading-tight">{error}</p>
+            </div>
+          )}
 
           {slots.length === 0 && (
-            <p className="text-center text-[13px] text-[#aaa] py-4">
+            <p className="text-center text-[13px] text-[#aaa] py-6">
               No time slots yet. Add one below.
             </p>
           )}
 
-          {slots.map((slot, index) => (
-            <div key={index} className="mb-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-bold text-[#888] uppercase tracking-wide">
-                  Slot {index + 1}
-                </p>
-                <button
-                  onClick={() => onRemove(index)}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-[#FFF5F5] rounded-lg hover:bg-[#ffebeb] transition-colors text-[11px] font-bold text-[#FF4D4D]"
-                >
-                  <Trash2 size={12} />
-                  Remove
-                </button>
+          <div className="space-y-4">
+            {slots.map((slot, index) => (
+              <div key={index} className="relative">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-bold text-[#888] uppercase tracking-wide ml-1">
+                    Slot {index + 1}
+                  </p>
+                  <button
+                    onClick={() => onRemove(index)}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-[#FFF5F5] rounded-md hover:bg-[#ffebeb] transition-colors text-[10px] font-bold text-[#FF4D4D]"
+                  >
+                    <Trash2 size={10} />
+                    Remove
+                  </button>
+                </div>
+                <div className={`rounded-xl p-2.5 border transition-colors ${error ? "border-red-200 bg-[#fff8f8]" : "border-[#f0f0f0] bg-[#fafafa]"}`}>
+                  <TimePicker
+                    value={slot.startTime}
+                    onChange={(val) => onUpdate(index, val)}
+                    hasError={!!error}
+                  />
+                </div>
               </div>
-              <div className={`rounded-xl p-3 border ${error ? "border-red-200 bg-[#fff8f8]" : "border-[#f0f0f0] bg-[#fafafa]"}`}>
-                <TimePicker
-                  value={slot.startTime}
-                  onChange={(val) => onUpdate(index, val)}
-                  hasError={!!error}
-                />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
           {slots.length < 3 ? (
             <button
               onClick={onAdd}
-              className="flex items-center justify-center gap-2 w-full py-3 border-[1.5px] border-dashed border-[#d1d1d1] rounded-xl hover:bg-gray-50 transition-colors mt-1"
+              className="flex items-center justify-center gap-2 w-full py-2.5 border-[1.5px] border-dashed border-[#d1d1d1] rounded-xl hover:bg-gray-50 transition-colors mt-4"
             >
-              <Plus size={16} className="text-[#6202AC]" />
-              <span className="text-[13px] font-bold text-[#6202AC]">Add Time Slot</span>
+              <Plus size={14} className="text-[#6202AC]" />
+              <span className="text-[12px] font-bold text-[#6202AC]">Add Time Slot</span>
             </button>
           ) : (
-            <p className="text-center text-[12px] font-medium text-[#888] italic mt-1">
+            <p className="text-center text-[11px] font-medium text-[#aaa] italic mt-4">
               Maximum 3 time slots per day
             </p>
           )}
+        </div>
 
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 border-t border-gray-50 shrink-0 bg-white">
           <button
             onClick={onClose}
             disabled={!!error}
-            className={`mt-5 w-full h-11 rounded-full text-[14px] font-bold transition-colors ${
+            className={`w-full h-11 rounded-xl text-[14px] font-bold transition-all ${
               error
-                ? "bg-[#c084e8] cursor-not-allowed text-white"
-                : "bg-[#6202AC] hover:bg-[#500ba6] text-white"
+                ? "bg-[#e0c3f5] cursor-not-allowed text-white"
+                : "bg-[#6202AC] hover:bg-[#500ba6] text-white shadow-md active:scale-[0.98]"
             }`}
           >
             {error ? "Fix duplicate to continue" : "Done"}
@@ -427,18 +429,21 @@ const EditTimeModal = ({
       </div>
 
       {/* Footer */}
-      <button
-        onClick={() => {
-          if (hasErrors) return;
-          onSave(selectedTimes);
-          onClose();
-        }}
-        disabled={hasErrors}
-        className={`w-full md:max-w-md h-14 text-white rounded-full text-[18px] font-bold transition-colors mb-3 shadow-md mx-auto
-          ${hasErrors ? "bg-[#c084e8] cursor-not-allowed" : "bg-[#6202AC] hover:bg-[#500ba6]"}`}
-      >
-        {hasErrors ? "Fix duplicates to save" : "Save Schedule"}
-      </button>
+     {/* Footer */}
+      <div className="p-4 border-t border-[#f0f0f0] bg-white shrink-0 flex justify-center">
+        <button
+          onClick={() => {
+            if (hasErrors) return;
+            onSave(selectedTimes);
+            onClose();
+          }}
+          disabled={hasErrors}
+          className={`w-full max-w-[340px] h-12 text-white rounded-full text-[16px] font-bold transition-all shadow-md active:scale-[0.98]
+            ${hasErrors ? "bg-[#c084e8] cursor-not-allowed" : "bg-[#6202AC] hover:bg-[#500ba6]"}`}
+        >
+          {hasErrors ? "Fix duplicates to save" : "Save Schedule"}
+        </button>
+      </div>
 
       {/* Day Popup */}
       {popupDay && (

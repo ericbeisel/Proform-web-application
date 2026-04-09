@@ -1,17 +1,18 @@
 // ✅ UPDATED: all numeric fields forced to integers via toInt()
-import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
-import { getAuthToken } from '@/lib/auth/session';
-import { invalidateDashboardCache } from '../dashboard/route';
+import { NextRequest, NextResponse } from "next/server";
+import axios from "axios";
+import { getAuthToken } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "../dashboard/route";
 
 // ─── Helper: always send whole integers to the API ────────────────────────────
 function toInt(val: string | number | undefined | null): string {
-  if (val === undefined || val === null || val === '') return '0';
+  if (val === undefined || val === null || val === "") return "0";
   const n = Math.round(Number(val));
-  return isNaN(n) ? '0' : String(n);
+  return isNaN(n) ? "0" : String(n);
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://paxlete.com/api';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ export interface AccountSetupInput {
   cardioDays: string[];
   conditioningDays: string[];
   // Step 7 – 1RM Method
-  selected1RMMethod: 'auto' | 'manual' | null;
+  selected1RMMethod: "auto" | "manual" | null;
   // Step 8 – Strength Profile
   benchPress: string;
   squat: string;
@@ -48,19 +49,19 @@ export interface AccountSetupInput {
   powerClean: string;
   autoCalculateFuture: boolean;
   // Step 9 – Preferences (all IDs from API)
-  timeZoneId: string;       // numeric ID from /api/timezone
+  timeZoneId: string; // numeric ID from /api/timezone
   weeklyResetDay: string;
-  countryId: string;        // numeric ID from /api/country
-  stateId: string;          // numeric ID from /api/state
-  cityId: string;           // numeric ID from /api/cities
+  countryId: string; // numeric ID from /api/country
+  stateId: string; // numeric ID from /api/state
+  cityId: string; // numeric ID from /api/cities
 }
 
 // ─── Location & Timezone API types ───────────────────────────────────────────
 
 export interface TimezoneOption {
-  id: string | number;  // API returns id as string e.g. "1", "2"
-  name: string;         // e.g. "CST: Central Standard Time"
-  timeValue?: string;   // e.g. "America/Chicago"
+  id: string | number; // API returns id as string e.g. "1", "2"
+  name: string; // e.g. "CST: Central Standard Time"
+  timeValue?: string; // e.g. "America/Chicago"
   offset?: string;
   label?: string;
 }
@@ -83,9 +84,9 @@ export interface CityOption {
 }
 
 export interface ActivityLevelOption {
-  id: string | number;      // API returns id as string e.g. "1", "2", "3", "4"
-  name: string;             // e.g. "0-1 Workout", "2-3 Workout", etc.
-  value: string;            // e.g. "1.2", "1.375", "1.55", "1.725"
+  id: string | number; // API returns id as string e.g. "1", "2", "3", "4"
+  name: string; // e.g. "0-1 Workout", "2-3 Workout", etc.
+  value: string; // e.g. "1.2", "1.375", "1.55", "1.725"
   created_at?: string;
   updated_at?: string;
 }
@@ -97,9 +98,9 @@ export interface ActivityLevelOption {
 // ─── Training Goals API types ────────────────────────────────────────────────
 
 export interface TrainingGoalOption {
-  id: string | number;      // API returns id as string e.g. "4", "6", "8", etc.
-  name: string;             // e.g. "Understand Mechanics", "Power/Explosiveness", etc.
-  Hide?: string;            // "0" for visible, "1" for hidden (optional)
+  id: string | number; // API returns id as string e.g. "4", "6", "8", etc.
+  name: string; // e.g. "Understand Mechanics", "Power/Explosiveness", etc.
+  Hide?: string; // "0" for visible, "1" for hidden (optional)
   created_at?: string;
   updated_at?: string;
 }
@@ -110,16 +111,23 @@ export interface TrainingGoalOption {
 export const fetchTrainingGoals = async (): Promise<TrainingGoalOption[]> => {
   try {
     const { data } = await axios.get(`${API_BASE}/training_goals`);
-    console.log('[fetchTrainingGoals] raw response:', data);
-    
+    console.log("[fetchTrainingGoals] raw response:", data);
+
     // Handle different response structures
-    const goals: any[] = Array.isArray(data) ? data : (data.data ?? data.training_goals ?? []);
-    console.log('[fetchTrainingGoals] parsed goals:', goals);
-    
+    const goals: any[] = Array.isArray(data)
+      ? data
+      : (data.data ?? data.training_goals ?? []);
+    console.log("[fetchTrainingGoals] parsed goals:", goals);
+
     return goals;
   } catch (error: any) {
-    console.error('[fetchTrainingGoals] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch training goals');
+    console.error(
+      "[fetchTrainingGoals] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch training goals",
+    );
   }
 };
 
@@ -128,10 +136,10 @@ export const fetchTrainingGoals = async (): Promise<TrainingGoalOption[]> => {
 // ─── Sports API types ────────────────────────────────────────────────────────
 
 export interface SportOption {
-  id: string | number;      // API returns id as string e.g. "1", "2", "3", etc.
-  name: string;             // e.g. "Basketball", "Football", "Soccer", etc.
-  image_url?: string;       // Optional image URL for the sport
-  order?: string;           // Display order "1", "2", "3", etc.
+  id: string | number; // API returns id as string e.g. "1", "2", "3", etc.
+  name: string; // e.g. "Basketball", "Football", "Soccer", etc.
+  image_url?: string; // Optional image URL for the sport
+  order?: string; // Display order "1", "2", "3", etc.
   created_at?: string;
   updated_at?: string;
 }
@@ -142,16 +150,21 @@ export interface SportOption {
 export const fetchSports = async (): Promise<SportOption[]> => {
   try {
     const { data } = await axios.get(`${API_BASE}/sports`);
-    console.log('[fetchSports] raw response:', data);
-    
+    console.log("[fetchSports] raw response:", data);
+
     // Handle different response structures
-    const sports: any[] = Array.isArray(data) ? data : (data.data ?? data.sports ?? []);
-    console.log('[fetchSports] parsed sports:', sports);
-    
+    const sports: any[] = Array.isArray(data)
+      ? data
+      : (data.data ?? data.sports ?? []);
+    console.log("[fetchSports] parsed sports:", sports);
+
     return sports;
   } catch (error: any) {
-    console.error('[fetchSports] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch sports');
+    console.error(
+      "[fetchSports] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(error.response?.data?.message || "Failed to fetch sports");
   }
 };
 
@@ -159,14 +172,21 @@ export const fetchSports = async (): Promise<SportOption[]> => {
 export const fetchTimezones = async (): Promise<TimezoneOption[]> => {
   try {
     const { data } = await axios.get(`${API_BASE}/timezone`);
-    console.log('[fetchTimezones] raw response:', data);
-    const raw: any[] = Array.isArray(data) ? data : (data.data ?? data.timezones ?? []);
+    console.log("[fetchTimezones] raw response:", data);
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : (data.data ?? data.timezones ?? []);
     // API returns id as string (e.g. "1"). Keep as-is but log for debugging.
-    console.log('[fetchTimezones] first item sample:', raw[0]);
+    console.log("[fetchTimezones] first item sample:", raw[0]);
     return raw;
   } catch (error: any) {
-    console.error('[fetchTimezones] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch timezones');
+    console.error(
+      "[fetchTimezones] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch timezones",
+    );
   }
 };
 
@@ -174,45 +194,58 @@ export const fetchTimezones = async (): Promise<TimezoneOption[]> => {
 export const fetchCountries = async (): Promise<CountryOption[]> => {
   try {
     const { data } = await axios.get(`${API_BASE}/country`);
-    console.log('[fetchCountries] raw response:', data);
+    console.log("[fetchCountries] raw response:", data);
     return Array.isArray(data) ? data : (data.data ?? data.countries ?? []);
   } catch (error: any) {
-    console.error('[fetchCountries] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch countries');
+    console.error(
+      "[fetchCountries] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch countries",
+    );
   }
 };
 
 /** Fetch states for a country from POST /api/state */
-export const fetchStates = async (countryId: string): Promise<StateOption[]> => {
-  if (!countryId || countryId === '0') return [];
+export const fetchStates = async (
+  countryId: string,
+): Promise<StateOption[]> => {
+  if (!countryId || countryId === "0") return [];
   try {
     const params = new URLSearchParams({ country_id: countryId });
-    console.log('[fetchStates] requesting states for country_id:', countryId);
+    console.log("[fetchStates] requesting states for country_id:", countryId);
     const { data } = await axios.post(`${API_BASE}/state`, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
-    console.log('[fetchStates] raw response:', data);
+    console.log("[fetchStates] raw response:", data);
     return Array.isArray(data) ? data : (data.data ?? data.states ?? []);
   } catch (error: any) {
-    console.error('[fetchStates] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch states');
+    console.error(
+      "[fetchStates] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(error.response?.data?.message || "Failed to fetch states");
   }
 };
 
 /** Fetch cities for a state — POST x-www-form-urlencoded with state_id */
 export const fetchCities = async (stateId: string): Promise<CityOption[]> => {
-  if (!stateId || stateId === '0') return [];
+  if (!stateId || stateId === "0") return [];
   try {
     const params = new URLSearchParams({ state_id: stateId });
-    console.log('[fetchCities] requesting cities for state_id:', stateId);
+    console.log("[fetchCities] requesting cities for state_id:", stateId);
     const { data } = await axios.post(`${API_BASE}/cities`, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
-    console.log('[fetchCities] raw response:', data);
+    console.log("[fetchCities] raw response:", data);
     return Array.isArray(data) ? data : (data.data ?? data.cities ?? []);
   } catch (error: any) {
-    console.error('[fetchCities] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch cities');
+    console.error(
+      "[fetchCities] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(error.response?.data?.message || "Failed to fetch cities");
   }
 };
 
@@ -223,178 +256,228 @@ export const fetchCities = async (stateId: string): Promise<CityOption[]> => {
  * e.g. "1990-05-15" with local timezone could shift to May 14 if UTC-offset is negative.
  */
 function formatBirthDate(isoDate: string): string {
-  if (!isoDate) return '';
+  if (!isoDate) return "";
   // FIX: API was interpreting YYYYMMDD as a Unix timestamp ("20070301" → epoch → "1970-08-21").
   // Send as-is "YYYY-MM-DD" so the API parses it as a real calendar date.
-  console.log('[formatBirthDate] input:', isoDate, 'passing through as-is');
+  console.log("[formatBirthDate] input:", isoDate, "passing through as-is");
   return isoDate;
 }
 
 function mapActivityLevel(level: string): string {
   // FIX: use integer codes — floating point values like 1.375 cause 500 errors
   const map: Record<string, string> = {
-    sedentary:     '1',
-    light:         '2',
-    moderate:      '3',
-    active:        '4',
-    'very-active': '5',
+    sedentary: "1",
+    light: "2",
+    moderate: "3",
+    active: "4",
+    "very-active": "5",
   };
-  const result = map[level] ?? '1';
-  console.log('[mapActivityLevel] input:', level, '→ output:', result);
+  const result = map[level] ?? "1";
+  console.log("[mapActivityLevel] input:", level, "→ output:", result);
   return result;
 }
 
 export const fetchActivityLevels = async (): Promise<ActivityLevelOption[]> => {
   try {
     const { data } = await axios.get(`${API_BASE}/activity_level`);
-    console.log('[fetchActivityLevels] raw response:', data);
-    
+    console.log("[fetchActivityLevels] raw response:", data);
+
     // Handle different response structures
-    const levels: any[] = Array.isArray(data) ? data : (data.data ?? data.activity_levels ?? []);
-    console.log('[fetchActivityLevels] parsed levels:', levels);
-    
+    const levels: any[] = Array.isArray(data)
+      ? data
+      : (data.data ?? data.activity_levels ?? []);
+    console.log("[fetchActivityLevels] parsed levels:", levels);
+
     return levels;
   } catch (error: any) {
-    console.error('[fetchActivityLevels] error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || 'Failed to fetch activity levels');
+    console.error(
+      "[fetchActivityLevels] error:",
+      error.response?.data || error.message,
+    );
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch activity levels",
+    );
   }
 };
 
 function mapWeightGoalType(goal: string): string {
   let result: string;
-  if (goal === 'lose-weight') result = 'lose';
-  else if (goal === 'build-muscle' || goal === 'increase-strength') result = 'gain';
-  else result = 'maintain';
-  console.log('[mapWeightGoalType] input:', goal, '→ output:', result);
+  if (goal === "lose-weight") result = "lose";
+  else if (goal === "build-muscle" || goal === "increase-strength")
+    result = "gain";
+  else result = "maintain";
+  console.log("[mapWeightGoalType] input:", goal, "→ output:", result);
   return result;
 }
 
 function mapGender(gender: string): string {
-  if (gender === 'male') return 'male';
-  if (gender === 'female') return 'female';
-  return 'other';
+  if (gender === "male") return "male";
+  if (gender === "female") return "female";
+  return "other";
 }
 
 function computeHeight(unit: string, feet: string, inches: string): string {
-  if (!feet) return '0';
+  if (!feet) return "0";
   let result: string;
-  if (unit === 'imperial') {
-    result = String(Number(feet) * 12 + Number(inches || '0'));
+  if (unit === "imperial") {
+    result = String(Number(feet) * 12 + Number(inches || "0"));
   } else {
     result = feet;
   }
-  console.log('[computeHeight] unit:', unit, 'feet:', feet, 'inches:', inches, '→ output:', result);
+  console.log(
+    "[computeHeight] unit:",
+    unit,
+    "feet:",
+    feet,
+    "inches:",
+    inches,
+    "→ output:",
+    result,
+  );
   return result;
 }
 
 function mapWeeklyReset(day: string): string {
   const map: Record<string, string> = {
-    Monday: '0', Tuesday: '1', Wednesday: '2', Thursday: '3',
-    Friday: '4', Saturday: '5', Sunday: '6',
+    Monday: "0",
+    Tuesday: "1",
+    Wednesday: "2",
+    Thursday: "3",
+    Friday: "4",
+    Saturday: "5",
+    Sunday: "6",
   };
-  const result = map[day] ?? '0';
-  console.log('[mapWeeklyReset] input:', day, '→ output:', result);
+  const result = map[day] ?? "0";
+  console.log("[mapWeeklyReset] input:", day, "→ output:", result);
   return result;
 }
 
 // ─── Payload builder ─────────────────────────────────────────────────────────
 
 function buildPayload(input: AccountSetupInput): URLSearchParams {
-  console.log('[buildPayload] full input received:', JSON.stringify(input, null, 2));
+  console.log(
+    "[buildPayload] full input received:",
+    JSON.stringify(input, null, 2),
+  );
 
   // FIX: Normalise the 1RM method — sessionStorage round-trips may add quotes or whitespace
-  const rmMethod = (input.selected1RMMethod ?? '').toString().trim().toLowerCase() as 'auto' | 'manual' | '';
-  console.log('[buildPayload] selected1RMMethod raw:', input.selected1RMMethod, '→ normalised:', rmMethod);
+  const rmMethod = (input.selected1RMMethod ?? "")
+    .toString()
+    .trim()
+    .toLowerCase() as "auto" | "manual" | "";
+  console.log(
+    "[buildPayload] selected1RMMethod raw:",
+    input.selected1RMMethod,
+    "→ normalised:",
+    rmMethod,
+  );
 
-  const isManual = rmMethod === 'manual';
-  console.log('[buildPayload] isManual:', isManual);
+  const isManual = rmMethod === "manual";
+  console.log("[buildPayload] isManual:", isManual);
 
-  const benchPress  = isManual ? (input.benchPress  || '0') : '0';
-  const backSquat   = isManual ? (input.squat        || '0') : '0';
-  const powerClean  = isManual ? (input.powerClean   || '0') : '0';
-  const deadlift    = isManual ? (input.deadlift     || '0') : '0';
+  const benchPress = isManual ? input.benchPress || "0" : "0";
+  const backSquat = isManual ? input.squat || "0" : "0";
+  const powerClean = isManual ? input.powerClean || "0" : "0";
+  const deadlift = isManual ? input.deadlift || "0" : "0";
 
-  console.log('[buildPayload] 1RM values → bench:', benchPress, 'squat:', backSquat, 'powerClean:', powerClean, 'deadlift:', deadlift);
+  console.log(
+    "[buildPayload] 1RM values → bench:",
+    benchPress,
+    "squat:",
+    backSquat,
+    "powerClean:",
+    powerClean,
+    "deadlift:",
+    deadlift,
+  );
 
   const fields: Record<string, string> = {
-    birthDate:               formatBirthDate(input.birthday),
-    activityLevel:           mapActivityLevel(input.activityLevel),
-    weightGoalType:          mapWeightGoalType(input.primaryGoal),
-    timeZone:                String(parseInt(input.timeZoneId || '0', 10)),  // API id is string e.g. '1','2'
-    measurementUnit:         input.unitPreference === 'imperial' ? 'lbs' : 'kg',
-    autoAdjust:              input.autoCalculateFuture ? '1' : '0',
-    gender:                  mapGender(input.gender),
-    trainingGoals:           (input.trainingGoals  || []).join(','),
-    trainingSport:           (input.preferredActivities || []).join(','),
-    currentWeight:           input.currentWeight     || '0',
-    goalWeight:              input.goalWeight         || '0',
-    height:                  computeHeight(input.unitPreference, input.heightFeet, input.heightInches),
-    bodyfat:                 input.bodyFatPercentage  || '0',
-    avarage_daily_steps:     input.dailySteps         || '0',
-    calories_goal:           input.cardioCalorieGoal  || '0',
-    target_workout_week:     toInt((input.workoutDays        || []).length),
-    target_supplement_week:  toInt((input.supplementalDays   || []).length),
-    target_cardio_week:      toInt((input.cardioDays          || []).length),
-    target_conditioning_week: toInt((input.conditioningDays    || []).length),
-    weekly_reset:            mapWeeklyReset(input.weeklyResetDay),
-    country:                 input.countryId    || '0',
-    state:                   input.stateId      || '0',
-    city:                    input.cityId       || '0',
-    r_bench_press:           benchPress,
-    r_back_squat:            backSquat,
-    r_power_clean:           powerClean,
-    r_deadlift:              deadlift,
+    birthDate: formatBirthDate(input.birthday),
+    activityLevel: mapActivityLevel(input.activityLevel),
+    weightGoalType: mapWeightGoalType(input.primaryGoal),
+    timeZone: String(parseInt(input.timeZoneId || "0", 10)), // API id is string e.g. '1','2'
+    measurementUnit: input.unitPreference === "imperial" ? "lbs" : "kg",
+    autoAdjust: input.autoCalculateFuture ? "1" : "0",
+    gender: mapGender(input.gender),
+    trainingGoals: (input.trainingGoals || []).join(","),
+    trainingSport: (input.preferredActivities || []).join(","),
+    currentWeight: input.currentWeight || "0",
+    goalWeight: input.goalWeight || "0",
+    height: computeHeight(
+      input.unitPreference,
+      input.heightFeet,
+      input.heightInches,
+    ),
+    bodyfat: input.bodyFatPercentage || "0",
+    avarage_daily_steps: input.dailySteps || "0",
+    calories_goal: input.cardioCalorieGoal || "0",
+    target_workout_week: toInt((input.workoutDays || []).length),
+    target_supplement_week: toInt((input.supplementalDays || []).length),
+    target_cardio_week: toInt((input.cardioDays || []).length),
+    target_conditioning_week: toInt((input.conditioningDays || []).length),
+    weekly_reset: mapWeeklyReset(input.weeklyResetDay),
+    country: input.countryId || "0",
+    state: input.stateId || "0",
+    city: input.cityId || "0",
+    r_bench_press: benchPress,
+    r_back_squat: backSquat,
+    r_power_clean: powerClean,
+    r_deadlift: deadlift,
   };
 
-  console.log('[buildPayload] final fields object:', fields);
+  console.log("[buildPayload] final fields object:", fields);
 
   const params = new URLSearchParams();
   Object.entries(fields).forEach(([key, value]) => params.append(key, value));
 
-  console.log('[buildPayload] URLSearchParams string:', params.toString());
+  console.log("[buildPayload] URLSearchParams string:", params.toString());
   return params;
 }
 
 // ─── Submit function ─────────────────────────────────────────────────────────
 
-
 // In your submitAccountSetup function (in the API file or wherever it is)
 export const submitAccountSetup = async (input: AccountSetupInput) => {
   try {
-    console.log('[submitAccountSetup] called with input:', JSON.stringify(input, null, 2));
+    console.log(
+      "[submitAccountSetup] called with input:",
+      JSON.stringify(input, null, 2),
+    );
 
     const params = buildPayload(input);
     const token = getAuthToken();
 
-    console.log('[submitAccountSetup] token present:', !!token);
-    console.log('[submitAccountSetup] posting to:', `${API_BASE}/accountsetup`);
+    console.log("[submitAccountSetup] token present:", !!token);
+    console.log("[submitAccountSetup] posting to:", `${API_BASE}/accountsetup`);
 
-    const { data } = await axios.post(
-      `${API_BASE}/accountsetup`,
-      params,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }
+    const { data } = await axios.post(`${API_BASE}/accountsetup`, params, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    console.log(
+      "[submitAccountSetup] SUCCESS response:",
+      JSON.stringify(data, null, 2),
     );
-
-    console.log('[submitAccountSetup] SUCCESS response:', JSON.stringify(data, null, 2));
-     invalidateDashboardCache();
+    invalidateDashboardCache();
     // After successful account setup, clear sessionStorage
-    sessionStorage.removeItem('accountSetup');
-    
+    sessionStorage.removeItem("accountSetup");
+
     return data;
   } catch (error: any) {
-    console.error('[submitAccountSetup] ERROR status:', error.response?.status);
-    console.error('[submitAccountSetup] ERROR data:', JSON.stringify(error.response?.data, null, 2));
-    console.error('[submitAccountSetup] ERROR message:', error.message);
+    console.error("[submitAccountSetup] ERROR status:", error.response?.status);
+    console.error(
+      "[submitAccountSetup] ERROR data:",
+      JSON.stringify(error.response?.data, null, 2),
+    );
+    console.error("[submitAccountSetup] ERROR message:", error.message);
 
     const message =
       error.response?.data?.message ||
       error.message ||
-      'Account setup failed. Please try again.';
+      "Account setup failed. Please try again.";
     throw new Error(message);
   }
 };
@@ -435,18 +518,19 @@ export const submitAccountSetup = async (input: AccountSetupInput) => {
 //   }
 // };
 
-
-
 // ─── Next.js Route Handler ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const input: AccountSetupInput = await req.json();
-    console.log('[POST /account-setup] received input:', JSON.stringify(input, null, 2));
+    console.log(
+      "[POST /account-setup] received input:",
+      JSON.stringify(input, null, 2),
+    );
     const data = await submitAccountSetup(input);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (err: any) {
-    console.error('[POST /account-setup] route error:', err.message);
+    console.error("[POST /account-setup] route error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

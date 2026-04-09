@@ -7,17 +7,6 @@ import { profileApi, SearchUser } from "@/api/profile/route";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-// Debug logger - can be turned off
-const DEBUG = true;
-const logger = {
-  api: (...args: unknown[]) => DEBUG && console.log("🔌 [API]", ...args),
-  state: (...args: unknown[]) => DEBUG && console.log("📊 [STATE]", ...args),
-  action: (...args: unknown[]) => DEBUG && console.log("⚡ [ACTION]", ...args),
-  error: (...args: unknown[]) => console.error("❌ [ERROR]", ...args),
-  warn: (...args: unknown[]) => DEBUG && console.warn("⚠️ [WARN]", ...args),
-  follow: (...args: unknown[]) => DEBUG && console.log("👥 [FOLLOW]", ...args),
-};
-
 const formatFollowers = (count: number): string => {
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
   return count.toString();
@@ -27,26 +16,17 @@ const getInitials = (name: string): string =>
   name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
 const AVATAR_COLORS: string[] = [
-  "#6C63FF", "#7C3AED", "#F97316", "#10B981",
-  "#3B82F6", "#EC4899", "#06B6D4", "#8B5CF6",
-  "#F59E0B", "#14B8A6",
+  "bg-indigo-500", "bg-purple-600", "bg-orange-500", "bg-emerald-500",
+  "bg-blue-500", "bg-pink-500", "bg-cyan-500", "bg-violet-500",
 ];
 
-const getAvatarColor = (id: number): string =>
-  AVATAR_COLORS[id % AVATAR_COLORS.length];
-
-// ── Types ──────────────────────────────────────────────────────────────────
+const getAvatarBg = (id: number): string => AVATAR_COLORS[id % AVATAR_COLORS.length];
 
 interface CurrentUser {
   username: string;
 }
 
-interface UserCardProps {
-  user: SearchUser;
-  onFollowToggle: (userId: number, currentFollowType: string) => void;
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────
+// ── Page Component ─────────────────────────────────────────────────────────
 
 export default function FindUsersPage() {
   const router = useRouter();
@@ -60,515 +40,223 @@ export default function FindUsersPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [pendingActions, setPendingActions] = useState<Set<number>>(new Set());
 
+  // Initialize User from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
         setCurrentUser({ username: parsed.username });
-        logger.action(`Current user: ${parsed.username}`);
       } catch (err) {
-        logger.error("Error parsing user:", err);
+        console.error("Error parsing user:", err);
       }
     }
   }, []);
 
-const fetchUsers = useCallback(async (page: number, search?: string): Promise<void> => {
-  try {
-    const response = await profileApi.searchUsers(page, search);
+  // Fetch Users Function
+  const fetchUsers = useCallback(async (page: number, search?: string) => {
+    try {
+      if (page === 1) setLoading(true);
+      else setLoadingMore(true);
 
-    if (response.data && Array.isArray(response.data)) {
-      const normalized = response.data.map((user) => {
-        const persisted = getPersistedFollowStatus(user.id);
-        if (persisted !== null) {
-          return { ...user, followtype: persisted ? "Following" : "Follow Me!" };
-        }
-        return user;
-      });
+      const response = await profileApi.searchUsers(page, search);
 
-      setUsers((prev) => {
-        // If it's page 1, we reset the list entirely to avoid duplicates
-        if (page === 1) return normalized;
-        
-        // If appending, filter out any users that might already be in the list 
-        // (This is a safety "de-dupe" layer)
-        const existingIds = new Set(prev.map(u => u.id));
-        const uniqueNewUsers = normalized.filter(u => !existingIds.has(u.id));
-        return [...prev, ...uniqueNewUsers];
-      });
+      if (response.data && Array.isArray(response.data)) {
+        const normalized = response.data.map((user) => {
+          const stored = localStorage.getItem("userFollows");
+          const follows = stored ? JSON.parse(stored) : {};
+          if (follows[user.id] !== undefined) {
+            return { ...user, followtype: follows[user.id] ? "Following" : "Follow Me!" };
+          }
+          return user;
+        });
 
-      setHasMore(response.data.length === 20);
+        setUsers((prev) => (page === 1 ? normalized : [...prev, ...normalized]));
+        setHasMore(response.data.length === 20);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load users");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-  } catch (err) {
-    const error = err as Error;
-    logger.error("Failed to load users:", error);
-    setError(error.message || "Failed to load users");
-  } finally {
-    setLoading(false);
-    setLoadingMore(false);
-  }
-}, []);
+  }, []);
 
-// ── Search Debounce Logic ──
-useEffect(() => {
-  const timer = setTimeout(() => {
-    // IMPORTANT: Reset page state first
-    setCurrentPage(1);
-    // Trigger fetch for page 1 explicitly
-    fetchUsers(1, searchTerm || undefined);
-  }, 500);
-  
-  return () => clearTimeout(timer);
-}, [searchTerm]); // Removed fetchUsers from deps to prevent unnecessary cycles
-
-  useEffect(() => {
-    fetchUsers(1);
-  }, [fetchUsers]);
-
+  // Search Debounce (Consolidated)
   useEffect(() => {
     const timer = setTimeout(() => {
-      setLoading(true);
       setCurrentPage(1);
       fetchUsers(1, searchTerm || undefined);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm, fetchUsers]);
 
-  const loadMore = useCallback((): void => {
-    if (!hasMore || loadingMore || loading) return;
-    setLoadingMore(true);
-    const nextPage = currentPage + 1;
-    setCurrentPage(nextPage);
-    fetchUsers(nextPage, searchTerm || undefined);
-  }, [hasMore, loadingMore, loading, currentPage, searchTerm, fetchUsers]);
-
+  // Infinite Scroll Listener
   useEffect(() => {
-    const handleScroll = (): void => {
+    const handleScroll = () => {
       if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
-        loadMore();
+        if (hasMore && !loadingMore && !loading) {
+          const nextPage = currentPage + 1;
+          setCurrentPage(nextPage);
+          fetchUsers(nextPage, searchTerm || undefined);
+        }
       }
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [loadMore]);
+  }, [currentPage, hasMore, loadingMore, loading, searchTerm, fetchUsers]);
 
-  const handleFollowToggle = async (userId: number, currentFollowType: string): Promise<void> => {
-    if (!currentUser) return;
-    
-    if (pendingActions.has(userId)) return;
-    
+  // Follow Logic
+  const handleFollowToggle = async (userId: number, currentFollowType: string) => {
+    if (!currentUser || pendingActions.has(userId)) return;
+
     const isCurrentlyFollowing = currentFollowType === "Following" || currentFollowType === "Unfollow";
     const payload = { user_id: userId, follower_username: currentUser.username };
-    
-    logger.follow(`${isCurrentlyFollowing ? 'Unfollowing' : 'Following'} user ${userId} (was: ${currentFollowType})`);
 
     setPendingActions(prev => new Set(prev).add(userId));
 
     try {
       if (isCurrentlyFollowing) {
         await profileApi.unfollowUser(payload);
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === userId
-              ? { 
-                  ...u, 
-                  followtype: "Follow Me!", 
-                  followersCount: Math.max(0, (Number(u.followersCount) || 0) - 1) 
-                }
-              : u
-          )
-        );
-        logger.follow(`✅ Unfollowed user ${userId}`);
+        updateLocalState(userId, false);
       } else {
         await profileApi.followUser(payload);
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === userId
-              ? { 
-                  ...u, 
-                  followtype: "Following", 
-                  followersCount: (Number(u.followersCount) || 0) + 1 
-                }
-              : u
-          )
-        );
-        logger.follow(`✅ Followed user ${userId}`);
+        updateLocalState(userId, true);
       }
-      
-      // Update localStorage persistence
-      updatePersistedFollowStatus(userId, !isCurrentlyFollowing);
-      
     } catch (err) {
-      logger.error("Follow/unfollow failed:", err);
-      alert("Could not update follow status. Please try again.");
+      console.error("Follow action failed", err);
     } finally {
       setPendingActions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(userId);
-        return newSet;
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
       });
     }
   };
-  
-  const updatePersistedFollowStatus = (userId: number, isFollowing: boolean) => {
-    try {
-      const storedFollows = localStorage.getItem("userFollows");
-      let follows = storedFollows ? JSON.parse(storedFollows) : {};
-      follows[userId] = isFollowing;
-      localStorage.setItem("userFollows", JSON.stringify(follows));
-    } catch (err) {
-      logger.error("Error persisting follow status:", err);
-    }
-  };
-  
-  const getPersistedFollowStatus = (userId: number): boolean | null => {
-    try {
-      const storedFollows = localStorage.getItem("userFollows");
-      if (storedFollows) {
-        const follows = JSON.parse(storedFollows);
-        return follows[userId] || null;
-      }
-    } catch (err) {
-      logger.error("Error getting persisted follow status:", err);
-    }
-    return null;
-  };
 
-  // Apply persisted follow status to users when they're loaded
+  const updateLocalState = (userId: number, isFollowing: boolean) => {
+    setUsers(prev => prev.map(u => u.id === userId ? {
+      ...u,
+      followtype: isFollowing ? "Following" : "Follow Me!",
+      followersCount: Math.max(0, (Number(u.followersCount) || 0) + (isFollowing ? 1 : -1))
+    } : u));
 
+    const stored = localStorage.getItem("userFollows");
+    const follows = stored ? JSON.parse(stored) : {};
+    follows[userId] = isFollowing;
+    localStorage.setItem("userFollows", JSON.stringify(follows));
+  };
 
   return (
-    <div className="fu-page">
-      {/* ── Header ── */}
-      <div className="fu-header">
-        <div className="fu-header-bg-grid" />
-
-        <div className="fu-header-inner">
-          <div className="fu-title-row">
-            <button className="fu-back-btn" onClick={() => router.back()}>
-              <ArrowLeft size={18} color="#fff" />
+    <div className="min-h-screen bg-[#F3F4F8]">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-gradient-to-r from-[#0f0c29] via-[#302b63] to-[#24243e] px-6 py-4 shadow-lg">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center gap-4 mb-4">
+            <button onClick={() => router.back()} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+              <ArrowLeft size={18} className="text-white" />
             </button>
-            <h1 className="fu-title">Find Users</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">Find Users</h1>
           </div>
 
-          <div className="fu-search-wrap">
-            <Search size={17} className="fu-search-icon" />
+          <div className="relative">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              className="fu-search-input"
-              placeholder="Search users by name or username..."
+              placeholder="Search users..."
+              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-purple-500 shadow-xl text-sm text-gray-900"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="fu-content">
-        {loading && users.length === 0 && (
-          <div className="fu-center-state">
-            <Loader2 size={32} color="#7C3AED" className="fu-spinner" />
-            <p className="fu-state-text">Loading users...</p>
+      {/* Main Content */}
+      <main className="max-w-5xl mx-auto p-5 pb-20">
+        {loading && users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center pt-20">
+            <Loader2 className="animate-spin text-purple-600 mb-2" size={32} />
+            <p className="text-gray-500 text-sm">Searching athletes...</p>
           </div>
-        )}
-
-        {error && !loading && (
-          <div className="fu-center-state">
-            <div className="fu-error-icon-wrap">
-              <Users size={24} color="#EF4444" />
-            </div>
-            <p style={{ color: "#EF4444", fontSize: 14 }}>{error}</p>
-            <button className="fu-retry-btn" onClick={() => fetchUsers(1, searchTerm || undefined)}>
-              Try Again
-            </button>
+        ) : error && !loading ? (
+          <div className="text-center pt-20">
+            <p className="text-red-500 text-sm mb-4">{error}</p>
+            <button onClick={() => fetchUsers(1)} className="text-purple-600 underline text-sm">Try Again</button>
           </div>
-        )}
-
-        {!error && (
+        ) : (
           <>
-            {!loading && users.length === 0 ? (
-              <div className="fu-center-state">
-                <Users size={48} color="#D1D5DB" style={{ marginBottom: 12 }} />
-                <p className="fu-state-text">No users found</p>
-                <p className="fu-state-subtext">
-                  {searchTerm ? "Try searching with a different name" : "No users available"}
-                </p>
+            {users.length === 0 ? (
+              <div className="flex flex-col items-center pt-20 text-center opacity-60">
+                <Users size={48} className="text-gray-300 mb-3" />
+                <p className="text-gray-600 font-semibold">No users found</p>
               </div>
             ) : (
-              <div className="fu-grid">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {users.map((user) => (
                   <UserCard 
                     key={user.id} 
                     user={user} 
-                    onFollowToggle={handleFollowToggle}
                     isPending={pendingActions.has(user.id)}
+                    onToggle={handleFollowToggle}
                   />
                 ))}
               </div>
             )}
 
             {loadingMore && (
-              <div className="fu-center-state" style={{ paddingTop: 24, paddingBottom: 0 }}>
-                <Loader2 size={24} color="#7C3AED" className="fu-spinner" />
+              <div className="flex justify-center py-6">
+                <Loader2 className="animate-spin text-purple-600" size={24} />
               </div>
-            )}
-
-            {!hasMore && users.length > 0 && (
-              <p className="fu-end-text">No more users to load</p>
             )}
           </>
         )}
-      </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .fu-page {
-          min-height: 100vh;
-          background: #F3F4F8;
-          font-family: 'Sora', 'DM Sans', sans-serif;
-        }
-
-        .fu-header {
-          position: relative;
-          overflow: hidden;
-          background: linear-gradient(120deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-          padding: 16px 24px 20px;
-          position: sticky;
-          top: 0;
-          z-index: 20;
-        }
-        .fu-header-bg-grid {
-          position: absolute;
-          inset: 0;
-          background-image:
-            repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 40px),
-            repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 40px);
-          pointer-events: none;
-        }
-        .fu-header-inner {
-          position: relative;
-          z-index: 2;
-          max-width: 1100px;
-          margin: 0 auto;
-        }
-        .fu-title-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 14px;
-        }
-        .fu-back-btn {
-          background: rgba(255,255,255,0.15);
-          border: none;
-          border-radius: 50%;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          backdrop-filter: blur(8px);
-          flex-shrink: 0;
-          transition: background 0.2s;
-        }
-        .fu-back-btn:hover { background: rgba(255,255,255,0.25); }
-        .fu-title {
-          color: #fff;
-          font-size: 22px;
-          font-weight: 700;
-          letter-spacing: -0.3px;
-          text-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-        .fu-search-wrap {
-          position: relative;
-        }
-        .fu-search-icon {
-          position: absolute;
-          left: 16px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #9CA3AF;
-          pointer-events: none;
-        }
-        .fu-search-input {
-          width: 100%;
-          padding: 13px 16px 13px 44px;
-          background: #fff;
-          border: 1.5px solid transparent;
-          border-radius: 12px;
-          font-size: 14px;
-          color: #111827;
-          outline: none;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-          font-family: inherit;
-          transition: border-color 0.2s;
-        }
-        .fu-search-input:focus { border-color: #7C3AED; }
-
-        .fu-content {
-          max-width: 1100px;
-          margin: 0 auto;
-          padding: 20px 20px 60px;
-        }
-
-        .fu-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-
-        .fu-center-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding-top: 60px;
-          text-align: center;
-        }
-        .fu-state-text { color: #6B7280; font-size: 15px; margin-top: 12px; }
-        .fu-state-subtext { color: #9CA3AF; font-size: 13px; margin-top: 4px; }
-        .fu-spinner { animation: spin 1s linear infinite; }
-        .fu-error-icon-wrap {
-          width: 64px; height: 64px;
-          background: #FEF2F2;
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          margin-bottom: 12px;
-        }
-        .fu-retry-btn {
-          margin-top: 12px; color: #7C3AED; font-size: 13px; font-weight: 500;
-          background: none; border: none; cursor: pointer;
-          text-decoration: underline; font-family: inherit;
-        }
-        .fu-end-text {
-          text-align: center; padding-top: 24px;
-          color: #9CA3AF; font-size: 13px;
-        }
-
-        .fu-card {
-          background: #fff;
-          border-radius: 18px;
-          padding: 20px 22px;
-          border: 1.5px solid #F0F0F5;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-          transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .fu-card:hover {
-          box-shadow: 0 6px 24px rgba(0,0,0,0.10);
-          transform: translateY(-1px);
-        }
-        .fu-card-inner { display: flex; align-items: flex-start; gap: 16px; }
-        .fu-avatar {
-          width: 58px; height: 58px;
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          color: #fff; font-weight: 700; font-size: 18px;
-          flex-shrink: 0;
-        }
-        .fu-avatar img {
-          width: 58px; height: 58px;
-          border-radius: 50%; object-fit: cover;
-        }
-        .fu-card-info { flex: 1; min-width: 0; }
-        .fu-card-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .fu-card-name { font-size: 16px; font-weight: 700; color: #111827; }
-        .fu-admin-badge {
-          background: #EDE9FE; color: #7C3AED;
-          font-size: 10px; font-weight: 600;
-          padding: 2px 7px; border-radius: 99px;
-        }
-        .fu-card-username { margin-top: 3px; font-size: 13px; color: #7C3AED; font-weight: 500; }
-        .fu-card-followers { margin-top: 6px; font-size: 12px; color: #9CA3AF; font-weight: 500; }
-        .fu-follow-btn {
-          display: flex; align-items: center; justify-content: center; gap: 6px;
-          width: 100%; margin-top: 14px; padding: 10px 0;
-          border-radius: 10px; font-size: 14px; font-weight: 600;
-          cursor: pointer; transition: all 0.2s; font-family: inherit;
-        }
-        .fu-follow-btn.follow {
-          background: #5B21B6; color: #fff; border: none;
-          box-shadow: 0 2px 8px rgba(91,33,182,0.3);
-        }
-        .fu-follow-btn.follow:hover { background: #4C1D95; }
-        .fu-follow-btn.following {
-          background: #F9FAFB; color: #374151;
-          border: 1.5px solid #E5E7EB;
-        }
-        .fu-follow-btn.following:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
-        .fu-follow-btn.disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        @media (min-width: 540px) {
-          .fu-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 14px;
-          }
-          .fu-content { padding: 16px 16px 60px; }
-        }
-
-        @media (min-width: 768px) {
-          .fu-header { padding: 16px 24px 20px; }
-          .fu-content { padding: 20px 24px 60px; }
-          .fu-grid { gap: 16px; }
-          .fu-title { font-size: 22px; }
-        }
-
-        @media (min-width: 1024px) {
-          .fu-content { padding: 24px 32px 60px; }
-          .fu-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 18px;
-          }
-        }
-      `}</style>
+      </main>
     </div>
   );
 }
 
-function UserCard({ user, onFollowToggle, isPending = false }: UserCardProps & { isPending?: boolean }) {
+// ── Sub-Component ──────────────────────────────────────────────────────────
+
+function UserCard({ user, isPending, onToggle }: { user: SearchUser, isPending: boolean, onToggle: any }) {
   const isFollowing = user.followtype === "Following" || user.followtype === "Unfollow";
 
   return (
-    <div className="fu-card">
-      <div className="fu-card-inner">
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all">
+      <div className="flex items-start gap-4">
         {user.image ? (
-          <div className="fu-avatar"><img src={user.image} alt={user.name} /></div>
+          <img src={user.image} alt={user.name} className="w-14 h-14 rounded-full object-cover ring-2 ring-purple-50" />
         ) : (
-          <div className="fu-avatar" style={{ background: getAvatarColor(user.id) }}>
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg ${getAvatarBg(user.id)}`}>
             {getInitials(user.name)}
           </div>
         )}
 
-        <div className="fu-card-info">
-          <div className="fu-card-name-row">
-            <span className="fu-card-name">{user.name}</span>
-            {user.role_id === "3" && <span className="fu-admin-badge">Admin</span>}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-bold text-gray-900 truncate">{user.name}</h3>
+            {user.role_id === "3" && (
+              <span className="bg-purple-100 text-purple-600 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Admin</span>
+            )}
           </div>
-
-          <p className="fu-card-username">@{user.username}</p>
+          <p className="text-purple-600 text-sm font-medium">@{user.username}</p>
+          <p className="text-gray-400 text-xs mt-1">{formatFollowers(Number(user.followersCount))} followers</p>
           
-          <p className="fu-card-followers">
-            {formatFollowers(Number(user.followersCount) || 0)} followers
-          </p>
-
           <button
-            className={`fu-follow-btn ${isFollowing ? "following" : "follow"} ${isPending ? "disabled" : ""}`}
-            onClick={() => !isPending && onFollowToggle(user.id, user.followtype)}
             disabled={isPending}
+            onClick={() => onToggle(user.id, user.followtype)}
+            className={`mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              isFollowing 
+                ? "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100" 
+                : "bg-purple-700 text-white hover:bg-purple-800"
+            } ${isPending ? "opacity-50" : ""}`}
           >
             {isPending ? (
-              <><Loader2 size={15} className="fu-spinner" /> Processing...</>
+              <Loader2 size={16} className="animate-spin" />
             ) : isFollowing ? (
-              <><UserCheck size={15} /> Following</>
+              <><UserCheck size={16} /> Following</>
             ) : (
-              <><UserPlus size={15} /> Follow</>
+              <><UserPlus size={16} /> Follow</>
             )}
           </button>
         </div>

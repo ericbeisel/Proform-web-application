@@ -16,6 +16,7 @@ export interface PlayerCardData {
 
 export interface PlayerCardDetail {
   id: number;
+  user_id?: string | number;
   date: string;
   status: string;
   inBodyScans: string | null;

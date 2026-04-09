@@ -101,28 +101,39 @@ export default function ViewWorkoutPage() {
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="max-w-7xl mx-auto px-6 mb-10 flex justify-end gap-3">
-        
-        {/* Location */}
-        <button
-          onClick={() => router.push("/location")}
-          className="bg-[#6d28d9] text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 text-sm hover:bg-[#5b21b6] transition-colors"
-        >
-          Select Location <ChevronRight size={16} />
-        </button>
+   <div className="max-w-7xl mx-auto px-6 mb-10 flex justify-end gap-3">
+  
+  {/* Location */}
+  <button
+    onClick={() => router.push("/location")}
+    className="bg-[#6d28d9] text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 text-sm hover:bg-[#5b21b6] transition-colors"
+  >
+    Select Location <ChevronRight size={16} />
+  </button>
 
-        {/* Start Session (ALWAYS ENABLED) */}
-        <button
-          onClick={() => {
-            // optional: you can pass location later if needed
-            router.push("/workout/equipmentNeeded");
-          }}
-          className="bg-[#3b82f6] text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 text-sm hover:bg-[#2563eb] transition-colors"
-        >
-          <Play size={16} fill="currentColor" /> Start Session
-        </button>
-      </div>
+ 
 
+  {/* Start Session */}
+  <button
+    onClick={() => {
+      router.push("/workout/equipmentNeeded");
+    }}
+    className="bg-[#3b82f6] text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 text-sm hover:bg-[#2563eb] transition-colors"
+  >
+    Start Session
+  </button>
+ {/* PLAY BUTTON */}
+  <button
+    onClick={() => {
+      router.push("/workout/athenaWorkout");
+      console.log("Quick play");
+      // 👉 optional: preview / quick start
+    }}
+    className="w-11 h-11 bg-black text-white rounded-full flex items-center justify-center hover:bg-gray-800 transition"
+  >
+    <Play size={18} fill="currentColor" />
+  </button>
+</div>
       {/* WORKOUT SECTIONS */}
       <div className="max-w-7xl mx-auto px-6 space-y-14">
         

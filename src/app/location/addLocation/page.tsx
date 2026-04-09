@@ -140,45 +140,46 @@ const handleCreate = async () => {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20">
         
-        {/* TOP SECTION: Location Details Card */}
-        <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12 mt-4">
-          <div className="w-20 h-20 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-lg flex-shrink-0">
-            <MapPin size={36} />
-          </div>
-          <div className="flex-1 w-full text-left">
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Location Details</h2>
-            <p className="text-sm text-gray-400 mb-6 font-medium">
-              Give your location a name and select the equipment available
-            </p>
-            
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-900 ml-1">
-                Location Name
-              </label>
-              <input
-                value={locationName}
-                onChange={(e) => {
-                  setLocationName(e.target.value);
-                  if (nameError) setNameError(""); // Clear error message as user types
-                }}
-                placeholder="e.g., Home Gym, LA Fitness, Garage Setup"
-                className={`w-full p-4 border rounded-2xl text-base font-medium transition-all outline-none 
-                  ${nameError 
-                    ? "border-red-500 bg-red-50/30 focus:ring-2 focus:ring-red-200" 
-                    : "border-gray-100 bg-white focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed]"
-                  }`}
-              />
-              
-              {/* ERROR MESSAGE DISPLAY */}
-              {nameError && (
-                <div className="flex items-center gap-1.5 text-red-500 mt-1 ml-1 animate-in fade-in slide-in-from-top-1">
-                  <AlertCircle size={14} />
-                  <p className="text-xs font-bold">{nameError}</p>
-                </div>
-              )}
-            </div>
-          </div>
+     {/* TOP SECTION: Location Details Card - Compact Version */}
+<div className="bg-[#f8faff] rounded-[1.5rem] p-6 sm:p-7 border border-[#eef2ff] flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 mt-2">
+  {/* Shrunk icon from w-20 to w-14 */}
+  <div className="w-14 h-14 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-md flex-shrink-0">
+    <MapPin size={28} />
+  </div>
+
+  <div className="flex-1 w-full text-left">
+    <h2 className="text-lg font-bold text-gray-900 mb-0.5">Location Details</h2>
+    <p className="text-xs text-gray-400 mb-4 font-medium">
+      Give your location a name and select the equipment available
+    </p>
+    
+    <div className="space-y-1.5">
+      <label className="text-[9px] font-bold uppercase tracking-widest text-gray-900 ml-1">
+        Location Name
+      </label>
+      <input
+        value={locationName}
+        onChange={(e) => {
+          setLocationName(e.target.value);
+          if (nameError) setNameError(""); 
+        }}
+        placeholder="e.g., Home Gym, LA Fitness"
+        className={`w-full p-3 border rounded-xl text-sm font-medium transition-all outline-none 
+          ${nameError 
+            ? "border-red-500 bg-red-50/30 focus:ring-2 focus:ring-red-200" 
+            : "border-gray-100 bg-white focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed]"
+          }`}
+      />
+      
+      {nameError && (
+        <div className="flex items-center gap-1.5 text-red-500 mt-1 ml-1 animate-in fade-in slide-in-from-top-1">
+          <AlertCircle size={12} />
+          <p className="text-[11px] font-bold">{nameError}</p>
         </div>
+      )}
+    </div>
+  </div>
+</div>
 
         {/* MOBILE SEARCH */}
         <div className="md:hidden mb-6">

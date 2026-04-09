@@ -104,34 +104,39 @@ export default function LocationDetailPage() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-4">
         
-        {/* SUMMARY CARD */}
-        <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12">
-          <div className="w-20 h-20 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-lg flex-shrink-0">
-            <MapPin size={36}  />
-          </div>
-          <div className="flex-1 w-full">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">{location.name}</h2>
-            <div className="flex items-center gap-4 text-gray-500 font-medium">
-              <span className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-full text-xs border border-gray-100 shadow-sm">
-                <Dumbbell size={14} className="text-[#7c3aed]" />
-                {location.equipmentList?.length || 0} Equipment Items
-              </span>
-            </div>
-          </div>
-        </div>
+    {/* SUMMARY CARD - Reduced padding and gap */}
+<div className="bg-[#f8faff] rounded-[1.5rem] p-5 sm:p-6 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-5 mb-8">
+  {/* Smaller Icon Container */}
+  <div className="w-14 h-14 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-md flex-shrink-0">
+    <MapPin size={24} />
+  </div>
+  
+  <div className="flex-1 w-full text-center md:text-left">
+    {/* Smaller Title */}
+    <h2 className="text-xl font-bold text-gray-900 mb-0.5">{location.name}</h2>
+    <div className="flex items-center justify-center md:justify-start gap-3 text-gray-500 font-medium">
+      <span className="flex items-center gap-1.5 bg-white px-2.5 py-0.5 rounded-full text-[11px] border border-gray-100 shadow-sm">
+        <Dumbbell size={12} className="text-[#7c3aed]" />
+        {location.equipmentList?.length || 0} Equipment Items
+      </span>
+    </div>
+  </div>
+</div>
 
-        {/* SECTION TITLE */}
-        <div className="mb-8 p-6 border border-gray-100 rounded-[2rem] bg-white flex items-center gap-5 shadow-sm">
-          <div className="w-14 h-14 bg-[#7c3aed]/10 rounded-full flex items-center justify-center text-[#7c3aed] flex-shrink-0">
-            <Dumbbell size={28} />
-          </div>
-          <div className="text-left">
-            <h2 className="text-xl font-bold text-gray-900 mb-0.5">Available Equipment</h2>
-            <p className="text-sm text-gray-400 font-medium">
-              All equipment available at this location
-            </p>
-          </div>
-        </div>
+{/* SECTION TITLE - Made more compact */}
+<div className="mb-6 p-4 border border-gray-100 rounded-[1.5rem] bg-white flex items-center gap-4 shadow-sm">
+  {/* Reduced from w-14 to w-12 */}
+  <div className="w-12 h-12 bg-[#7c3aed]/10 rounded-full flex items-center justify-center text-[#7c3aed] flex-shrink-0">
+    <Dumbbell size={22} />
+  </div>
+  <div className="text-left">
+    {/* Smaller font sizes */}
+    <h2 className="text-lg font-bold text-gray-900 mb-0">Available Equipment</h2>
+    <p className="text-xs text-gray-400 font-medium">
+      All equipment available at this location
+    </p>
+  </div>
+</div>
 
         {/* GRID WITH EXPANDABLE CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 items-start">

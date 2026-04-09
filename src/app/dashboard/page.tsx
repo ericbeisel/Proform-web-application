@@ -10,6 +10,7 @@ import DashboardHeader from "./components/DashboardHeader"
 import Banner from "./components/Banner"
 import ItineraryCard from "./components/ItineraryCard"
 import ForYouCard from "./components/ForYouCard"
+import DailyFocusCard from "./components/DailyFocusCard"
 import AccountabilityTools from "./components/AccountabilityTools"
 import StandardsCard from "./components/StandardsCard"
 import LiveSessionsCard from "./components/LiveSessionsCard"
@@ -174,6 +175,7 @@ export default function DashboardPage() {
               measurementUnit={dashboardData?.measurementUnit}
               trainingGoals={dashboardData?.trainingGoals}
             />
+              <DailyFocusCard />
             <AccountabilityTools />
             <StandardsCard />
           </div>

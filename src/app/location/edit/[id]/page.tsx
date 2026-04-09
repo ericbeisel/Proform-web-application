@@ -126,30 +126,33 @@ function EditEquipContent() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-4">
         
-        {/* TOP SECTION: Location Details Card */}
-        <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12">
-          <div className="w-20 h-20 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-lg flex-shrink-0">
-            <MapPin size={36}  />
-          </div>
-          <div className="flex-1 w-full text-left">
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Location Details</h2>
-            <p className="text-sm text-gray-400 mb-6 font-medium">
-              Update the name and equipment available at this location
-            </p>
-            
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-900 ml-1">
-                Location Name
-              </label>
-              <input
-                value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-                placeholder="Gym Name"
-                className="w-full p-4 border border-gray-100 rounded-2xl text-base font-medium text-gray-900 bg-white outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all"
-              />
-            </div>
-          </div>
-        </div>
+      {/* TOP SECTION: Location Details Card - Reduced Size */}
+<div className="bg-[#f8faff] rounded-[1.5rem] p-6 sm:p-7 border border-[#eef2ff] flex flex-col md:flex-row items-start md:items-center gap-6 mb-8">
+  {/* Icon scaled down from w-20 to w-14 */}
+  <div className="w-14 h-14 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-md flex-shrink-0">
+    <MapPin size={28} />
+  </div>
+
+  <div className="flex-1 w-full text-left">
+    {/* Title and description sizes reduced */}
+    <h2 className="text-lg font-bold text-gray-900 mb-0.5">Location Details</h2>
+    <p className="text-xs text-gray-400 mb-4 font-medium">
+      Update the name and equipment available at this location
+    </p>
+    
+    <div className="space-y-1.5">
+      <label className="text-[9px] font-bold uppercase tracking-widest text-gray-900 ml-1">
+        Location Name
+      </label>
+      <input
+        value={locationName}
+        onChange={(e) => setLocationName(e.target.value)}
+        placeholder="Gym Name"
+        className="w-full p-3 border border-gray-100 rounded-xl text-sm font-medium text-gray-900 bg-white outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all"
+      />
+    </div>
+  </div>
+</div>
 
         {/* EQUIPMENT GRID SECTION */}
         <div className="mb-6 text-left">

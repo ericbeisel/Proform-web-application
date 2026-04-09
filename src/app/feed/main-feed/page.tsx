@@ -46,7 +46,6 @@ export default function FeedMainPage() {
         const highlightRes = await feedApi.getHighlights(res.currectUser.id);
         setHighlights(highlightRes || []);
       }
-      console.log("Feed data loaded:", res);
     } catch (err) {
       console.error(err);
     } finally {
@@ -105,13 +104,13 @@ export default function FeedMainPage() {
   const grouped = groupByDate(feeds);
 
   return (
-    <div className="w-full min-h-screen bg-[#f6f6fc]">
-      <div className="max-w-full mx-auto px-4 sm:px-5 md:px-6 lg:px-7 pt-4 sm:pt-5 md:pt-6 pb-16 w-full">
+    <div className="w-full min-h-screen bg-[#f6f6fc] font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-6 lg:px-7 pt-4 sm:pt-5 md:pt-6 pb-16 w-full">
         
-        {/* PAGE TITLE */}
+        {/* PAGE TITLE - Updated font sizes */}
         <div className="mb-4 sm:mb-5">
-          <h1 className="text-xl sm:text-2xl md:text-[26px] font-extrabold text-[#6c3fef] m-0 tracking-tight">Activity Feed</h1>
-          <p className="text-[11px] sm:text-[12px] md:text-[13px] text-[#aaa] mt-0.5">See what your friends are up to</p>
+          <h1 className="text-lg md:text-2xl font-bold text-[#6c3fef] m-0 tracking-tight">Activity Feed</h1>
+          <p className="text-[10px] md:text-sm text-[#aaa] mt-0.5">See what your friends are up to</p>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 mb-4 sm:mb-5">
@@ -122,7 +121,7 @@ export default function FeedMainPage() {
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
                 placeholder="Search users by name or username..."
-                className="border-none outline-none text-xs sm:text-sm text-[#222] bg-transparent w-full font-inherit"
+                className="border-none outline-none text-sm md:text-base text-[#222] bg-transparent w-full font-inherit"
               />
             </div>
             {searchResults.length > 0 && (
@@ -130,7 +129,7 @@ export default function FeedMainPage() {
                 {searchResults.map((user) => (
                   <div key={user.id} className="flex items-center gap-2.5 px-3.5 py-[9px] cursor-pointer hover:bg-gray-50">
                     <img src={user.image} className="w-[30px] h-[30px] rounded-full object-cover" alt={user.username} />
-                    <span className="text-sm text-[#222]">{user.username}</span>
+                    <span className="text-sm text-[#222] font-semibold">{user.username}</span>
                   </div>
                 ))}
               </div>
@@ -142,7 +141,7 @@ export default function FeedMainPage() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round">
               <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
             </svg>
-            <span className="absolute -top-1 -right-1 bg-[#e8365d] text-white text-[8px] sm:text-[9px] font-bold rounded-full px-1 py-0.5 border-2 border-[#f6f6fc] min-w-[16px] text-center">
+            <span className="absolute -top-1 -right-1 bg-[#e8365d] text-[8px] sm:text-[9px] font-bold text-white rounded-full px-1 py-0.5 border-2 border-[#f6f6fc] min-w-[16px] text-center">
               3
             </span>
           </div>
@@ -172,7 +171,7 @@ export default function FeedMainPage() {
               <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-[#f0eeff] border-2 border-dashed border-[#c4b5fd] flex items-center justify-center">
                 <Plus size={16} className="text-[#6c3fef]" />
               </div>
-              <span className="text-[9px] sm:text-[11px] text-[#888] font-medium">Add</span>
+              <span className="text-[9px] sm:text-[11px] text-[#888] font-bold">Add</span>
               <input type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCreateHighlight(f); }} />
             </label>
             {highlights.map((item, i) => (
@@ -180,7 +179,7 @@ export default function FeedMainPage() {
                 <div className="p-[1.5px] sm:p-[2.5px] rounded-full bg-gradient-to-br from-[#f9a825] via-[#f04e6b] to-[#6c3fef]">
                   <img src={item.image} className="w-10 h-10 sm:w-14 sm:h-14 rounded-full border-2 border-white object-cover block" alt={item.username} />
                 </div>
-                <span className="text-[9px] sm:text-[11px] text-[#888] font-medium max-w-[45px] sm:max-w-[62px] truncate">{item.username}</span>
+                <span className="text-[9px] sm:text-[11px] text-[#888] font-bold max-w-[45px] sm:max-w-[62px] truncate">{item.username}</span>
               </div>
             ))}
           </div>
@@ -191,30 +190,19 @@ export default function FeedMainPage() {
           const totalLikes = group.feeds.reduce((a, f) => a + f.likeCount, 0);
           return (
             <div key={group.label}>
-              {/* Date Header */}
+              {/* Date Header - Updated font size */}
               <div className="flex items-center justify-between py-2 sm:py-2.5">
-                <div className="text-[13px] sm:text-[14px] md:text-[15px] font-bold text-[#1a1a2e] flex items-center gap-2">
+                <div className="text-sm md:text-base font-bold text-[#1a1a2e] flex items-center gap-2">
                   <div className="w-[3px] h-[13px] sm:h-[17px] bg-[#6c3fef] rounded-sm flex-shrink-0" />
                   {group.label}
                 </div>
-                {/* <div className="flex gap-1.5 sm:gap-2 items-center">
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs text-[#999]">
-                    <Users size={10} className="text-[#ffb347]" />
-                    <span>{group.feeds.length}</span>
-                  </div>
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs text-[#e8365d]">
-                    <Heart size={10} className="fill-[#e8365d] stroke-[#e8365d]" />
-                    <span>{totalLikes}</span>
-                    <TrendingUp size={8} strokeWidth={2.5} />
-                  </div>
-                </div> */}
               </div>
 
               {/* Feed Cards */}
               {group.feeds.map((feed) => {
                 const isLiked = !!(currentUser && feed.likes.includes(String(currentUser.id)));
                 return (
-                  <div key={feed.id} className="bg-white border border-[#ebebf0] rounded-[12px] sm:rounded-[14px] p-3 sm:p-[16px_18px_14px] mb-2.5 relative overflow-hidden">
+                  <div key={feed.id} className="bg-white border border-[#ebebf0] rounded-[12px] sm:rounded-[14px] p-4 md:p-6 mb-2.5 relative overflow-hidden">
                     <div className="absolute right-0 top-0 bottom-0 w-[30%] sm:w-[38%] pointer-events-none bg-gradient-to-l from-[rgba(235,230,255,0.5)] to-transparent rounded-r-[12px] sm:rounded-r-[14px]" />
 
                     <div className="flex items-start justify-between mb-2 sm:mb-2.5 relative z-10">
@@ -231,8 +219,8 @@ export default function FeedMainPage() {
                           <div className="absolute bottom-0 right-0 w-1.5 h-1.5 sm:w-2.5 sm:h-2.5 bg-green-500 rounded-full border-2 border-white" />
                         </div>
                         <div>
-                          <div className="text-xs sm:text-sm font-bold text-[#5b2be8]">@{feed.username}</div>
-                          <div className="text-[10px] sm:text-[12px] text-[#bbb] mt-px">started a session:</div>
+                          <div className="text-sm md:text-base font-bold text-[#5b2be8]">@{feed.username}</div>
+                          <div className="text-[10px] md:text-xs text-[#bbb] mt-px font-semibold">started a session:</div>
                         </div>
                       </div>
                       <button className="cursor-pointer p-1 hover:bg-gray-100 rounded-lg transition-colors"
@@ -254,30 +242,19 @@ export default function FeedMainPage() {
                       </button>
                     </div>
 
-                    <div className="text-xs sm:text-sm font-bold text-[#1a1a2e] mb-2 sm:mb-3 relative z-10">{feed.title}</div>
+                    <div className="text-sm md:text-base font-bold text-[#1a1a2e] mb-2 sm:mb-3 relative z-10">{feed.title}</div>
 
-                    <button className="inline-flex items-center gap-1.5 bg-[#0ecfcf] text-white text-[11px] sm:text-[13px] font-semibold rounded-lg px-3 sm:px-4 py-1.5 sm:py-[7px] mb-2.5 sm:mb-3.5 hover:opacity-90 transition-opacity relative z-10">
+                    <button className="inline-flex items-center gap-1.5 bg-[#0ecfcf] text-white text-xs md:text-sm font-bold rounded-lg px-3 sm:px-4 py-1.5 sm:py-[7px] mb-2.5 sm:mb-3.5 hover:opacity-90 transition-opacity relative z-10">
                       View Session &rarr;
                     </button>
 
                     <div className="flex items-center justify-between border-top border-[#f0f0f6] pt-2 sm:pt-2.5">
-                      {/* <div className="flex items-center gap-1 text-[11px] sm:text-[13px] text-[#ffb347] font-medium">
-                        <Users size={11} className="sm:w-[13px] sm:h-[13px]" />
-                        <span>0</span>
-                      </div> */}
-                      {/* <button
-                        onClick={() => handleLike(feed)}
-                        className={`flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[13px] font-semibold transition-colors ${isLiked ? "text-[#e8365d]" : "text-[#ccc]"}`}
-                      >
-                        <Heart size={14} className={isLiked ? "fill-[#e8365d]" : ""} />
-                        <span>{feed.likeCount}</span>
-                      </button> */}
                        <div className="flex gap-1.5 sm:gap-2 items-center">
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs text-[#999]">
+                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold text-[#999]">
                     <Users size={10} className="text-[#ffb347]" />
                     <span>{group.feeds.length}</span>
                   </div>
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs text-[#e8365d]">
+                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold text-[#e8365d]">
                     <Heart size={10} className="fill-[#e8365d] stroke-[#e8365d]" />
                     <span>{totalLikes}</span>
                     <TrendingUp size={8} strokeWidth={2.5} />
@@ -292,11 +269,11 @@ export default function FeedMainPage() {
               {gi === 0 && (
                 <div className="bg-white border border-[#ebebf0] rounded-[12px] sm:rounded-[14px] overflow-hidden mb-2.5 relative">
                   <div className="h-[70px] sm:h-[88px] bg-[#1c1c38] flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute text-[8px] sm:text-sm font-black text-white/5 tracking-[4px] sm:tracking-[6px] uppercase whitespace-nowrap select-none">
+                    <div className="absolute text-xs md:text-base font-black text-white/5 tracking-[4px] sm:tracking-[6px] uppercase whitespace-nowrap select-none">
                       NEVER STOP EXPLORING
                     </div>
-                    <div className="absolute top-1 left-2 sm:top-[9px] sm:left-3 bg-white/10 text-white/40 text-[8px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded">Ad</div>
-                    <div className="absolute bottom-1 left-2 sm:bottom-[10px] sm:left-3 bg-[#6c3fef] text-white text-[8px] sm:text-[11px] font-bold rounded-md px-1.5 sm:px-2.5 py-0.5">
+                    <div className="absolute top-1 left-2 sm:top-[9px] sm:left-3 bg-white/10 text-white/40 text-[8px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded font-bold">Ad</div>
+                    <div className="absolute bottom-1 left-2 sm:bottom-[10px] sm:left-3 bg-[#6c3fef] text-white text-[8px] sm:text-xs font-bold rounded-md px-1.5 sm:px-2.5 py-0.5">
                       Sponsored
                     </div>
                   </div>
