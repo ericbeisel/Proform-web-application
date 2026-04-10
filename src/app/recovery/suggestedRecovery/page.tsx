@@ -39,11 +39,11 @@ export default function RecoveryPage() {
     <div className="min-h-screen bg-[#f3f4f6]">
 
       {/* HEADER */}
-      <div className="w-full bg-purple-600 px-6 sm:px-8 py-4 sm:py-5">
+      <div className="w-full bg-purple-600 px-4 sm:px-6 md:px-8 py-4 sm:py-5">
         <div className="w-full flex items-center justify-between">
-          
+
           {/* LEFT */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => router.back()}
               className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-all"
@@ -52,39 +52,41 @@ export default function RecoveryPage() {
             </button>
 
             <div>
-              <div className="text-white font-extrabold text-lg sm:text-xl">
+              <div className="text-white font-extrabold text-base sm:text-lg md:text-xl">
                 Submit Recovery
               </div>
-              <div className="text-white/80 text-xs sm:text-sm mt-0.5">
+              <div className="text-white/80 text-[10px] sm:text-xs md:text-sm mt-0.5">
                 Track your recovery activities
               </div>
             </div>
           </div>
 
           {/* RIGHT */}
-          <div className="bg-white/20 rounded-xl px-3 sm:px-4 py-2 flex items-center gap-2 backdrop-blur-sm border border-white/30">
-            <Calendar size={16} color="white" />
+          <div className="bg-white/20 rounded-xl px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 flex items-center gap-2 backdrop-blur-sm border border-white/30">
+            <Calendar size={14} className="sm:w-4 sm:h-4" color="white" />
             <div className="text-right">
-              <div className="text-white/80 text-[10px] font-semibold uppercase">
+              <div className="text-white/80 text-[9px] sm:text-[10px] font-semibold uppercase">
                 TIME LEFT
               </div>
-              <div className="text-white text-lg font-extrabold">60m</div>
+              <div className="text-white text-sm sm:text-base md:text-lg font-extrabold">
+                60m
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* CONTENT */}
-      <div className="p-6 space-y-8">
+      <div className="px-4 sm:px-6 md:px-8 py-6 space-y-8">
 
         {/* SUGGESTED */}
         <div>
-          <h2 className="font-semibold mb-4 flex items-center gap-2 text-gray-800">
+          <h2 className="font-semibold mb-4 flex items-center gap-2 text-gray-800 text-sm sm:text-base">
             <Sparkles size={16} className="text-green-500" />
             Suggested:
           </h2>
 
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {suggested.map((item, i) => (
               <Card
                 key={i}
@@ -97,12 +99,12 @@ export default function RecoveryPage() {
 
         {/* FAVORITES */}
         <div>
-          <h2 className="font-semibold mb-4 flex items-center gap-2 text-gray-800">
+          <h2 className="font-semibold mb-4 flex items-center gap-2 text-gray-800 text-sm sm:text-base">
             <Heart size={16} className="text-red-500" />
             Favorites:
           </h2>
 
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {favorites.map((item, i) => (
               <Card
                 key={i}
@@ -119,7 +121,7 @@ export default function RecoveryPage() {
             All Recovery Options
           </button>
 
-          <button className="bg-purple-700 hover:bg-purple-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md">
+          <button className="bg-purple-700 hover:bg-purple-800 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold shadow-md text-sm sm:text-base">
             View Recovery Dashboard
           </button>
         </div>
@@ -145,13 +147,13 @@ function Card({
   return (
     <div
       onClick={onClick}
-      className="bg-[#dfeceb] rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+      className="bg-[#dfeceb] rounded-2xl p-4 sm:p-5 md:p-6 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
     >
-      <div className={`w-16 h-16 rounded-xl ${color} flex items-center justify-center shadow-md mb-4`}>
-        <Icon size={26} color="white" />
+      <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl ${color} flex items-center justify-center shadow-md mb-3 sm:mb-4`}>
+        <Icon size={22} className="sm:w-6 sm:h-6" color="white" />
       </div>
 
-      <p className="font-medium text-gray-800 text-sm">{title}</p>
+      <p className="font-medium text-gray-800 text-sm sm:text-base">{title}</p>
       <p className="text-xs text-gray-500">{time}</p>
     </div>
   );

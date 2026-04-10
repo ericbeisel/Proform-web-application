@@ -10,11 +10,9 @@ export const checkUsername = async (username: string) => {
     const formData = new FormData();
     formData.append("username", username.trim());
 
-    const { data } = await axios.post(`${API_BASE}/checkusername`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const { data } = await axios.post(`${API_BASE}/checkusername`, {
+  username: username.trim(),
+});
 
     return data;
   } catch (error: any) {

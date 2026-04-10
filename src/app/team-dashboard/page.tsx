@@ -23,43 +23,46 @@ export default function TeamDashboard() {
   const [activeTab, setActiveTab] = useState(null);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen w-full bg-gray-50 font-sans">
+      
       {/* Top Nav */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <header className="w-full bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Team Dashboard</h1>
           <p className="text-xs text-gray-500">
             Track your team's progress and performance
           </p>
         </div>
+
         <div className="flex items-center gap-4">
           <button className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors">
             <Calendar size={16} />
             <span>Itinerary</span>
           </button>
+
           <button className="relative p-1.5 text-gray-600 hover:text-gray-900">
             <Bell size={18} />
             <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
+
           <div className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm font-bold">
             JD
           </div>
         </div>
       </header>
 
-      <main className="py-6 px-12 max-w-full mx-auto">
-        {/* Top Row: Team Completion + Sessions */}
+      {/* MAIN */}
+      <main className="w-full py-6 px-4 sm:px-6 md:px-8 lg:px-12">
+
+        {/* Top Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+
           {/* Team Completion */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-4 mb-5">
               <div className="flex items-center gap-1">
-                <span className="text-5xl font-extrabold text-orange-500">
-                  0
-                </span>
-                <span className="text-2xl font-bold text-orange-500 mt-2">
-                  %
-                </span>
+                <span className="text-5xl font-extrabold text-orange-500">0</span>
+                <span className="text-2xl font-bold text-orange-500 mt-2">%</span>
               </div>
               <div>
                 <p className="text-base font-semibold text-gray-800">
@@ -70,6 +73,7 @@ export default function TeamDashboard() {
                 </p>
               </div>
             </div>
+
             <div className="grid grid-cols-4 gap-3">
               {[
                 { icon: <FileText size={20} />, label: "Reports" },
@@ -102,18 +106,15 @@ export default function TeamDashboard() {
                 <Pencil size={15} />
               </button>
             </div>
+
             <div className="bg-amber-50 rounded-xl p-4 min-h-[110px] flex flex-col">
               <p className="text-xs font-semibold text-amber-600 mb-3">
                 Daily To-Do List
               </p>
+
               <div className="flex-1 flex flex-col items-center justify-center gap-1.5">
                 <div className="w-8 h-8 text-amber-400">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </div>
@@ -129,81 +130,56 @@ export default function TeamDashboard() {
             <h2 className="text-base font-semibold text-gray-800">
               Team Goals
             </h2>
-            <button className="flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800 transition-colors">
+            <button className="flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800">
               View All <ChevronRight size={15} />
             </button>
           </div>
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              {
-                label: "Workout",
-                icon: <Trophy size={16} />,
-                color: "purple",
-                bar: "bg-purple-500",
-                bg: "bg-purple-50",
-                iconColor: "text-purple-500",
-              },
-              {
-                label: "Supplemental",
-                icon: <TrendingUp size={16} />,
-                color: "cyan",
-                bar: "bg-cyan-400",
-                bg: "bg-cyan-50",
-                iconColor: "text-cyan-500",
-              },
-              {
-                label: "Cardio",
-                icon: <Activity size={16} />,
-                color: "orange",
-                bar: "bg-orange-400",
-                bg: "bg-orange-50",
-                iconColor: "text-orange-500",
-              },
-              {
-                label: "Conditioning",
-                icon: <Zap size={16} />,
-                color: "green",
-                bar: "bg-green-500",
-                bg: "bg-green-50",
-                iconColor: "text-green-500",
-              },
+              { label: "Workout", icon: <Trophy size={16} />, bar: "bg-purple-500", bg: "bg-purple-50", iconColor: "text-purple-500" },
+              { label: "Supplemental", icon: <TrendingUp size={16} />, bar: "bg-cyan-400", bg: "bg-cyan-50", iconColor: "text-cyan-500" },
+              { label: "Cardio", icon: <Activity size={16} />, bar: "bg-orange-400", bg: "bg-orange-50", iconColor: "text-orange-500" },
+              { label: "Conditioning", icon: <Zap size={16} />, bar: "bg-green-500", bg: "bg-green-50", iconColor: "text-green-500" },
             ].map((goal) => (
               <div key={goal.label} className={`${goal.bg} rounded-2xl p-4`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`${goal.iconColor}`}>{goal.icon}</div>
+                  <div className={goal.iconColor}>{goal.icon}</div>
                   <span className="text-sm font-medium text-gray-700">
                     {goal.label}
                   </span>
                 </div>
+
                 <div className="flex items-baseline gap-0.5 mb-3">
                   <span className="text-3xl font-bold text-gray-800">0</span>
                   <span className="text-sm text-gray-400">/0</span>
                 </div>
+
                 <div className="w-full h-1.5 bg-white rounded-full overflow-hidden">
-                  <div className={`h-full w-0 ${goal.bar} rounded-full`}></div>
+                  <div className={`h-full w-0 ${goal.bar} rounded-full`} />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bottom Row: Players + Coach's Toolbox */}
+        {/* Bottom Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
           {/* Players */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-800">Players</h2>
-              <button className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white hover:bg-purple-700 transition-colors shadow-sm">
+              <button className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
                 <Plus size={16} />
               </button>
             </div>
 
-            {/* Empty state */}
             <div className="bg-gray-50 rounded-xl py-4 px-3 mb-4 text-center">
               <p className="text-xs text-gray-400">No Datapoint Added</p>
             </div>
 
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm mb-3">
+            <button className="w-full bg-purple-600 text-white text-sm font-semibold py-3 rounded-xl flex items-center justify-center gap-2 mb-3">
               <UserPlus size={16} />
               Add Players
             </button>
@@ -213,7 +189,7 @@ export default function TeamDashboard() {
             </p>
           </div>
 
-          {/* Coach's Toolbox */}
+          {/* Coach's Toolbox (UNCHANGED with images) */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-gray-800">
@@ -225,100 +201,68 @@ export default function TeamDashboard() {
             </div>
 
             <div className="flex flex-col gap-3">
+              {/* KEEPING YOUR ORIGINAL IMAGE CARDS */}
+              
               {/* Team Challenge */}
               <div className="relative rounded-xl overflow-hidden h-16 cursor-pointer group">
-                <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage:
-                      "url('https://images.unsplash.com/photo-1517649763962-0c623066013b?w=600&q=80')",
-                  }}
+                <div className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: "url('https://images.unsplash.com/photo-1517649763962-0c623066013b?w=600&q=80')" }}
                 />
-                <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                <div className="relative z-10 flex items-center gap-3 h-full px-4">
-                  <div className="text-white opacity-90">
-                    <Trophy size={20} />
-                  </div>
+                <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40" />
+                <div className="relative z-10 flex items-center gap-3 h-full px-4 text-white">
+                  <Trophy size={20} />
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">
-                      Team Challenge
-                    </p>
-                    <p className="text-white/70 text-xs">
-                      Create competitions for your team
-                    </p>
+                    <p className="text-sm font-semibold">Team Challenge</p>
+                    <p className="text-xs text-white/70">Create competitions</p>
                   </div>
                 </div>
               </div>
 
               {/* Add Player */}
               <div className="relative rounded-xl overflow-hidden h-16 cursor-pointer group">
-                <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage:
-                      "url('https://images.unsplash.com/photo-1552196563-55cd4e45efb3?w=600&q=80')",
-                  }}
+                <div className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: "url('https://images.unsplash.com/photo-1552196563-55cd4e45efb3?w=600&q=80')" }}
                 />
-                <div className="absolute inset-0 bg-black/55 group-hover:bg-black/45 transition-colors" />
-                <div className="relative z-10 flex items-center gap-3 h-full px-4">
-                  <div className="text-white opacity-90">
-                    <UserPlus size={20} />
-                  </div>
+                <div className="absolute inset-0 bg-black/55 group-hover:bg-black/45" />
+                <div className="relative z-10 flex items-center gap-3 h-full px-4 text-white">
+                  <UserPlus size={20} />
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">
-                      Add Player
-                    </p>
-                    <p className="text-white/70 text-xs">
-                      Invite players to join your team
-                    </p>
+                    <p className="text-sm font-semibold">Add Player</p>
+                    <p className="text-xs text-white/70">Invite players</p>
                   </div>
                 </div>
               </div>
 
               {/* Add Coach */}
               <div className="relative rounded-xl overflow-hidden h-16 cursor-pointer group">
-                <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage:
-                      "url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80')",
-                  }}
+                <div className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: "url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80')" }}
                 />
-                <div className="absolute inset-0 bg-black/60 group-hover:bg-black/50 transition-colors" />
-                <div className="relative z-10 flex items-center gap-3 h-full px-4">
-                  <div className="text-white opacity-90">
-                    <UserCheck size={20} />
-                  </div>
+                <div className="absolute inset-0 bg-black/60 group-hover:bg-black/50" />
+                <div className="relative z-10 flex items-center gap-3 h-full px-4 text-white">
+                  <UserCheck size={20} />
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">
-                      Add Coach
-                    </p>
-                    <p className="text-white/70 text-xs">
-                      Add coaches to lead your team
-                    </p>
+                    <p className="text-sm font-semibold">Add Coach</p>
+                    <p className="text-xs text-white/70">Add coaches</p>
                   </div>
                 </div>
               </div>
 
               {/* Edit Team */}
               <div className="relative rounded-xl overflow-hidden h-16 cursor-pointer group">
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-violet-500 group-hover:from-purple-700 group-hover:to-violet-600 transition-colors" />
-                <div className="relative z-10 flex items-center gap-3 h-full px-4">
-                  <div className="text-white opacity-90">
-                    <Pencil size={20} />
-                  </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-violet-500" />
+                <div className="relative z-10 flex items-center gap-3 h-full px-4 text-white">
+                  <Pencil size={20} />
                   <div>
-                    <p className="text-white text-sm font-semibold leading-tight">
-                      Edit Team
-                    </p>
-                    <p className="text-white/70 text-xs">
-                      Manage your team details
-                    </p>
+                    <p className="text-sm font-semibold">Edit Team</p>
+                    <p className="text-xs text-white/70">Manage details</p>
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
+
         </div>
       </main>
     </div>

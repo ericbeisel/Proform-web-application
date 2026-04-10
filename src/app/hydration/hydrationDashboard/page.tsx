@@ -16,8 +16,7 @@ const hydrateOptions = [
   { label: "8 oz",  sublabel: "Small Glass",      color: "#4f8ef7", bg: "#e8f0fe" },
   { label: "16 oz", sublabel: "Standard Bottle",  color: "#2ecf8a", bg: "#e0f9f0" },
   { label: "24 oz", sublabel: "Large Bottle",     color: "#a855f7", bg: "#f3e8ff" },
-  { label: "32 oz", sublabel: "Sports Bottle",    color: "#f59e0b", bg: "#fef3c7" },
-  { label: "40 oz", sublabel: "Hydro Flask",      color: "#f97316", bg: "#fff7ed" },
+
 ];
 
 const tags = [
@@ -318,38 +317,55 @@ const handleItineraryClick = () => {
         </div>
 
         {/* ADD YOUR HYDRATION SECTION */}
-        <div className="w-full bg-white rounded-2xl p-6 sm:p-8 shadow-sm mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-              <div className="font-extrabold text-xl sm:text-2xl text-[#1a1a2e]">Add Your Hydration</div>
-              <div className="text-sm text-gray-400 mt-1">Quick add presets to track your intake</div>
-            </div>
-            <button 
-              onClick={() => handleClick("16 oz")}
-              className="bg-gradient-to-r from-[#2bb5c8] to-[#1a9db5] text-white border-none rounded-xl px-5 py-2.5 text-sm font-bold cursor-pointer hover:shadow-lg transition-all flex items-center gap-2 w-full sm:w-auto justify-center"
-            >
-              <Plus size={16} />
-              Add Hydration
-            </button>
-          </div>
+    <div className="w-full bg-white rounded-2xl p-6 sm:p-8 shadow-sm mb-6">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div>
+      {/* Increased mobile text size to text-2xl */}
+      <div className="font-extrabold text-2xl sm:text-2xl text-[#1a1a2e]">
+        Add Your Hydration
+      </div>
+      <div className="text-sm sm:text-base text-gray-400 mt-1">
+        Quick add presets to track your intake
+      </div>
+    </div>
+    <button
+      onClick={() => handleClick("16 oz")}
+      className="bg-gradient-to-r from-[#2bb5c8] to-[#1a9db5] text-white border-none rounded-xl px-6 py-3.5 text-base font-bold cursor-pointer hover:shadow-lg transition-all flex items-center gap-2 w-full sm:w-auto justify-center active:scale-95"
+    >
+      <Plus size={18} strokeWidth={3} />
+      Add Hydration
+    </button>
+  </div>
 
-          {/* Hydrate Options Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-            {hydrateOptions.map((item, i) => (
-              <div
-                key={i}
-                onClick={() => handleClick(item.label)}
-                className="border-2 border-gray-100 rounded-xl p-4 flex flex-col items-center cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all"
-              >
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: item.bg }}>
-                  <Droplet size={22} color={item.color} fill={item.color} />
-                </div>
-                <div className="font-extrabold text-base text-[#1a1a2e]">{item.label}</div>
-                <div className="text-xs text-gray-400 mt-1 text-center">{item.sublabel}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+  {/* Centering Fix: 
+      1. Added 'justify-center' to align the grid tracks to the middle.
+      2. Added 'w-full' to ensure the grid takes up the container space.
+  */}
+{/* Updated to Flexbox to ensure they stretch and cover all space */}
+<div className="flex flex-wrap md:flex-nowrap gap-4 sm:gap-6 w-full">
+  {hydrateOptions.map((item, i) => (
+    <div
+      key={i}
+      onClick={() => handleClick(item.label)}
+      /* Added 'flex-1' so each card grows to fill equal space */
+      className="flex-1 min-w-[140px] border-2 border-gray-100 rounded-2xl p-5 flex flex-col items-center cursor-pointer hover:shadow-md hover:border-[#2bb5c8]/30 hover:-translate-y-1 transition-all active:scale-95 bg-white"
+    >
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center mb-3 shadow-sm"
+        style={{ background: item.bg }}
+      >
+        <Droplet size={26} color={item.color} fill={item.color} />
+      </div>
+      <div className="font-black text-lg sm:text-base text-[#1a1a2e]">
+        {item.label}
+      </div>
+      <div className="text-[13px] sm:text-xs text-gray-400 font-medium mt-1 text-center leading-tight">
+        {item.sublabel}
+      </div>
+    </div>
+  ))}
+</div>
+</div>
 
         {/* HYDRATION HISTORY CARDS */}
         <div className="w-full bg-white rounded-2xl p-6 sm:p-8 shadow-sm">

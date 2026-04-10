@@ -215,6 +215,7 @@ export const dashboardApi = {
    * Fully processed summary — everything the UI needs in one call.
    * accountSetupComplete is included so the page doesn't need a second fetch.
    */
+
   getDashboardSummary: async (): Promise<DashboardSummary> => {
     const data = await fetchOnce();
     const user = data.user;
@@ -222,7 +223,8 @@ export const dashboardApi = {
 
     const accountSetupComplete =
       details.accountsetup === "1" ||
-      details.accountsetup?.toLowerCase() === "completed";
+      (typeof details.accountsetup === "string" && 
+       details.accountsetup.toLowerCase() === "completed");
 
     return {
       userName: user.name,
@@ -253,7 +255,47 @@ export const dashboardApi = {
       birthDate: details.birthDate,
       gender: details.gender,
     };
-  },
+},
+
+  // getDashboardSummary: async (): Promise<DashboardSummary> => {
+  //   const data = await fetchOnce();
+  //   const user = data.user;
+  //   const details = user.OtherDetail;
+
+  //   const accountSetupComplete =
+  //     details.accountsetup === "1" ||
+  //     details.accountsetup?.toLowerCase() === "completed";
+
+  //   return {
+  //     userName: user.name,
+  //     userEmail: user.email,
+  //     accountSetupComplete,
+  //     currentWeight: parseFloat(details.currentWeight) || 0,
+  //     goalWeight: parseFloat(details.goalWeight) || 0,
+  //     height: parseFloat(details.height) || 0,
+  //     bodyfat: parseFloat(details.bodyfat) || 0,
+  //     dailySteps: parseInt(details.avarage_daily_steps, 10) || 0,
+  //     caloriesGoal: parseInt(details.calories_goal, 10) || 0,
+  //     weeklyTargets: {
+  //       workout: parseInt(details.target_workout_week, 10) || 0,
+  //       supplement: parseInt(details.target_supplement_week, 10) || 0,
+  //       cardio: parseInt(details.target_cardio_week, 10) || 0,
+  //       conditioning: parseInt(details.target_conditioning_week, 10) || 0,
+  //     },
+  //     strengthMetrics: {
+  //       benchPress: parseFloat(details.r_bench_press) || 0,
+  //       backSquat: parseFloat(details.r_back_squat) || 0,
+  //       powerClean: parseFloat(details.r_power_clean) || 0,
+  //       deadlift: parseFloat(details.r_deadlift) || 0,
+  //     },
+  //     measurementUnit: details.measurementUnit,
+  //     activityLevel: details.activityLevel,
+  //     trainingGoals: parseToList(details.trainingGoals),
+  //     trainingSports: parseToList(details.trainingSport),
+  //     birthDate: details.birthDate,
+  //     gender: details.gender,
+  //   };
+  // },
 
   getUserProfile: async (): Promise<Pick<UserData, "id" | "name" | "email" | "image">> => {
     const data = await fetchOnce();
