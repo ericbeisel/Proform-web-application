@@ -12,7 +12,7 @@ function toInt(val: string | number | undefined | null): string {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,27 +255,12 @@ export const fetchCities = async (stateId: string): Promise<CityOption[]> => {
  * FIX: Use UTC methods to avoid timezone-offset shifting the date by one day.
  * e.g. "1990-05-15" with local timezone could shift to May 14 if UTC-offset is negative.
  */
-// function formatBirthDate(isoDate: string): string {
-//   if (!isoDate) return "";
-//   // FIX: API was interpreting YYYYMMDD as a Unix timestamp ("20070301" → epoch → "1970-08-21").
-//   // Send as-is "YYYY-MM-DD" so the API parses it as a real calendar date.
-//   console.log("[formatBirthDate] input:", isoDate, "passing through as-is");
-//   return isoDate;
-// }
-
 function formatBirthDate(isoDate: string): string {
-  if (!isoDate) return "0";
-
-  const timestamp = new Date(isoDate).getTime();
-
-  console.log(
-    "[formatBirthDate] input:",
-    isoDate,
-    "→ timestamp:",
-    timestamp
-  );
-
-  return String(timestamp); // IMPORTANT: string because URLSearchParams
+  if (!isoDate) return "";
+  // FIX: API was interpreting YYYYMMDD as a Unix timestamp ("20070301" → epoch → "1970-08-21").
+  // Send as-is "YYYY-MM-DD" so the API parses it as a real calendar date.
+  console.log("[formatBirthDate] input:", isoDate, "passing through as-is");
+  return isoDate;
 }
 
 function mapActivityLevel(level: string): string {
