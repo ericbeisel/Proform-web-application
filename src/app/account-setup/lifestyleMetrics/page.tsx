@@ -286,16 +286,7 @@ export default function LifestyleMetricsPage() {
         {/* Progress Photo section – still commented out as in your original */}
         {/* Uncomment and use handlePhotoChange when you're ready to enable it */}
 
-        <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 sm:p-4">
-          <p className="text-xs sm:text-sm text-purple-900">
-            <span className="font-semibold inline-flex items-center gap-1.5">
-              <BarChart3 size={14} />
-              Progress Tracking:
-            </span>{" "}
-            Regular photos and metrics help you see real changes that the scale
-            might not show.
-          </p>
-        </div>
+    
 
         <button
           type="submit"

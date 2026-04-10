@@ -200,23 +200,21 @@ export default function GoalsPreferencesPage() {
             Primary Goal*
           </label>
           <div className="relative">
-            <select
-              value={formData.primaryGoal}
-              onChange={(e) =>
-                setFormData({ ...formData, primaryGoal: e.target.value })
-              }
-              className={`w-full px-5 py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] appearance-none cursor-pointer text-sm ${
-                formData.primaryGoal ? "text-gray-900" : "text-gray-400"
-              }`}
-              required
-            >
-              <option value="" disabled hidden>
-                Select your primary goal
-              </option>
-              <option value="lose-weight">Fat Loss</option>
-              <option value="maintain">Maintain</option>
-              <option value="gain">Gain</option>
-            </select>
+       <select
+  value={formData.primaryGoal}
+  onChange={(e) =>
+    setFormData({ ...formData, primaryGoal: e.target.value })
+  }
+  className="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6202AC] appearance-none cursor-pointer text-sm text-black"
+  required
+>
+  <option value="" disabled hidden>
+    Select your primary goal
+  </option>
+  <option value="lose-weight">Fat Loss</option>
+  <option value="maintain">Maintain</option>
+  <option value="gain">Gain</option>
+</select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
                 <path

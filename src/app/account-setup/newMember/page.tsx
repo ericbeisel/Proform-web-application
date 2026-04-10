@@ -30,9 +30,7 @@ function NewMemberChecklistContent() {
         if (!isMounted) return;
         setLoading(true);
         
-        // Add cache-busting timestamp to prevent API caching
-        const timestamp = Date.now();
-        console.log(`Fetching dashboard data... (attempt ${retryCount + 1}/${maxRetries}) at ${timestamp}`);
+        console.log(`Fetching dashboard data... (attempt ${retryCount + 1}/${maxRetries})`);
         
         const rawData = await dashboardApi.getDashboardData();
         
@@ -43,13 +41,13 @@ function NewMemberChecklistContent() {
         console.log("OtherDetail:", details);
         console.log("accountsetup value:", details.accountsetup, "type:", typeof details.accountsetup);
 
-        // Check if account setup is complete
+        // FIXED: Convert to string for consistent comparison
+        const accountSetupValue = String(details.accountsetup);
         const isSetupComplete =
-          details.accountsetup === "1" ||
-          details.accountsetup === "completed" ||
-          details.accountsetup?.toLowerCase() === "completed" ||
-          Number(details.accountsetup) === 1;
+          accountSetupValue === "1" ||
+          accountSetupValue.toLowerCase() === "completed";
 
+        console.log("accountsetup as string:", accountSetupValue);
         console.log("Is account setup complete?", isSetupComplete);
         
         // If we came from completed setup and it's not complete yet, retry
