@@ -45,6 +45,24 @@ const LayoutContext = createContext<LayoutContextValue>({
 });
 export const useLayout = () => useContext(LayoutContext);
 
+// ─── Helper function to convert 9 steps to 7 steps for display ────────────────
+const getDisplaySteps = (currentStep: number, totalSteps: number) => {
+  // If total is 9, convert to 7 for display
+  if (totalSteps === 9) {
+    let displayStep = currentStep;
+    
+    // Map steps 8 and 9 to step 7
+    if (currentStep === 8 || currentStep === 9) {
+      displayStep = 7;
+    }
+    // Steps 1-6 remain the same
+    // Step 7 (Rep Max) is hidden from count
+    
+    return { current: displayStep, total: 7 };
+  }
+  return { current: currentStep, total: totalSteps };
+};
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function AccountSetupLayout({
@@ -60,7 +78,7 @@ export default function AccountSetupLayout({
   });
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [showProgress, setShowProgress] = useState(false);
-  const [hideBackButton, setHideBackButton] = useState(true); // default true — no flash on first page
+  const [hideBackButton, setHideBackButton] = useState(true);
   const [onBack, setOnBack] = useState<(() => void) | undefined>(undefined);
 
   useEffect(() => {
@@ -84,8 +102,13 @@ export default function AccountSetupLayout({
     [],
   );
 
-  const progressPercentage = progressData
-    ? (progressData.currentStep / progressData.totalSteps) * 100
+  // Get display steps (converts 9→7 automatically)
+  const displayProgress = progressData 
+    ? getDisplaySteps(progressData.currentStep, progressData.totalSteps)
+    : null;
+  
+  const progressPercentage = displayProgress
+    ? (displayProgress.current / displayProgress.total) * 100
     : 0;
 
   return (
@@ -107,7 +130,7 @@ export default function AccountSetupLayout({
             <h1 className="text-2xl font-bold leading-tight">
               {leftContent.title}
             </h1>
-            {showProgress && progressData && (
+            {showProgress && displayProgress && (
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex-1 bg-white/20 h-1 rounded-full overflow-hidden">
                   <div
@@ -116,7 +139,7 @@ export default function AccountSetupLayout({
                   />
                 </div>
                 <p className="text-xs text-white/80 whitespace-nowrap font-medium">
-                  {progressData.currentStep}/{progressData.totalSteps}
+                  {displayProgress.current}/{displayProgress.total}
                 </p>
               </div>
             )}
@@ -160,7 +183,7 @@ export default function AccountSetupLayout({
                 </div>
               )}
             </div>
-            {showProgress && progressData && (
+            {showProgress && displayProgress && (
               <div className="max-w-md">
                 <div className="flex items-center justify-between gap-6 mb-3">
                   <div className="flex-1 bg-white/20 h-1 rounded-full overflow-hidden">
@@ -170,11 +193,11 @@ export default function AccountSetupLayout({
                     />
                   </div>
                   <p className="text-white font-semibold text-base whitespace-nowrap">
-                    Step {progressData.currentStep} of {progressData.totalSteps}
+                    Step {displayProgress.current} of {displayProgress.total}
                   </p>
                 </div>
                 <p className="text-gray-400 text-sm">
-                  Next: {progressData.nextStep}
+                  Next: {progressData?.nextStep}
                 </p>
               </div>
             )}
