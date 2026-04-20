@@ -468,7 +468,7 @@ export default function SearchWorkoutsPage() {
               {data.featuredTrainers.slice(0, 3).map((trainer) => (
                 <div
                   key={trainer.id}
-                  onClick={() => router.push(`/trainers/${trainer.slug}`)}
+                 
                   className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
                 >
                   <img
@@ -495,7 +495,7 @@ export default function SearchWorkoutsPage() {
           <SectionHeader title="Free Programs" showSeeAll />
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 md:gap-4">
             {data.freePrograms.map((program) => (
-              <ProgramCard key={program.id} program={program} isFree />
+              <ProgramCard key={program.id} program={program} isFree onClick={() => router.push(`/programs/${program.id}`)} />
             ))}
           </div>
         </div>
@@ -505,7 +505,7 @@ export default function SearchWorkoutsPage() {
           <SectionHeader title="Suggested for You" showSeeAll />
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
             {data.suggestedPrograms.map((program) => (
-              <ProgramCard key={program.id} program={program} />
+              <ProgramCard key={program.id} program={program} onClick={() => router.push(`/programs/${program.id}`)} />
             ))}
           </div>
         </div>
@@ -548,7 +548,7 @@ export default function SearchWorkoutsPage() {
               <div
                 className="relative rounded-xl md:rounded-2xl overflow-hidden h-32 md:h-40 flex items-end p-4 md:p-5 cursor-pointer"
                 style={{ background: "linear-gradient(135deg,#111,#2d2d2d)" }}
-                onClick={() => router.push(`/programs/franchise/${data.featuredFranchise?.franchise_id}`)}
+               
               >
                 <img
                   src={data.featuredFranchise.cover_photo
