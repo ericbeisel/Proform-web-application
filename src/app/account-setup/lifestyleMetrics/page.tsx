@@ -286,8 +286,6 @@ export default function LifestyleMetricsPage() {
         {/* Progress Photo section – still commented out as in your original */}
         {/* Uncomment and use handlePhotoChange when you're ready to enable it */}
 
-    
-
         <button
           type="submit"
           disabled={!formData.cardioCalorieGoal || isSubmitting}

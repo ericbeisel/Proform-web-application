@@ -60,7 +60,14 @@ export default function FindUsersPage() {
       else setLoadingMore(true);
 
       const response = await profileApi.searchUsers(page, search);
-
+console.log(
+  "👥 Followers Count:",
+  response.data?.map((u) => ({
+    name: u.name,
+    username: u.username,
+    followers: u.followersCount,
+  }))
+);
       if (response.data && Array.isArray(response.data)) {
         const normalized = response.data.map((user) => {
           const stored = localStorage.getItem("userFollows");
@@ -150,27 +157,53 @@ export default function FindUsersPage() {
   return (
     <div className="min-h-screen bg-[#F3F4F8]">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-gradient-to-r from-[#0f0c29] via-[#302b63] to-[#24243e] px-6 py-4 shadow-lg">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
-            <button onClick={() => router.back()} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
-              <ArrowLeft size={18} className="text-white" />
-            </button>
-            <h1 className="text-xl font-bold text-white tracking-tight">Find Users</h1>
-          </div>
+   <header className="sticky top-0 z-20 bg-gradient-to-r from-[#0f0c29] via-[#302b63] to-[#24243e] px-6 py-4 shadow-lg">
+  <div className="max-w-5xl mx-auto">
+    <div className="flex items-center gap-4 mb-4">
+      <button
+        onClick={() => router.back()}
+        className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+      >
+        <ArrowLeft size={18} className="text-white" />
+      </button>
+      <h1 className="text-xl font-bold text-white tracking-tight">
+        Find Users
+      </h1>
+    </div>
 
-          <div className="relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-purple-500 shadow-xl text-sm text-gray-900"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-      </header>
+    <div className="relative mb-3">
+      <Search
+        size={18}
+        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+      />
+      <input
+        type="text"
+        placeholder="Search users..."
+        className="w-full pl-12 pr-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-purple-500 shadow-xl text-sm text-gray-900"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+    </div>
+
+    {/* NEW TEXT OPTIONS */}
+    <div className="flex gap-6 text-sm">
+      <span className="text-white">
+        Search{" "}
+        <span onClick={() => router.push("/programs")} className="underline cursor-pointer hover:text-purple-300">
+          Programs  and  Workouts
+        </span>{" "}
+      
+      </span>
+
+      <span className="text-white">
+        Search{" "}
+        <span className="underline cursor-pointer hover:text-purple-300">
+          Exercises
+        </span>
+      </span>
+    </div>
+  </div>
+</header>
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto p-5 pb-20">

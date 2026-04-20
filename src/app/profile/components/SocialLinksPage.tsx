@@ -34,6 +34,7 @@ export default function SocialLinksPage({ userId, onClose }: SocialLinksPageProp
         });
         setPlatforms(data);
         setLinks(initialLinks);
+        console.log("Fetched socials:", data);
       } catch (err) {
         console.error("Failed to load socials", err);
       } finally {

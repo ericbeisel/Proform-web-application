@@ -106,6 +106,95 @@ export default function PreferencesPage() {
   const isFormValid =
     formData.timeZoneId && formData.countryId && formData.cityId;
 
+    useEffect(() => {
+  // Expose functions to window for testing
+  (window as any).testAPI = {
+    fetchCountries,
+    fetchStates,
+    fetchCities,
+    testCountryStates: async (countryId: string) => {
+      console.log(`Testing country ID: ${countryId}`);
+      const states = await fetchStates(countryId);
+      console.log(`States found: ${states?.length || 0}`);
+      if (!states || states.length === 0) {
+        console.warn(`⚠️ NO STATES for country ID ${countryId}`);
+      } else {
+        console.log(`✅ States:`, states.map(s => s.name));
+      }
+      return states;
+    },
+    testAllCountries: async () => {
+      console.clear();
+      console.log("🔍 Testing all countries...");
+      const countries = await fetchCountries();
+      console.log(`📊 Found ${countries.length} countries\n`);
+      
+      const noStates = [];
+      const hasStates = [];
+      
+      for (const country of countries) {
+        const states = await fetchStates(String(country.id));
+        if (!states || states.length === 0) {
+          console.warn(`❌ ${country.name} (ID: ${country.id}) - NO STATES`);
+          noStates.push({ id: country.id, name: country.name });
+        } else {
+          console.log(`✅ ${country.name} (ID: ${country.id}) - ${states.length} states`);
+          hasStates.push({ id: country.id, name: country.name, stateCount: states.length });
+        }
+      }
+      
+      console.group("📊 RESULTS");
+      console.log(`Countries with states: ${hasStates.length}`);
+      console.log(`Countries WITHOUT states: ${noStates.length}`);
+      if (noStates.length > 0) {
+        console.table(noStates);
+      }
+      console.groupEnd();
+      
+      return { noStates, hasStates };
+    },
+    testAllStatesForCities: async () => {
+      console.clear();
+      console.log("🔍 Testing all states for cities...");
+      const countries = await fetchCountries();
+      const noCities = [];
+      
+      for (const country of countries) {
+        const states = await fetchStates(String(country.id));
+        if (states && states.length > 0) {
+          for (const state of states) {
+            const cities = await fetchCities(String(state.id));
+            if (!cities || cities.length === 0) {
+              console.warn(`❌ ${state.name} (ID: ${state.id}) in ${country.name} - NO CITIES`);
+              noCities.push({ 
+                stateId: state.id, 
+                stateName: state.name, 
+                countryId: country.id, 
+                countryName: country.name 
+              });
+            } else {
+              console.log(`✅ ${state.name} (${country.name}) - ${cities.length} cities`);
+            }
+          }
+        }
+      }
+      
+      console.group("📊 STATES WITHOUT CITIES");
+      console.log(`Total states without cities: ${noCities.length}`);
+      if (noCities.length > 0) {
+        console.table(noCities);
+      }
+      console.groupEnd();
+      
+      return noCities;
+    }
+  };
+  
+  console.log("🟢 API test functions ready!");
+  console.log("Try: await window.testAPI.testAllCountries()");
+  console.log("Try: await window.testAPI.testAllStatesForCities()");
+}, []);
+
   useEffect(() => {
     fetchTimezones()
       .then(setTimezones)
@@ -118,21 +207,44 @@ export default function PreferencesPage() {
       .finally(() => setLoadingCountries(false));
   }, []);
 
-  useEffect(() => {
-    if (!formData.countryId) {
-      setStates([]);
-      setCities([]);
-      return;
-    }
-    setFormData((prev) => ({ ...prev, stateId: "", cityId: "" }));
+// In your component, add logging to see what ID is being used
+useEffect(() => {
+  if (!formData.countryId) {
     setStates([]);
     setCities([]);
-    setLoadingStates(true);
-    fetchStates(formData.countryId)
-      .then(setStates)
-      .catch(() => setStates([]))
-      .finally(() => setLoadingStates(false));
-  }, [formData.countryId]);
+    return;
+  }
+  
+  console.log("=== FETCHING STATES ===");
+  console.log("Country ID from form:", formData.countryId);
+  console.log("Country ID type:", typeof formData.countryId);
+  
+  // Find the selected country to verify
+  const selectedCountry = countries.find(c => String(c.id) === formData.countryId);
+  console.log("Selected country:", selectedCountry);
+  
+  setFormData((prev) => ({ ...prev, stateId: "", cityId: "" }));
+  setStates([]);
+  setCities([]);
+  setLoadingStates(true);
+  
+  fetchStates(formData.countryId)
+    .then(states => {
+      console.log(`States received: ${states?.length || 0}`);
+      if (states && states.length > 0) {
+        console.log("First few states:", states.slice(0, 5));
+        setStates(states);
+      } else {
+        console.warn("⚠️ No states returned for country ID:", formData.countryId);
+        setStates([]);
+      }
+    })
+    .catch(err => {
+      console.error("Error fetching states:", err);
+      setStates([]);
+    })
+    .finally(() => setLoadingStates(false));
+}, [formData.countryId, countries]);
 
   useEffect(() => {
     if (!formData.stateId) {
@@ -148,6 +260,7 @@ export default function PreferencesPage() {
       .finally(() => setLoadingCities(false));
   }, [formData.stateId]);
 
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid) return;

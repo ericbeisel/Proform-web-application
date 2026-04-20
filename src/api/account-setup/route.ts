@@ -211,7 +211,7 @@ export const fetchCountries = async (): Promise<CountryOption[]> => {
 export const fetchStates = async (
   countryId: string,
 ): Promise<StateOption[]> => {
-  if (!countryId || countryId === "0") return [];
+  if (!countryId || countryId === null || countryId === undefined) return [];
   try {
     const params = new URLSearchParams({ country_id: countryId });
     console.log("[fetchStates] requesting states for country_id:", countryId);
@@ -231,7 +231,7 @@ export const fetchStates = async (
 
 /** Fetch cities for a state — POST x-www-form-urlencoded with state_id */
 export const fetchCities = async (stateId: string): Promise<CityOption[]> => {
-  if (!stateId || stateId === "0") return [];
+  if (!stateId || stateId === null || stateId === undefined) return [];
   try {
     const params = new URLSearchParams({ state_id: stateId });
     console.log("[fetchCities] requesting cities for state_id:", stateId);
@@ -268,12 +268,7 @@ function formatBirthDate(isoDate: string): string {
 
   const timestamp = new Date(isoDate).getTime();
 
-  console.log(
-    "[formatBirthDate] input:",
-    isoDate,
-    "→ timestamp:",
-    timestamp
-  );
+  console.log("[formatBirthDate] input:", isoDate, "→ timestamp:", timestamp);
 
   return String(timestamp); // IMPORTANT: string because URLSearchParams
 }
