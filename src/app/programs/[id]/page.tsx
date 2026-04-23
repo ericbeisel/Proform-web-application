@@ -209,7 +209,12 @@ export default function ProgramDetailPage() {
 
 const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_next' | 'queue') => {
   if (!program) return;
-  
+    console.log("📤 Sending to API:", {
+    programId: program.id,
+    type: "Workout",
+    addSuggested: includeSupplemental ? 1 : 0,
+    queueType
+  });
   setIsAdding(true);
   
   try {

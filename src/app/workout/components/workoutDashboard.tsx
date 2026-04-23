@@ -44,60 +44,54 @@ export default function WorkoutDashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+const [workoutType, setWorkoutType] = useState("Workout");
   const [showEditGoal, setShowEditGoal] = useState(false);
   const [newGoalValue, setNewGoalValue] = useState("");
 
   // Fetch workouts from API
-  useEffect(() => {
-    const fetchWorkouts = async () => {
-      try {
-        setLoading(true);
-        const response = await getWorkoutQueue("Workout");
-        
-        console.log("API Response:", response);
-        
-        let workoutsArray: WorkoutQueueItem[] = [];
-        
-        // Handle different response structures
-        if (response && Array.isArray(response)) {
-          workoutsArray = response;
-        } else if (response && typeof response === 'object') {
-          if ('data' in response && Array.isArray((response as any).data)) {
-            workoutsArray = (response as any).data;
-          } else if ('workouts' in response && Array.isArray((response as any).workouts)) {
-            workoutsArray = (response as any).workouts;
-          }
-        }
-        
-        setWorkouts(workoutsArray);
-        
-        // Map workouts to session format
-        const mappedSessions: Session[] = workoutsArray.map((workout) => ({
-          id: workout.id,
-          day: workout.day || "",
-          title: workout.workout_title || workout.title,
-          programName: workout.program_name,
-          week: workout.week,
-          calories: 0,
-          completed: workout.completed || false,
-        }));
-        
-        setSessions(mappedSessions);
-        setError(null);
-      } catch (err: any) {
-        console.error("Error fetching workouts:", err);
-        setError(err.message || "Failed to load workouts");
-        setWorkouts([]);
-        setSessions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchWorkouts();
-  }, []);
+// 1️⃣ FETCH DATA (runs once or when API param changes)
+// 1️⃣ FETCH DATA - runs when workoutType changes
+useEffect(() => {
+  const fetchWorkouts = async () => {
+    try {
+      setLoading(true);
 
+      const response = await getWorkoutQueue(workoutType); // ← Use workoutType dynamically
+
+      let workoutsArray: WorkoutQueueItem[] = [];
+
+      if (Array.isArray(response)) {
+        workoutsArray = response;
+      }
+
+      setWorkouts(workoutsArray);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+      setWorkouts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchWorkouts();
+}, [workoutType]); // ← Add workoutType as dependency
+
+// 2️⃣ MAP to sessions - runs when workouts changes
+useEffect(() => {
+  const mappedSessions: Session[] = workouts.map((workout) => ({
+    id: workout.id,
+    day: workout.day || "",
+    title: workout.workout_title || workout.title,
+    programName: workout.program_name,
+    week: workout.week,
+    calories: 0,
+    completed: workout.completed || false,
+  }));
+
+  setSessions(mappedSessions);
+}, [workouts]); // ← Only depends on workouts now
+  
   const scheduledCalories = sessions.reduce((sum, s) => sum + s.calories, 0);
   const completedSessions = sessions.filter((s) => s.completed).length;
   const completedCalories = sessions
@@ -144,6 +138,10 @@ export default function WorkoutDashboard() {
       </div>
     );
   }
+
+  const filteredWorkouts = workouts.filter(
+  (w) => w.type === workoutType
+);
 
   return (
     <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -197,14 +195,15 @@ export default function WorkoutDashboard() {
     </div>
 
     {/* Dropdown Menu */}
-    <select 
-      className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-2 sm:py-2.5 font-semibold outline-none cursor-pointer focus:border-[#7c3aed]"
-      defaultValue="workout"
-    >
-      <option value="workout">Workout</option>
-      <option value="field_workout">Field Workout</option>
-      <option value="supplemental">Supplemental</option>
-    </select>
+<select
+  value={workoutType}
+  onChange={(e) => setWorkoutType(e.target.value)}
+  className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer"
+>
+  <option value="Workout">Workout</option>
+  <option value="Field Workout">Field Workout</option>
+  <option value="Supplemental">Supplemental</option>
+</select>
 
     {/* Completed Button */}
     <button className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-bold text-xs sm:text-sm whitespace-nowrap hover:bg-emerald-100 transition-all">

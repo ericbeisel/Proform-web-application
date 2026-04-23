@@ -1,37 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, X, CheckCircle, Circle, Plus, Calendar, Droplet, Clock } from "lucide-react";
+import { ArrowLeft, X, Circle, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function HydrationCompletion() {
   const router = useRouter();
   
-  const [selectedOption, setSelectedOption] = useState<string>("");
-  const [saveAsNew, setSaveAsNew] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string>("choice1");
 
-  const completionOptions = [
-    {
-      id: "choice1",
-      title: "Choice 1",
-      description: "Get credit towards your scheduled 8 AM hydration session",
-      time: "8:00 AM",
-      amount: "16 oz"
-    },
-    {
-      id: "choice2",
-      title: "Choice 2",
-      description: "Get credit towards your scheduled 12 PM hydration session",
-      time: "12:00 PM",
-      amount: "24 oz"
+  const handleSaveRecovery = () => {
+    if (selectedOption === "new") {
+       localStorage.setItem('showItineraryMessage', 'true');
+       router.push('/hydration/hydrationDashboard');
+    } else if (selectedOption) {
+       router.push('/hydration/hydrationDashboard');
     }
-  ];
+  };
 
   return (
-    <div className="w-full min-h-screen bg-[#f0f4f8]">
+    <div className="w-full min-h-screen bg-[#f0f4f8] flex flex-col">
       
-      {/* HEADER */}
-      <div className="w-full bg-purple-600 px-6 sm:px-8 py-4 sm:py-5">
+      {/* HEADER - Kept as requested */}
+      <div className="w-full bg-purple-600 px-6 sm:px-8 py-4 sm:py-5 flex-shrink-0">
         <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -42,7 +33,7 @@ export default function HydrationCompletion() {
             </button>
             <div>
               <div className="text-white font-extrabold text-lg sm:text-xl leading-tight">Hydration Completion</div>
-              <div className="text-white/80 text-xs sm:text-sm mt-0.5">Choose how you want to save your completed session</div>
+              <div className="text-white/80 text-xs sm:text-sm mt-0.5">Save your completed session</div>
             </div>
           </div>
           <button
@@ -54,136 +45,92 @@ export default function HydrationCompletion() {
         </div>
       </div>
 
-      {/* BODY */}
-      <div className="w-full px-4 sm:px-6 md:px-8 py-6 sm:py-8">
-        
-        {/* Subtitle */}
-        <div className="mb-6 text-center">
-          <p className="text-gray-600 text-sm sm:text-base">
-            Get credit towards one of your scheduled hydration sessions:
+      {/* BODY - Matched to Screenshot */}
+      <div className="flex-1 flex items-start justify-center p-4 sm:p-8">
+        <div className="w-full max-w-xl bg-white rounded-[2.5rem] shadow-sm p-8 sm:p-12 flex flex-col items-center">
+          
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-700 text-center mb-4">
+            Hydration Completion
+          </h2>
+          
+          <p className="text-gray-500 text-center text-sm sm:text-base leading-relaxed mb-10 max-w-md">
+            Choose how you want to save your completed Recovery Session on your itinerary page
           </p>
-        </div>
 
-        {/* Options Cards */}
-        <div className="space-y-4 mb-8">
-          {completionOptions.map((option) => (
-            <div
-              key={option.id}
-              onClick={() => {
-                setSelectedOption(option.id);
-                setSaveAsNew(false);
-              }}
-              className={`bg-white rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md ${
-                selectedOption === option.id && !saveAsNew
-                  ? "border-2 border-purple-500 shadow-lg"
-                  : "border border-gray-200"
+          {/* TOP CHOICE BOX */}
+          <div className="w-full bg-[#f8fafc] rounded-3xl p-6 sm:p-8 border border-gray-50 flex flex-col items-center mb-8">
+            <p className="text-gray-500 text-xs sm:text-sm text-center mb-6">
+              Get credit towards one of your scheduled hydration sessions<br/>(Choose One):
+            </p>
+
+            <div className="w-full max-w-xs space-y-4 mb-8">
+              {/* Choice 1 */}
+              <div 
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={() => setSelectedOption("choice1")}
+              >
+                {selectedOption === "choice1" ? (
+                  <CheckCircle2 className="text-[#00b4d8] fill-[#00b4d8] bg-white rounded-full" size={24} />
+                ) : (
+                  <Circle className="text-gray-300" size={24} />
+                )}
+                <span className={`font-bold text-sm sm:text-base ${selectedOption === "choice1" ? "text-gray-800" : "text-gray-500"}`}>
+                  Choice 1
+                </span>
+              </div>
+
+              {/* Choice 2 */}
+              <div 
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={() => setSelectedOption("choice2")}
+              >
+                {selectedOption === "choice2" ? (
+                  <CheckCircle2 className="text-[#00b4d8] fill-[#00b4d8] bg-white rounded-full" size={24} />
+                ) : (
+                  <Circle className="text-gray-300" size={24} />
+                )}
+                <span className={`font-bold text-sm sm:text-base ${selectedOption === "choice2" ? "text-gray-800" : "text-gray-500"}`}>
+                  Choice 2
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveRecovery}
+              disabled={selectedOption === "new"}
+              className={`w-full max-w-sm py-4 rounded-2xl font-bold text-white transition-all shadow-lg ${
+                selectedOption === "new" ? "bg-gray-300 cursor-not-allowed" : "bg-[#4a5568] hover:bg-[#3d4654] active:scale-[0.98]"
               }`}
             >
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 mt-1">
-                  {selectedOption === option.id && !saveAsNew ? (
-                    <CheckCircle size={22} className="text-purple-600" />
-                  ) : (
-                    <Circle size={22} className="text-gray-400" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-extrabold text-gray-800 text-base sm:text-lg">
-                    {option.title}
-                  </h3>
-                  <p className="text-gray-500 text-sm mt-1">
-                    {option.description}
-                  </p>
-                  <div className="flex items-center gap-4 mt-3">
-                    <div className="flex items-center gap-1.5">
-                      <Clock size={14} className="text-gray-400" />
-                      <span className="text-xs text-gray-500">{option.time}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Droplet size={14} className="text-blue-400" />
-                      <span className="text-xs text-gray-500">{option.amount}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* OR Divider */}
-        <div className="relative flex items-center justify-center my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
+              Save Recovery
+            </button>
           </div>
-          <div className="relative bg-[#f0f4f8] px-4">
-            <span className="text-gray-400 text-sm font-medium">or</span>
+
+          {/* OR DIVIDER */}
+          <div className="w-full flex items-center justify-center gap-4 mb-8">
+            <div className="h-[1px] flex-1 bg-gray-100"></div>
+            <span className="font-black text-gray-800 text-sm italic uppercase tracking-widest">or</span>
+            <div className="h-[1px] flex-1 bg-gray-100"></div>
           </div>
-        </div>
 
-        {/* Save as New Option */}
-        <div
-          onClick={() => {
-            setSaveAsNew(true);
-            setSelectedOption("");
-          }}
-          className={`bg-white rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md ${
-            saveAsNew
-              ? "border-2 border-purple-500 shadow-lg"
-              : "border border-gray-200"
-          }`}
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 mt-1">
-              {saveAsNew ? (
-                <CheckCircle size={22} className="text-purple-600" />
-              ) : (
-                <Circle size={22} className="text-gray-400" />
-              )}
-            </div>
-            <div className="flex-1">
-              <h3 className="font-extrabold text-gray-800 text-base sm:text-lg">
-                Save as a new hydration session
-              </h3>
-              <p className="text-gray-500 text-sm mt-1">
-                This will not affect your Hydration Completion this week
-              </p>
-              <div className="flex items-center gap-2 mt-3">
-                <Plus size={14} className="text-green-500" />
-                <span className="text-xs text-gray-500">New independent session</span>
-              </div>
-            </div>
+          {/* BOTTOM CHOICE */}
+          <div className="w-full flex flex-col items-center">
+            <p className="text-gray-500 text-xs sm:text-sm text-center mb-6 max-w-xs">
+              Save as a new hydration session, which will not affect your Hydration Completion this week:
+            </p>
+
+            <button
+              onClick={() => {
+                setSelectedOption("new");
+                localStorage.setItem('showItineraryMessage', 'true');
+                router.push('/hydration/hydrationDashboard');
+              }}
+              className="w-full max-w-xs bg-gradient-to-r from-[#6e22e5] to-[#9d50ff] text-white py-4 rounded-2xl font-bold shadow-xl hover:shadow-purple-200 transition-all active:scale-[0.98]"
+            >
+              Create a New One
+            </button>
           </div>
-        </div>
 
-        {/* Save Button */}
-<div className="mt-8">
-  <button
-    onClick={() => {
-      if (saveAsNew) {
-        console.log("Saved as a new hydration session!");
-        // Store flag in localStorage
-        localStorage.setItem('showItineraryMessage', 'true');
-        router.push('/hydration/hydrationDashboard');
-      } else if (selectedOption) {
-        const selected = completionOptions.find(opt => opt.id === selectedOption);
-        console.log(`Credit applied to ${selected?.title}!`);
-        router.push('/hydration/hydrationDashboard');
-      } else {
-        alert("Please select an option to continue");
-        return;
-      }
-    }}
-    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3.5 rounded-xl font-bold hover:shadow-lg transition-all hover:-translate-y-0.5"
-  >
-    Save as New One
-  </button>
-</div>  
-
-        {/* Info Note */}
-        <div className="mt-4 text-center">
-          <p className="text-xs text-gray-400">
-            Select one option to continue
-          </p>
         </div>
       </div>
     </div>
