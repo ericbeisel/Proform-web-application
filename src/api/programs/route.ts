@@ -167,6 +167,51 @@ export interface ProgramDetail {
   pre_req?: string;
 }
 
+export interface StartProgramPayload {
+  programId: string;
+  type: string;  // "Workout" or other types
+  addSuggested: number;  // 1 for true, 0 for false (includes supplemental)
+}
+
+export interface StartProgramResponse {
+  message: string;
+  queue_id?: string;
+  program_id?: string;
+  status?: string;
+}
+
+export interface WorkoutQueueItem {
+  id: string;
+  title: string;
+  workout_title: string;
+  day: string;
+  week: string;
+  program_name: string;
+  completed: boolean;
+  muscles_used: string;
+  cover_photo: string;
+  order: number;
+  micro_order: number;
+  created_date: string;
+  updated_date: string;
+  type: string;
+  queue_name: string;
+  group: string;
+  member_id: string;
+  owner: string | null;
+  completion_id: string | null;
+  session_id: string | null;
+  queue_id: string | null;
+  created_date_2: string;
+  team_id: string | null;
+  archive: boolean;
+}
+
+export interface WorkoutQueueResponse {
+  message?: string;
+  count?: number;
+  workouts?: WorkoutQueueItem[];
+}
 // ===========================================
 // ERROR HANDLER
 // ===========================================
@@ -292,6 +337,30 @@ export const getProgramDetail = async (programId: string): Promise<ProgramDetail
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch program details."),
+    );
+  }
+};
+
+export const startProgram = async (payload: StartProgramPayload): Promise<StartProgramResponse> => {
+  try {
+    const { data } = await apiClient.post<StartProgramResponse>("/programs/start-program", payload);
+    console.log("📋 Start program response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to start program."),
+    );
+  }
+};
+
+export const getWorkoutQueue = async (type: string = "workout"): Promise<WorkoutQueueItem[]> => {
+  try {
+    const { data } = await apiClient.get<WorkoutQueueItem[]>(`/programs/workout-queue?type=${type}`);
+    console.log("📋 Workout queue response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch workout queue."),
     );
   }
 };

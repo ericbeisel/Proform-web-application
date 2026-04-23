@@ -1,3 +1,4 @@
+// src/app/programs/[id]/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,7 +10,7 @@ import {
   Apple, Play,
   X, Lock
 } from "lucide-react";
-import { getProgramDetail, ProgramDetail } from "@/api/programs/route";
+import { getProgramDetail, startProgram, ProgramDetail } from "@/api/programs/route";
 
 // ─── Utility ────────────────────────────────────────────────────────────────
 function resolveWixImage(url?: string): string {
@@ -33,7 +34,7 @@ function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
   img.src = FALLBACK_IMAGE;
 }
 
-// Objective icon colors — cycles through a set matching the screenshot
+// Objective icon colors
 const ICON_COLORS = [
   { bg: "bg-orange-100", text: "text-orange-500", icon: <Target size={16} /> },
   { bg: "bg-blue-100",   text: "text-blue-500",   icon: <Zap size={16} /> },
@@ -42,18 +43,36 @@ const ICON_COLORS = [
   { bg: "bg-pink-100",   text: "text-pink-500",    icon: <Star size={16} /> },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Popup Modal Component for Free Program
-function AddToQueueModal({ 
-  isOpen, 
-  onClose, 
+// Toast notification component
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-20 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg animate-in slide-in-from-top-2 ${
+      type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+    }`}>
+      {type === 'success' ? <CheckCircle size={18} /> : <X size={18} />}
+      <span className="text-sm font-medium">{message}</span>
+    </div>
+  );
+}
+
+// Original popup from your code
+function AddToQueueModal({
+  isOpen,
+  onClose,
   programTitle,
-  onAddToQueue 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
+  onAddToQueue,
+  isAdding
+}: {
+  isOpen: boolean;
+  onClose: () => void;
   programTitle: string;
-  onAddToQueue: (includeSupplemental: boolean) => void;
+  onAddToQueue: (includeSupplemental: boolean, queueType: 'up_next' | 'queue') => Promise<void>;
+  isAdding: boolean;
 }) {
   const [includeSupplemental, setIncludeSupplemental] = useState(true);
 
@@ -78,12 +97,15 @@ function AddToQueueModal({
 
         {/* Main Action: Reconditioning */}
         <div className="p-4 border-b border-gray-100">
-          <button 
-            onClick={() => onAddToQueue(false)}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-between px-4"
+          <button
+            onClick={() => onAddToQueue(false, 'up_next')}
+            disabled={isAdding}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-between px-4 disabled:opacity-50"
           >
             <span>Reconditioning</span>
-            <span className="text-sm bg-purple-500/30 px-2 py-0.5 rounded-full">Add 9 Workout(s)</span>
+            <span className="text-sm bg-purple-500/30 px-2 py-0.5 rounded-full">
+              {isAdding ? "Adding..." : "Add 9 Workout(s)"}
+            </span>
           </button>
         </div>
 
@@ -94,18 +116,18 @@ function AddToQueueModal({
               <p className="font-medium text-gray-900">Include Supplemental Workouts</p>
               <p className="text-xs text-gray-500">Add extra conditioning and mobility work</p>
             </div>
-           <button
-  onClick={() => setIncludeSupplemental(!includeSupplemental)}
-  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-    includeSupplemental ? 'bg-purple-600' : 'bg-gray-300'
-  }`}
->
-  <span
-    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-      includeSupplemental ? 'translate-x-5' : 'translate-x-1'
-    }`}
-  />
-</button>
+            <button
+              onClick={() => setIncludeSupplemental(!includeSupplemental)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                includeSupplemental ? 'bg-purple-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  includeSupplemental ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
           {includeSupplemental && (
             <div className="mt-3 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
@@ -117,19 +139,22 @@ function AddToQueueModal({
 
         {/* Action Buttons */}
         <div className="p-4 space-y-2">
-          <button 
-            onClick={() => onAddToQueue(includeSupplemental)}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition"
+          <button
+            onClick={() => onAddToQueue(includeSupplemental, 'up_next')}
+            disabled={isAdding}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Add to Up Next
+            {isAdding ? <Loader2 size={16} className="animate-spin" /> : null}
+            {isAdding ? "Adding..." : "Add to Up Next"}
           </button>
-          <button 
-            onClick={() => onAddToQueue(includeSupplemental)}
-            className="w-full border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-bold py-2.5 rounded-xl transition"
+          <button
+            onClick={() => onAddToQueue(includeSupplemental, 'queue')}
+            disabled={isAdding}
+            className="w-full border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
           >
-            Add to Queue
+            {isAdding ? "Adding..." : "Add to Queue"}
           </button>
-          <button 
+          <button
             onClick={onClose}
             className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 text-sm transition"
           >
@@ -149,6 +174,8 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const programId = params.id as string;
 
@@ -180,23 +207,37 @@ export default function ProgramDetailPage() {
     }
   };
 
-  const handleAddToQueue = (includeSupplemental: boolean) => {
-    // Here you would implement the actual queue addition logic
-    console.log("Adding to queue:", {
-      programId: program?.id,
-      programTitle: program?.title,
-      includeSupplemental,
-      supplementalCount: includeSupplemental ? 12 : 0,
-      workoutsCount: program?.workouts?.length || 9
+const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_next' | 'queue') => {
+  if (!program) return;
+  
+  setIsAdding(true);
+  
+  try {
+    const response = await startProgram({
+      programId: program.id,
+      type: "Workout",
+      addSuggested: includeSupplemental ? 1 : 0,
     });
     
-    // Close modal and show success message
-    setIsModalOpen(false);
-    alert(`Program "${program?.title}" added to your queue!`);
+    console.log("Program added to queue:", response);
     
-    // Optional: redirect to queue page or stay
-    // router.push("/workout-queue");
-  };
+    setToast({
+      message: `"${program.title}" has been added to your ${queueType === 'up_next' ? 'Up Next' : 'Queue'}!`,
+      type: 'success'
+    });
+    
+    setIsModalOpen(false);
+    
+  } catch (err: any) {
+    console.error("Error adding program to queue:", err);
+    setToast({
+      message: err.message || "Failed to add program to queue. Please try again.",
+      type: 'error'
+    });
+  } finally {
+    setIsAdding(false);
+  }
+};
 
   if (loading) {
     return (
@@ -232,17 +273,26 @@ export default function ProgramDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* Modal for Free Program */}
-      <AddToQueueModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        programTitle={program.title}
-        onAddToQueue={handleAddToQueue}
-      />
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Modal for Program */}
+<AddToQueueModal
+  isOpen={isModalOpen}
+  onClose={() => setIsModalOpen(false)}
+  programTitle={program.title}
+  onAddToQueue={handleAddToQueue}
+  isAdding={isAdding}
+/>
 
       {/* ══════════════════════════════════════
-          HEADER  —  matches screenshot exactly:
-          [← back]  Title + subtitle        [views] [started]  [Start Program >]
+          HEADER
       ══════════════════════════════════════ */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
@@ -324,7 +374,7 @@ export default function ProgramDetailPage() {
             Add to Team Queue
           </button>
 
-          {/* Conditional Button: Start Program (Free) or See Pricing Plans (Paid) */}
+          {/* Conditional Button */}
           <button 
             onClick={handleStartProgram}
             className={`flex items-center gap-2 bg-gradient-to-r ${buttonGradient} text-white px-4 py-2 rounded-full font-bold text-sm transition shadow-md shrink-0 hover:shadow-lg`}
@@ -364,7 +414,7 @@ export default function ProgramDetailPage() {
                   );
                 })
               ) : (
-                /* fallback if no objectives — show spec cards styled like objectives */
+                /* fallback if no objectives */
                 [
                   program.schedule && { label: "Schedule", value: program.schedule, colorIdx: 0 },
                   program.nutrition && { label: "Nutrition Focus", value: program.nutrition, colorIdx: 1 },
@@ -504,7 +554,6 @@ export default function ProgramDetailPage() {
                   key={idx}
                   className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition group cursor-pointer"
                 >
-                  {/* Image with overlaid title */}
                   <div className="relative h-44 overflow-hidden">
                     <img
                       src={resolveWixImage(workout.cover_photo)}
@@ -514,80 +563,22 @@ export default function ProgramDetailPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       onError={handleImgError}
                     />
-                    {/* Dark gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-
-                    {/* WEEK badge — top left */}
                     <span className="absolute top-3 left-3 bg-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full tracking-wide">
                       {workout.week || `WEEK ${idx + 1}`}
                     </span>
-
-                    {/* Title — bottom of image */}
                     <div className="absolute bottom-3 left-3 right-3">
                       <p className="text-white font-extrabold text-sm leading-tight line-clamp-1">
                         {workout.workout_title}
                       </p>
                     </div>
                   </div>
-
-                  {/* Preview Week button */}
                   <button className="w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition rounded-b-xl">
                     <Play size={11} fill="currentColor" />
                     Preview Week
                   </button>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Keep original sections below (specs + objectives) as fallback ── */}
-
-        {/* Program Specs — only shown if not already covered above */}
-        {(program.schedule || program.nutrition || program.intensity || program.pre_req) &&
-          !program.objectives?.length && (
-          <div className="mb-8">
-            <h2 className="text-xl font-extrabold text-gray-900 mb-4 flex items-center gap-2">
-              <Target size={20} className="text-purple-600" />
-              Program Specifications
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {program.schedule && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2 text-purple-600 mb-2">
-                    <Calendar size={16} />
-                    <span className="font-semibold text-sm">Schedule</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{program.schedule}</p>
-                </div>
-              )}
-              {program.nutrition && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2 text-purple-600 mb-2">
-                    <Apple size={16} />
-                    <span className="font-semibold text-sm">Nutrition</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{program.nutrition}</p>
-                </div>
-              )}
-              {program.intensity && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2 text-purple-600 mb-2">
-                    <Zap size={16} />
-                    <span className="font-semibold text-sm">Intensity</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{program.intensity}</p>
-                </div>
-              )}
-              {program.pre_req && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2 text-purple-600 mb-2">
-                    <Award size={16} />
-                    <span className="font-semibold text-sm">Prerequisites</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{program.pre_req}</p>
-                </div>
-              )}
             </div>
           </div>
         )}
