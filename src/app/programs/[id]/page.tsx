@@ -61,102 +61,106 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 }
 
 // Original popup from your code
+// Update the AddToQueueModal component props
 function AddToQueueModal({
   isOpen,
   onClose,
   programTitle,
   onAddToQueue,
-  isAdding
+  isAdding,
+  addWorkoutCount,
+  supplementalWorkoutCounts
 }: {
   isOpen: boolean;
   onClose: () => void;
   programTitle: string;
   onAddToQueue: (includeSupplemental: boolean, queueType: 'up_next' | 'queue') => Promise<void>;
   isAdding: boolean;
+  addWorkoutCount: number;
+  supplementalWorkoutCounts: number;
 }) {
   const [includeSupplemental, setIncludeSupplemental] = useState(true);
+  const router = useRouter();
 
   if (!isOpen) return null;
 
+  const handleAddToQueue = async (queueType: 'up_next' | 'queue') => {
+    await onAddToQueue(includeSupplemental, queueType);
+    // Redirect to workout/main after adding to queue
+    router.push('/workout/main');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900">Add to Workout Queue</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition">
-            <X size={20} className="text-gray-500" />
-          </button>
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center relative">
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+        >
+          <X size={18} className="text-gray-500" />
+        </button>
+
+        {/* Icon */}
+        <div className="flex justify-center mb-4">
+          <div className="bg-gradient-to-br from-purple-500 to-indigo-500 p-4 rounded-2xl">
+            <FileText className="text-white" size={28} />
+          </div>
         </div>
+
+        {/* Title */}
+        <h2 className="text-lg font-semibold text-gray-800">
+          Add this program to your
+        </h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-2">
+          Workout Queue:
+        </h2>
 
         {/* Program Name */}
-        <div className="p-4 border-b border-gray-100 bg-gray-50">
-          <p className="text-sm text-gray-600">Add this program to your Workout Queue:</p>
-          <p className="font-bold text-gray-900 mt-1">{programTitle}</p>
+        <p className="text-xl font-bold text-blue-600 mb-1">
+          {programTitle}
+        </p>
+
+        {/* Workout Count */}
+        <p className="text-green-600 text-sm font-medium mb-4">
+          + Add {addWorkoutCount} Workout{addWorkoutCount !== 1 ? "s" : ""}
+        </p>
+
+        {/* Checkbox */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <input
+            type="checkbox"
+            checked={includeSupplemental}
+            onChange={() => setIncludeSupplemental(!includeSupplemental)}
+            className="w-4 h-4"
+          />
+          <label className="text-sm text-gray-600">
+            Include Supplemental Workouts ({supplementalWorkoutCounts})
+          </label>
         </div>
 
-        {/* Main Action: Reconditioning */}
-        <div className="p-4 border-b border-gray-100">
+        {/* Buttons */}
+        <div className="space-y-3">
           <button
-            onClick={() => onAddToQueue(false, 'up_next')}
+            onClick={() => handleAddToQueue("up_next")}
             disabled={isAdding}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-between px-4 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold py-3 rounded-xl shadow-md hover:opacity-90 transition"
           >
-            <span>Reconditioning</span>
-            <span className="text-sm bg-purple-500/30 px-2 py-0.5 rounded-full">
-              {isAdding ? "Adding..." : "Add 9 Workout(s)"}
-            </span>
-          </button>
-        </div>
-
-        {/* Supplemental Workouts Toggle */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Include Supplemental Workouts</p>
-              <p className="text-xs text-gray-500">Add extra conditioning and mobility work</p>
-            </div>
-            <button
-              onClick={() => setIncludeSupplemental(!includeSupplemental)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                includeSupplemental ? 'bg-purple-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  includeSupplemental ? 'translate-x-5' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          {includeSupplemental && (
-            <div className="mt-3 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-              <span className="font-medium text-purple-600">+12 Supplemental Workouts</span>
-              <p className="text-xs text-gray-500 mt-1">Mobility, core, and recovery sessions</p>
-            </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="p-4 space-y-2">
-          <button
-            onClick={() => onAddToQueue(includeSupplemental, 'up_next')}
-            disabled={isAdding}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isAdding ? <Loader2 size={16} className="animate-spin" /> : null}
             {isAdding ? "Adding..." : "Add to Up Next"}
           </button>
+
           <button
-            onClick={() => onAddToQueue(includeSupplemental, 'queue')}
+            onClick={() => handleAddToQueue("queue")}
             disabled={isAdding}
-            className="w-full border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-bold py-2.5 rounded-xl transition disabled:opacity-50"
+            className="w-full bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-900 transition"
           >
             {isAdding ? "Adding..." : "Add to Queue"}
           </button>
+
           <button
             onClick={onClose}
-            className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 text-sm transition"
+            className="text-blue-600 text-sm font-medium hover:underline mt-2"
           >
             Go Back
           </button>
@@ -185,6 +189,11 @@ export default function ProgramDetailPage() {
         setLoading(true);
         const data = await getProgramDetail(programId);
         setProgram(data);
+          console.log("Program counts:", {
+        addworkoutcount: data.addworkoutcount,
+        supplementalWorkoutCounts: data.supplementalWorkoutCounts,
+        workoutsLength: data.workouts?.length
+      });
       } catch (err) {
         console.error("Error fetching program details:", err);
         setError("Failed to load program details. Please try again.");
@@ -288,12 +297,15 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
       )}
 
       {/* Modal for Program */}
+{/* Modal for Program */}
 <AddToQueueModal
   isOpen={isModalOpen}
   onClose={() => setIsModalOpen(false)}
   programTitle={program.title}
   onAddToQueue={handleAddToQueue}
   isAdding={isAdding}
+  addWorkoutCount={program.addworkoutcount || 0}  // Add this
+  supplementalWorkoutCounts={program.supplementalWorkoutCounts || 0}  // Add this
 />
 
       {/* ══════════════════════════════════════

@@ -101,6 +101,14 @@ export interface DashboardSummary {
   gender: string;
 }
 
+export interface ActivityLevel {
+  id: number;
+  name: string;
+  value: number;
+  created_at: string;
+  updated_at: string;
+}
+
 type ApiErrorPayload = {
   message?: string;
   error?: string;
@@ -199,6 +207,15 @@ export function invalidateDashboardCache(): void {
   _cache = null;
   _cachePromise = null;
 }
+
+export const getActivityLevels = async (): Promise<ActivityLevel[]> => {
+  try {
+    const response = await apiClient.get("/activity_level");
+    return response.data as ActivityLevel[];
+  } catch (error: unknown) {
+    throw new Error(extractErrorMessage(error, "Failed to load activity levels."));
+  }
+};
 
 // ===========================================
 // DASHBOARD API
@@ -308,6 +325,8 @@ export const dashboardApi = {
       deadlift: parseFloat(details.r_deadlift) || 0,
     };
   },
+
+    getActivityLevels: getActivityLevels,
 };
 
 export default dashboardApi;

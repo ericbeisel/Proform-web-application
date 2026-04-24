@@ -165,6 +165,8 @@ export interface ProgramDetail {
   nutrition?: string;
   intensity?: string;
   pre_req?: string;
+  addworkoutcount: number;  // Changed from addworkoutCount to addworkoutcount (all lowercase)
+  supplementalWorkoutCounts: number;  // Keep as is
 }
 
 export interface StartProgramPayload {
@@ -212,6 +214,17 @@ export interface WorkoutQueueResponse {
   count?: number;
   workouts?: WorkoutQueueItem[];
 }
+
+// NEW: Activity Workout Queue Item Type (extended with activity fields)
+export interface ActivityWorkoutQueueItem extends WorkoutQueueItem {
+  activity_id: number;
+  activity_name: string;
+  activity_time: string;
+  activity_day: string;
+  activity_status: number;
+  completed_activity: boolean;
+}
+
 // ===========================================
 // ERROR HANDLER
 // ===========================================
@@ -365,11 +378,64 @@ export const getWorkoutQueue = async (type: string = "workout"): Promise<Workout
   }
 };
 
+// NEW: Get Activity Workout Queue
+export const getActivityWorkoutQueue = async (type: string = "Workout"): Promise<ActivityWorkoutQueueItem[]> => {
+  try {
+    const { data } = await apiClient.get<ActivityWorkoutQueueItem[]>(`/programs/activity-workout-queue?type=${type}`);
+    console.log("📋 Activity workout queue response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch activity workout queue."),
+    );
+  }
+};
+
+// Optional: Get both queues in parallel
+export const getAllWorkoutQueues = async (type: string = "Workout") => {
+  try {
+    const [workoutQueue, activityWorkoutQueue] = await Promise.all([
+      getWorkoutQueue(type.toLowerCase()),
+      getActivityWorkoutQueue(type)
+    ]);
+    
+    return {
+      workoutQueue,
+      activityWorkoutQueue
+    };
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch workout queues."),
+    );
+  }
+};
+
+// CORRECTED: Reorder Workout Queue
+export const reorderWorkoutQueue = async (type: string, orderedIds: string[]): Promise<any> => {
+  try {
+    console.log(type,orderedIds);
+    
+    const { data } = await apiClient.post("/programs/reorder-queue", {
+      type: type,
+      workoutIds: orderedIds
+    });
+    console.log("📋 Reorder response:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("Reorder API error:", error);
+    throw new Error(
+      getErrorMessage(error, "Failed to reorder workout queue."),
+    );
+  }
+};
+
 export const workoutApi = {
   getWorkoutPageData,
   getAllSportCategories,
   getAllPrograms,
   getAllFeaturedTrainers,
+  getActivityWorkoutQueue,  // NEW: Add to API object
+  getAllWorkoutQueues,      // NEW: Add to API object
 };
 
 export default workoutApi;

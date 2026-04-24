@@ -1,6 +1,8 @@
 // app/dashboard/components/WeeklyTargets.tsx
 import { Dumbbell, Activity, Zap, Heart } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { dashboardApi } from '@/api/dashboard/route'
 
 interface WeeklyTargetsProps {
   targets?: {
@@ -11,8 +13,15 @@ interface WeeklyTargetsProps {
   };
 }
 
+interface ActivityLevel {
+  id: number;
+  name: string;
+  value: number;
+}
+
 export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
-  const router = useRouter(); // Add this
+  const router = useRouter();
+  const [activityLevels, setActivityLevels] = useState<ActivityLevel[]>([]);
   
   const defaultTargets = {
     workout: 3,
@@ -23,6 +32,20 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
 
   const data = targets || defaultTargets;
 
+  // Fetch activity levels on component mount
+  useEffect(() => {
+    const fetchActivityLevels = async () => {
+      try {
+        const levels = await dashboardApi.getActivityLevels();
+        setActivityLevels(levels);
+      } catch (error) {
+        console.error("Failed to fetch activity levels:", error);
+      }
+    };
+    
+    fetchActivityLevels();
+  }, []);
+
   const targetItems = [
     { 
       label: 'Workout', 
@@ -32,7 +55,8 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       count: `0/${data.workout}`,
       bgColor: 'bg-[#ede9ff]',
       iconBg: 'bg-[#6c5ce7]',
-      textColor: 'text-[#6c5ce7]'
+      textColor: 'text-[#6c5ce7]',
+      path: '/workout/main'
     },
     { 
       label: 'Supplemental', 
@@ -42,7 +66,8 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       count: `0/${data.supplement}`,
       bgColor: 'bg-[#e8f4fe]',
       iconBg: 'bg-[#0984e3]',
-      textColor: 'text-[#0984e3]'
+      textColor: 'text-[#0984e3]',
+      path: '/supplemental'
     },
     { 
       label: 'Conditioning', 
@@ -52,7 +77,8 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       count: `0/${data.conditioning}`,
       bgColor: 'bg-[#e4f9f4]',
       iconBg: 'bg-[#00b894]',
-      textColor: 'text-[#00b894]'
+      textColor: 'text-[#00b894]',
+      path: '/conditioning'
     },
     { 
       label: 'Cardio', 
@@ -62,66 +88,46 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       count: `0/${data.cardio}`,
       bgColor: 'bg-[#feeae6]',
       iconBg: 'bg-[#e17055]',
-      textColor: 'text-[#e17055]'
+      textColor: 'text-[#e17055]',
+      path: '/cardio'
     },
   ]
 
-  // Add this click handler
-  const handleCardioClick = () => {
-    router.push('/cardio');
+  const handleNavigation = (path: string) => {
+    router.push(path);
   };
 
-  // const handleWorkoutClick = () => {
-  //   router.push('/workout');
-  // }
-
-    const handleWorkoutClick = () => {
-    router.push('/location');
-  }
-
-  
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <h3 className="font-bold text-sm mb-3.5">Weekly Targets</h3>
-    {targetItems.map(item => {
-  const handleClick = () => {
-    if (item.label === 'Cardio') {
-      router.push('/cardio');
-    }
-    if (item.label === 'Workout') {
-      router.push('/workout');
-    }
-  };
+      {targetItems.map((item) => {
+        const isClickable = item.label === 'Cardio' || item.label === 'Workout';
+        
+        return (
+          <div
+            key={item.label}
+            onClick={() => isClickable && handleNavigation(item.path)}
+            className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor} ${
+              isClickable
+                ? 'cursor-pointer hover:opacity-80 transition-opacity'
+                : 'cursor-default'
+            }`}
+          >
+            <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-lg ${item.iconBg}`}>
+              <item.icon size={18} />
+            </div>
 
-  return (
-    <div
-      key={item.label}
-      onClick={
-        item.label === 'Cardio' || item.label === 'Workout'
-          ? handleClick
-          : undefined
-      }
-      className={`flex items-center gap-3 p-2.5 rounded-xl mb-2 ${item.bgColor} ${
-        item.label === 'Cardio' || item.label === 'Workout'
-          ? 'cursor-pointer hover:opacity-80 transition-opacity'
-          : ''
-      }`}
-    >
-      <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-lg ${item.iconBg}`}>
-        <item.icon size={18} />
-      </div>
+            <div className="flex-1">
+              <div className="font-semibold text-sm">{item.label}</div>
+              <div className="text-[11px] text-[#8b879e]">{item.sub}</div>
+            </div>
 
-      <div className="flex-1">
-        <div className="font-semibold text-sm">{item.label}</div>
-        <div className="text-[11px] text-[#8b879e]">{item.sub}</div>
-      </div>
-
-      <div className={`font-bold text-sm ${item.textColor}`}>
-        {item.count}
-      </div>
-    </div>
-  );
-})}
+            <div className={`font-bold text-sm ${item.textColor}`}>
+              {item.count}
+            </div>
+          </div>
+        );
+      })}
     </div>
   )
 }

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Dumbbell, Check, X, BarChart2, Loader2, Route, Calendar1Icon, Calendar, CheckCircle } from "lucide-react";
-import { getWorkoutQueue } from "@/api/programs/route";
+import { Plus, Pencil, Trash2, Dumbbell, Check, X, BarChart2, Loader2, Calendar, CheckCircle, ArrowUp, ArrowDown } from "lucide-react";
+import { getWorkoutQueue, reorderWorkoutQueue } from "@/api/programs/route";
+import EditTimeModal from "@/app/preferences/EditTimeModal";
 
-// Define the actual API response type based on your data
+// Define the API response type
 interface WorkoutQueueItem {
   id: string;
   title: string;
@@ -24,6 +25,35 @@ interface WorkoutQueueItem {
   queue_name: string;
   group: string;
   member_id: string;
+  owner: string | null;
+  completion_id: string | null;
+  session_id: string | null;
+  queue_id: string | null;
+  created_date_2: string;
+  team_id: string | null;
+  archive: boolean;
+}
+
+interface Activity {
+  id: number;
+  name: string;
+  type: string;
+  user_id: number;
+  day: string;
+  recurring: string;
+  status: number;
+  time: string;
+  completed_activity: boolean;
+  workout_preferences_type: number;
+  remove: boolean;
+  day_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface WorkoutQueueResponse {
+  workouts: WorkoutQueueItem[];
+  activities: Activity[];
 }
 
 interface Session {
@@ -34,6 +64,12 @@ interface Session {
   week: string;
   calories: number;
   completed: boolean;
+  muscles_used?: string;
+  cover_photo?: string;
+  activityTime?: string;
+  activityDay?: string;
+  group?: string;
+  order?: number;
 }
 
 export default function WorkoutDashboard() {
@@ -41,56 +77,93 @@ export default function WorkoutDashboard() {
 
   const [goalCalories, setGoalCalories] = useState(4000);
   const [workouts, setWorkouts] = useState<WorkoutQueueItem[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-const [workoutType, setWorkoutType] = useState("Workout");
+  const [workoutType, setWorkoutType] = useState("Workout");
   const [showEditGoal, setShowEditGoal] = useState(false);
   const [newGoalValue, setNewGoalValue] = useState("");
+  const [isReordering, setIsReordering] = useState(false);
+  
 
-  // Fetch workouts from API
-// 1️⃣ FETCH DATA (runs once or when API param changes)
-// 1️⃣ FETCH DATA - runs when workoutType changes
-useEffect(() => {
-  const fetchWorkouts = async () => {
-    try {
-      setLoading(true);
-
-      const response = await getWorkoutQueue(workoutType); // ← Use workoutType dynamically
-
-      let workoutsArray: WorkoutQueueItem[] = [];
-
-      if (Array.isArray(response)) {
-        workoutsArray = response;
-      }
-
-      setWorkouts(workoutsArray);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-      setWorkouts([]);
-    } finally {
-      setLoading(false);
-    }
+  // Helper to format time (08:30:00 → 8:30 AM)
+  const formatTime = (time: string | undefined): string => {
+    if (!time) return "";
+    const [hour, minute] = time.split(":").map(Number);
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minute.toString().padStart(2, "0")} ${period}`;
   };
 
-  fetchWorkouts();
-}, [workoutType]); // ← Add workoutType as dependency
+  // Fetch workouts from API
+const fetchWorkouts = async () => {
+  try {
+    setLoading(true);
+    const response = await getWorkoutQueue(workoutType);
 
-// 2️⃣ MAP to sessions - runs when workouts changes
-useEffect(() => {
-  const mappedSessions: Session[] = workouts.map((workout) => ({
-    id: workout.id,
-    day: workout.day || "",
-    title: workout.workout_title || workout.title,
-    programName: workout.program_name,
-    week: workout.week,
-    calories: 0,
-    completed: workout.completed || false,
-  }));
+    // Better type checking for the response
+    if (response && typeof response === 'object' && 'workouts' in response && 'activities' in response) {
+      // Response has both workouts and activities
+      const queueResponse = response as unknown as WorkoutQueueResponse;
+      setWorkouts(queueResponse.workouts || []);
+      setActivities(queueResponse.activities || []);
+    } else if (Array.isArray(response)) {
+      // Response is just an array of workouts
+      setWorkouts(response);
+      setActivities([]);
+    } else if (response && typeof response === 'object' && 'workouts' in response) {
+      // Response has workouts but no activities
+      const queueResponse = response as any;
+      setWorkouts(queueResponse.workouts || []);
+      setActivities([]);
+    } else {
+      // Fallback
+      setWorkouts([]);
+      setActivities([]);
+    }
 
-  setSessions(mappedSessions);
-}, [workouts]); // ← Only depends on workouts now
+    setError(null);
+  } catch (err: any) {
+    console.error("Error fetching workouts:", err);
+    setError(err.message || "Failed to fetch workouts");
+    setWorkouts([]);
+    setActivities([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+    fetchWorkouts();
+  }, [workoutType]);
+
+  // Map workouts to sessions and combine with activities
+  useEffect(() => {
+    const mappedSessions: Session[] = workouts.map((workout, index) => {
+      const matchingActivity = activities[index] || activities.find(
+        (act) => act.day.toLowerCase() === workout.day?.toLowerCase()
+      );
+      
+      return {
+        id: workout.id,
+        day: workout.day || matchingActivity?.day || "",
+        title: workout.workout_title || workout.title,
+        programName: workout.program_name,
+        week: workout.week,
+        calories: 0,
+        completed: matchingActivity?.completed_activity || workout.completed || false,
+        muscles_used: workout.muscles_used,
+        cover_photo: workout.cover_photo,
+        activityTime: matchingActivity?.time,
+        activityDay: matchingActivity?.day,
+        group: workout.group,
+        order: workout.order || (index + 1),
+      };
+    });
+
+    setSessions(mappedSessions);
+  }, [workouts, activities]);
   
   const scheduledCalories = sessions.reduce((sum, s) => sum + s.calories, 0);
   const completedSessions = sessions.filter((s) => s.completed).length;
@@ -99,6 +172,42 @@ useEffect(() => {
     .reduce((sum, s) => sum + s.calories, 0);
   const remainingCalories = goalCalories - completedCalories;
   const progressPct = Math.min((completedCalories / goalCalories) * 100, 100);
+
+  const getWorkoutTitle = () => {
+  switch(workoutType) {
+    case "Workout":
+      return "Workout Queue";
+    case "Field Workout":
+      return "Field Workout Queue";
+    case "Supplemental":
+      return "Supplemental Queue";
+    default:
+      return "Workout Queue";
+  }
+};
+
+
+const handleReorder = async (index: number, direction: 'up' | 'down') => {
+    const newItems = [...sessions];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newItems.length) {
+      const temp = newItems[index];
+      newItems[index] = newItems[targetIndex];
+      newItems[targetIndex] = temp;
+
+      // Optimistically update local state
+      setSessions(newItems);
+
+      // Persist to backend
+      try {
+       await reorderWorkoutQueue(workoutType, newItems.map(s => s.id));
+      } catch (error) {
+        console.error('Failed to persist new order:', error);
+      }
+    }
+
+  }
+
 
   const handleSessionClick = (sessionId: string) => {
     router.push(`/workout/detail?id=${sessionId}`);
@@ -139,83 +248,79 @@ useEffect(() => {
     );
   }
 
-  const filteredWorkouts = workouts.filter(
-  (w) => w.type === workoutType
-);
-
   return (
     <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
       {/* Top Bar */}
+      <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10">
+        <div className="flex items-center gap-2 sm:gap-3.5">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-full flex items-center justify-center font-extrabold text-base sm:text-lg text-white flex-shrink-0">
+          </div>
+          <div>
+<h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">
+  {getWorkoutTitle()}
+</h1>            <p className="text-[10px] sm:text-xs text-[#999] m-0">
+              {completedSessions}/{sessions.length} sessions completed • Track your weekly progress
+            </p>
+          </div>
+        </div>
 
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative flex flex-col items-center group">
+            <div onClick={() => router.push("/itinerary/itinerary-page")} className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
+              <Calendar size={20} className="text-[#7c3aed]" />
+            </div>
+          </div>
 
-<div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10">
-  <div className="flex items-center gap-2 sm:gap-3.5">
-    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-full flex items-center justify-center font-extrabold text-base sm:text-lg text-white flex-shrink-0">
-      4
-    </div>
-    <div>
-      <h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">Workout Goal</h1>
-      <p className="text-[10px] sm:text-xs text-[#999] m-0">
-        {completedSessions}/{sessions.length} sessions completed • Track your weekly progress
-      </p>
-    </div>
-  </div>
+          <div className="relative flex flex-col items-center group">
+            <div onClick={() => router.push("/workout/main")}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
+              <Dumbbell size={20} className="text-[#7c3aed]" />
+            </div>
+          </div>
 
-  <div className="flex items-center gap-2 sm:gap-4">
-    {/* Itinerary Icon */}
-    <div className="relative flex flex-col items-center group">
-      <div 
-        onClick={() => router.push("/itinerary/itinerary-page")}
-        className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-      >
-        <Calendar size={20} className="text-[#7c3aed] group-hover:scale-110 transition-transform" />
-      </div>
-      <div className="absolute top-full mt-2 hidden group-hover:flex flex-col items-center z-20">
-        <div className="w-2 h-2 bg-gray-800 rotate-45 -mb-1"></div>
-        <span className="relative z-10 p-2 text-[10px] text-white whitespace-nowrap bg-gray-800 shadow-lg rounded-md font-medium">
-          View Itinerary
-        </span>
-      </div>
-    </div>
-
-    {/* Workout Icon */}
-    <div className="relative flex flex-col items-center group">
-      <div 
-        onClick={() => router.push("/workouts")}
-        className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-      >
-        <Dumbbell size={20} className="text-[#7c3aed] group-hover:scale-110 transition-transform" />
-      </div>
-      <div className="absolute top-full mt-2 hidden group-hover:flex flex-col items-center z-20">
-        <div className="w-2 h-2 bg-gray-800 rotate-45 -mb-1"></div>
-        <span className="relative z-10 p-2 text-[10px] text-white whitespace-nowrap bg-gray-800 shadow-lg rounded-md font-medium">
-          Workouts
-        </span>
-      </div>
-    </div>
-
-    {/* Dropdown Menu */}
-<select
+       <select
   value={workoutType}
   onChange={(e) => setWorkoutType(e.target.value)}
-  className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer"
+  className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer h-9 sm:h-10"
 >
   <option value="Workout">Workout</option>
   <option value="Field Workout">Field Workout</option>
   <option value="Supplemental">Supplemental</option>
 </select>
 
-    {/* Completed Button */}
-    <button className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-bold text-xs sm:text-sm whitespace-nowrap hover:bg-emerald-100 transition-all">
-      <CheckCircle size={16} /> <span className="hidden xs:inline">Completed</span>
-    </button>
+<button className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-bold text-xs sm:text-sm whitespace-nowrap hover:bg-emerald-100 transition-all h-9 sm:h-10">
+  <CheckCircle size={16} /> 
+  <span className="inline">Completed</span>
+</button>
 
-    {/* Add Button */}
-    <button className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] border-none rounded-lg text-white px-3 sm:px-5 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-semibold text-xs sm:text-sm whitespace-nowrap shadow-sm hover:opacity-90 transition-all">
-      <Plus size={16} /> <span className="hidden xs:inline">Add</span> Session
-    </button>
-  </div>
-</div>
+      
+        </div>
+      </div>
+
+      {/* Schedule Bar - Show days and times */}
+      {activities.length > 0 && (
+        <div className="bg-white px-4 sm:px-6 lg:px-7 py-2 border-b border-[#e8e8f0]">
+          <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto">
+            {activities.map((activity, index) => (
+              <div key={activity.id} className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                  <span className="text-xs font-bold text-purple-600">
+                    {activity.day?.substring(0, 2)}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-700">
+                    {formatTime(activity.time)}
+                  </p>
+                </div>
+                {index < activities.length - 1 && (
+                  <span className="text-gray-300 text-xs">•</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -236,128 +341,167 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Main Content */}
-      {sessions.length > 0 && (
-        <div className="p-4 sm:p-5 lg:p-7 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-5 lg:gap-7 max-w-6xl mx-auto">
-          {/* Left: Progress Overview */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 order-2 lg:order-1">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-bold text-base text-[#1a1a2e] m-0">Progress Overview</h2>
-              <button
-                onClick={() => setShowEditGoal(true)}
-                className="bg-transparent border-none cursor-pointer text-[#bbb] p-2 rounded-lg flex items-center"
-              >
-                <Pencil size={15} />
-              </button>
-            </div>
-
-            <div className="flex items-baseline gap-2 mb-1 flex-wrap">
-              <span className="text-4xl sm:text-5xl font-extrabold text-green-500 leading-none">
-                {completedCalories.toLocaleString()}
-              </span>
-              <span className="text-3xl sm:text-4xl text-[#ccc] font-light">/</span>
-              <span className="text-4xl sm:text-5xl font-extrabold text-[#7c3aed] leading-none">
-                {goalCalories.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex mb-4 text-xs">
-              <span className="text-green-500 font-semibold min-w-[90px]">Completed</span>
-              <span className="text-[#7c3aed] font-semibold ml-[30px]">Goal</span>
-            </div>
-
-            <div className="mb-1.5">
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-500 rounded-full transition-all duration-300"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-            </div>
-            <div className="flex justify-between text-xs text-[#aaa] mb-5">
-              <span>
-                <span className="text-orange-500 font-semibold">{scheduledCalories.toLocaleString()}</span> scheduled
-              </span>
-              <span>
-                <span className="text-green-500 font-semibold">{Math.round(progressPct)}%</span> complete
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-indigo-50 rounded-xl p-4">
-                <p className="text-xs text-[#888] font-medium mb-1.5">Sessions Left</p>
-                <p className="text-3xl sm:text-4xl font-extrabold text-[#1a1a2e] m-0">
-                  {sessions.length - completedSessions}
-                </p>
-              </div>
-              <div className="bg-orange-50 rounded-xl p-4">
-                <p className="text-xs text-[#888] font-medium mb-1.5">Remaining</p>
-                <p className="text-3xl sm:text-4xl font-extrabold text-orange-500 m-0">
-                  {remainingCalories.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Workout Sessions */}
-          <div className="order-1 lg:order-2">
-            <h2 className="font-bold text-base text-[#1a1a2e] mb-4">Workout Sessions</h2>
-            <div className="flex flex-col gap-2.5">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  onClick={() => handleSessionClick(session.id)}
-                  className={`rounded-xl p-4 sm:p-5 flex items-center justify-between cursor-pointer transition-all ${
-                    session.completed ? "bg-[#1e3a2e] border border-green-500/20" : "bg-[#1e1e2e]"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div
-                      className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
-                        session.completed
-                          ? "border-green-500 bg-green-500/10"
-                          : "border-[#7c3aed] bg-[#3b3b88]/20"
-                      }`}
-                    >
-                      {session.completed && (
-                        <Check size={14} className="text-green-500" strokeWidth={2.5} />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm sm:text-base text-white m-0">
-                        {session.title}
-                      </p>
-                      <p className="text-xs text-[#888] mt-1 mb-2">
-                        {session.programName} • {session.week} • {session.day}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        completeActivity(session.id);
-                      }}
-                      className={`p-2 rounded-lg font-medium text-sm ${
-                        session.completed
-                          ? "bg-green-600/20 text-green-700"
-                          : "bg-green-600 text-white hover:bg-green-700"
-                      }`}
-                    >
-                      {session.completed ? "Done" : "Complete"}
-                    </button>
-                    <button
-                      onClick={(e) => deleteSession(session.id, e)}
-                      className="bg-[#2a2a3e] border-none rounded-lg text-[#888] cursor-pointer p-2 sm:p-2.5 flex items-center justify-center"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+   {/* Main Content - List of Workouts */}
+{sessions.length > 0 && (
+  <div className="p-4 sm:p-5 lg:p-7 max-w-6xl mx-auto">
+    <div className="flex items-center justify-between mb-4">
+      {/* <h2 className="font-bold text-base text-[#1a1a2e]">Workout Sessions</h2> */}
+      {isReordering && (
+        <div className="flex items-center gap-2 text-xs text-purple-600">
+          <Loader2 size={14} className="animate-spin" />
+          <span>Updating order...</span>
         </div>
       )}
+    </div>
+    <div className="flex flex-col gap-2.5">
+      {sessions.map((session, index) => (
+        <div
+          key={session.id}
+          onClick={() => handleSessionClick(session.id)}
+          className={`rounded-xl p-4 sm:p-5 flex items-center justify-between cursor-pointer transition-all ${
+            session.completed ? "bg-[#1e3a2e] border border-green-500/20" : "bg-[#1e1e2e]"
+          }`}
+        >
+          {/* Arrow controls - Inside card on the left */}
+          <div className="flex flex-col gap-1 mr-3">
+            {index > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReorder(index, 'up');
+                }}
+                disabled={isReordering}
+                className={`p-1 hover:bg-white/10 rounded-full transition-colors ${
+                  isReordering ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+              >
+                <ArrowUp size={16} className="text-purple-400" />
+              </button>
+            )}
+            {index < sessions.length - 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReorder(index, 'down');
+                }}
+                disabled={isReordering}
+                className={`p-1 hover:bg-white/10 rounded-full transition-colors ${
+                  isReordering ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+              >
+                <ArrowDown size={16} className="text-purple-400" />
+              </button>
+            )}
+          </div>
+
+          {/* Content - Cover Photo and Details */}
+          <div className="flex items-center gap-3 sm:gap-4 flex-1">
+            {/* Cover Photo */}
+            {session.cover_photo && (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden flex-shrink-0">
+                <img 
+                  src={session.cover_photo} 
+                  alt={session.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            
+            <div className="flex-1">
+              {/* Title */}
+              <p className="font-bold text-sm sm:text-base text-white m-0">
+                {session.title}
+              </p>
+              
+              {/* Activity Day & Time */}
+              {session.activityTime && (
+                <p className="text-xs text-blue-400 mt-1 flex items-center gap-1">
+                  <span>On</span> {session.activityDay || session.day} @ {formatTime(session.activityTime)}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {session.day && (
+                  <span className="text-xs text-gray-400">
+                    {session.day}
+                  </span>
+                )}
+                {session.group && (
+                  <span className="text-xs text-gray-400">
+                    {session.group}
+                  </span>
+                )}
+              </div>
+              
+              {/* Muscles Used */}
+              {session.muscles_used && (
+                <p className="text-xs text-purple-400 mt-1">
+                  {session.muscles_used}
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-medium">
+                  $5-5s
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-medium">
+                  $5-15
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-medium">
+                  $3RY8
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Right side buttons */}
+          <div className="flex items-center gap-2">
+            {/* Order Badge */}
+            <div className="px-2 py-1 rounded-lg bg-purple-600/80 backdrop-blur-sm text-white text-xs font-medium whitespace-nowrap">
+              {index + 1}/{sessions.length}
+            </div>
+            
+            {/* Type Badge */}
+            <div className="px-3 py-1.5 rounded-lg bg-[#2a2a3e] text-white text-xs font-medium">
+              {workoutType}
+            </div>
+            
+            {/* Checkbox for completion */}
+            <label 
+              className="relative flex items-center cursor-pointer group"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={session.completed}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  if (!session.completed) {
+                    completeActivity(session.id);
+                  }
+                }}
+                className="peer sr-only"
+              />
+              <div className="w-5 h-5 rounded-md border-2 border-white/50 bg-white/10 backdrop-blur-sm flex items-center justify-center transition-all peer-checked:bg-green-500 peer-checked:border-green-500 peer-hover:border-white/80">
+                {session.completed && <Check size={12} className="text-white" />}
+              </div>
+            </label>
+            
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteSession(session.id, e);
+              }}
+              className="bg-[#2a2a3e] border-none rounded-lg text-[#888] cursor-pointer p-2 sm:p-2.5 flex items-center justify-center hover:text-red-400 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
       {/* Edit Goal Modal */}
       {showEditGoal && (
@@ -393,10 +537,6 @@ useEffect(() => {
                     readOnly
                     className="w-full p-4 pr-12 border border-gray-200 rounded-xl text-lg sm:text-xl font-bold text-[#1a1a2e] bg-gray-50 outline-none"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col">
-                    <button className="text-gray-400 hover:text-[#7c3aed] p-0.5 text-xs">▲</button>
-                    <button className="text-gray-400 hover:text-[#7c3aed] p-0.5 text-xs">▼</button>
-                  </div>
                 </div>
               </div>
 
@@ -412,22 +552,6 @@ useEffect(() => {
                     placeholder="e.g., 4000"
                     className="w-full p-4 pr-12 border border-gray-200 rounded-xl text-lg sm:text-xl font-bold text-[#1a1a2e] bg-white outline-none focus:border-[#7c3aed]"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col">
-                    <button
-                      onClick={() => setNewGoalValue((v) => String((parseInt(v) || 0) + 500))}
-                      className="text-gray-400 hover:text-[#7c3aed] p-0.5 text-xs"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      onClick={() =>
-                        setNewGoalValue((v) => String(Math.max(0, (parseInt(v) || 0) - 500)))
-                      }
-                      className="text-gray-400 hover:text-[#7c3aed] p-0.5 text-xs"
-                    >
-                      ▼
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
