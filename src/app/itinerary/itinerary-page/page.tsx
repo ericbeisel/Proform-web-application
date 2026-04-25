@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Calendar, X, ChevronRight } from "lucide-react";
+import { Plus, Calendar, X, ChevronRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getItinerary, getCustomActivities, ItineraryWorkout, CustomActivity } from "@/api/itinerary/route";
 
 type FilterTab =
   | "PRIMARY"
@@ -24,6 +25,46 @@ const DAYS_FULL = [
 ];
 const DAYS_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
+// Map workout types to filter categories
+const getFilterFromType = (type: string): FilterTab => {
+  switch (type.toLowerCase()) {
+    case "workout":
+      return "PRIMARY";
+    case "supplemental":
+      return "SUPPLEMENTAL";
+    case "conditioning":
+      return "CONDITIONING";
+    case "cardio":
+      return "CARDIO";
+    default:
+      return "PRIMARY";
+  }
+};
+
+// Get dot color based on type
+const getDotColor = (type: string): string => {
+  switch (type.toLowerCase()) {
+    case "workout":
+      return "bg-blue-500";
+    case "supplemental":
+      return "bg-green-500";
+    case "conditioning":
+      return "bg-yellow-400";
+    case "cardio":
+      return "bg-red-400";
+    default:
+      return "bg-purple-500";
+  }
+};
+
+// Get today's day name and index
+const getTodayInfo = () => {
+  const today = new Date();
+  const todayName = DAYS_FULL[today.getDay()];
+  const todayIndex = today.getDay();
+  return { todayName, todayIndex };
+};
+
 const FILTER_TABS: {
   key: FilterTab;
   label: string;
@@ -36,7 +77,6 @@ const FILTER_TABS: {
   {
     key: "PRIMARY",
     label: "PRIMARY",
-    count: 8,
     color: "border-blue-500 text-blue-600 bg-blue-50",
     activeText: "text-white",
     activeBg: "bg-blue-500 border-blue-500",
@@ -92,196 +132,6 @@ const FILTER_TABS: {
   },
 ];
 
-const ALL_DOTS: {
-  id: number;
-  day: number;
-  color: string;
-  filter: FilterTab;
-}[] = [
-  { id: 1, day: 0, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 2, day: 1, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 3, day: 2, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 4, day: 3, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 5, day: 4, color: "bg-red-400", filter: "CARDIO" },
-  { id: 6, day: 5, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 7, day: 6, color: "bg-green-500", filter: "SUPPLEMENTAL" },
-  { id: 8, day: 0, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 9, day: 1, color: "bg-red-400", filter: "CARDIO" },
-  { id: 10, day: 2, color: "bg-red-400", filter: "CARDIO" },
-  { id: 11, day: 3, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 12, day: 4, color: "bg-red-400", filter: "CARDIO" },
-  { id: 13, day: 5, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 14, day: 6, color: "bg-red-400", filter: "CARDIO" },
-  { id: 15, day: 1, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 16, day: 2, color: "bg-yellow-400", filter: "CONDITIONING" },
-  { id: 17, day: 3, color: "bg-gray-300", filter: "CUSTOM" },
-  { id: 18, day: 4, color: "bg-green-500", filter: "SUPPLEMENTAL" },
-  { id: 19, day: 5, color: "bg-red-400", filter: "CARDIO" },
-  { id: 20, day: 6, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 21, day: 0, color: "bg-red-400", filter: "CARDIO" },
-  { id: 22, day: 1, color: "bg-red-400", filter: "CARDIO" },
-  { id: 23, day: 3, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 24, day: 4, color: "bg-blue-500", filter: "PRIMARY" },
-  { id: 25, day: 5, color: "bg-red-400", filter: "CARDIO" },
-  { id: 26, day: 6, color: "bg-green-500", filter: "SUPPLEMENTAL" },
-  { id: 27, day: 0, color: "bg-green-500", filter: "SUPPLEMENTAL" },
-  { id: 28, day: 1, color: "bg-green-500", filter: "SUPPLEMENTAL" },
-  { id: 29, day: 6, color: "bg-blue-500", filter: "PRIMARY" },
-];
-
-const WEEKLY_WORKOUTS = [
-  {
-    id: 1,
-    name: "RECOVERY FLOW",
-    sub: "Full Body",
-    day: "Sunday",
-    dayIdx: 0,
-    time: "By Sunday @ 08:00",
-    filter: "RECOVERY" as FilterTab,
-    badge: "RECOVERY",
-    badgeBg: "bg-purple-500",
-    duration: "30 min",
-    started: false,
-    image: "",
-    imageBg: "bg-teal-200",
-  },
-  {
-    id: 2,
-    name: "HYDRATION CHECK",
-    sub: "N/A",
-    day: "Monday",
-    dayIdx: 1,
-    time: "By Monday",
-    filter: "HYDRATION" as FilterTab,
-    badge: "HYDRATION",
-    badgeBg: "bg-cyan-400",
-    duration: "5 min",
-    started: false,
-    image: "",
-    imageBg: "bg-green-200",
-  },
-  {
-    id: 3,
-    name: "SILVER-BACK",
-    sub: "Back, Glutes",
-    day: "Monday",
-    dayIdx: 1,
-    time: "By Monday @ 09:00",
-    filter: "PRIMARY" as FilterTab,
-    badge: "PRIMARY",
-    badgeBg: "bg-blue-500",
-    duration: "60 min",
-    started: false,
-    image: "",
-    imageBg: "bg-blue-900",
-  },
-  {
-    id: 4,
-    name: "HYDRATION CHECK",
-    sub: "N/A",
-    day: "Tuesday",
-    dayIdx: 2,
-    time: "By Tuesday @ 10:00",
-    filter: "HYDRATION" as FilterTab,
-    badge: "HYDRATION",
-    badgeBg: "bg-cyan-400",
-    duration: "5 min",
-    started: false,
-    image: "",
-    imageBg: "bg-gray-400",
-  },
-  {
-    id: 5,
-    name: "MORNING SPRINT",
-    sub: "Cardio",
-    day: "Wednesday",
-    dayIdx: 3,
-    time: "By Wednesday",
-    filter: "CONDITIONING" as FilterTab,
-    badge: "CONDITIONING",
-    badgeBg: "bg-yellow-400",
-    duration: "45 min",
-    started: false,
-    image: "",
-    imageBg: "bg-orange-200",
-  },
-  {
-    id: 6,
-    name: "WOLF-PACK",
-    sub: "Full Body",
-    day: "Wednesday",
-    dayIdx: 3,
-    time: "By Wednesday @ 12:00",
-    filter: "PRIMARY" as FilterTab,
-    badge: "PRIMARY",
-    badgeBg: "bg-blue-500",
-    duration: "100 min",
-    started: false,
-    image: "",
-    imageBg: "bg-yellow-700",
-  },
-  {
-    id: 7,
-    name: "HYDRATION CHECK",
-    sub: "N/A",
-    day: "Thursday",
-    dayIdx: 4,
-    time: "By Thursday @ 09:00",
-    filter: "HYDRATION" as FilterTab,
-    badge: "HYDRATION",
-    badgeBg: "bg-cyan-400",
-    duration: "5 min",
-    started: false,
-    image: "",
-    imageBg: "bg-gray-400",
-  },
-  {
-    id: 8,
-    name: "LEG DESTROYER",
-    sub: "Legs",
-    day: "Thursday",
-    dayIdx: 4,
-    time: "By Thursday @ 09:00",
-    filter: "PRIMARY" as FilterTab,
-    badge: "PRIMARY",
-    badgeBg: "bg-blue-500",
-    duration: "70 min",
-    started: false,
-    image: "",
-    imageBg: "bg-yellow-600",
-  },
-  {
-    id: 9,
-    name: "CUSTOM ROUTINE",
-    sub: "Core",
-    day: "Thursday",
-    dayIdx: 4,
-    time: "By Thursday @ 19:00",
-    filter: "CUSTOM" as FilterTab,
-    badge: "CUSTOM",
-    badgeBg: "bg-gray-700",
-    duration: "30 min",
-    started: false,
-    image: "",
-    imageBg: "bg-yellow-500",
-  },
-  {
-    id: 10,
-    name: "SILVER-BACK",
-    sub: "Back, Glutes",
-    day: "Friday",
-    dayIdx: 5,
-    time: "By Friday @ 08:00",
-    filter: "PRIMARY" as FilterTab,
-    badge: "PRIMARY",
-    badgeBg: "bg-blue-500",
-    duration: "60 min",
-    started: false,
-    image: "",
-    imageBg: "bg-slate-700",
-  },
-];
-
 const DAY_ORDER = [
   "Sunday",
   "Monday",
@@ -298,9 +148,88 @@ export default function ItineraryPage() {
   const [activeFilter, setActiveFilter] = useState<FilterTab | null>(null);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [repeatType, setRepeatType] = useState<"week" | "repeat">("repeat");
-  const [selectedWorkout, setSelectedWorkout] = useState<
-    (typeof WEEKLY_WORKOUTS)[0] | null
-  >(null);
+  const [selectedWorkout, setSelectedWorkout] = useState<ItineraryWorkout | null>(null);
+  const [itineraryData, setItineraryData] = useState<ItineraryWorkout[]>([]);
+  const [customActivities, setCustomActivities] = useState<CustomActivity[]>([]);
+  const [scheduleType, setScheduleType] = useState<string>("All");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch itinerary and custom activities data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [itinerary, activities] = await Promise.all([
+          getItinerary(),
+          getCustomActivities()
+        ]);
+        setItineraryData(itinerary);
+        setCustomActivities(activities);
+        setError(null);
+      } catch (err: any) {
+        console.error("Error fetching data:", err);
+        setError(err.message || "Failed to fetch itinerary");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Group workouts by day from API data
+  const workoutsByDay: Record<string, ItineraryWorkout[]> = {};
+  for (const day of DAY_ORDER) workoutsByDay[day] = [];
+  
+  for (const workout of itineraryData) {
+    const day = workout.activity_day;
+    if (workoutsByDay[day]) {
+      workoutsByDay[day].push(workout);
+    }
+  }
+
+  // Create dots for calendar view from custom activities
+  const dotsByDay: Record<number, CustomActivity[]> = {};
+  for (let i = 0; i < 7; i++) dotsByDay[i] = [];
+  
+  for (const activity of customActivities) {
+    const dayNum = activity.day_number;
+    if (dayNum >= 0 && dayNum < 7) {
+      dotsByDay[dayNum].push(activity);
+    }
+  }
+
+  const maxRows = Math.max(...Object.values(dotsByDay).map((a) => a.length), 1);
+
+  // Filter workouts based on active filter
+  const filteredWorkoutsByDay = activeFilter
+    ? Object.fromEntries(
+        Object.entries(workoutsByDay).map(([day, workouts]) => [
+          day,
+          workouts.filter((w) => getFilterFromType(w.type) === activeFilter),
+        ]),
+      )
+    : workoutsByDay;
+
+const totalWorkouts = (() => {
+  const allWorkouts = Object.values(filteredWorkoutsByDay).flat();
+  if (scheduleType === "All") {
+    return allWorkouts.length;
+  }
+  return allWorkouts.filter(w => w.type === scheduleType).length;
+})();
+
+// Add this function with your other functions
+const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => {
+  // Update local state
+  setItineraryData(prev => prev.map(w => 
+    w.id === workoutId 
+      ? { ...w, completed: isCompleted, completed_activity: isCompleted }
+      : w
+  ));
+  
+
+};
 
   const toggleDay = (day: string) => {
     setSelectedDays((prev) =>
@@ -308,26 +237,50 @@ export default function ItineraryPage() {
     );
   };
 
-  const workoutsByDay: Record<string, typeof WEEKLY_WORKOUTS> = {};
-  for (const day of DAY_ORDER) workoutsByDay[day] = [];
-  for (const w of WEEKLY_WORKOUTS) {
-    workoutsByDay[w.day].push(w);
+  const formatTime = (time: string): string => {
+    if (!time) return "";
+    const [hour, minute] = time.split(":");
+    const hourNum = parseInt(hour);
+    const period = hourNum >= 12 ? "PM" : "AM";
+    const displayHour = hourNum % 12 || 12;
+    return `${displayHour}:${minute} ${period}`;
+  };
+
+  // Find workout by activity ID when a dot is clicked
+  const handleDotClick = (activity: CustomActivity) => {
+    // Find matching workout in itinerary data
+    const workout = itineraryData.find(w => w.activity_id === activity.id);
+    if (workout) {
+      setSelectedWorkout(workout);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-3" />
+          <p className="text-gray-500">Loading itinerary...</p>
+        </div>
+      </div>
+    );
   }
 
-  const dotsByDay: Record<number, typeof ALL_DOTS> = {};
-  for (let i = 0; i < 7; i++) dotsByDay[i] = [];
-  for (const d of ALL_DOTS) dotsByDay[d.day].push(d);
-
-  const maxRows = Math.max(...Object.values(dotsByDay).map((a) => a.length));
-
-  const filteredWorkoutsByDay = activeFilter
-    ? Object.fromEntries(
-        Object.entries(workoutsByDay).map(([day, workouts]) => [
-          day,
-          workouts.filter((w) => w.filter === activeFilter),
-        ]),
-      )
-    : workoutsByDay;
+  if (error) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center bg-red-50 p-6 rounded-2xl max-w-md">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-purple-600 text-white px-6 py-2 rounded-xl"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -337,36 +290,41 @@ export default function ItineraryPage() {
       {/* ── Header ── */}
       <div className="flex justify-end px-4 sm:px-6 py-4 border-b border-gray-100">
         <button
-          onClick={() => router.push("/itinerary/queue")}
+          onClick={() => router.push("/workout")}
           className="bg-purple-700 hover:bg-purple-800 text-white text-[13px] sm:text-[14px] font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
         >
           Go to Queue <ChevronRight size={14} className="inline ml-1" />
         </button>
       </div>
 
-      {/* ── Filter Pills - Improved Text Size ── */}
+      {/* ── Filter Pills ── */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-4 overflow-x-auto scrollbar-hide flex-shrink-0">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() =>
-              setActiveFilter(activeFilter === tab.key ? null : tab.key)
-            }
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[12px] sm:text-[13px] font-bold whitespace-nowrap border transition-all ${
-              activeFilter === tab.key
-                ? `${tab.activeBg} ${tab.activeText} border-transparent shadow-md`
-                : tab.color
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full inline-block ${tab.dot}`}
-            />
-            {tab.label}
-            {tab.count !== undefined && (
-              <span className="opacity-70 ml-0.5">({tab.count})</span>
-            )}
-          </button>
-        ))}
+        {FILTER_TABS.map((tab) => {
+          // Calculate count for each filter type from custom activities
+          const count = customActivities.filter(
+            (a) => getFilterFromType(a.type) === tab.key
+          ).length;
+          
+          return (
+            <button
+              key={tab.key}
+              onClick={() =>
+                setActiveFilter(activeFilter === tab.key ? null : tab.key)
+              }
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[12px] sm:text-[13px] font-bold whitespace-nowrap border transition-all ${
+                activeFilter === tab.key
+                  ? `${tab.activeBg} ${tab.activeText} border-transparent shadow-md`
+                  : tab.color
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full inline-block ${tab.dot}`} />
+              {tab.label}
+              {count > 0 && (
+                <span className="opacity-70 ml-0.5">({count})</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Weekly Agenda toggle ── */}
@@ -380,28 +338,40 @@ export default function ItineraryPage() {
       {/* ── Dot Grid Calendar ── */}
       <div className="mx-4 sm:mx-6 my-3 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="grid grid-cols-7 bg-white border-b border-gray-100">
-          {DAYS_SHORT.map((d, i) => (
-            <div
-              key={`day-header-${i}`}
-              className="text-center text-[12px] sm:text-[13px] font-bold text-gray-500 py-3"
-            >
-              {d}
-            </div>
-          ))}
+         {DAYS_SHORT.map((d, i) => {
+      const { todayIndex } = getTodayInfo();
+      const isToday = i === todayIndex;
+      
+      return (
+        <div
+          key={`day-header-${i}`}
+          className={`text-center text-[12px] sm:text-[13px] font-bold py-3 transition-all ${
+            isToday 
+              ? "text-purple-600 bg-purple-50 relative" 
+              : "text-gray-500"
+          }`}
+        >
+          {d}
+          {isToday && (
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full bg-purple-600"></div>
+          )}
+        </div>
+      );
+    })}
         </div>
 
         <div className="bg-white py-4 px-2">
           {Array.from({ length: maxRows }).map((_, rowIdx) => (
             <div key={`row-${rowIdx}`} className="grid grid-cols-7 gap-2 mb-3">
               {Array.from({ length: 7 }).map((_, colIdx) => {
-                const dotsInThisDay = dotsByDay[colIdx] || [];
-                const filteredDotsInDay = activeFilter
-                  ? dotsInThisDay.filter((d) => d.filter === activeFilter)
-                  : dotsInThisDay;
+                const activitiesInThisDay = dotsByDay[colIdx] || [];
+                const filteredActivities = activeFilter
+                  ? activitiesInThisDay.filter((a) => getFilterFromType(a.type) === activeFilter)
+                  : activitiesInThisDay;
 
-                const dot = filteredDotsInDay[rowIdx];
+                const activity = filteredActivities[rowIdx];
 
-                if (!dot) {
+                if (!activity) {
                   return (
                     <div
                       key={`empty-${colIdx}-${rowIdx}`}
@@ -412,14 +382,9 @@ export default function ItineraryPage() {
 
                 return (
                   <div
-                    key={`dot-${dot.id}-${colIdx}-${rowIdx}`}
-                    onClick={() => {
-                      const workout = WEEKLY_WORKOUTS.find(
-                        (w) => w.dayIdx === dot.day && w.filter === dot.filter,
-                      );
-                      if (workout) setSelectedWorkout(workout);
-                    }}
-                    className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${dot.color} cursor-pointer hover:scale-125 transition-all duration-300 mx-auto shadow-sm`}
+                    key={`dot-${activity.id}-${colIdx}-${rowIdx}`}
+                    onClick={() => handleDotClick(activity)}
+                    className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${getDotColor(activity.type)} cursor-pointer hover:scale-125 transition-all duration-300 mx-auto shadow-sm`}
                   />
                 );
               })}
@@ -438,69 +403,138 @@ export default function ItineraryPage() {
       </button>
 
       {/* ── Weekly Schedule ── */}
-      <div className="px-4 sm:px-6 pt-6 pb-10 flex-1">
-        <div className="mb-4">
-          <h3 className="text-[16px] sm:text-[18px] font-extrabold text-gray-900">
-            Weekly Schedule
-          </h3>
-          <p className="text-[12px] sm:text-[14px] text-gray-500 mt-0.5">
-            {Object.values(filteredWorkoutsByDay).flat().length} total
-            Workout(s) scheduled this week
+<div className="px-4 sm:px-6 pt-6 pb-10 flex-1">
+  <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h3 className="text-[16px] sm:text-[18px] font-extrabold text-gray-900">
+        Weekly Schedule
+      </h3>
+      <p className="text-[12px] sm:text-[14px] text-gray-500 mt-0.5">
+        {totalWorkouts} total Workout(s) scheduled this week
+      </p>
+    </div>
+    
+    {/* Schedule Type Dropdown */}
+    <div className="relative">
+      <select
+        value={scheduleType}
+        onChange={(e) => setScheduleType(e.target.value)}
+        className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-2 pr-8 text-[13px] sm:text-[14px] font-semibold text-gray-700 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 cursor-pointer min-w-[140px]"
+      >
+        <option value="All">All Workouts</option>
+        <option value="Workout">Workout</option>
+        <option value="Field Workout">Field Workout</option>
+        <option value="Supplemental">Supplemental</option>
+        <option value="Cardio">Cardio</option>
+      </select>
+      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div className="space-y-6">
+    {DAY_ORDER.map((day) => {
+      let workouts = filteredWorkoutsByDay[day];
+      
+      // Filter by schedule type if not "All"
+      if (scheduleType !== "All") {
+        workouts = workouts?.filter(w => w.type === scheduleType);
+      }
+      
+      if (!workouts || workouts.length === 0) return null;
+
+      return (
+        <div key={day}>
+          <p className="text-[12px] sm:text-[13px] font-extrabold text-gray-400 uppercase tracking-widest mb-3">
+            By {day}
           </p>
-        </div>
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
+            {workouts.map((w) => (
+              <div
+                key={w.id}
+                onClick={() => setSelectedWorkout(w)}
+                className="relative flex-shrink-0 w-[220px] sm:w-[260px] h-[200px] sm:h-[230px] rounded-2xl overflow-hidden shadow-md cursor-pointer group active:scale-95 transition-transform"
+              >
+                {w.cover_photo ? (
+                  <img 
+                    src={w.cover_photo} 
+                    alt={w.workout_title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className={`absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900`} />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-        <div className="space-y-6">
-          {DAY_ORDER.map((day) => {
-            const workouts = filteredWorkoutsByDay[day];
-            if (!workouts || workouts.length === 0) return null;
+                {/* Colored Dot */}
+                <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full ${getDotColor(w.type)}`} />
+                  <span className="text-white text-[11px] sm:text-[12px] font-bold">
+                    By {w.activity_day} @ {formatTime(w.activity_time)}
+                  </span>
+                </div>
 
-            return (
-              <div key={day}>
-                <p className="text-[12px] sm:text-[13px] font-extrabold text-gray-400 uppercase tracking-widest mb-3">
-                  By {day}
-                </p>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                  {workouts.map((w) => (
-                    <div
-                      key={w.id}
-                      onClick={() => setSelectedWorkout(w)}
-                      className="relative flex-shrink-0 w-[190px] sm:w-[220px] h-[130px] sm:h-[150px] rounded-2xl overflow-hidden shadow-md cursor-pointer group active:scale-95 transition-transform"
-                    >
-                      <div className={`absolute inset-0 ${w.imageBg}`} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-white text-[11px] font-bold">
-                          {w.time}
-                        </span>
-                      </div>
-
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <p className="text-white text-[14px] sm:text-[16px] font-black leading-tight uppercase tracking-tight">
-                          {w.name}
-                        </p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-white/80 text-[10px] sm:text-[12px] font-medium">
-                            {w.duration}
-                          </span>
-                          <span
-                            className={`${w.badgeBg} text-white text-[9px] font-black px-2 py-0.5 rounded-full`}
-                          >
-                            {w.badge}
-                          </span>
-                        </div>
-                      </div>
+                {/* Checkbox - Top Right */}
+                <div className="absolute top-3 right-3 z-10">
+                  <label 
+                    className="relative flex items-center cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={w.completed || w.completed_activity || false}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        // Handle completion toggle
+                        handleToggleComplete(w.id, !(w.completed || w.completed_activity));
+                      }}
+                      className="peer sr-only"
+                    />
+                    <div className="w-5 h-5 rounded-md border-2 border-white/70 bg-white/10 backdrop-blur-sm flex items-center justify-center transition-all peer-checked:bg-green-500 peer-checked:border-green-500 peer-hover:border-white">
+                      {(w.completed || w.completed_activity) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
                     </div>
-                  ))}
+                  </label>
+                </div>
+
+                <div className="absolute bottom-3 left-3 right-3">
+                  <p className="text-white text-[15px] sm:text-[17px] font-black leading-tight uppercase tracking-tight line-clamp-2 pr-6">
+                    {w.workout_title}
+                  </p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-white/80 text-[11px] sm:text-[12px] font-medium">
+                      {w.week}
+                    </span>
+                    <span
+                      className={`${getBadgeColor(w.type)} text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-full`}
+                    >
+                      {w.type.toUpperCase()}
+                    </span>
+                  </div>
+                  
+                  {/* Muscles Used */}
+                  {w.muscles_used && (
+                    <p className="text-white/70 text-[10px] sm:text-[11px] mt-2 line-clamp-2">
+                      🎯 {w.muscles_used}
+                    </p>
+                  )}
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      );
+    })}
+  </div>
+</div>
 
-      {/* ── Add Workout Modal ── */}
+      {/* ── Add Workout Modal ── (keep same as before) ── */}
       {showAddWorkout && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
           <div className="bg-white w-full sm:w-[600px] rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl relative animate-in slide-in-from-bottom duration-300">
@@ -586,7 +620,7 @@ export default function ItineraryPage() {
         </div>
       )}
 
-      {/* ── Workout Detail Modal ── */}
+      {/* ── Workout Detail Modal ── (keep same as before) ── */}
       {selectedWorkout && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -598,17 +632,25 @@ export default function ItineraryPage() {
           >
             <div className="px-6 pt-8 pb-8 space-y-6">
               <div className="relative h-[220px] rounded-3xl overflow-hidden shadow-lg">
-                <div className={`absolute inset-0 ${selectedWorkout.imageBg}`} />
+                {selectedWorkout.cover_photo ? (
+                  <img 
+                    src={selectedWorkout.cover_photo} 
+                    alt={selectedWorkout.workout_title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className={`absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900`} />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6">
                   <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase mb-2">
-                    {selectedWorkout.badge}
+                    {selectedWorkout.type}
                   </span>
                   <h3 className="text-[28px] font-black text-center leading-tight">
-                    {selectedWorkout.name}
+                    {selectedWorkout.workout_title}
                   </h3>
                   <p className="text-[14px] font-medium opacity-80 mt-1">
-                    {selectedWorkout.duration} • {selectedWorkout.sub}
+                    {selectedWorkout.week} • {selectedWorkout.muscles_used}
                   </p>
                 </div>
                 <button
@@ -621,13 +663,15 @@ export default function ItineraryPage() {
 
               <div className="bg-gray-50 rounded-2xl p-5 flex items-center justify-between border border-gray-100">
                 <div className="flex items-center gap-3">
-                   <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                      <Calendar size={20} />
-                   </div>
-                   <div>
-                      <p className="text-[14px] font-black text-gray-900">{selectedWorkout.day}</p>
-                      <p className="text-[12px] text-gray-500 font-bold">{selectedWorkout.time.replace("By ", "")}</p>
-                   </div>
+                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[14px] font-black text-gray-900">{selectedWorkout.activity_day}</p>
+                    <p className="text-[12px] text-gray-500 font-bold">
+                      @ {formatTime(selectedWorkout.activity_time)}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -645,4 +689,20 @@ export default function ItineraryPage() {
       )}
     </div>
   );
+}
+
+// Add this helper function if not already present
+function getBadgeColor(type: string): string {
+  switch (type.toLowerCase()) {
+    case "workout":
+      return "bg-blue-500";
+    case "supplemental":
+      return "bg-green-500";
+    case "conditioning":
+      return "bg-yellow-400";
+    case "cardio":
+      return "bg-red-400";
+    default:
+      return "bg-purple-500";
+  }
 }
