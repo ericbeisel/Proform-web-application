@@ -4,6 +4,9 @@ import "./globals.css";
 import Providers from "@/components/providers/query-provider";
 import ScrollRestoration from "@/components/ScrollRestoration"; // Add this import
 
+export const dynamic = 'force-dynamic';
+
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

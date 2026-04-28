@@ -36,20 +36,22 @@
     adminOnly?: boolean; // New property for admin-only items
   };
 
-  const MAIN_MENU: MenuItem[] = [
-    { label: "My Profile", icon: User, href: "/profile" },
-    { label: "My Dashboard", icon: LayoutGrid, href: "/dashboard" },
-    { label: "My Itinerary", icon: Calendar, href: "/itinerary/itinerary-page" },
-    { label: "My Metrics", icon: Activity, href: "/itinerary/all-activity" },
-    { label: "My Teams", icon: Users, href: "/team/teams" },
-    { label: "My Preferences", icon: Settings, href: "/preferences" },
-    { label: "Payments", icon: CreditCard },
-    { label: "Connect TV", icon: Monitor, isHighlight: true },
-    { label: "Feed", icon: Rss, href: "/feed/main-feed" },
-    // Admin-only menu item
-    { label: "Admin Player Status", icon: Shield, href: "/admin-player-card-status", adminOnly: true },
+const MAIN_MENU: MenuItem[] = [
+  { label: "My Profile", icon: User, href: "/profile" },
+  { label: "My Dashboard", icon: LayoutGrid, href: "/dashboard" },
+  { label: "My Itinerary", icon: Calendar, href: "/itinerary/itinerary-page" },
 
-  ];
+  // ✅ NEW OPTION
+  { label: "Admin Itinerary", icon: Calendar, href: "/admin-itinerary" },
+
+  { label: "My Metrics", icon: Activity, href: "/itinerary/all-activity" },
+  { label: "My Teams", icon: Users, href: "/team/teams" },
+  { label: "My Preferences", icon: Settings, href: "/preferences" },
+  { label: "Payments", icon: CreditCard },
+  { label: "Connect TV", icon: Monitor, isHighlight: true },
+  { label: "Feed", icon: Rss, href: "/feed/main-feed" },
+  { label: "Admin Player Status", icon: Shield, href: "/admin-player-card-status", adminOnly: true },
+];
 
   type ToolItem = {
     label: string;

@@ -387,7 +387,7 @@ export default function SearchWorkoutsPage() {
                   {data.organizations.map((org) => (
                     <div
                       key={org.id}
-                      onClick={() => router.push(`/programs/franchise/${org.id}`)}
+                     
                       className="text-[10px] md:text-xs text-white bg-white/10 px-2 py-1 rounded-md hover:bg-white/20 transition cursor-pointer"
                     >
                       {org.title}
@@ -401,36 +401,40 @@ export default function SearchWorkoutsPage() {
 
         {/* 3. By Sport */}
         <div>
-          <SectionHeader title="By Sport" showSeeAll onSeeAll={() => router.push("/programs/all-sports")} />
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
-            {data.sportCategories.slice(0, 8).map((sport) => (
-              <button
-                key={sport.id}
-                className="flex flex-col items-center gap-2 md:gap-3 py-3 md:py-5 px-2 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
-              >
-                <div
-                  className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center"
-                  style={{ background: PURPLE }}
-                >
-                  {sport.image ? (
-                    <img
-                      src={getImageUrl(sport.image)}
-                      alt={sport.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-6 h-6 md:w-7 md:h-7 object-contain rounded-full"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : (
-                    <Activity size={18} className="text-white" />
-                  )}
-                </div>
-                <span className="text-[10px] md:text-xs text-gray-700 font-medium text-center line-clamp-2">
-                  {sport.title}
-                </span>
-              </button>
-            ))}
-          </div>
+        {/* 3. By Sport */}
+<div>
+  <SectionHeader title="By Sport" showSeeAll onSeeAll={() => router.push("/programs/all-sports")} />
+  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4">
+    {data.sportCategories.slice(0, 8).map((sport) => (
+      <button
+        key={sport.id}
+        onClick={() => router.push(`/programs/by-sport?sport=${encodeURIComponent(sport.title.toLowerCase())}`)}
+        className="flex flex-col items-center gap-2 md:gap-3 py-3 md:py-5 px-2 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
+      >
+        <div
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center"
+          style={{ background: PURPLE }}
+        >
+          {sport.image ? (
+            <img
+              src={getImageUrl(sport.image)}
+              alt={sport.title}
+              loading="lazy"
+              decoding="async"
+              className="w-6 h-6 md:w-7 md:h-7 object-contain rounded-full"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <Activity size={18} className="text-white" />
+          )}
+        </div>
+        <span className="text-[10px] md:text-xs text-gray-700 font-medium text-center line-clamp-2">
+          {sport.title}
+        </span>
+      </button>
+    ))}
+  </div>
+</div>
         </div>
 
         {/* 4. Most Popular + Featured Trainers */}
@@ -462,32 +466,33 @@ export default function SearchWorkoutsPage() {
             </div>
           </div>
 
-          <div>
-            <SectionHeader title="Featured Trainers" showSeeAll onSeeAll={() => router.push("/programs/all-trainers")} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {data.featuredTrainers.slice(0, 3).map((trainer) => (
-                <div
-                  key={trainer.id}
-                 
-                  className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
-                >
-                  <img
-                    src={getImageUrl(trainer.image)}
-                    alt={trainer.title}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    onError={(e) => { (e.target as HTMLImageElement).src = "/images/placeholder.jpg"; }}
-                  />
-                  <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-all" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                    <p className="font-bold text-sm md:text-base line-clamp-1">{trainer.title}</p>
-                    <p className="text-xs text-white/90">{trainer.description || "Trainer"}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Featured Trainers Section */}
+<div>
+  <SectionHeader title="Featured Trainers" showSeeAll onSeeAll={() => router.push("/programs/all-trainers")} />
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+    {data.featuredTrainers.slice(0, 3).map((trainer) => (
+      <div
+        key={trainer.id}
+        onClick={() => router.push(`/programs/by-trainer?trainer=${encodeURIComponent(trainer.title)}`)}
+        className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
+      >
+        <img
+          src={getImageUrl(trainer.image)}
+          alt={trainer.title}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+          onError={(e) => { (e.target as HTMLImageElement).src = "/images/placeholder.jpg"; }}
+        />
+        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-all" />
+        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+          <p className="font-bold text-sm md:text-base line-clamp-1">{trainer.title}</p>
+          <p className="text-xs text-white/90">{trainer.description || "Trainer"}</p>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
         </div>
 
         {/* 5. Free Programs */}
@@ -510,35 +515,36 @@ export default function SearchWorkoutsPage() {
           </div>
         </div>
 
-        {/* 7. By Focus */}
-        <div>
-          <SectionHeader title="By Focus" showSeeAll />
-          <div className="flex flex-nowrap items-stretch gap-2 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            {data.programFocus.slice(0, 7).map((focus) => (
-              <button
-                key={focus.id}
-                className="flex-1 min-w-[80px] md:min-w-[100px] flex flex-col items-center gap-2 md:gap-3 py-3 md:py-5 px-1 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
-              >
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center bg-purple-100 shrink-0">
-                  {focus.icon ? (
-                    <img
-                      src={focus.icon}
-                      alt={focus.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-6 h-6 md:w-7 md:h-7 object-contain"
-                    />
-                  ) : (
-                    <Target size={18} className="text-purple-600" />
-                  )}
-                </div>
-                <span className="text-[10px] md:text-xs text-gray-700 font-medium text-center line-clamp-1">
-                  {focus.title}
-                </span>
-              </button>
-            ))}
-          </div>
+      {/* 7. By Focus */}
+<div>
+  <SectionHeader title="By Focus"  />
+  <div className="flex flex-nowrap items-stretch gap-2 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
+    {data.programFocus.slice(0, 7).map((focus) => (
+      <button
+        key={focus.id}
+        onClick={() => router.push(`/programs/by-focus?focusId=${focus.id}&focusName=${encodeURIComponent(focus.title)}`)}
+        className="flex-1 min-w-[80px] md:min-w-[100px] flex flex-col items-center gap-2 md:gap-3 py-3 md:py-5 px-1 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
+      >
+        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center bg-purple-100 shrink-0">
+          {focus.icon ? (
+            <img
+              src={getImageUrl(focus.icon)}
+              alt={focus.title}
+              loading="lazy"
+              decoding="async"
+              className="w-6 h-6 md:w-7 md:h-7 object-contain"
+            />
+          ) : (
+            <Target size={18} className="text-purple-600" />
+          )}
         </div>
+        <span className="text-[10px] md:text-xs text-gray-700 font-medium text-center line-clamp-1">
+          {focus.title}
+        </span>
+      </button>
+    ))}
+  </div>
+</div>
 
         {/* 8. Featured Franchise + By Age */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -574,62 +580,66 @@ export default function SearchWorkoutsPage() {
             </div>
           )}
 
-          <div>
-            <SectionHeader title="By Age" showSeeAll />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 h-32 md:h-40">
-              {data.ageGroups.map((age) => (
-                <button
-                  key={age.id}
-                  className="flex flex-col items-center justify-center gap-2 md:gap-3 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm h-full"
-                >
-                  <img
-                    src={getImageUrl(age.icon)}
-                    alt={age.title}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-10 h-10 md:w-12 md:h-12 object-contain rounded-full"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "https://ui-avatars.com/api/?name=" +
-                        encodeURIComponent(age.title) +
-                        "&background=6C3AE8&color=fff";
-                    }}
-                  />
-                  <span className="text-xs md:text-sm font-semibold text-gray-700 text-center">{age.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* By Age Section */}
+<div>
+  <SectionHeader title="By Age"  />
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 h-32 md:h-40">
+    {data.ageGroups.map((age) => (
+      <button
+        key={age.id}
+        onClick={() => router.push(`/programs/by-age-group?ageGroupId=${age.id}&ageGroupName=${encodeURIComponent(age.title)}`)}
+        className="flex flex-col items-center justify-center gap-2 md:gap-3 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm h-full"
+      >
+        <img
+          src={getImageUrl(age.icon)}
+          alt={age.title}
+          loading="lazy"
+          decoding="async"
+          className="w-10 h-10 md:w-12 md:h-12 object-contain rounded-full"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              "https://ui-avatars.com/api/?name=" +
+              encodeURIComponent(age.title) +
+              "&background=6C3AE8&color=fff";
+          }}
+        />
+        <span className="text-xs md:text-sm font-semibold text-gray-700 text-center">{age.title}</span>
+      </button>
+    ))}
+  </div>
+</div>
         </div>
 
         {/* 9. By Setting + By Movement */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <SectionHeader title="By Setting" showSeeAll />
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              {data.settingCategories.map((setting) => (
-                <button
-                  key={setting.id}
-                  className="flex flex-col items-center gap-2 md:gap-3 py-4 md:py-6 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
-                >
-                  <img
-                    src={getImageUrl(setting.icon)}
-                    alt={setting.title}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "https://ui-avatars.com/api/?name=" +
-                        encodeURIComponent(setting.title.substring(0, 2)) +
-                        "&background=6C3AE8&color=fff";
-                    }}
-                  />
-                  <span className="text-xs md:text-sm font-semibold text-gray-700 text-center">{setting.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* 9. By Setting */}
+<div>
+  <SectionHeader title="By Setting"   />
+  <div className="grid grid-cols-2 gap-3 md:gap-4">
+    {data.settingCategories.map((setting) => (
+      <button
+        key={setting.id}
+        onClick={() => router.push(`/programs/by-setting?settingId=${setting.id}&settingName=${encodeURIComponent(setting.title)}`)}
+        className="flex flex-col items-center gap-2 md:gap-3 py-4 md:py-6 rounded-xl md:rounded-2xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
+      >
+        <img
+          src={getImageUrl(setting.icon)}
+          alt={setting.title}
+          loading="lazy"
+          decoding="async"
+          className="w-10 h-10 md:w-12 md:h-12 object-contain"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              "https://ui-avatars.com/api/?name=" +
+              encodeURIComponent(setting.title.substring(0, 2)) +
+              "&background=6C3AE8&color=fff";
+          }}
+        />
+        <span className="text-xs md:text-sm font-semibold text-gray-700 text-center">{setting.title}</span>
+      </button>
+    ))}
+  </div>
+</div>
 
           <div>
             <SectionHeader title="By Movement" />

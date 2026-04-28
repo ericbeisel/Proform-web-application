@@ -117,11 +117,11 @@ export default function RecoveryPage() {
 
         {/* FOOTER */}
         <div className="text-center pt-6 space-y-4 flex flex-col items-center">
-          <button className="text-purple-700 text-sm font-medium">
+          <button onClick={()=> router.push("/recovery/all-recovery-options")} className="text-purple-700 text-sm font-medium">
             All Recovery Options
           </button>
 
-          <button className="bg-purple-700 hover:bg-purple-800 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold shadow-md text-sm sm:text-base">
+          <button onClick={() => router.push("/recovery/recovery-dashboard")} className="bg-purple-700 hover:bg-purple-800 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold shadow-md text-sm sm:text-base">
             View Recovery Dashboard
           </button>
         </div>

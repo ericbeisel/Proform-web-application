@@ -256,7 +256,7 @@ export default function WorkoutDashboard() {
             </p>
             
             <button
-              onClick={() => router.push("/workouts")}
+              onClick={() => router.push("/programs/all-programs")}
               className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] hover:opacity-90 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 mx-auto shadow-sm"
             >
               <Plus size={16} />

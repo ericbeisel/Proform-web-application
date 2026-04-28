@@ -21,6 +21,7 @@ export interface Program {
   times_completed: number;
   package: string;
   package_id: string;
+   sport?: string; 
 }
 
 export interface ProgramWithUI extends Program {
@@ -224,6 +225,42 @@ export interface ActivityWorkoutQueueItem extends WorkoutQueueItem {
   activity_status: number;
   completed_activity: boolean;
 }
+
+export interface ProgramsBySportResponse {
+  data: Program[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface ProgramsByTrainerResponse {
+  data: Program[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface ProgramsByFocusResponse {
+  data: Program[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface ProgramsByAgeGroupResponse {
+  data: Program[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface ProgramsBySettingResponse {
+  data: Program[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
 
 // ===========================================
 // ERROR HANDLER
@@ -429,6 +466,66 @@ export const reorderWorkoutQueue = async (type: string, orderedIds: string[]): P
   }
 };
 
+export const getProgramsBySport = async (sport: string, page: number = 1): Promise<ProgramsBySportResponse> => {
+  try {
+    const { data } = await apiClient.get<ProgramsBySportResponse>(`/programs/by-sport?sport=${encodeURIComponent(sport)}&page=${page}`);
+    console.log("📋 Programs by sport response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch programs by sport."),
+    );
+  }
+};
+
+export const getProgramsByTrainer = async (trainer: string, page: number = 1): Promise<ProgramsByTrainerResponse> => {
+  try {
+    const { data } = await apiClient.get<ProgramsByTrainerResponse>(`/programs/by-trainer?trainer=${encodeURIComponent(trainer)}&page=${page}`);
+    console.log("📋 Programs by trainer response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch programs by trainer."),
+    );
+  }
+};
+
+export const getProgramsByFocus = async (focusId: string, page: number = 1): Promise<ProgramsByFocusResponse> => {
+  try {
+    const { data } = await apiClient.get<ProgramsByFocusResponse>(`/programs/by-focus?focusId=${focusId}&page=${page}`);
+    console.log("📋 Programs by focus response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch programs by focus."),
+    );
+  }
+};
+
+export const getProgramsByAgeGroup = async (ageGroupId: string, page: number = 1): Promise<ProgramsByAgeGroupResponse> => {
+  try {
+    const { data } = await apiClient.get<ProgramsByAgeGroupResponse>(`/programs/by-age-group?ageGroupId=${ageGroupId}&page=${page}`);
+    console.log("📋 Programs by age group response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch programs by age group."),
+    );
+  }
+};
+
+export const getProgramsBySetting = async (settingId: string, page: number = 1): Promise<ProgramsBySettingResponse> => {
+  try {
+    const { data } = await apiClient.get<ProgramsBySettingResponse>(`/programs/by-setting?settingId=${settingId}&page=${page}`);
+    console.log("📋 Programs by setting response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch programs by setting."),
+    );
+  }
+};
+
 export const workoutApi = {
   getWorkoutPageData,
   getAllSportCategories,
@@ -436,6 +533,11 @@ export const workoutApi = {
   getAllFeaturedTrainers,
   getActivityWorkoutQueue,  // NEW: Add to API object
   getAllWorkoutQueues,      // NEW: Add to API object
+   getProgramsBySport,
+   getProgramsByTrainer,
+    getProgramsByFocus,
+    getProgramsByAgeGroup,
+    getProgramsBySetting,
 };
 
 export default workoutApi;

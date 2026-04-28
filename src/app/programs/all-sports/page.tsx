@@ -3,8 +3,23 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Loader2, Activity } from "lucide-react";
 import { getAllSportCategories, SportCategoryName } from "@/api/programs/route";
+
+// Helper function for images
+function getImageUrl(imageUrl: string | null | undefined): string {
+  if (!imageUrl) return "/images/placeholder.jpg";
+  if (imageUrl.startsWith("wix:image://v1/")) {
+    const match = imageUrl.match(/wix:image:\/\/v1\/([^/]+)/);
+    if (match?.[1]) return `/api/image-proxy/media/${match[1]}`;
+  }
+  if (imageUrl.match(/^[a-f0-9_]+~mv2/i)) return `/api/image-proxy/media/${imageUrl}`;
+  if (imageUrl.includes("static.wixstatic.com/media/")) {
+    const path = imageUrl.replace("https://static.wixstatic.com/", "");
+    return `/api/image-proxy/${path}`;
+  }
+  return imageUrl;
+}
 
 export default function AllSportsPage() {
   const router = useRouter();
@@ -94,17 +109,17 @@ export default function AllSportsPage() {
           </div>
         </div>
 
-        {/* Sports Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+        {/* Sports Grid - All sports in a grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
           {filteredSports.map((sport) => (
             <button
               key={sport.id}
-              onClick={() => router.push(`/programs/sport/${sport.id}`)}
+              onClick={() => router.push(`/programs/by-sport?sport=${encodeURIComponent(sport.title.toLowerCase())}`)}
               className="flex flex-col items-center gap-2 py-4 px-2 rounded-xl bg-white border border-gray-100 hover:border-purple-300 hover:shadow-md transition shadow-sm"
             >
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <span className="text-purple-600 font-bold text-lg">
-                  {sport.title.charAt(0)}
+                  {sport.title.charAt(0).toUpperCase()}
                 </span>
               </div>
               <span className="text-xs md:text-sm text-gray-700 font-medium text-center line-clamp-2">
@@ -122,9 +137,11 @@ export default function AllSportsPage() {
         )}
 
         {/* Count */}
-        <div className="mt-6 text-center text-sm text-gray-400">
-          Showing {filteredSports.length} of {sports.length} sports
-        </div>
+        {filteredSports.length > 0 && (
+          <div className="mt-6 text-center text-sm text-gray-400">
+            Showing {filteredSports.length} of {sports.length} sports
+          </div>
+        )}
       </div>
     </div>
   );
