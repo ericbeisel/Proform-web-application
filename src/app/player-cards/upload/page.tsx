@@ -36,6 +36,11 @@ const ValueLoader = () => (
   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600" />
 );
 
+// Types for dropdown options
+type BloodPressureOption = "thryve" | "manual" | "";
+type BreathingOption = "airometer" | "manual" | "";
+type HydrationOption = "refractometer" | "manual" | "";
+
 // Accountability Tools Item Type
 interface AccountabilityTool {
   id: string;
@@ -43,7 +48,14 @@ interface AccountabilityTool {
   file: File | null;
   preview: string | null;
   isExpanded: boolean;
-  allowUpload: boolean; // New flag to control upload visibility
+  allowUpload: boolean;
+  measurementType?: BloodPressureOption | BreathingOption | HydrationOption | "";
+}
+
+// Other Tool Interface
+interface OtherTool {
+  description: string;
+  files: { file: File; preview: string; id: string }[];
 }
 
 export default function PlayerCardUploadPage() {
@@ -66,36 +78,76 @@ export default function PlayerCardUploadPage() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState<string>("");
   const [error, setError] = useState("");
+  const [selectedCardTypeName, setSelectedCardTypeName] = useState<string>("");
 
-  // Accountability Tools State - Only first one allows upload
+  // Other tool state (constant, always present)
+  const [otherTool, setOtherTool] = useState<OtherTool>({
+    description: "",
+    files: [],
+  });
+
+  // Accountability Tools State
   const [accountabilityTools, setAccountabilityTools] = useState<AccountabilityTool[]>([
-    { id: "progress-photo", title: "Progress Photo", file: null, preview: null, isExpanded: false, allowUpload: true },
-    { id: "blood-pressure", title: "Blood Pressure Test", file: null, preview: null, isExpanded: false, allowUpload: false },
-    { id: "breathing", title: "Breathing Test", file: null, preview: null, isExpanded: false, allowUpload: false },
-    { id: "hydration", title: "Hydration Test (Urine Test)", file: null, preview: null, isExpanded: false, allowUpload: false },
-    { id: "bloodwork", title: "Bloodwork (Hormone) Results", file: null, preview: null, isExpanded: false, allowUpload: false },
+    { 
+      id: "progress-photo", 
+      title: "Progress Photo", 
+      file: null, 
+      preview: null, 
+      isExpanded: false, 
+      allowUpload: true 
+    },
+    { 
+      id: "blood-pressure", 
+      title: "Blood Pressure Test", 
+      file: null, 
+      preview: null, 
+      isExpanded: false, 
+      allowUpload: false,
+      measurementType: ""
+    },
+    { 
+      id: "breathing", 
+      title: "Breathing Test", 
+      file: null, 
+      preview: null, 
+      isExpanded: false, 
+      allowUpload: false,
+      measurementType: ""
+    },
+    { 
+      id: "hydration", 
+      title: "Hydration Test (Urine Test)", 
+      file: null, 
+      preview: null, 
+      isExpanded: false, 
+      allowUpload: false,
+      measurementType: ""
+    },
+    { 
+      id: "bloodwork", 
+      title: "Bloodwork (Hormone) Results", 
+      file: null, 
+      preview: null, 
+      isExpanded: false, 
+      allowUpload: false 
+    },
   ]);
 
-//   const convertHeightToInches = (heightStr: string | number | null): number => {
-//     if (!heightStr) return 0;
-//     return Number(heightStr) * 12;
-//   };
-
-useEffect(() => {
-  // Format the current date/time
-  const now = new Date();
-  const formattedDate = now.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const formattedTime = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-  setCurrentDateTime(`${formattedDate} ${formattedTime}`);
-}, []);
+  useEffect(() => {
+    // Format the current date/time
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const formattedTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    setCurrentDateTime(`${formattedDate} ${formattedTime}`);
+  }, []);
 
   const fetchAllData = useCallback(
     async (showSuccessToast: boolean) => {
@@ -116,16 +168,16 @@ useEffect(() => {
         });
 
         if (playerCardResult.status === "fulfilled") {
-              const playerDataValue = playerCardResult.value as ExtendedPlayerCardData;
-        console.log("🔍 RAW Player Card Data Received:", {
-          height: playerDataValue.height,
-          heightType: typeof playerDataValue.height,
-          rawHeight: playerDataValue.height,
-          currentWeight: playerDataValue.currentWeight,
-          smm: playerDataValue.smm,
-          bodyFat: playerDataValue.bodyFat,
-          fullData: playerDataValue
-        });
+          const playerDataValue = playerCardResult.value as ExtendedPlayerCardData;
+          console.log("🔍 RAW Player Card Data Received:", {
+            height: playerDataValue.height,
+            heightType: typeof playerDataValue.height,
+            rawHeight: playerDataValue.height,
+            currentWeight: playerDataValue.currentWeight,
+            smm: playerDataValue.smm,
+            bodyFat: playerDataValue.bodyFat,
+            fullData: playerDataValue
+          });
           setPlayerData(playerCardResult.value as ExtendedPlayerCardData);
         } else {
           console.error(
@@ -173,17 +225,17 @@ useEffect(() => {
   }, [fetchAllData]);
 
   // Handle card type selection from dropdown
-  const handleCardTypeSelect = (typeId: string) => {
-    setSelectedCardType(typeId);
-    const selectedType = cardTypes.find(
-      (type) => type.id.toString() === typeId,
-    );
-
-    if (selectedType) {
-      console.log("Selected card type:", selectedType);
-      toast.success(`Selected: ${selectedType.name}`);
-    }
-  };
+const handleCardTypeSelect = (typeId: string) => {
+  setSelectedCardType(typeId);
+  const selectedType = cardTypes.find(
+    (type) => type.id.toString() === typeId,
+  );
+  if (selectedType) {
+    setSelectedCardTypeName(selectedType.name); // Store the name
+    console.log("Selected card type name:", selectedType.name);
+    toast.success(`Selected: ${selectedType.name}`);
+  }
+};
 
   // Handle file change for body scan
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,6 +255,63 @@ useEffect(() => {
         return tool;
       })
     );
+  };
+
+  // Handle measurement type change for blood pressure, breathing, hydration
+  const handleMeasurementTypeChange = (toolId: string, value: string) => {
+    setAccountabilityTools((prev) =>
+      prev.map((tool) =>
+        tool.id === toolId ? { ...tool, measurementType: value as any } : tool
+      )
+    );
+  };
+
+  // Handle file upload for tools that support it
+  const handleToolFileUpload = (toolId: string, file: File | null) => {
+    if (!file) return;
+    
+    setAccountabilityTools((prev) =>
+      prev.map((tool) => {
+        if (tool.id === toolId) {
+          const preview = URL.createObjectURL(file);
+          return { ...tool, file, preview };
+        }
+        return tool;
+      })
+    );
+  };
+
+  // Handle remove file for tool
+  const handleRemoveToolFile = (toolId: string) => {
+    setAccountabilityTools((prev) =>
+      prev.map((tool) => {
+        if (tool.id === toolId) {
+          if (tool.preview) URL.revokeObjectURL(tool.preview);
+          return { ...tool, file: null, preview: null };
+        }
+        return tool;
+      })
+    );
+  };
+
+  // Other tool functions
+  const updateOtherToolDescription = (description: string) => {
+    setOtherTool({ ...otherTool, description });
+  };
+
+  const uploadOtherToolFile = (file: File) => {
+    const preview = URL.createObjectURL(file);
+    const newFile = { file, preview, id: Date.now().toString() };
+    setOtherTool({ ...otherTool, files: [...otherTool.files, newFile] });
+  };
+
+  const removeOtherToolFile = (fileId: string) => {
+    const fileToRemove = otherTool.files.find(f => f.id === fileId);
+    if (fileToRemove) URL.revokeObjectURL(fileToRemove.preview);
+    setOtherTool({ 
+      ...otherTool, 
+      files: otherTool.files.filter(f => f.id !== fileId) 
+    });
   };
 
   // Toggle tool expansion
@@ -229,59 +338,118 @@ useEffect(() => {
   const hasBodyScan = !!(playerData?.inBodyScanUrl || selectedFilePreview);
   const progressPhoto = accountabilityTools.find(t => t.id === "progress-photo")?.file;
 
-  const handleSubmitCard = async () => {
-    if (!selectedFile) {
-      toast.error("Please select a scan file first");
-      return;
+ const handleSubmitCard = async () => {
+  if (!selectedFile) {
+    toast.error("Please select a scan file first");
+    return;
+  }
+
+  if (!selectedCardTypeName) {
+    toast.error("Please select a scan type");
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    setMetricsLoading(true);
+
+    const formData = new FormData();
+    
+    // Main required fields
+    formData.append("inBodyScans", selectedFile);
+    formData.append("type", selectedCardTypeName);
+    
+    // Progress photo (optional)
+    if (progressPhoto) {
+      formData.append("progressImage", progressPhoto);
     }
 
-    if (!selectedCardType) {
-      toast.error("Please select a scan type");
-      return;
+    // Blood Pressure Test
+    const bloodPressureTool = accountabilityTools.find(t => t.id === "blood-pressure");
+    if (bloodPressureTool?.measurementType) {
+      formData.append("bp_test_type", bloodPressureTool.measurementType);
+    }
+    if (bloodPressureTool?.file) {
+      formData.append("bpImage", bloodPressureTool.file);
     }
 
-    try {
-      setSubmitting(true);
-      setMetricsLoading(true);
-
-      const formData = new FormData();
-      formData.append("inBodyScans", selectedFile);
-      formData.append("type", selectedCardType);
-
-      // Add progress photo if exists
-      if (progressPhoto) {
-        formData.append("progressImage", progressPhoto);
-      }
-
-      console.log("📤 Submitting player card payload:");
-      for (const [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
-      }
-
-      const result = await createPlayerCard(formData);
-      console.log("✅ Update successful:", result);
-      toast.success("Player card submitted successfully.");
-
-      setSelectedFile(null);
-      setSelectedCardType("");
-      // Reset progress photo
-      handleProgressPhotoChange(null);
-      if (fileRef.current) fileRef.current.value = "";
-
-      await fetchAllData(true);
-      
-      // Redirect to progress list after successful submission
-      router.push("/player-progress");
-    } catch (error: unknown) {
-      console.error("❌ Update error:", error);
-      const message =
-        error instanceof Error ? error.message : "Failed to update card";
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-      setMetricsLoading(false);
+    // Breathing Test
+    const breathingTool = accountabilityTools.find(t => t.id === "breathing");
+    if (breathingTool?.measurementType) {
+      formData.append("breathing_test_type", breathingTool.measurementType);
     }
-  };
+    if (breathingTool?.file) {
+      formData.append("breathingImage", breathingTool.file);
+    }
+
+    // Hydration Test
+    const hydrationTool = accountabilityTools.find(t => t.id === "hydration");
+    if (hydrationTool?.measurementType) {
+      formData.append("hydration_test_type", hydrationTool.measurementType);
+    }
+    if (hydrationTool?.file) {
+      formData.append("hydrationImage", hydrationTool.file);
+    }
+
+    // Bloodwork Results
+    const bloodworkTool = accountabilityTools.find(t => t.id === "bloodwork");
+    if (bloodworkTool?.file) {
+      formData.append("bloodworkImage", bloodworkTool.file);
+    }
+
+    // Other Test
+    if (otherTool.description) {
+      formData.append("other_description", otherTool.description);
+    }
+    if (otherTool.files.length > 0) {
+      // Note: If multiple files, you may need to send them as otherImage_0, otherImage_1, etc.
+      // Or just send the first one
+      formData.append("otherImage", otherTool.files[0].file);
+      // If backend supports multiple files, you could loop:
+      // otherTool.files.forEach((file, index) => {
+      //   formData.append(`otherImage_${index}`, file.file);
+      // });
+    }
+
+    console.log("📤 Submitting player card payload with all fields:");
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
+    }
+
+    const result = await createPlayerCard(formData);
+    console.log("✅ Update successful:", result);
+    toast.success("Player card submitted successfully.");
+
+    // Reset form
+    setSelectedFile(null);
+    setSelectedCardType("");
+    setSelectedCardTypeName("");
+    handleProgressPhotoChange(null);
+    
+    // Reset accountability tools
+    setAccountabilityTools(prev => prev.map(tool => ({
+      ...tool,
+      file: null,
+      preview: null,
+      measurementType: tool.id === "blood-pressure" || tool.id === "breathing" || tool.id === "hydration" ? "" : tool.measurementType
+    })));
+    setOtherTool({ description: "", files: [] });
+    
+    if (fileRef.current) fileRef.current.value = "";
+
+    await fetchAllData(true);
+    
+    router.push("/player-progress");
+  } catch (error: unknown) {
+    console.error("❌ Update error:", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to update card";
+    toast.error(message);
+  } finally {
+    setSubmitting(false);
+    setMetricsLoading(false);
+  }
+};
 
   if (loading && !playerData) {
     return (
@@ -321,26 +489,105 @@ useEffect(() => {
     inBodyScanUrl: null,
   };
 
-  console.log("🎨 Rendering with data:", {
-  height: data.height,
-  heightType: typeof data.height,
-  rawHeight: data.height,
-  currentWeight: data.currentWeight,
-  Date: data.date,
-});
-
-  const frontendCompositionScore =
-    data.smm && data.currentWeight && data.bodyFat
-      ? (
-          Number(data.smm) -
-          (Number(data.currentWeight) * Number(data.bodyFat)) / 100
-        ).toFixed(1)
-      : null;
-
-//   const displayScore = frontendCompositionScore ?? data.bodyCampScore ?? "—";
-const displayScore = data.bodyCampScore ?? "—";
-//   const heightInInches = convertHeightToInches(data.height);
+  const displayScore = data.bodyCampScore ?? "—";
   const weightUnit = measurementUnit;
+
+  // Helper function to render dropdown for tools
+  const renderDropdown = (tool: AccountabilityTool, options: { value: string; label: string }[]) => {
+    return (
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Measurement Method <span className="text-gray-400 text-[10px]">(Optional)</span>
+        </label>
+        <select
+          value={tool.measurementType}
+          onChange={(e) => handleMeasurementTypeChange(tool.id, e.target.value)}
+          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d28d9] text-sm"
+        >
+          <option value="">Select method</option>
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+
+  // Helper function to render file upload area with SVG
+  const renderFileUpload = (tool: AccountabilityTool, acceptTypes = "image/*,application/pdf", showRemoveButton = true) => {
+    const hasUploadedFile = tool.file && tool.preview;
+    
+    return (
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Upload Result <span className="text-gray-400 text-[10px]">(Optional)</span>
+        </label>
+        <div
+          onClick={() => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = acceptTypes;
+            input.onchange = (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (file) handleToolFileUpload(tool.id, file);
+            };
+            input.click();
+          }}
+          className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
+        >
+          {hasUploadedFile ? (
+            <div className="space-y-2">
+              {tool.preview?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <img
+                  src={tool.preview}
+                  alt={tool.title}
+                  className="h-24 w-full object-contain rounded-lg"
+                />
+              ) : (
+                <div className="flex justify-center mb-2">
+                  <img
+                    src="/images/svg.png"
+                    alt="Upload"
+                    className="h-12 w-auto object-contain opacity-50"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-purple-600 truncate">
+                {tool.file?.name}
+              </p>
+              {showRemoveButton && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveToolFile(tool.id);
+                  }}
+                  className="text-xs text-red-500 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center mb-2">
+                <img
+                  src="/images/svg.png"
+                  alt="Upload"
+                  className="h-12 w-auto object-contain opacity-50"
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Click to upload file
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Images or PDF (max 15MB)
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <main className="min-h-screen bg-[#f8f9fb] px-3 py-4 md:px-5 md:py-5 lg:px-8">
@@ -370,13 +617,13 @@ const displayScore = data.bodyCampScore ?? "—";
             </div>
           </div>
         </div>
-      <button
-  onClick={() => router.push("/player-progress")}
-  className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-[#7c3aed] bg-white px-4 py-1.5 text-sm font-bold text-[#7c3aed] transition-all hover:bg-[#7c3aed]/5"
->
-  <Activity size={16} />
-  View Player Progress
-</button>
+        <button
+          onClick={() => router.push("/player-progress")}
+          className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-[#7c3aed] bg-white px-4 py-1.5 text-sm font-bold text-[#7c3aed] transition-all hover:bg-[#7c3aed]/5"
+        >
+          <Activity size={16} />
+          View Player Progress
+        </button>
       </div>
 
       {/* MAIN CONTENT */}
@@ -392,18 +639,15 @@ const displayScore = data.bodyCampScore ?? "—";
             </div>
 
             <div className="space-y-3">
-              {accountabilityTools.map((tool) => (
-                <div
-                  key={tool.id}
-                  className="border border-gray-100 rounded-xl overflow-hidden"
-                >
-                  {/* Tool Header */}
+              {/* Progress Photo */}
+              {accountabilityTools.filter(t => t.id === "progress-photo").map((tool) => (
+                <div key={tool.id} className="border border-gray-100 rounded-xl overflow-hidden">
                   <button
                     onClick={() => toggleToolExpansion(tool.id)}
                     className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
                   >
                     <span className="text-sm font-medium text-gray-900">
-                      {tool.title}
+                      {tool.title} <span className="text-gray-400 text-xs ml-1">(Optional)</span>
                     </span>
                     <ChevronDown
                       size={16}
@@ -412,12 +656,171 @@ const displayScore = data.bodyCampScore ?? "—";
                       }`}
                     />
                   </button>
-
-                  {/* Expanded Content */}
                   {tool.isExpanded && (
                     <div className="border-t border-gray-100 p-4 bg-gray-50">
-                      {tool.allowUpload ? (
-                        // Only Progress Photo shows upload option
+                      <div
+                        onClick={() => {
+                          const input = document.createElement("input");
+                          input.type = "file";
+                          input.accept = "image/*";
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) handleProgressPhotoChange(file);
+                          };
+                          input.click();
+                        }}
+                        className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
+                      >
+                        {tool.preview ? (
+                          <div className="space-y-2">
+                            <img
+                              src={tool.preview}
+                              alt={tool.title}
+                              className="h-24 w-full object-contain rounded-lg"
+                            />
+                            <p className="text-xs text-purple-600 truncate">
+                              {tool.file?.name}
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleProgressPhotoChange(null);
+                              }}
+                              className="text-xs text-red-500"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-center mb-2">
+                              <img
+                                src="/images/svg.png"
+                                alt="Upload"
+                                className="h-12 w-auto object-contain opacity-50"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              Click to upload photo
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Blood Pressure Test */}
+              {accountabilityTools.filter(t => t.id === "blood-pressure").map((tool) => (
+                <div key={tool.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title} <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                      {renderDropdown(tool, [
+                        { value: "thryve", label: "Thryve" },
+                        { value: "manual", label: "Manual" }
+                      ])}
+                      {renderFileUpload(tool, "image/*,application/pdf", true)}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Breathing Test */}
+              {accountabilityTools.filter(t => t.id === "breathing").map((tool) => (
+                <div key={tool.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title} <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                      {renderDropdown(tool, [
+                        { value: "airometer", label: "Airometer (Airofit)" },
+                        { value: "manual", label: "Manual" }
+                      ])}
+                      {renderFileUpload(tool, "image/*,application/pdf", true)}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Hydration Test (Urine Test) */}
+              {accountabilityTools.filter(t => t.id === "hydration").map((tool) => (
+                <div key={tool.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title} <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                      {renderDropdown(tool, [
+                        { value: "refractometer", label: "Refractometer" },
+                        { value: "manual", label: "Manual" }
+                      ])}
+                      {renderFileUpload(tool, "image/*,application/pdf", true)}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Bloodwork Results - Image upload only */}
+              {accountabilityTools.filter(t => t.id === "bloodwork").map((tool) => (
+                <div key={tool.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleToolExpansion(tool.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {tool.title} <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-400 transition-transform duration-200 ${
+                        tool.isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {tool.isExpanded && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Upload Image <span className="text-gray-400 text-[10px]">(Optional)</span>
+                        </label>
                         <div
                           onClick={() => {
                             const input = document.createElement("input");
@@ -425,11 +828,11 @@ const displayScore = data.bodyCampScore ?? "—";
                             input.accept = "image/*";
                             input.onchange = (e) => {
                               const file = (e.target as HTMLInputElement).files?.[0];
-                              if (file) handleProgressPhotoChange(file);
+                              if (file) handleToolFileUpload(tool.id, file);
                             };
                             input.click();
                           }}
-                          className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
+                          className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
                         >
                           {tool.preview ? (
                             <div className="space-y-2">
@@ -444,7 +847,7 @@ const displayScore = data.bodyCampScore ?? "—";
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleProgressPhotoChange(null);
+                                  handleRemoveToolFile(tool.id);
                                 }}
                                 className="text-xs text-red-500"
                               >
@@ -461,28 +864,111 @@ const displayScore = data.bodyCampScore ?? "—";
                                 />
                               </div>
                               <p className="text-xs text-gray-500">
-                                Click to upload photo
+                                Click to upload image
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                JPG, PNG, GIF (max 15MB)
                               </p>
                             </>
                           )}
                         </div>
-                      ) : (
-                        // Other tools show informational message
-                        <div className="text-center py-6">
-                          <div className="flex justify-center mb-2">
-                            <img
-                              src="/images/svg.png"
-                              alt="Info"
-                              className="h-12 w-auto object-contain opacity-30"
-                            />
-                          </div>
-                        
-                        </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
               ))}
+
+              {/* Other Test - Constant Section (No trash icon, always present) */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="p-4">
+                  <div className="mb-3">
+                    <span className="text-sm font-medium text-gray-900">
+                      Other Test <span className="text-gray-400 text-xs ml-1">(Optional)</span>
+                    </span>
+                  </div>
+                  
+                  {/* Description Textarea */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Description <span className="text-gray-400 text-[10px]">(Optional)</span>
+                    </label>
+                    <textarea
+                      value={otherTool.description}
+                      onChange={(e) => updateOtherToolDescription(e.target.value)}
+                      placeholder="Enter test/procedure description..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d28d9] text-sm"
+                    />
+                  </div>
+
+                  {/* Multiple File Uploads */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Upload Files <span className="text-gray-400 text-[10px]">(Optional)</span>
+                    </label>
+                    
+                    {/* Display uploaded files */}
+                    {otherTool.files.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {otherTool.files.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between bg-white p-2 rounded-lg border border-gray-200">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {file.preview.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                <img src={file.preview} alt="Preview" className="h-10 w-10 object-cover rounded" />
+                              ) : (
+                                <div className="h-10 w-10 bg-gray-100 rounded flex items-center justify-center">
+                                  <img
+                                    src="/images/svg.png"
+                                    alt="File"
+                                    className="h-6 w-auto object-contain opacity-50"
+                                  />
+                                </div>
+                              )}
+                              <span className="text-xs text-gray-600 truncate flex-1">{file.file.name}</span>
+                            </div>
+                            <button
+                              onClick={() => removeOtherToolFile(file.id)}
+                              className="text-red-500 hover:text-red-700 ml-2"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Upload button with SVG */}
+                    <div
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = "image/*,application/pdf";
+                        input.multiple = true;
+                        input.onchange = (e) => {
+                          const files = (e.target as HTMLInputElement).files;
+                          if (files) {
+                            Array.from(files).forEach(file => {
+                              uploadOtherToolFile(file);
+                            });
+                          }
+                        };
+                        input.click();
+                      }}
+                      className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-purple-300 transition-all"
+                    >
+                      <div className="flex justify-center mb-2">
+                        <img
+                          src="/images/svg.png"
+                          alt="Upload"
+                          className="h-12 w-auto object-contain opacity-50"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">Click to upload files</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Multiple files allowed</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -495,9 +981,9 @@ const displayScore = data.bodyCampScore ?? "—";
                   <h2 className="text-xl font-bold text-[#1a1a1a] leading-tight mb-1">
                     {data.name}
                   </h2>
-               <p className="text-sm text-gray-400 font-medium">
-  Scan Date: {currentDateTime || "Today"}
-</p>
+                  <p className="text-sm text-gray-400 font-medium">
+                    Scan Date: {currentDateTime || "Today"}
+                  </p>
                 </div>
                 <div className="bg-[#00d1e0] text-white px-3 py-0.5 rounded-full text-xs font-black tracking-widest">
                   ACTIVE
@@ -543,18 +1029,18 @@ const displayScore = data.bodyCampScore ?? "—";
                       </span>
                     )}
                   </div>
-                <div className="flex items-center justify-between">
-  <span className="text-xs font-bold text-gray-400">
-    Height:
-  </span>
-  {metricsLoading ? (
-    <ValueLoader />
-  ) : (
-    <span className="text-xl font-black text-[#5b21b6]">
-      {data.height} {/* Display raw height value */}
-    </span>
-  )}
-</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-400">
+                      Height:
+                    </span>
+                    {metricsLoading ? (
+                      <ValueLoader />
+                    ) : (
+                      <span className="text-xl font-black text-[#5b21b6]">
+                        {data.height}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -18,7 +18,7 @@ export default function DailyFocusCard() {
       title: "Cardio",
       desc: "20 mins pending",
       color: "bg-[#00b894]/10 text-[#00b894]",
-      route: "/todays-focus-cardio", // 👈 add route
+      route: "/todays-focus-cardio/cardio-entry", // 👈 add route
     },
     {
       icon: Moon,

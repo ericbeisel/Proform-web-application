@@ -82,6 +82,7 @@ export const preferenceApi = {
   getPreferencesData: async (): Promise<PreferencesData> => {
     try {
       const response = await apiClient.get("/preferences-data");
+      console.log("📋 Preferences data response:", response.data);
       return response.data?.data as PreferencesData;
     } catch (error: unknown) {
       throw new Error(extractErrorMessage(error, "Failed to load preference data."));
@@ -178,6 +179,7 @@ export const preferenceApi = {
           Accept: "application/json",
         },
       });
+      console.log(`Successfully updated ${type} schedule.`);
     } catch (error: unknown) {
       throw new Error(extractErrorMessage(error, `Failed to update ${type} schedule.`));
     }

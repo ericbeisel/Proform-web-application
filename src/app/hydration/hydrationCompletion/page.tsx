@@ -1,27 +1,74 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, X, Circle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, X, Circle, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getCustomActivities, completeCustomActivity, CustomActivity } from "@/api/hydration/route";
 
 export default function HydrationCompletion() {
   const router = useRouter();
   
-  const [selectedOption, setSelectedOption] = useState<string>("choice1");
+const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [customActivities, setCustomActivities] = useState<CustomActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSaveRecovery = () => {
-    if (selectedOption === "new") {
-       localStorage.setItem('showItineraryMessage', 'true');
-       router.push('/hydration/hydrationDashboard');
-    } else if (selectedOption) {
-       router.push('/hydration/hydrationDashboard');
+  // Fetch custom hydration activities
+  useEffect(() => {
+    const fetchCustomActivities = async () => {
+      try {
+        setLoading(true);
+        const activities = await getCustomActivities();
+        setCustomActivities(activities);
+        setError(null);
+      } catch (err: any) {
+        console.error("Error fetching custom activities:", err);
+        setError(err.message || "Failed to load hydration activities");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCustomActivities();
+  }, []);
+
+const handleCompleteActivity = async (activityId: number) => {
+      setSubmitting(true);
+    try {
+      await completeCustomActivity(activityId);
+      localStorage.setItem('showItineraryMessage', 'true');
+      router.push('/hydration/hydrationDashboard');
+    } catch (err: any) {
+      console.error("Error completing activity:", err);
+      setError(err.message || "Failed to complete hydration activity");
+      setSubmitting(false);
     }
   };
+
+  const handleSaveRecovery = () => {
+if (selectedOption !== null) {
+        handleCompleteActivity(selectedOption);
+    }
+  };
+
+  const handleCreateNew = () => {
+    localStorage.setItem('showItineraryMessage', 'true');
+    router.push('/hydration/hydrationDashboard');
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full min-h-screen bg-[#f0f4f8] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#f0f4f8] flex flex-col">
       
-      {/* HEADER - Kept as requested */}
+      {/* HEADER */}
       <div className="w-full bg-purple-600 px-6 sm:px-8 py-4 sm:py-5 flex-shrink-0">
         <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -45,7 +92,17 @@ export default function HydrationCompletion() {
         </div>
       </div>
 
-      {/* BODY - Matched to Screenshot */}
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-slideDown">
+          <div className="bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3">
+            <X size={20} />
+            <span className="font-medium">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* BODY */}
       <div className="flex-1 flex items-start justify-center p-4 sm:p-8">
         <div className="w-full max-w-xl bg-white rounded-[2.5rem] shadow-sm p-8 sm:p-12 flex flex-col items-center">
           
@@ -54,7 +111,7 @@ export default function HydrationCompletion() {
           </h2>
           
           <p className="text-gray-500 text-center text-sm sm:text-base leading-relaxed mb-10 max-w-md">
-            Choose how you want to save your completed Recovery Session on your itinerary page
+            Choose how you want to save your completed Hydration Session on your itinerary page
           </p>
 
           {/* TOP CHOICE BOX */}
@@ -64,45 +121,36 @@ export default function HydrationCompletion() {
             </p>
 
             <div className="w-full max-w-xs space-y-4 mb-8">
-              {/* Choice 1 */}
-              <div 
-                className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setSelectedOption("choice1")}
-              >
-                {selectedOption === "choice1" ? (
-                  <CheckCircle2 className="text-[#00b4d8] fill-[#00b4d8] bg-white rounded-full" size={24} />
-                ) : (
-                  <Circle className="text-gray-300" size={24} />
-                )}
-                <span className={`font-bold text-sm sm:text-base ${selectedOption === "choice1" ? "text-gray-800" : "text-gray-500"}`}>
-                  Choice 1
-                </span>
-              </div>
-
-              {/* Choice 2 */}
-              <div 
-                className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setSelectedOption("choice2")}
-              >
-                {selectedOption === "choice2" ? (
-                  <CheckCircle2 className="text-[#00b4d8] fill-[#00b4d8] bg-white rounded-full" size={24} />
-                ) : (
-                  <Circle className="text-gray-300" size={24} />
-                )}
-                <span className={`font-bold text-sm sm:text-base ${selectedOption === "choice2" ? "text-gray-800" : "text-gray-500"}`}>
-                  Choice 2
-                </span>
-              </div>
+              {customActivities.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm">No scheduled hydration sessions found</p>
+              ) : (
+                customActivities.map((activity) => (
+                  <div 
+                    key={activity.id}
+                    className="flex items-center gap-3 cursor-pointer group"
+                    onClick={() => setSelectedOption(activity.id)}
+                  >
+                    {selectedOption === activity.id ? (
+                      <CheckCircle2 className="text-[#00b4d8] fill-[#00b4d8] bg-white rounded-full" size={24} />
+                    ) : (
+                      <Circle className="text-gray-300" size={24} />
+                    )}
+                    <span className={`font-bold text-sm sm:text-base ${selectedOption === activity.id ? "text-gray-800" : "text-gray-500"}`}>
+                      {activity.name} - {activity.time}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
             <button
               onClick={handleSaveRecovery}
-              disabled={selectedOption === "new"}
+              disabled={!selectedOption || submitting}
               className={`w-full max-w-sm py-4 rounded-2xl font-bold text-white transition-all shadow-lg ${
-                selectedOption === "new" ? "bg-gray-300 cursor-not-allowed" : "bg-[#4a5568] hover:bg-[#3d4654] active:scale-[0.98]"
+                !selectedOption || submitting ? "bg-gray-300 cursor-not-allowed" : "bg-[#4a5568] hover:bg-[#3d4654] active:scale-[0.98]"
               }`}
             >
-              Save Recovery
+              {submitting ? <Loader2 size={20} className="animate-spin mx-auto" /> : "Save Recovery"}
             </button>
           </div>
 
@@ -120,11 +168,7 @@ export default function HydrationCompletion() {
             </p>
 
             <button
-              onClick={() => {
-                setSelectedOption("new");
-                localStorage.setItem('showItineraryMessage', 'true');
-                router.push('/hydration/hydrationDashboard');
-              }}
+              onClick={handleCreateNew}
               className="w-full max-w-xs bg-gradient-to-r from-[#6e22e5] to-[#9d50ff] text-white py-4 rounded-2xl font-bold shadow-xl hover:shadow-purple-200 transition-all active:scale-[0.98]"
             >
               Create a New One
@@ -133,6 +177,22 @@ export default function HydrationCompletion() {
 
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) translateX(-50%);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) translateX(-50%);
+          }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

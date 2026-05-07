@@ -20,14 +20,43 @@ export interface PlayerCardDetail {
   date: string;
   status: string;
   inBodyScans: string | null;
+  in_body_scans?: string | null;
   progressImage: string | null;
+  progress_image?: string | null;
   currentWeight: number | null;
+  current_weight?: number | null;
   smm: number | null;
   bodyCampScore: number | null;
+  body_camp_score?: number | null;
   bodyFat: number | null;
+  body_fat?: number | null;
   height: number | null;
   name?: string;
-  // Diff fields from API
+  
+  // Accountability tools fields
+  bpImage?: string | null;
+  bpPhoto?: string | null;
+  bp_test_image?: string | null;
+  bp_test_type?: string | null;
+  
+  breathingImage?: string | null;
+  breathingPhoto?: string | null;
+  breathing_test_image?: string | null;
+  breathing_test_type?: string | null;
+  
+  hydrationImage?: string | null;
+  hydrationPhoto?: string | null;
+  hydration_test_image?: string | null;
+  hydration_test_type?: string | null;
+  
+  bloodworkImage?: string | null;
+  bloodworkPhoto?: string | null;
+  bloodwork_test_image?: string | null;
+  
+  other_image?: string | null;
+  other_description?: string | null;
+  
+  // Diff fields
   smm_diff?: string | number | null;
   bf_diff?: string | number | null;
   body_camp_diff?: string | number | null;
@@ -38,7 +67,9 @@ export interface PlayerCardDetail {
   bodyCampScoreDiff?: string | number | null;
   currentWeightDiff?: string | number | null;
   heightDiff?: string | number | null;
+  
   type?: string | null;
+  user?: any;
 }
 
 export interface PlayerCardDetailsResponse {
@@ -52,11 +83,11 @@ export interface PlayerCardDetailsResponse {
 
 export interface AcceptPlayerCardParams {
   id: number;
-  currentWeight: string;
-  height: string;
-  smm: string;
-  bodyFat: string;
-  bodyCampScore: string;
+  currentWeight: number;  // Changed from string to number
+  height: number;         // Changed from string to number
+  smm: number;           // Changed from string to number
+  bodyFat: number;       // Changed from string to number
+  bodyCampScore: number; // Changed from string to number
 }
 
 export interface RejectPlayerCardParams {
@@ -240,29 +271,22 @@ export const getAdminPlayerCardDetails = async (
   }
 };
 
-export const acceptAdminPlayerCard = async (
-  params: AcceptPlayerCardParams,
-): Promise<unknown> => {
+export const acceptAdminPlayerCard = async (params: AcceptPlayerCardParams): Promise<unknown> => {
   try {
-    const formData = new FormData();
-    formData.append("currentWeight", params.currentWeight);
-    formData.append("height", params.height);
-    formData.append("smm", params.smm);
-    formData.append("bodyFat", params.bodyFat);
-    formData.append("bodyCampScore", params.bodyCampScore);
-    formData.append("id", params.id.toString());
-
-    const { data } = await apiClient.post(
-      "/accept-admin-playercard",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Accept: "application/json",
-        },
+    // Send as JSON, not FormData
+    const { data } = await apiClient.post("/accept-admin-playercard", {
+      id: Number(params.id),
+      currentWeight: Number(params.currentWeight),
+      height: Number(params.height),
+      smm: Number(params.smm),
+      bodyFat: Number(params.bodyFat),
+      bodyCampScore: Number(params.bodyCampScore),
+    }, {
+      headers: {
+        "Content-Type": "application/json",  // Changed from multipart/form-data
+        Accept: "application/json",
       },
-    );
-
+    });
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to accept player card."));

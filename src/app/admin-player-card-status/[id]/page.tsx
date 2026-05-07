@@ -182,43 +182,68 @@ export default function AdminPlayerCardDetail() {
     );
   };
 
-  useEffect(() => {
-    if (parsedId === null) {
+useEffect(() => {
+  if (parsedId === null) {
+    setLoading(false);
+    setToast({ type: "error", message: "Invalid player card id." });
+    return;
+  }
+
+  const fetchCard = async () => {
+    try {
+      setLoading(true);
+      const data = await getAdminPlayerCardById(parsedId);
+      setCardData(data);
+      setMetrics(initialMetrics(data));
+      setDiffs(initialDiffs(data));
+      console.log("Fetched Card Data:", data);
+      
+      // Map all images to accountability tools
+      setAccountabilityTools((prev) =>
+        prev.map((tool) => {
+          let imageUrl = null;
+          
+          // Map based on tool ID and the actual field names from API
+          switch (tool.id) {
+            case "progress-photo":
+              imageUrl = data.progressImage || data.progress_image;
+              break;
+            case "blood-pressure":
+              // Check both possible field names
+              imageUrl = data.bpPhoto || data.bp_test_image || data.bpImage;
+              break;
+            case "breathing":
+              imageUrl = data.breathingPhoto || data.breathing_test_image || data.breathingImage;
+              break;
+            case "hydration":
+              imageUrl = data.hydrationPhoto || data.hydration_test_image || data.hydrationImage;
+              break;
+            case "bloodwork":
+              imageUrl = data.bloodworkPhoto || data.bloodwork_test_image || data.bloodworkImage;
+              break;
+            default:
+              imageUrl = null;
+          }
+          
+          if (imageUrl) {
+            const cleaned = cleanImageUrl(imageUrl);
+            return { ...tool, uploadedUrl: cleaned, preview: cleaned };
+          }
+          return tool;
+        })
+      );
+    } catch (error: unknown) {
+      setToast({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to load player card details.",
+      });
+    } finally {
       setLoading(false);
-      setToast({ type: "error", message: "Invalid player card id." });
-      return;
     }
+  };
 
-    const fetchCard = async () => {
-      try {
-        setLoading(true);
-        const data = await getAdminPlayerCardById(parsedId);
-        setCardData(data);
-        setMetrics(initialMetrics(data));
-        setDiffs(initialDiffs(data));
-console.log("Fetched Card Data:", data);
-        // Map progress image to accountability tools
-        setAccountabilityTools((prev) =>
-          prev.map((tool) => {
-            if (tool.id === "progress-photo" && data.progressImage) {
-              const cleaned = cleanImageUrl(data.progressImage);
-              return { ...tool, uploadedUrl: cleaned, preview: cleaned };
-            }
-            return tool;
-          })
-        );
-      } catch (error: unknown) {
-        setToast({
-          type: "error",
-          message: error instanceof Error ? error.message : "Failed to load player card details.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchCard();
-  }, [parsedId]);
+  void fetchCard();
+}, [parsedId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -233,25 +258,39 @@ console.log("Fetched Card Data:", data);
   };
 
   const handleAccept = async () => {
-    if (parsedId === null) return;
-    try {
-      setSubmitting(true);
-      await acceptAdminPlayerCard({
-        id: parsedId,
-        currentWeight: metrics.currentWeight || "0",
-        height: metrics.height || "0",
-        smm: metrics.smm || "0",
-        bodyFat: metrics.bodyFat || "0",
-        bodyCampScore: metrics.bodyCampScore || "0",
-      });
-      setToast({ type: "success", message: "Card approved successfully." });
-      router.push("/admin-player-card-status");
-    } catch (error: unknown) {
-      setToast({ type: "error", message: error instanceof Error ? error.message : "Failed to approve card." });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  if (parsedId === null) return;
+  
+  // Convert strings to numbers
+  const currentWeightNum = parseFloat(metrics.currentWeight);
+  const heightNum = parseFloat(metrics.height);
+  const smmNum = parseFloat(metrics.smm);
+  const bodyFatNum = parseFloat(metrics.bodyFat);
+  const bodyCampScoreNum = parseFloat(metrics.bodyCampScore);
+
+  // Validate
+  if (isNaN(currentWeightNum) || isNaN(heightNum) || isNaN(smmNum) || isNaN(bodyFatNum) || isNaN(bodyCampScoreNum)) {
+    setToast({ type: "error", message: "All fields must contain valid numbers." });
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    await acceptAdminPlayerCard({
+      id: parsedId,
+      currentWeight: currentWeightNum,
+      height: heightNum,
+      smm: smmNum,
+      bodyFat: bodyFatNum,
+      bodyCampScore: bodyCampScoreNum,
+    });
+    setToast({ type: "success", message: "Card approved successfully." });
+    router.push("/admin-player-card-status");
+  } catch (error: unknown) {
+    setToast({ type: "error", message: error instanceof Error ? error.message : "Failed to approve card." });
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleReject = async () => {
     if (parsedId === null) return;

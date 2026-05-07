@@ -107,28 +107,82 @@ export default function AdminPlayerCardDetail() {
   };
 
   const handleAccept = async () => {
-    if (parsedId === null) return;
-    try {
-      setSubmitting(true);
-      await acceptAdminPlayerCard({
-        id: parsedId,
-        currentWeight: metrics.currentWeight || "0",
-        height: metrics.height || "0",
-        smm: metrics.smm || "0",
-        bodyFat: metrics.bodyFat || "0",
-        bodyCampScore: metrics.bodyCampScore || "0",
-      });
-      setToast({ type: "success", message: "Card approved successfully." });
-      router.push("/admin-player-cards");
-    } catch (error: unknown) {
-      setToast({
-        type: "error",
-        message: error instanceof Error ? error.message : "Failed to approve card.",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  if (parsedId === null) return;
+  
+  // Convert string values to numbers
+  const currentWeightNum = parseFloat(metrics.currentWeight);
+  const heightNum = parseFloat(metrics.height);
+  const smmNum = parseFloat(metrics.smm);
+  const bodyFatNum = parseFloat(metrics.bodyFat);
+  const bodyCampScoreNum = parseFloat(metrics.bodyCampScore);
+
+  // Validate numbers
+  if (isNaN(currentWeightNum)) {
+    setToast({ type: "error", message: "Current Weight must be a valid number." });
+    return;
+  }
+  if (isNaN(heightNum)) {
+    setToast({ type: "error", message: "Height must be a valid number." });
+    return;
+  }
+  if (isNaN(smmNum)) {
+    setToast({ type: "error", message: "SMM must be a valid number." });
+    return;
+  }
+  if (isNaN(bodyFatNum)) {
+    setToast({ type: "error", message: "Body Fat must be a valid number." });
+    return;
+  }
+  if (isNaN(bodyCampScoreNum)) {
+    setToast({ type: "error", message: "Body Camp Score must be a valid number." });
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+    await acceptAdminPlayerCard({
+      id: parsedId,
+      currentWeight: currentWeightNum,
+      height: heightNum,
+      smm: smmNum,
+      bodyFat: bodyFatNum,
+      bodyCampScore: bodyCampScoreNum,
+    });
+    setToast({ type: "success", message: "Card approved successfully." });
+    router.push("/admin-player-cards");
+  } catch (error: unknown) {
+    setToast({
+      type: "error",
+      message: error instanceof Error ? error.message : "Failed to approve card.",
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+  // const handleAccept = async () => {
+  //   if (parsedId === null) return;
+  //   try {
+  //     setSubmitting(true);
+  //     await acceptAdminPlayerCard({
+  //       id: parsedId,
+  //       currentWeight: metrics.currentWeight || "0",
+  //       height: metrics.height || "0",
+  //       smm: metrics.smm || "0",
+  //       bodyFat: metrics.bodyFat || "0",
+  //       bodyCampScore: metrics.bodyCampScore || "0",
+  //     });
+  //     setToast({ type: "success", message: "Card approved successfully." });
+  //     router.push("/admin-player-cards");
+  //   } catch (error: unknown) {
+  //     setToast({
+  //       type: "error",
+  //       message: error instanceof Error ? error.message : "Failed to approve card.",
+  //     });
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
 
   const handleReject = async () => {
     if (parsedId === null) return;

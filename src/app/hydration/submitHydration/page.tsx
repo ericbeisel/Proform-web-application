@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   Droplet,
@@ -13,8 +13,10 @@ import {
   Check,
   Upload,
   Minus,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getHydrationZones, addHydrationRecord, getTodayHydration, HydrationZone, HydrateRecord, ProteinRecord } from "@/api/hydration/route";
 
 // Custom SVG Bottle component to represent 16oz and 24oz
 const WaterBottle = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
@@ -36,34 +38,114 @@ const WaterBottle = ({ size = 24, className = "" }: { size?: number; className?:
   </svg>
 );
 
-const hydrationOptions = [
-  { label: "8 oz", sublabel: "Small Glass", color: "#4f8ef7", bg: "#e8f0fe" },
-  { label: "16 oz", sublabel: "Standard Bottle", color: "#2ecf8a", bg: "#e0f9f0" },
-  { label: "24 oz", sublabel: "Large Bottle", color: "#a855f7", bg: "#f3e8ff" },
-];
-
 const tags = [
   "25g Protein", "5g Creatine", "5g Glutamine", "100mg Electrolytes", "10g BCAA's", "Pre-Workout",
 ];
 
 export default function HydrationPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [hydrationZones, setHydrationZones] = useState<HydrationZone[]>([]);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  
   const [showModal, setShowModal] = useState(false);
-  const [selectedOz, setSelectedOz] = useState<number>(0);
+  const [selectedZone, setSelectedZone] = useState<HydrationZone | null>(null);
+  const [customOz, setCustomOz] = useState<number>(32);
   const [isCustom, setIsCustom] = useState(false);
   const [selectedTags, setSelectedTags] = useState<{ name: string; value: string }[]>([]);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handleClick = (label: string) => {
-    if (label === "0 oz") {
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // Upload image to server (you'll need to implement your actual upload endpoint)
+  const uploadImageToServer = async (base64Image: string): Promise<string> => {
+    // If you have an upload API endpoint:
+    // const formData = new FormData();
+    // formData.append('image', base64Image);
+    // const response = await fetch('/api/upload', { method: 'POST', body: formData });
+    // const data = await response.json();
+    // return data.url;
+    
+    // For now, return the base64 string directly
+    return base64Image;
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const base64 = await fileToBase64(file);
+      setUploadedImage(base64);
+    } catch (error) {
+      console.error("Error converting image:", error);
+      alert("Failed to process image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Fetch hydration zones and today's total
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [zones, todayRecords] = await Promise.all([
+          getHydrationZones(),
+          getTodayHydration().catch(() => [])
+        ]);
+        
+        setHydrationZones(zones);
+        
+        // Calculate today's total
+        const total = todayRecords.reduce((sum, record) => sum + (record.oz_number || 0), 0);
+        setTodayTotal(total);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+
+  const handleZoneClick = (zone: HydrationZone) => {
+    if (zone.title === "Custom") {
       setIsCustom(true);
-      setSelectedOz(32); 
+      setCustomOz(32);
     } else {
       setIsCustom(false);
-      setSelectedOz(parseInt(label));
+      setSelectedZone(zone);
     }
-    setSubmitted(false);
+    setSelectedTags([]);
+    setSubmitting(false);
+    setUploadedImage(null);
     setShowModal(true);
   };
 
@@ -82,22 +164,140 @@ export default function HydrationPage() {
     );
   };
 
-  // Logic to handle redirection on submit
-  const handleSubmit = () => {
-    setSubmitted(true);
-    // Mimic your old code's intent but redirect to the completion page
-    setTimeout(() => {
-      router.push('/hydration/hydrationCompletion');
-    }, 800);
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    
+    try {
+      let zoneId: string;
+      let ozNumber: number;
+      let zoneTitle: string;
+      
+      if (isCustom) {
+        const customZone = hydrationZones.find(z => z.title === "Custom");
+        if (!customZone) throw new Error("Custom zone not found");
+        zoneId = customZone.id;
+        ozNumber = customOz;
+        zoneTitle = "Custom Hydration";
+      } else if (selectedZone) {
+        zoneId = selectedZone.id;
+        ozNumber = selectedZone.oz_number;
+        zoneTitle = selectedZone.title;
+      } else {
+        throw new Error("No zone selected");
+      }
+      
+      // Upload image if exists
+      let imageUrl = null;
+      if (uploadedImage) {
+        imageUrl = await uploadImageToServer(uploadedImage);
+      }
+      
+      // Convert selected tags to the format API expects
+      const proteinRecordsArray = selectedTags.map(tag => tag.name);
+      const proteinRecordsString = JSON.stringify(proteinRecordsArray);
+      
+      await addHydrationRecord({
+        title: `${zoneTitle} - ${new Date().toLocaleTimeString()}`,
+        oz_number: ozNumber,
+        hydrate_zone_id: zoneId,
+        protein_records: proteinRecordsString,
+        calories: 0,
+        upload_image: imageUrl,
+      });
+      
+      // Refresh today's total
+      const updatedTodayRecords = await getTodayHydration().catch(() => []);
+      const total = updatedTodayRecords.reduce((sum, record) => sum + (record.oz_number || 0), 0);
+      setTodayTotal(total);
+      
+      // Redirect after success
+      setTimeout(() => {
+        setShowModal(false);
+        setSelectedTags([]);
+        setCustomOz(32);
+        setUploadedImage(null);
+        setSubmitting(false);
+        router.push('/hydration/hydrationCompletion');
+      }, 800);
+      
+    } catch (err: any) {
+      console.error("Error adding hydration:", err);
+      alert(err.message || "Failed to add hydration");
+      setSubmitting(false);
+    }
   };
 
-  const renderDefaultIcon = (oz: number) => {
+  const getHydrationOptions = () => {
+    return hydrationZones.filter(z => z.title !== "Custom").map(zone => ({
+      label: zone.title,
+      oz: zone.oz_number,
+      picture: zone.picture,
+    }));
+  };
+
+  const renderIcon = (oz: number, picture?: string) => {
+    if (picture) {
+      return (
+        <img
+          src={picture}
+          alt={`${oz} oz`}
+          className="w-10 h-10 object-contain"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+      );
+    }
+    
     const colorClass = "text-[#00aeef]";
+    if (oz === 8) return <GlassWater size={24} className={colorClass} strokeWidth={2} />;
+    if (oz === 16) return <WaterBottle size={24} className={colorClass} />;
+    if (oz === 24) return <WaterBottle size={28} className={colorClass} />;
+    return <Droplet size={24} className={colorClass} />;
+  };
+
+  const renderModalIcon = () => {
+    const colorClass = "text-[#00aeef]";
+    const oz = isCustom ? customOz : (selectedZone?.oz_number || 0);
+    
+    if (isCustom) {
+      const customZone = hydrationZones.find(z => z.title === "Custom");
+      if (customZone?.picture) {
+        return (
+          <img
+            src={customZone.picture}
+            alt="Custom"
+            className="w-20 h-20 object-contain"
+          />
+        );
+      }
+    }
+    
+    if (selectedZone?.picture && !isCustom) {
+      return (
+        <img
+          src={selectedZone.picture}
+          alt={selectedZone.title}
+          className="w-20 h-20 object-contain"
+        />
+      );
+    }
+    
     if (oz === 8) return <GlassWater size={54} className={colorClass} strokeWidth={2} />;
     if (oz === 16) return <WaterBottle size={54} className={colorClass} />;
     if (oz === 24) return <WaterBottle size={68} className={colorClass} />;
     return <Droplet size={54} className={colorClass} />;
   };
+
+  const bgColors = ["#e8f0fe", "#e0f9f0", "#f3e8ff"];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#f0f4f8]">
@@ -117,7 +317,7 @@ export default function HydrationPage() {
             <Calendar size={16} color="white" />
             <div className="text-right">
               <div className="text-white/80 text-[10px] font-semibold uppercase">TODAY</div>
-              <div className="text-white text-lg font-extrabold leading-tight">64 oz</div>
+              <div className="text-white text-lg font-extrabold leading-tight">{todayTotal} oz</div>
             </div>
           </div>
         </div>
@@ -130,18 +330,33 @@ export default function HydrationPage() {
             <Droplet size={18} color="#2bb5c8" />
             <h2 className="text-lg font-extrabold text-[#1a1a2e]">Quick Add</h2>
           </div>
+          
           <div className="grid grid-cols-3 gap-4">
-            {hydrationOptions.map((item, index) => (
-              <div key={index} onClick={() => handleClick(item.label)} className="border-2 border-[#f0f0f5] rounded-xl p-5 flex flex-col items-center cursor-pointer transition-all bg-white hover:shadow-lg">
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: item.bg }}>
-                  <Droplet size={20} color={item.color} fill={item.color} />
+            {getHydrationOptions().map((option, index) => (
+              <div 
+                key={option.label} 
+                onClick={() => {
+                  const zone = hydrationZones.find(z => z.title === option.label);
+                  if (zone) handleZoneClick(zone);
+                }} 
+                className="border-2 border-[#f0f0f5] rounded-xl p-5 flex flex-col items-center cursor-pointer transition-all bg-white hover:shadow-lg"
+              >
+                <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: bgColors[index % bgColors.length] }}>
+                  {renderIcon(option.oz, option.picture)}
                 </div>
-                <div className="text-lg font-extrabold text-[#1a1a2e] mb-0.5">{item.label}</div>
-                <div className="text-xs text-gray-400 font-medium">{item.sublabel}</div>
+                <div className="text-lg font-extrabold text-[#1a1a2e] mb-0.5">{option.label}</div>
+                <div className="text-xs text-gray-400 font-medium">{option.oz} oz</div>
               </div>
             ))}
           </div>
-          <button onClick={() => handleClick("0 oz")} className="w-full mt-4 bg-[#f4f4f8] rounded-xl py-3.5 text-base font-semibold text-gray-500 hover:bg-[#eceef5]">
+          
+          <button 
+            onClick={() => {
+              const customZone = hydrationZones.find(z => z.title === "Custom");
+              if (customZone) handleZoneClick(customZone);
+            }} 
+            className="w-full mt-4 bg-[#f4f4f8] rounded-xl py-3.5 text-base font-semibold text-gray-500 hover:bg-[#eceef5]"
+          >
             Select a custom amount
           </button>
         </div>
@@ -189,28 +404,58 @@ export default function HydrationPage() {
             <div className="flex-1 overflow-y-auto px-6 pt-10 pb-4">
               <div className="text-center mb-6">
                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Add Hydration:</p>
-                <h2 className="text-3xl font-black text-gray-900">{isCustom ? "Custom" : `${selectedOz} Oz`}</h2>
+                <h2 className="text-3xl font-black text-gray-900">{isCustom ? `${customOz} oz` : selectedZone?.title || ""}</h2>
               </div>
 
-              <button className="w-full bg-[#0e99b6] hover:bg-[#0c88a3] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 mb-6">
-                <Upload size={18} /> Upload Photo
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+              />
+              
+              {/* Upload Photo Button */}
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="w-full bg-[#0e99b6] hover:bg-[#0c88a3] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 mb-6 transition disabled:opacity-50"
+              >
+                {uploadingImage ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                {uploadingImage ? "Processing..." : "Upload Photo"}
               </button>
+
+              {/* Image Preview */}
+              {uploadedImage && (
+                <div className="mb-6">
+                  <div className="relative w-32 h-32 mx-auto rounded-lg overflow-hidden border-2 border-purple-300">
+                    <img 
+                      src={uploadedImage} 
+                      alt="Uploaded" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      onClick={() => setUploadedImage(null)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* CENTER DISPLAY AREA */}
               <div className={`flex flex-col items-center mb-8 transition-all ${isCustom ? 'bg-[#ebf8ff] rounded-3xl p-8' : 'p-4'}`}>
-                {!isCustom ? (
-                  <div className="py-4 animate-fadeIn">{renderDefaultIcon(selectedOz)}</div>
-                ) : (
-                  <div className="w-full flex flex-col items-center animate-fadeIn">
-                    <div className="text-[#00aeef] mb-3"><Droplet size={48} fill="currentColor" /></div>
-                    <div className="flex items-center justify-between w-full max-w-[220px]">
-                      <button onClick={() => setSelectedOz(Math.max(0, selectedOz - 1))} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-md text-gray-400 text-2xl font-bold active:scale-90">−</button>
-                      <div className="text-center">
-                        <span className="text-6xl font-black text-gray-800 tracking-tighter leading-none">{selectedOz}</span>
-                        <p className="text-gray-400 font-bold text-xs mt-1 uppercase tracking-widest">oz</p>
-                      </div>
-                      <button onClick={() => setSelectedOz(selectedOz + 1)} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-md text-gray-400 text-2xl font-bold active:scale-90">+</button>
+                <div className="py-4 animate-fadeIn">{renderModalIcon()}</div>
+                {isCustom && (
+                  <div className="flex items-center justify-between w-full max-w-[220px] mt-4">
+                    <button onClick={() => setCustomOz(Math.max(0, customOz - 1))} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-md text-gray-400 text-2xl font-bold active:scale-90">−</button>
+                    <div className="text-center">
+                      <span className="text-6xl font-black text-gray-800 tracking-tighter leading-none">{customOz}</span>
+                      <p className="text-gray-400 font-bold text-xs mt-1 uppercase tracking-widest">oz</p>
                     </div>
+                    <button onClick={() => setCustomOz(customOz + 1)} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-md text-gray-400 text-2xl font-bold active:scale-90">+</button>
                   </div>
                 )}
               </div>
@@ -218,7 +463,6 @@ export default function HydrationPage() {
               {/* NUTRIENTS SECTION */}
               <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="font-bold text-gray-900 text-sm">Add Nutrients</h3>
-                <button className="text-[#00aeef] text-[10px] font-bold hover:underline">Hide List</button>
               </div>
 
               <div className="flex flex-wrap gap-2 mb-6 px-1">
@@ -227,32 +471,34 @@ export default function HydrationPage() {
                   return (
                     <button key={i} onClick={() => handleTagClick(tag)}
                       className={`py-2 px-4 rounded-full text-[10px] font-bold transition-all border ${isSelected ? "bg-[#7c3aed] text-white border-transparent" : "bg-white text-gray-500 border-gray-200"}`}>
-                      {isSelected ? `${isSelected.value}g ${tag}` : tag}
+                      {tag}
                     </button>
                   );
                 })}
               </div>
 
               {/* SELECTED NUTRIENTS INPUTS */}
-              <div className="bg-[#f8fafd] rounded-2xl p-4 space-y-3">
-                {selectedTags.map((tag, index) => (
-                  <div key={index} className="bg-white rounded-xl p-4 flex items-center justify-between shadow-sm">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-gray-900 text-sm">{tag.name}</span>
-                      <span className="text-[10px] text-gray-400 font-bold uppercase">g</span>
+              {selectedTags.length > 0 && (
+                <div className="bg-[#f8fafd] rounded-2xl p-4 space-y-3">
+                  {selectedTags.map((tag, index) => (
+                    <div key={index} className="bg-white rounded-xl p-4 flex items-center justify-between shadow-sm">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-gray-900 text-sm">{tag.name}</span>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase">g</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <button onClick={() => handleTagValueChange(tag.name, String(Math.max(0, parseInt(tag.value) - 1)))} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
+                          <Minus size={12} strokeWidth={3} />
+                        </button>
+                        <span className="font-black text-gray-800 w-6 text-center">{tag.value}</span>
+                        <button onClick={() => handleTagValueChange(tag.name, String(parseInt(tag.value) + 1))} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
+                          <Plus size={12} strokeWidth={3} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <button onClick={() => handleTagValueChange(tag.name, String(Math.max(0, parseInt(tag.value) - 1)))} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
-                        <Minus size={12} strokeWidth={3} />
-                      </button>
-                      <span className="font-black text-gray-800 w-6 text-center">{tag.value}</span>
-                      <button onClick={() => handleTagValueChange(tag.name, String(parseInt(tag.value) + 1))} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
-                        <Plus size={12} strokeWidth={3} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* SUBMIT BUTTON */}
@@ -260,12 +506,12 @@ export default function HydrationPage() {
               <p className="text-gray-400 text-[10px] font-medium mb-4">Tap to submit this hydration for today:</p>
               <button 
                 onClick={handleSubmit} 
-                disabled={submitted}
+                disabled={submitting}
                 className={`w-full py-3.5 rounded-xl font-black text-lg text-white transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${
-                  submitted ? "bg-green-500" : "bg-[#5d00b4] hover:bg-[#4a0091]"
+                  submitting ? "bg-green-500" : "bg-[#5d00b4] hover:bg-[#4a0091]"
                 }`}
               >
-                {submitted ? <><Check size={20} strokeWidth={3} /> Submitted!</> : "Submit"}
+                {submitting ? <><Loader2 size={20} className="animate-spin" /> Submitting...</> : "Submit"}
               </button>
             </div>
           </div>

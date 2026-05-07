@@ -26,6 +26,7 @@ const DAYS_FULL = [
 const DAYS_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 // Map workout types to filter categories
+// Map workout types to filter categories
 const getFilterFromType = (type: string): FilterTab => {
   switch (type.toLowerCase()) {
     case "workout":
@@ -36,11 +37,16 @@ const getFilterFromType = (type: string): FilterTab => {
       return "CONDITIONING";
     case "cardio":
       return "CARDIO";
+    case "hydration":  // Add this
+      return "HYDRATION";
+    case "field workout":  // Add this
+      return "PRIMARY";  // Or create a new category
     default:
       return "PRIMARY";
   }
 };
 
+// Get dot color based on type
 // Get dot color based on type
 const getDotColor = (type: string): string => {
   switch (type.toLowerCase()) {
@@ -52,6 +58,10 @@ const getDotColor = (type: string): string => {
       return "bg-yellow-400";
     case "cardio":
       return "bg-red-400";
+    case "hydration":  // Add this
+      return "bg-cyan-400";
+    case "field workout":  // Add this
+      return "bg-orange-500";
     default:
       return "bg-purple-500";
   }
@@ -702,6 +712,10 @@ function getBadgeColor(type: string): string {
       return "bg-yellow-400";
     case "cardio":
       return "bg-red-400";
+    case "hydration":  // Add this
+      return "bg-cyan-500";
+    case "field workout":  // Add this
+      return "bg-orange-500";
     default:
       return "bg-purple-500";
   }

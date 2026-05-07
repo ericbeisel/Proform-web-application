@@ -1,48 +1,110 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getAllRecoveryZones, RecoveryZone } from "@/api/recovery/route";
 
-const options = [
-  { id: 1, name: "Compression", time: "15-30m", icon: "🦵" },
-  { id: 2, name: "Contrast", time: "5-15m", icon: "🛁" },
-  { id: 3, name: "Cryotherapy", time: "3-5m", icon: "❄️" },
-  { id: 4, name: "Infrared Sauna", time: "20-30m", icon: "🌡️" },
-  { id: 5, name: "Massage Gun", time: "5-8m", icon: "🔫" },
-  { id: 6, name: "Dry-needling", time: "5-30m", icon: "💉" },
-  { id: 7, name: "E-Stim", time: "10-30m", icon: "⚡" },
-  { id: 8, name: "Foam Rolling", time: "5-15m", icon: "🧘" },
-  { id: 9, name: "Laser Therapy", time: "5-15m", icon: "💡" },
-  { id: 10, name: "Napping", time: "15-30m", icon: "😴" },
-  { id: 11, name: "HBOT", time: "60-90m", icon: "🫁" },
-  { id: 12, name: "Hot tub", time: "10-15m", icon: "♨️" },
-  { id: 13, name: "Ice Bath", time: "5-15m", icon: "🧊" },
-  { id: 14, name: "Massage", time: "30m-60m", icon: "🐯" },
-  { id: 15, name: "Red-Light Mask", time: "10-20m", icon: "😷" },
-  { id: 16, name: "Red-Light Therapy", time: "5-15m", icon: "🔴" },
-  { id: 17, name: "Salt Bath", time: "10-15m", icon: "🧂" },
-];
+// Helper function to get image URL
+const getImageUrl = (imageUrl: string | null | undefined): string => {
+  if (!imageUrl) return "/images/placeholder.jpg";
+  if (imageUrl.startsWith("wix:image://v1/")) {
+    const match = imageUrl.match(/wix:image:\/\/v1\/([^/]+)/);
+    if (match?.[1]) return `/api/image-proxy/media/${match[1]}`;
+  }
+  if (imageUrl.match(/^[a-f0-9_]+~mv2/i)) return `/api/image-proxy/media/${imageUrl}`;
+  if (imageUrl.includes("static.wixstatic.com/media/")) {
+    const path = imageUrl.replace("https://static.wixstatic.com/", "");
+    return `/api/image-proxy/${path}`;
+  }
+  return imageUrl;
+};
+
+// Get icon emoji based on form name
+const getIconEmoji = (form: string): string => {
+  const formLower = form.toLowerCase();
+  if (formLower.includes("compression")) return "🦵";
+  if (formLower.includes("contrast")) return "🛁";
+  if (formLower.includes("cryo")) return "❄️";
+  if (formLower.includes("sauna")) return "🌡️";
+  if (formLower.includes("massage gun")) return "🔫";
+  if (formLower.includes("dry-needling")) return "💉";
+  if (formLower.includes("e-stim")) return "⚡";
+  if (formLower.includes("foam rolling")) return "🧘";
+  if (formLower.includes("laser")) return "💡";
+  if (formLower.includes("nap")) return "😴";
+  if (formLower.includes("hbot")) return "🫁";
+  if (formLower.includes("hot tub") || formLower.includes("hottub")) return "♨️";
+  if (formLower.includes("ice bath")) return "🧊";
+  if (formLower.includes("massage") && !formLower.includes("gun")) return "🐯";
+  if (formLower.includes("red-light mask")) return "😷";
+  if (formLower.includes("red-light therapy")) return "🔴";
+  if (formLower.includes("salt bath")) return "🧂";
+  return "💪";
+};
 
 export default function RecoveryOptions() {
   const router = useRouter();
-  const [selected, setSelected] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recoveryZones, setRecoveryZones] = useState<RecoveryZone[]>([]);
 
-  const toggleSelect = (id: number) => {
-    setSelected((prev) =>
-      prev.includes(id)
-        ? prev.filter((i) => i !== id)
-        : [...prev, id]
-    );
+  // Fetch all recovery zones
+  useEffect(() => {
+    const fetchRecoveryZones = async () => {
+      try {
+        setLoading(true);
+        const zones = await getAllRecoveryZones();
+        setRecoveryZones(zones);
+        setError(null);
+      } catch (err: any) {
+        console.error("Error fetching recovery zones:", err);
+        setError(err.message || "Failed to load recovery options");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecoveryZones();
+  }, []);
+
+  // Handle Done button - redirect to selected recovery detail page
+  // You can change this to whatever page you want to redirect to
+  const handleDone = () => {
+    // Example: redirect to a specific recovery or back
+    router.back();
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center bg-white p-6 rounded-2xl shadow max-w-md">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-purple-600 text-white px-6 py-2 rounded-xl"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6 pb-24">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 pb-32">
       {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         <button
           onClick={() => router.back()}
-          className="p-2 rounded-full hover:bg-gray-200"
+          className="p-2 rounded-full hover:bg-gray-200 transition"
         >
           <ArrowLeft size={20} />
         </button>
@@ -59,45 +121,58 @@ export default function RecoveryOptions() {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-        {options.map((item) => {
-          const isActive = selected.includes(item.id);
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+        {recoveryZones.map((zone) => {
+          const icon = getIconEmoji(zone.form);
+          const displayTime = zone.time || "5-30m";
 
           return (
             <div
-              key={item.id}
-              onClick={() => toggleSelect(item.id)}
-              className={`cursor-pointer rounded-2xl p-4 bg-white border transition-all
-              ${
-                isActive
-                  ? "border-purple-500 ring-2 ring-purple-300"
-                  : "border-gray-200 hover:shadow-md"
-              }`}
+              key={zone.id}
+              onClick={() => router.push(`/recovery/selectedRecovery/${zone.form.toLowerCase().replace(/\s+/g, "-")}?id=${zone.id}`)}
+              className="cursor-pointer rounded-2xl p-4 bg-white border border-gray-200 transition-all hover:shadow-md hover:border-purple-300"
             >
-              {/* Icon box */}
-              <div className="bg-gray-100 rounded-xl h-24 flex items-center justify-center mb-3">
-                <span className="text-2xl">{item.icon}</span>
+              {/* Image/Icon box */}
+              <div className="bg-gray-100 rounded-xl h-24 flex items-center justify-center mb-3 overflow-hidden">
+                {zone.image ? (
+                  <img
+                    src={getImageUrl(zone.image)}
+                    alt={zone.form}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent) {
+                        const span = document.createElement("span");
+                        span.className = "text-2xl";
+                        span.textContent = icon;
+                        parent.appendChild(span);
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="text-2xl">{icon}</span>
+                )}
               </div>
 
               {/* Text */}
-              <p className="text-sm font-medium text-gray-800 text-center">
-                {item.name}
+              <p className="text-sm font-medium text-gray-800 text-center line-clamp-2">
+                {zone.form}
               </p>
               <p className="text-xs text-green-600 text-center mt-1">
-                {item.time}
+                {displayTime}
               </p>
             </div>
           );
         })}
       </div>
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t p-4 flex items-center justify-between">
-        <p className="text-xs text-gray-500">
-          Select a recovery method to learn more and add to your schedule
-        </p>
-
-        <button className="bg-purple-600 text-white px-6 py-2 rounded-lg shadow">
+      {/* Footer with Done Button */}
+      <div className="fixed bottom-0 left-0 w-full bg-white border-t p-4 flex justify-center shadow-lg">
+        <button
+          onClick={handleDone}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-2.5 rounded-lg shadow transition font-semibold"
+        >
           Done
         </button>
       </div>
