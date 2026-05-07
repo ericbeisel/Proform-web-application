@@ -185,7 +185,7 @@ export default function ManifestCardioPage() {
                   {/* Right side - Action Buttons */}
                   <div className="flex gap-2 justify-end sm:justify-start">
                     <button
-                      onClick={() => handleView(session.id)}
+                      
                       className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition"
                       title="View Details"
                     >
