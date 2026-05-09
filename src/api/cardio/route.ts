@@ -66,10 +66,16 @@ export interface CompleteCardioResponse {
   data: any;
 }
 
+// export interface CardioGoalPayload {
+//   calories_goal: number;
+//   member_id: string;
+// }
+
 export interface CardioGoalPayload {
-  calories_goal: number;
+  cardio_goal: number;  // Changed from 'calories_goal' to 'cardio_goal'
   member_id: string;
 }
+
 
 export interface CardioGoalResponse {
   message: string;
@@ -188,6 +194,38 @@ export interface CardioActivity {
   recurring: string;
   status: number;
   // ... other fields as needed
+}
+
+export interface CompletedCardioSession {
+  id: string;
+  title: string;
+  owner_id: string;
+  member_id: string;
+  minutes: number;
+  calories_burned: number;
+  created_at: string;
+  updated_at: string;
+  calculators?: any[];
+}
+
+export interface CardioSchedule {
+  id: string;
+  title: string;
+  owner_id: string;
+  member_id: string | null;
+  schedule_number: string;
+  days: number;
+  created_at: string;
+  updated_at: string;
+  day_name: string;
+  custom_activity_id: number;
+
+  completed_session: CompletedCardioSession | null;
+}
+
+export interface CardioSchedulesResponse {
+  cardio_goal: number;
+  schedules: CardioSchedule[];
 }
 
 // export interface CompleteCardioActivityPayload {
@@ -335,13 +373,53 @@ export const completeCardioSession = async (
 export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioGoalResponse> => {
   try {
     const token = getAuthToken();
-    const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", payload);
+    
+    // Ensure the payload has the correct field names
+    const requestPayload = {
+      cardio_goal: payload.cardio_goal,
+      member_id: payload.member_id,
+    };
+    
+    console.log("📤 Sending to /cardio/goal:", requestPayload);
+    
+    const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", requestPayload);
     console.log("📋 Set cardio goal response:", data);
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to set cardio goal."));
   }
 };
+
+// export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioGoalResponse> => {
+//   try {
+//     const token = getAuthToken();
+    
+//     console.log("📤 Sending to /cardio/goal:", {
+//       cardio_goal: payload.cardio_goal,
+//       member_id: payload.member_id,
+//     });
+    
+//     const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", {
+//       cardio_goal: payload.cardio_goal,
+//       member_id: payload.member_id,
+//     });
+//     console.log("📋 Set cardio goal response:", data);
+//     return data;
+//   } catch (error: unknown) {
+//     throw new Error(getErrorMessage(error, "Failed to set cardio goal."));
+//   }
+// };
+
+// export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioGoalResponse> => {
+//   try {
+//     const token = getAuthToken();
+//     const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", payload);
+//     console.log("📋 Set cardio goal response:", data);
+//     return data;
+//   } catch (error: unknown) {
+//     throw new Error(getErrorMessage(error, "Failed to set cardio goal."));
+//   }
+// };
 
 export const getCardioDashboard = async (): Promise<CardioDashboardResponse> => {
   try {
@@ -450,6 +528,27 @@ export const deleteCardioSession = async (sessionId: string): Promise<{ message:
   }
 };
 
+export const getCardioSchedules =
+  async (): Promise<CardioSchedulesResponse> => {
+    try {
+      const { data } =
+        await apiClient.get<CardioSchedulesResponse>(
+          "/cardio/schedules"
+        );
+
+      console.log("📋 Cardio schedules:", data);
+
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(
+          error,
+          "Failed to fetch cardio schedules."
+        )
+      );
+    }
+  };
+
 export const cardioApi = {
   getCardioMenu,
   addCardioSession,
@@ -462,6 +561,8 @@ export const cardioApi = {
     deleteCardioActivity,
     completeCardioActivity,
     quickLogCardio,
+    deleteCardioSession,
+    getCardioSchedules,
 };
 
 export default cardioApi;

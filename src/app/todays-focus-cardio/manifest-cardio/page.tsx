@@ -110,7 +110,7 @@ export default function ManifestCardioPage() {
               <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
                 <Flame size={16} className="text-white" />
               </div>
-              <h1 className="text-white font-bold text-lg">Cardio Manifest</h1>
+              <h1 className="text-white font-bold text-lg"> Manifest Cardio</h1>
             </div>
           </div>
           <button
