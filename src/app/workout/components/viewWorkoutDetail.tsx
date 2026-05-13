@@ -146,12 +146,12 @@ const ExerciseCard = ({
 
       {/* ACTION BUTTONS */}
    <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8 sm:mb-10 flex flex-wrap justify-end gap-2 sm:gap-3">
-  <button
+  {/* <button
     onClick={() => router.push("/location")}
     className="bg-[#6d28d9] text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center gap-2 text-xs sm:text-sm hover:bg-[#5b21b6] transition-colors"
   >
     Select Location <ChevronRight size={14} />
-  </button>
+  </button> */}
 
   {!isLocked ? (
     <button

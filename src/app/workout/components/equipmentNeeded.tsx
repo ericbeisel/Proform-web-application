@@ -122,20 +122,6 @@ const handleStartSession = () => {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-4">
         
-        {/* REQUIREMENTS BANNER */}
-{workoutEquipment.length > 0 && (
-            <div className="mb-8 p-5 bg-[#7c3aed]/5 rounded-[2rem] border border-[#7c3aed]/10">
-            <h3 className="text-xs font-bold text-[#7c3aed] uppercase tracking-widest mb-3">Goal Requirements</h3>
-            <div className="flex flex-wrap gap-2">
-{workoutEquipment.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-100 shadow-sm">
-                  {item.icon && <img src={item.icon} alt="" className="w-4 h-4 object-contain" />}
-                  <span className="text-xs font-semibold text-gray-700">{item.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* LOCATION SELECTION CARD */}
         <div className="bg-[#f8faff] rounded-[2rem] p-8 sm:p-10 border border-[#eef2ff] flex flex-col md:flex-row items-center gap-8 mb-12">
@@ -190,56 +176,6 @@ const handleStartSession = () => {
     </div>
   ) : (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-      {/* REQUIRED WORKOUT EQUIPMENT */}
-      {workoutEquipment.length > 0 && (
-        <div>
-          <div className="mb-5 flex items-center justify-between px-1">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Required For Workout
-              </h2>
-
-              <p className="text-sm text-gray-400 mt-1">
-                Equipment needed to perform this session
-              </p>
-            </div>
-
-            <span className="text-xs font-bold bg-[#7c3aed] text-white px-3 py-1 rounded-full uppercase">
-              {workoutEquipment.length} Items
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {workoutEquipment.map((eq: any, i: number) => (
-              <div
-                key={i}
-                className="relative flex flex-col items-center bg-gradient-to-b from-[#faf7ff] to-white border-2 border-[#7c3aed] rounded-3xl p-6 shadow-sm"
-              >
-                <div className="absolute top-3 right-3 text-[#7c3aed]">
-                  <CheckCircle2 size={20} fill="white" />
-                </div>
-
-                <div className="h-16 w-16 mb-4 flex items-center justify-center bg-white rounded-2xl p-2 shadow-sm border border-purple-100">
-                  {eq.icon ? (
-                    <img
-                      src={eq.icon}
-                      alt={eq.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <Dumbbell size={28} className="text-[#7c3aed]" />
-                  )}
-                </div>
-
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#7c3aed] text-center">
-                  {eq.name}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* AVAILABLE LOCATION EQUIPMENT */}
       {equipments.length > 0 && (
