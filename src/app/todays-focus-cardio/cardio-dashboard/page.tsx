@@ -16,6 +16,8 @@ import {
   Pencil,
   X,
   ArrowRight,
+  Delete,
+  Trash,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {   getCardioHistory,
@@ -35,6 +37,8 @@ export default function CardioDashboardPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showEditGoalModal, setShowEditGoalModal] = useState(false);
 const [editGoalValue, setEditGoalValue] = useState("");
+const [showSessionPopup, setShowSessionPopup] = useState(false);
+const [selectedSession, setSelectedSession] = useState<any>(null);
   const [dashboardData, setDashboardData] =
   useState<CardioDashboardResponse | null>(null);
   const [currentPage] = useState(1);
@@ -343,7 +347,10 @@ const [memberId, setMemberId] = useState<string>("");
       </thead>
       <tbody className="divide-y divide-gray-100">
         {historyData?.data?.map((session) => (
-          <tr key={session.id} className="hover:bg-gray-50 transition">
+          <tr key={session.id} className="hover:bg-gray-50 transition"   onClick={() => {
+    setSelectedSession(session);
+    setShowSessionPopup(true);
+  }}>
             <td className="py-3 px-4">
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
                 {session.menu_demo_url ? (
@@ -406,9 +413,7 @@ const [memberId, setMemberId] = useState<string>("");
           </button>
         </div>
       </div>
-      {/* Edit Goal Modal */}
-{/* Edit Goal Modal - Same style as Cardio Goal Modal */}
-{showEditGoalModal && (
+  {showEditGoalModal && (
   <div
     className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-4"
     onClick={() => setShowEditGoalModal(false)}
@@ -506,6 +511,138 @@ const [memberId, setMemberId] = useState<string>("");
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+)}
+{/* CARDIO SESSION POPUP */}
+{showSessionPopup && selectedSession && (
+  <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-sm flex items-center justify-center p-3">
+
+    <div className="relative w-full max-w-[360px] rounded-[22px] bg-[#f8f8f8] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+
+      {/* TOP */}
+      <div className="px-3 pt-3">
+
+        <div className="flex items-center justify-between">
+
+          {/* EDIT */}
+          <button className="w-8 h-8 rounded-full bg-[#dbe8ff] flex items-center justify-center">
+            <Pencil
+              size={14}
+              className="text-[#3b82f6]"
+            />
+          </button>
+
+          {/* CLOSE */}
+          <button
+          
+            className="w-8 h-8 rounded-full bg-[#ffe3e3] flex items-center justify-center"
+          >
+            <Trash
+              size={14}
+              className="text-[#ff4d4f]"
+            />
+          </button>
+        </div>
+
+        {/* TITLE */}
+        <div className="text-center mt-2">
+          <h2 className="text-[22px] font-black text-[#1a1a1a] leading-none">
+            {selectedSession.menu_name ||
+              selectedSession.title ||
+              "Cardio"}
+          </h2>
+        </div>
+      </div>
+
+      {/* DIVIDER */}
+      <div className="mt-3 border-t border-gray-200" />
+
+      {/* BODY */}
+      <div className="p-3">
+
+        {/* IMAGE */}
+        <div className="rounded-[16px] overflow-hidden border-2 border-purple-500 shadow-sm">
+
+          {selectedSession.menu_demo_url ? (
+            <img
+              src={selectedSession.menu_demo_url}
+              alt=""
+              className="w-full h-[120px] object-cover"
+            />
+          ) : (
+            <div className="w-full h-[120px] bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+              <ImageIcon
+                size={30}
+                className="text-gray-500"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* STATS */}
+        <div className="grid grid-cols-2 gap-2 mt-3">
+
+          {/* CALORIES */}
+          <div className="rounded-[15px] bg-[#ff7b45] p-3 text-white">
+
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-2">
+              <Flame size={16} />
+            </div>
+
+            <p className="text-[10px] font-medium opacity-90">
+              Calories
+            </p>
+
+            <h3 className="text-[28px] font-black leading-none mt-1">
+              {selectedSession.calories_burned || 0}
+            </h3>
+          </div>
+
+          {/* TIME */}
+          <div className="rounded-[15px] bg-[#e8def5] p-3">
+
+            <div className="w-8 h-8 rounded-full bg-[#d4b8ff] flex items-center justify-center mb-2">
+              <Clock
+                size={16}
+                className="text-[#6202AC]"
+              />
+            </div>
+
+            <p className="text-[10px] font-semibold text-[#7b61a8]">
+              Time
+            </p>
+
+            <h3 className="text-[20px] font-black text-[#6202AC] mt-1 leading-tight">
+              {selectedSession.minutes || 0} min
+            </h3>
+          </div>
+        </div>
+
+        {/* BUTTON */}
+        <button
+          onClick={() =>
+            router.push(
+              "/todays-focus-cardio/scheduled-cardio"
+            )
+          }
+          className="mt-4 w-full h-[44px] rounded-[16px] border-2 border-[#7b2cff] text-[#6202AC] text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-purple-50 transition"
+        >
+          <Calendar size={15} />
+          Cardio Schedule
+        </button>
+
+        {/* CLOSE */}
+        <button
+          onClick={() => {
+            setShowSessionPopup(false);
+            setSelectedSession(null);
+          }}
+          className="w-full text-center mt-3 text-xs text-gray-500 font-semibold hover:text-gray-700 transition"
+        >
+          Close
+        </button>
       </div>
     </div>
   </div>

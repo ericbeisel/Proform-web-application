@@ -1,288 +1,1189 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Heart, Plus, Search, MoreVertical, Users, TrendingUp, Calendar, Share, Share2Icon, LayoutDashboard } from "lucide-react";
-import { feedApi, CurrentUser, Feed } from "@/api/feed/route";
+import {
+  Heart,
+  Plus,
+  Search,
+  MoreVertical,
+  TrendingUp,
+  Flame,
+  Activity,
+  Bell,
+  Users,
+  X,
+  CalendarDays,
+  FolderPlus,
+  ChevronDown,
+  Home,
+} from "lucide-react";
+import { feedApi, CurrentUser, Feed, HighlightGroup, HighlightItem } from "@/api/feed/route";
 import { useRouter } from "next/navigation";
 
-function groupByDate(feeds: Feed[]): { label: string; feeds: Feed[] }[] {
-  const map: Record<string, Feed[]> = {};
+interface ExtendedFeed extends Feed {
+  date?: string;
+  activity_id?: string;
+  user?: {
+    id: number;
+    name: string;
+    username: string;
+    email: string;
+    image: string;
+  } | null;
+  member_id?: string;
+  type: string;
+}
+
+function groupByDate(
+  feeds: ExtendedFeed[]
+): { label: string; feeds: ExtendedFeed[] }[] {
+  const map: Record<string, ExtendedFeed[]> = {};
   const order: string[] = [];
+
   feeds.forEach((f) => {
-    const d = new Date(f.created_at);
+    const d = new Date(f.date || f.created_at);
+
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
+
     let label: string;
-    if (d.toDateString() === today.toDateString()) label = "Today";
-    else if (d.toDateString() === yesterday.toDateString()) label = "Yesterday";
-    else label = d.toLocaleDateString("en-US", { weekday: "long" });
+
+    if (d.toDateString() === today.toDateString()) {
+      label = "Today";
+    } else if (d.toDateString() === yesterday.toDateString()) {
+      label = "Yesterday";
+    } else {
+      label = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    }
+
     if (!map[label]) {
       map[label] = [];
       order.push(label);
     }
+
     map[label].push(f);
   });
-  return order.map((label) => ({ label, feeds: map[label] }));
+
+  return order.map((label) => ({
+    label,
+    feeds: map[label],
+  }));
 }
 
 export default function FeedMainPage() {
-  const [feeds, setFeeds] = useState<Feed[]>([]);
-  const [highlights, setHighlights] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
   const router = useRouter();
 
-  useEffect(() => { loadData(); }, []);
+  const [feeds, setFeeds] = useState<ExtendedFeed[]>([]);
+  const [showCardioPopup, setShowCardioPopup] = useState(false);
+  const [showHighlightPopup, setShowHighlightPopup] =
+  useState(false);
+const [highlights, setHighlights] = useState<HighlightGroup[]>([]);
 
-  const loadData = async () => {
-    try {
-      const res = await feedApi.getFeed(1);
-      setFeeds(res.feeds || []);
-      setCurrentUser(res.currectUser);
-      if (res.currectUser?.id) {
-        const highlightRes = await feedApi.getHighlights(res.currectUser.id);
-        setHighlights(highlightRes || []);
+const [selectedGroup, setSelectedGroup] = useState<HighlightGroup | null>(null);
+const [activeIndex, setActiveIndex] = useState(0);
+const [showHighlightViewer, setShowHighlightViewer] = useState(false);
+const [fillActive, setFillActive] = useState(false);
+
+const SLIDE_DURATION = 5000;
+
+useEffect(() => {
+  if (!showHighlightViewer || !selectedGroup) return;
+
+  setFillActive(false);
+  const fillTimer = setTimeout(() => setFillActive(true), 50);
+
+  const advanceTimer = setTimeout(() => {
+    setActiveIndex((i) => {
+      const next = i + 1;
+      if (next >= selectedGroup.highlights.length) {
+        setShowHighlightViewer(false);
+        setSelectedGroup(null);
+        return 0;
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return next;
+    });
+  }, SLIDE_DURATION);
 
-  const handleSearch = async (value: string) => {
-    setSearch(value);
-    if (!value.trim()) { setSearchResults([]); return; }
-    try {
-      const res = await feedApi.searchUsers(value);
-      setSearchResults(res);
-    } catch (err) { console.error(err); }
+  return () => {
+    clearTimeout(fillTimer);
+    clearTimeout(advanceTimer);
   };
+}, [showHighlightViewer, activeIndex, selectedGroup]);
+const [highlightDescription, setHighlightDescription] =
+  useState("");
 
-  const handleLike = async (feed: Feed) => {
-    if (!currentUser) return;
-    const isLiked = feed.likes.includes(String(currentUser.id));
+const [highlightFile, setHighlightFile] =
+  useState<File | null>(null);
+
+const [creatingHighlight, setCreatingHighlight] =
+  useState(false);
+  const [currentUser, setCurrentUser] =
+    useState<CurrentUser | null>(null);
+
+  const [loading, setLoading] = useState(true);
+
+  const [likingFeedId, setLikingFeedId] =
+    useState<string | null>(null);
+
+  const [showMyWorkoutsOnly, setShowMyWorkoutsOnly] =
+    useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+ const loadData = async () => {
+  try {
+    const res = await feedApi.getFeed(1);
+
+    const mappedFeeds: ExtendedFeed[] = (
+      res.feeds || []
+    ).map((feed) => ({
+      ...feed,
+      date: (feed as any).date || feed.created_at,
+      activity_id: (feed as any).activity_id,
+      user: (feed as any).user,
+      member_id: (feed as any).member_id,
+      type: (feed as any).type || "activity",
+    }));
+
+    setFeeds(mappedFeeds);
+
+    setCurrentUser(res.currectUser);
+
+    // FETCH HIGHLIGHTS
+    const highlightsData = await feedApi.listHighlights(1);
+    setHighlights(highlightsData);
+  } catch (err) {
+    console.error("Failed to load feed:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const handleLike = async (feed: ExtendedFeed) => {
+    if (!currentUser || likingFeedId) return;
+
+    const feedIdString = String(feed.id);
+
+    setLikingFeedId(feedIdString);
+
+    const isLiked = feed.likes?.includes(
+      String(currentUser.id)
+    );
+
     try {
-      if (isLiked) await feedApi.unlikeFeed(feed.id);
-      else await feedApi.likeFeed(feed.id);
+      if (isLiked) {
+        await feedApi.unlikeFeed(Number(feed.id));
+      } else {
+        await feedApi.likeFeed(Number(feed.id));
+      }
+
       setFeeds((prev) =>
         prev.map((f) =>
-          f.id === feed.id
+          String(f.id) === feedIdString
             ? {
                 ...f,
-                likeCount: isLiked ? f.likeCount - 1 : f.likeCount + 1,
+                likeCount: isLiked
+                  ? f.likeCount - 1
+                  : f.likeCount + 1,
                 likes: isLiked
-                  ? f.likes.filter((id) => id !== String(currentUser.id))
-                  : [...f.likes, String(currentUser.id)],
+                  ? (f.likes || []).filter(
+                      (id) =>
+                        id !== String(currentUser.id)
+                    )
+                  : [
+                      ...(f.likes || []),
+                      String(currentUser.id),
+                    ],
               }
             : f
         )
       );
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+    } finally {
+      setLikingFeedId(null);
+    }
   };
 
-  const handleCreateHighlight = async (file: File) => {
+  const handleCreateHighlight = async () => {
+  if (!highlightFile) {
+    alert("Please upload a photo or video");
+    return;
+  }
+
+  try {
+    setCreatingHighlight(true);
+
     const formData = new FormData();
-    formData.append("image", file);
-    try {
-      await feedApi.createHighlight(formData);
-      loadData();
-    } catch (err) { console.error(err); }
-  };
+
+    formData.append("description", highlightDescription);
+    formData.append("file", highlightFile);
+
+    await feedApi.createHighlight(formData);
+
+    alert("Highlight created successfully");
+
+    setShowHighlightPopup(false);
+    setHighlightDescription("");
+    setHighlightFile(null);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to create highlight");
+  } finally {
+    setCreatingHighlight(false);
+  }
+};
+
+
 
   if (loading) {
     return (
-      <div className="w-full min-h-screen bg-[#f6f6fc] flex justify-center items-center">
-        <div className="text-[#aaa] text-sm animate-pulse">Loading feed...</div>
+      <div className="w-full min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <div className="text-gray-400 text-sm animate-pulse">
+          Loading feed...
+        </div>
       </div>
     );
   }
 
-  const grouped = groupByDate(feeds);
+  const filteredFeeds = showMyWorkoutsOnly
+    ? feeds.filter(
+        (feed) =>
+          String(feed.member_id) ===
+          String(currentUser?.id)
+      )
+    : feeds;
+
+  const grouped = groupByDate(filteredFeeds);
+
+  const trendingItems = [
+    {
+      name: "Reconditioning (Week 1) LOWER BODY",
+      user: "@granada1959",
+    },
+    {
+      name: "started a cardio session",
+      user: "@ebesel",
+    },
+    {
+      name: "Upper Body Strength Training",
+      user: "@sarah_fitness",
+    },
+  ];
 
   return (
-    <div className="w-full min-h-screen bg-[#f6f6fc] font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-6 lg:px-7 pt-4 sm:pt-5 md:pt-6 pb-16 w-full">
-        
-        {/* PAGE TITLE - Updated font sizes */}
-        <div className="mb-4 sm:mb-5">
-          <h1 className="text-lg md:text-2xl font-bold text-[#6c3fef] m-0 tracking-tight">Activity Feed</h1>
-          <p className="text-[10px] md:text-sm text-[#aaa] mt-0.5">See what your friends are up to</p>
+    <div className="w-full min-h-screen bg-[#f8f9fa] font-sans">
+      {/* HEADER */}
+   <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+
+    {/* HEADER ROW */}
+    <div className="relative flex items-center justify-between gap-4">
+
+      {/* CENTER LOGO */}
+      <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="flex items-center justify-center"
+        >
+          <img
+            src="/images/proform-logo.jpg"
+            alt="Proform Logo"
+            className="w-10 h-10 object-contain rounded-xl shadow-sm"
+          />
+        </button>
+      </div>
+
+      {/* LEFT */}
+      <div className="flex items-center gap-4 flex-1">
+
+        {/* HOME */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-md">
+            <Home size={18} className="text-white" />
+          </div>
+          <span className="hidden sm:block text-xl font-black text-gray-900 tracking-tight">
+            Feed
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5 mb-4 sm:mb-5">
-          <div className="flex-1 relative">
-            <div className="flex items-center gap-[9px] bg-white border border-[#e5e5ef] rounded-[10px] px-3 sm:px-3.5 py-2 sm:py-2.5">
-              <Search size={14} className="text-[#bbb]" />
-              <input
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search users by name or username..."
-                className="border-none outline-none text-sm md:text-base text-[#222] bg-transparent w-full font-inherit"
-              />
+        {/* SEARCH */}
+        <div className="relative hidden sm:block w-full max-w-sm">
+          <Search
+            size={17}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+
+          <input
+            type="text"
+            placeholder="Search feed..."
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
+          />
+        </div>
+      </div>
+
+      {/* RIGHT */}
+      <div className="flex items-center gap-2">
+
+        {/* TRENDING */}
+        <button
+          onClick={() => router.push("/feed/explore")}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-orange-50 hover:border-orange-200 transition-all group"
+        >
+          <TrendingUp
+            size={18}
+            className="text-orange-500 group-hover:scale-110 transition-transform"
+          />
+        </button>
+
+        {/* FOLLOW PEOPLE */}
+        <button
+          onClick={() => router.push("/profile/components/UserList")}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-blue-50 hover:border-blue-200 transition-all group"
+        >
+          <Users
+            size={18}
+            className="text-blue-600 group-hover:scale-110 transition-transform"
+          />
+        </button>
+
+        {/* NOTIFICATION */}
+        <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
+          <Bell
+            size={18}
+            className="text-purple-600"
+          />
+
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+        </button>
+<button
+  onClick={() => setShowHighlightPopup(true)}
+  className="hidden sm:flex items-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-2.5 text-sm font-bold text-purple-700 shadow-sm hover:bg-purple-100 hover:scale-[1.02] transition-all"
+>
+  <Plus size={16} />
+  Highlight
+</button>
+        {/* CREATE */}
+        <button className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all">
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
+
+    {/* MOBILE SEARCH */}
+    <div className="relative mt-4 sm:hidden">
+      <Search
+        size={17}
+        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+      />
+
+      <input
+        type="text"
+        placeholder="Search feed..."
+        className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
+      />
+    </div>
+  </div>
+</div>
+{/* HIGHLIGHTS */}
+
+      {/* CONTENT */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* FILTERS */}
+    {/* HIGHLIGHTS + TOGGLE */}
+<div className="mb-5 mt-4 flex items-center justify-between gap-4">
+
+  {/* HIGHLIGHTS */}
+  <div className="flex-1 overflow-x-auto scrollbar-hide">
+    <div className="flex items-start gap-3 min-w-max px-1">
+
+      {/* ADD HIGHLIGHT CIRCLE */}
+      <button
+        onClick={() => setShowHighlightPopup(true)}
+        className="flex flex-col items-center gap-1.5 shrink-0"
+      >
+        <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 p-[2px] shadow-md">
+          <div className="w-full h-full rounded-full bg-white p-[2px]">
+            <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center">
+              <Plus size={22} className="text-purple-600" strokeWidth={2.5} />
             </div>
-            {searchResults.length > 0 && (
-              <div className="absolute top-[calc(100%+5px)] left-0 right-0 bg-white border border-[#e5e5ef] rounded-[10px] shadow-[0_6px_20px_rgba(0,0,0,.09)] z-50">
-                {searchResults.map((user) => (
-                  <div key={user.id} className="flex items-center gap-2.5 px-3.5 py-[9px] cursor-pointer hover:bg-gray-50">
-                    <img src={user.image} className="w-[30px] h-[30px] rounded-full object-cover" alt={user.username} />
-                    <span className="text-sm text-[#222] font-semibold">{user.username}</span>
+          </div>
+        </div>
+        <p className="text-[10px] font-semibold text-gray-700 max-w-[58px] truncate text-center">
+          Add
+        </p>
+      </button>
+
+      {highlights.map((group) => (
+        <button
+          key={group.user.id}
+          onClick={() => {
+            setSelectedGroup(group);
+            setActiveIndex(0);
+            setShowHighlightViewer(true);
+          }}
+          className="flex flex-col items-center gap-1.5 shrink-0"
+        >
+          <div className={`w-[56px] h-[56px] rounded-full p-[2px] shadow-md ${
+            !group.all_watched
+              ? "bg-gradient-to-br from-pink-500 via-orange-400 to-purple-600"
+              : "bg-gray-300"
+          }`}>
+            <div className="w-full h-full rounded-full bg-white p-[2px]">
+              <div className="w-full h-full rounded-full overflow-hidden bg-gray-100">
+                {group.user.image ? (
+                  <img
+                    src={group.user.image}
+                    alt={group.user.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
+                    <Flame size={16} className="text-purple-500" />
                   </div>
-                ))}
+                )}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[10px] font-semibold text-gray-700 max-w-[58px] truncate text-center">
+            {group.user.username}
+          </p>
+        </button>
+      ))}
+    </div>
+  </div>
+
+  {/* TOGGLE */}
+  <div className="shrink-0 hidden md:flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
+
+    <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">
+      My Workouts
+    </span>
+
+    <button
+      onClick={() =>
+        setShowMyWorkoutsOnly(!showMyWorkoutsOnly)
+      }
+      className={`
+        relative w-11 h-6 rounded-full transition-all duration-300
+        ${
+          showMyWorkoutsOnly
+            ? "bg-gradient-to-r from-purple-600 to-indigo-600"
+            : "bg-gray-300"
+        }
+      `}
+    >
+      <div
+        className={`
+          absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
+          ${
+            showMyWorkoutsOnly
+              ? "left-5"
+              : "left-0.5"
+          }
+        `}
+      />
+    </button>
+  </div>
+</div>
+
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* MAIN FEED */}
+          <div className="flex-1">
+            {grouped.map((group) => (
+              <div
+                key={group.label}
+                className="mb-8"
+              >
+                {/* DATE */}
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-5 bg-[#6c3fef] rounded-full" />
+
+                  <h3 className="text-base font-bold text-gray-800">
+                    {group.label}
+                  </h3>
+                </div>
+
+                {/* CARDS */}
+                {group.feeds.map((feed) => {
+                  const displayUser = feed.user;
+
+                  const activityLabel =
+                    feed.type ===
+                    "CompleteWorkout"
+                      ? "PRIMARY"
+                      : feed.type ===
+                        "CompleteCardio"
+                      ? "CARDIO"
+                      : "WORKOUT";
+
+                  return (
+                    <div
+                      key={String(feed.id)}
+                      className="relative bg-white rounded-[26px] border border-[#ececf3] px-5 py-5 mb-4 overflow-hidden shadow-sm"
+                    >
+                      <div className="absolute top-0 right-0 w-[120px] h-[120px] rounded-full bg-[#f7f5fb] translate-x-[35%] -translate-y-[35%]" />
+
+                      <div className="relative z-10 flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          {/* AVATAR */}
+                          <div className="relative shrink-0">
+                            <div className="w-[54px] h-[54px] rounded-full bg-[#8b5cf6] p-[3px] shadow-[0_6px_16px_rgba(139,92,246,0.30)]">
+                              <div className="w-full h-full rounded-full bg-[#10b981] border-[2px] border-white overflow-hidden flex items-center justify-center">
+                                {displayUser?.image ? (
+                                  <img
+                                    src={
+                                      displayUser.image
+                                    }
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-white text-xl font-bold">
+                                    {(
+                                      displayUser?.username ||
+                                      "U"
+                                    )
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* CONTENT */}
+                          <div className="pt-0.5">
+                            <h3 className="text-[15px] font-bold text-[#1da1f2] leading-none">
+                              @
+                              {displayUser?.username ||
+                                "username"}
+                            </h3>
+
+                            <div className="mt-2.5">
+                              <span className="inline-flex items-center gap-1.5 bg-[#3b82f6] text-white text-[9px] font-bold px-3 py-[6px] rounded-full uppercase tracking-wide">
+                                <span className="w-[5px] h-[5px] rounded-full bg-white" />
+
+                                {activityLabel}
+                              </span>
+                            </div>
+
+                            <h2 className="mt-1.5 text-[16px] font-bold text-[#111827] leading-snug">
+                              {feed.title ||
+                                "Workout Session"}
+                            </h2>
+
+                            <button
+                              onClick={() => {
+                                const activityId =
+                                  feed.activity_id;
+
+                                if (activityId) {
+                                  router.push(
+                                    `/session/${activityId}`
+                                  );
+                                }
+                              }}
+                              className="mt-5 h-[42px] px-5 rounded-2xl bg-[#eaf6ff] text-[#10b7f5] font-bold text-[14px] hover:opacity-90 transition flex items-center gap-2"
+                            >
+                              View/join session
+                              <span className="text-[16px]">
+                                →
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* MENU */}
+                        <button   onClick={() => setShowCardioPopup(true)} className="relative z-20 p-1">
+                          <MoreVertical
+                            size={17}
+                            className="text-[#d1d5db]"
+                          />
+                        </button>
+                      </div>
+
+                      {/* FOOTER */}
+                      <div className="relative z-10 mt-6">
+                        <div className="inline-flex items-center overflow-hidden rounded-full border border-[#e5e7eb] bg-white shadow-sm">
+                          {/* COMMENTS */}
+                          <button className="flex items-center gap-2 px-5 h-[44px] text-[#374151]">
+                            <span className="text-[15px] font-semibold">
+                              {(feed as any)
+                                .commentsCount || 0}
+                            </span>
+                          </button>
+
+                          <div className="w-px h-5 bg-[#e5e7eb]" />
+
+                          {/* LIKES */}
+                          <button
+                            onClick={() =>
+                              handleLike(feed)
+                            }
+                            disabled={
+                              likingFeedId ===
+                              String(feed.id)
+                            }
+                            className="flex items-center gap-2 px-5 h-[44px] text-[#8b5cf6]"
+                          >
+                            <Heart
+                              size={17}
+                              className={`${
+                                feed.likes?.includes(
+                                  String(
+                                    currentUser?.id
+                                  )
+                                )
+                                  ? "fill-[#8b5cf6]"
+                                  : ""
+                              }`}
+                            />
+
+                            <span className="text-[15px] font-semibold">
+                              {feed.likeCount}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            {/* EMPTY */}
+            {filteredFeeds.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                <Activity
+                  size={48}
+                  className="text-gray-300 mx-auto mb-3"
+                />
+
+                <p className="text-gray-500">
+                  No activities yet
+                </p>
+
+                <p className="text-sm text-gray-400">
+                  Follow friends to see their workouts
+                  here
+                </p>
               </div>
             )}
           </div>
 
-          {/* CALENDAR BUTTON */}
-          <div onClick={() => router.push("/checklist")} className="w-9 h-9 sm:w-[42px] sm:h-[42px] bg-white border border-[#e5e5ef] rounded-[10px] flex items-center justify-center cursor-pointer relative flex-shrink-0 hover:bg-gray-50 transition-colors">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <span className="absolute -top-1 -right-1 bg-[#e8365d] text-[8px] sm:text-[9px] font-bold text-white rounded-full px-1 py-0.5 border-2 border-[#f6f6fc] min-w-[16px] text-center">
-              3
-            </span>
-          </div>
-          
-          <div
-            onClick={() => router.push("/dashboard")}
-            className="w-9 h-9 sm:w-[42px] sm:h-[42px] bg-white border border-[#e5e5ef] rounded-[10px] flex items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-50 transition-colors"
-          >
-            <LayoutDashboard size={15} className="text-[#555]" />
-          </div>
-          
-          {/* PLUS BUTTON */}
-          <div className="w-9 h-9 sm:w-[42px] sm:h-[42px] bg-white border border-[#e5e5ef] rounded-[10px] flex items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-50 transition-colors">
-            <Plus size={15} className="text-[#555]" />
-          </div>
+          {/* RIGHT SIDEBAR */}
+          <div className="lg:w-80 space-y-6">
+            {/* TRENDING */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Flame
+                  size={18}
+                  className="text-[#e8365d]"
+                />
 
-          {/* NEW STANDALONE SEARCH ICON (Most Right) */}
-          <div className="w-9 h-9 sm:w-[42px] sm:h-[42px] bg-white border border-[#e5e5ef] rounded-[10px] flex items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-50 transition-colors">
-            <Search onClick={() => router.push("/profile/components/UserList")} size={15} className="text-[#555]" />
+                <h3 className="font-bold text-gray-800">
+                  Trending Today
+                </h3>
+              </div>
+
+              <div className="space-y-3">
+                {trendingItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start gap-3 rounded-2xl p-2 hover:bg-gray-50 transition-all"
+                  >
+                    {/* RANK */}
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-orange-300 via-orange-400 to-orange-500 flex items-center justify-center shadow-[0_6px_14px_rgba(249,115,22,0.35)] border border-orange-200">
+                      <span className="text-xs font-black text-white">
+                        {idx + 1}
+                      </span>
+                    </div>
+
+                    {/* CONTENT */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {item.name}
+                      </p>
+
+                      <p className="text-xs text-gray-400">
+                        {item.user}
+                      </p>
+                    </div>
+
+                    <button className="text-[#e8365d] hover:scale-110 transition-transform">
+                      <Heart
+                        size={16}
+                        className="fill-[#e8365d]"
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SUGGESTED */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <h3 className="font-bold text-gray-800 mb-3">
+                Suggested Athletes
+              </h3>
+
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300"></div>
+
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-800">
+                        athlete_{i}
+                      </p>
+
+                      <p className="text-xs text-gray-400">
+                        1.2k followers
+                      </p>
+                    </div>
+
+                    <button className="text-xs font-semibold text-white border border-[#6c3fef] px-3 py-1 rounded-full bg-[#6c3fef] transition-colors">
+                      Follow
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+{showCardioPopup && (
+  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto">
+    
+    {/* CENTER WRAPPER */}
+    <div className="min-h-screen flex items-center justify-center p-2 sm:p-4">
+      
+      {/* POPUP */}
+      <div className="relative w-full max-w-[95vw] sm:max-w-2xl lg:max-w-3xl rounded-[24px] sm:rounded-[30px] bg-white border border-gray-100 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
 
-        {/* HIGHLIGHTS */}
-        {highlights.length > 0 && (
-          <div className="flex gap-2 sm:gap-3.5 overflow-x-auto pb-2 mb-4 sm:mb-5 no-scrollbar">
-            <label className="flex flex-col items-center gap-1 sm:gap-1.5 cursor-pointer">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-[#f0eeff] border-2 border-dashed border-[#c4b5fd] flex items-center justify-center">
-                <Plus size={16} className="text-[#6c3fef]" />
-              </div>
-              <span className="text-[9px] sm:text-[11px] text-[#888] font-bold">Add</span>
-              <input type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCreateHighlight(f); }} />
-            </label>
-            {highlights.map((item, i) => (
-              <div key={i} className="flex flex-col items-center gap-1 sm:gap-1.5 flex-shrink-0">
-                <div className="p-[1.5px] sm:p-[2.5px] rounded-full bg-gradient-to-br from-[#f9a825] via-[#f04e6b] to-[#6c3fef]">
-                  <img src={item.image} className="w-10 h-10 sm:w-14 sm:h-14 rounded-full border-2 border-white object-cover block" alt={item.username} />
+        {/* CLOSE */}
+        <button
+          onClick={() => setShowCardioPopup(false)}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition"
+        >
+          <X size={15} className="text-gray-700" />
+        </button>
+
+        {/* CONTENT */}
+        <div className="p-4 sm:p-6 md:p-7 pr-12 sm:pr-14">
+
+          {/* TOP */}
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+
+            {/* LEFT */}
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+
+              {/* ADD */}
+              <button className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg flex items-center justify-center shrink-0">
+                <Plus size={18} className="text-white" />
+              </button>
+
+              {/* USER */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CalendarDays
+                    size={14}
+                    className="text-purple-500 shrink-0"
+                  />
+
+                  <p className="text-[13px] sm:text-[15px] text-gray-700 break-words">
+                    <span className="font-bold">
+                      Author:
+                    </span>{" "}
+                    komal rajpure
+                  </p>
                 </div>
-                <span className="text-[9px] sm:text-[11px] text-[#888] font-bold max-w-[45px] sm:max-w-[62px] truncate">{item.username}</span>
+
+                <p className="text-[11px] sm:text-xs text-gray-400 ml-5 sm:ml-6 truncate">
+                  @komal123
+                </p>
               </div>
-            ))}
+            </div>
+
+            {/* RIGHT */}
+            <div className="sm:text-right">
+              <div className="flex items-center gap-2 sm:justify-end">
+                <Flame
+                  size={17}
+                  className="text-orange-500"
+                />
+
+                <p className="text-[13px] sm:text-sm font-bold text-gray-700">
+                  Submit Cardio
+                </p>
+              </div>
+
+              <p className="mt-1 text-[13px] sm:text-sm font-bold text-purple-600">
+                Left this week: 7000
+              </p>
+            </div>
+          </div>
+
+          {/* DIVIDER */}
+          <div className="my-5 border-t border-gray-100" />
+
+          {/* GOALS */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 sm:p-4 text-center">
+              <p className="text-2xl sm:text-3xl font-black text-purple-600">
+                400
+              </p>
+
+              <p className="mt-1 text-[11px] sm:text-sm font-semibold text-gray-500">
+                Goal Calories
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 sm:p-4 text-center">
+              <p className="text-2xl sm:text-3xl font-black text-orange-500">
+                5
+              </p>
+
+              <p className="mt-1 text-[11px] sm:text-sm font-semibold text-gray-500">
+                Goal Minutes
+              </p>
+            </div>
+          </div>
+
+          {/* SESSION BOX */}
+          <div className="mt-5 rounded-[22px] sm:rounded-[24px] border border-gray-100 bg-[#fafafa] p-4 sm:p-5">
+
+            {/* HEADER */}
+            <div className="flex items-center justify-between gap-3 mb-5">
+
+              <p className="text-[10px] sm:text-xs font-medium text-gray-400 leading-relaxed">
+                Started: 5/10/2026 @ 2:23 am
+              </p>
+
+              <button className="shrink-0">
+                <FolderPlus
+                  size={18}
+                  className="text-purple-600"
+                />
+              </button>
+            </div>
+
+            {/* FORM */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+
+              {/* SELECT */}
+              <select
+                className="h-11 sm:h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-500 outline-none focus:border-purple-500"
+              >
+                <option>Choose Activity</option>
+              </select>
+
+              {/* CALORIES */}
+              <input
+                type="number"
+                placeholder="Calories"
+                className="h-11 sm:h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold outline-none focus:border-purple-500"
+              />
+
+              {/* MINUTES */}
+              <input
+                type="number"
+                placeholder="Minutes"
+                className="h-11 sm:h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm font-bold outline-none focus:border-purple-500"
+              />
+            </div>
+
+            {/* MESSAGE */}
+            <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 px-4 py-3">
+              <p className="text-[10px] sm:text-xs font-medium text-red-400 leading-relaxed">
+                It should take you about 94 minutes to burn 300 calories
+              </p>
+            </div>
+          </div>
+
+          {/* FOOTER */}
+          <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+
+            {/* LEFT */}
+            <div>
+              <p className="text-sm text-gray-400">
+                Remaining
+              </p>
+
+              <h3 className="text-2xl font-black text-gray-800">
+                100
+              </h3>
+            </div>
+
+            {/* BUTTONS */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+
+              <button className="rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-bold text-purple-600 hover:bg-purple-100 transition w-full sm:w-auto">
+                Duplicate
+              </button>
+
+              <button className="rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg hover:scale-[1.02] transition w-full sm:w-auto">
+                Start Session
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+{showHighlightPopup && (
+  <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+
+    <div className="relative w-full max-w-lg rounded-[30px] bg-white shadow-2xl border border-gray-100 overflow-hidden">
+
+      {/* CLOSE */}
+      <button
+        onClick={() => setShowHighlightPopup(false)}
+        className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 transition flex items-center justify-center"
+      >
+        <X size={18} className="text-gray-700" />
+      </button>
+
+      {/* HEADER */}
+      <div className="px-6 pt-6 pb-5 border-b border-gray-100">
+
+        <div className="flex items-center gap-3">
+
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg">
+            <Plus size={20} className="text-white" />
+          </div>
+
+          <div>
+            <h2 className="text-xl font-black text-gray-900">
+              Create Highlight
+            </h2>
+
+            <p className="text-sm text-gray-400 mt-1">
+              Upload a photo or video highlight
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* BODY */}
+      <div className="p-6">
+
+        {/* FILE */}
+        <label className="block">
+
+          <input
+            type="file"
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                setHighlightFile(e.target.files[0]);
+              }
+            }}
+          />
+
+          <div className="border-2 border-dashed border-purple-200 bg-purple-50 rounded-3xl p-8 text-center cursor-pointer hover:bg-purple-100 transition">
+
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
+              <FolderPlus
+                size={28}
+                className="text-purple-600"
+              />
+            </div>
+
+            <p className="text-sm font-bold text-gray-700">
+              {highlightFile
+                ? highlightFile.name
+                : "Upload Photo or Video"}
+            </p>
+
+            <p className="text-xs text-gray-400 mt-1">
+              JPG, PNG, MP4 supported
+            </p>
+          </div>
+        </label>
+
+        {/* DESCRIPTION */}
+        <div className="mt-5">
+
+          <p className="text-sm font-bold text-gray-700 mb-2">
+            Description
+          </p>
+
+          <textarea
+            value={highlightDescription}
+            onChange={(e) =>
+              setHighlightDescription(e.target.value)
+            }
+            placeholder="Write something about your highlight..."
+            rows={4}
+            className="w-full rounded-3xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none resize-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition"
+          />
+        </div>
+
+        {/* BUTTONS */}
+        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+
+          <button
+            onClick={() => setShowHighlightPopup(false)}
+            className="flex-1 h-12 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={handleCreateHighlight}
+            disabled={creatingHighlight}
+            className="flex-1 h-12 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-sm font-bold text-white shadow-lg hover:scale-[1.01] transition disabled:opacity-50"
+          >
+            {creatingHighlight
+              ? "Uploading..."
+              : "Save Highlight"}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+{showHighlightViewer && selectedGroup && (
+  <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+
+    <div className="relative w-full max-w-md rounded-[32px] overflow-hidden bg-white shadow-2xl">
+
+      {/* CLOSE */}
+      <button
+        onClick={() => {
+          setShowHighlightViewer(false);
+          setSelectedGroup(null);
+          setActiveIndex(0);
+        }}
+        className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center"
+      >
+        <X size={18} className="text-white" />
+      </button>
+
+      {/* PROGRESS BARS */}
+      <div className="absolute top-3 left-4 right-14 z-10 flex gap-1">
+        {selectedGroup.highlights.map((_, i) => (
+          <div key={i} className="flex-1 h-1 rounded-full bg-white/40">
+            <div
+              className={`h-full rounded-full bg-white transition-[width] ease-linear ${
+                i < activeIndex
+                  ? "w-full"
+                  : i === activeIndex && fillActive
+                  ? "w-full"
+                  : "w-0"
+              }`}
+              style={i === activeIndex ? { transitionDuration: `${SLIDE_DURATION}ms` } : undefined}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* HEADER */}
+      <div className="absolute top-0 left-0 right-0 z-10 p-5 bg-gradient-to-b from-black/60 to-transparent">
+        <div className="flex items-center gap-3 mt-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 via-orange-400 to-purple-600 p-[2px]">
+            <div className="w-full h-full rounded-full bg-white p-[2px]">
+              <div className="w-full h-full rounded-full overflow-hidden bg-gray-200">
+                {selectedGroup.user.image ? (
+                  <img
+                    src={selectedGroup.user.image}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-purple-200" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-white">
+              {selectedGroup.user.username}
+            </p>
+            <p className="text-xs text-white/70">
+              {selectedGroup.highlights[activeIndex]?.created_at
+                ? new Date(selectedGroup.highlights[activeIndex].created_at).toLocaleDateString()
+                : ""}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* MEDIA */}
+      <div className="bg-black">
+        {selectedGroup.highlights[activeIndex]?.uploadVideo ||
+        selectedGroup.highlights[activeIndex]?.upload_video ? (
+          <video
+            src={
+              selectedGroup.highlights[activeIndex].uploadVideo ||
+              selectedGroup.highlights[activeIndex].upload_video ||
+              ""
+            }
+            controls
+            autoPlay
+            className="w-full max-h-[75vh] object-cover"
+          />
+        ) : selectedGroup.highlights[activeIndex]?.uploadedImage ||
+          selectedGroup.highlights[activeIndex]?.uploaded_image ? (
+          <img
+            src={
+              selectedGroup.highlights[activeIndex].uploadedImage ||
+              selectedGroup.highlights[activeIndex].uploaded_image ||
+              ""
+            }
+            alt="highlight"
+            className="w-full max-h-[75vh] object-cover"
+          />
+        ) : (
+          <div className="h-[500px] flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
+            <Flame size={60} className="text-white" />
           </div>
         )}
-
-        {/* FEED GROUPS */}
-        {grouped.map((group, gi) => {
-          const totalLikes = group.feeds.reduce((a, f) => a + f.likeCount, 0);
-          return (
-            <div key={group.label}>
-              {/* Date Header - Updated font size */}
-              <div className="flex items-center justify-between py-2 sm:py-2.5">
-                <div className="text-sm md:text-base font-bold text-[#1a1a2e] flex items-center gap-2">
-                  <div className="w-[3px] h-[13px] sm:h-[17px] bg-[#6c3fef] rounded-sm flex-shrink-0" />
-                  {group.label}
-                </div>
-              </div>
-
-              {/* Feed Cards */}
-              {group.feeds.map((feed) => {
-                const isLiked = !!(currentUser && feed.likes.includes(String(currentUser.id)));
-                return (
-                  <div key={feed.id} className="bg-white border border-[#ebebf0] rounded-[12px] sm:rounded-[14px] p-4 md:p-6 mb-2.5 relative overflow-hidden">
-                    <div className="absolute right-0 top-0 bottom-0 w-[30%] sm:w-[38%] pointer-events-none bg-gradient-to-l from-[rgba(235,230,255,0.5)] to-transparent rounded-r-[12px] sm:rounded-r-[14px]" />
-
-                    <div className="flex items-start justify-between mb-2 sm:mb-2.5 relative z-10">
-                      <div className="flex items-center gap-2 sm:gap-2.5">
-                        <div className="relative flex-shrink-0">
-                          <div className="p-[1px] sm:p-0.5 rounded-full bg-gradient-to-br from-[#f9a825] via-[#f04e6b] to-[#6c3fef]">
-                            <img
-                              src={currentUser?.image || ""}
-                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white object-cover"
-                              alt={feed.username}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                            />
-                          </div>
-                          <div className="absolute bottom-0 right-0 w-1.5 h-1.5 sm:w-2.5 sm:h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                        </div>
-                        <div>
-                          <div className="text-sm md:text-base font-bold text-[#5b2be8]">@{feed.username}</div>
-                          <div className="text-[10px] md:text-xs text-[#bbb] mt-px font-semibold">started a session:</div>
-                        </div>
-                      </div>
-                      <button className="cursor-pointer p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                        onClick={() => {
-                          const sessionUrl = `${window.location.origin}/sessions/${feed.id}`;
-                          if (navigator.share) {
-                            navigator.share({
-                              title: `${feed.username}'s Session`,
-                              text: `Check out this session: ${feed.title}`,
-                              url: sessionUrl,
-                            }).catch(() => {}); 
-                          } else {
-                            navigator.clipboard.writeText(sessionUrl);
-                            alert("Session link copied to clipboard!");
-                          }
-                        }} 
-                      >
-                        <Share2Icon size={16} className="text-gray-500" />
-                      </button>
-                    </div>
-
-                    <div className="text-sm md:text-base font-bold text-[#1a1a2e] mb-2 sm:mb-3 relative z-10">{feed.title}</div>
-
-                    <button className="inline-flex items-center gap-1.5 bg-[#0ecfcf] text-white text-xs md:text-sm font-bold rounded-lg px-3 sm:px-4 py-1.5 sm:py-[7px] mb-2.5 sm:mb-3.5 hover:opacity-90 transition-opacity relative z-10">
-                      View Session &rarr;
-                    </button>
-
-                    <div className="flex items-center justify-between border-top border-[#f0f0f6] pt-2 sm:pt-2.5">
-                       <div className="flex gap-1.5 sm:gap-2 items-center">
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold text-[#999]">
-                    <Users size={10} className="text-[#ffb347]" />
-                    <span>{group.feeds.length}</span>
-                  </div>
-                  <div className="flex items-center gap-1 bg-white border border-[#e5e5ef] rounded-full px-2 sm:px-[11px] py-0.5 sm:py-1 text-[9px] sm:text-xs font-bold text-[#e8365d]">
-                    <Heart size={10} className="fill-[#e8365d] stroke-[#e8365d]" />
-                    <span>{totalLikes}</span>
-                    <TrendingUp size={8} strokeWidth={2.5} />
-                  </div>
-                </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Sponsored card after first group */}
-              {gi === 0 && (
-                <div className="bg-white border border-[#ebebf0] rounded-[12px] sm:rounded-[14px] overflow-hidden mb-2.5 relative">
-                  <div className="h-[70px] sm:h-[88px] bg-[#1c1c38] flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute text-xs md:text-base font-black text-white/5 tracking-[4px] sm:tracking-[6px] uppercase whitespace-nowrap select-none">
-                      NEVER STOP EXPLORING
-                    </div>
-                    <div className="absolute top-1 left-2 sm:top-[9px] sm:left-3 bg-white/10 text-white/40 text-[8px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded font-bold">Ad</div>
-                    <div className="absolute bottom-1 left-2 sm:bottom-[10px] sm:left-3 bg-[#6c3fef] text-white text-[8px] sm:text-xs font-bold rounded-md px-1.5 sm:px-2.5 py-0.5">
-                      Sponsored
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
       </div>
+
+      {/* DESCRIPTION */}
+      <div className="p-5 bg-white">
+        <p className="text-sm text-gray-700 leading-relaxed">
+          {selectedGroup.highlights[activeIndex]?.description || "No description"}
+        </p>
+      </div>
+
+      {/* PREV / NEXT tap zones */}
+      {selectedGroup.highlights.length > 1 && (
+        <div className="absolute inset-0 flex pointer-events-none" style={{ top: "60px", bottom: "80px" }}>
+          <button
+            className="flex-1 pointer-events-auto"
+            onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
+          />
+          <button
+            className="flex-1 pointer-events-auto"
+            onClick={() =>
+              setActiveIndex((i) =>
+                Math.min(selectedGroup.highlights.length - 1, i + 1)
+              )
+            }
+          />
+        </div>
+      )}
+    </div>
+  </div>
+)}
     </div>
   );
 }

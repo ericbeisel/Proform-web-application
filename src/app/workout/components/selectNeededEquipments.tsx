@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { ArrowLeft, Plus, MapPin, Check, Loader2, ChevronRight, Dumbbell, Save } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Check, Loader2, Save } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { equipmentApi, Equipment, LocationItem } from "@/api/location/route";
+import { equipmentApi, Equipment } from "@/api/location/route";
 
 function SelectEquipContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locationIdFromUrl = searchParams.get("locationId");
 
-  const [locations, setLocations] = useState<LocationItem[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState("");
   const [newLocationName, setNewLocationName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -23,14 +21,9 @@ function SelectEquipContent() {
     const init = async () => {
       try {
         setInitialLoading(true);
-        const [allEquip, locList] = await Promise.all([
-          equipmentApi.getAllEquipment(),
-          equipmentApi.getLocationList()
-        ]);
-        setLocations(locList);
-        
+        const allEquip = await equipmentApi.getAllEquipment();
+
         if (locationIdFromUrl) {
-          setSelectedLocation(locationIdFromUrl);
           const detail = await equipmentApi.getLocationDetail(locationIdFromUrl);
           const activeIds = detail.equipmentList.map((e) => e.id);
           setNewLocationName(detail.name);
@@ -42,15 +35,6 @@ function SelectEquipContent() {
     };
     init();
   }, [locationIdFromUrl]);
-
-  const handleLocationChange = async (id: string) => {
-    setSelectedLocation(id);
-    if (!id) return;
-    const detail = await equipmentApi.getLocationDetail(id);
-    setNewLocationName(detail.name);
-    const ids = detail.equipmentList.map((e) => e.id);
-    setEquipments((prev) => prev.map((eq) => ({ ...eq, selected: ids.includes(eq.id) })));
-  };
 
   const toggleEquipment = (id: number) => {
     setEquipments((prev) => prev.map((eq) => eq.id === id ? { ...eq, selected: !eq.selected } : eq));
@@ -67,7 +51,7 @@ function SelectEquipContent() {
         equipments: equipments.filter(eq => eq.selected).map(eq => eq.id).join(","),
         default_location: 0,
       });
-      router.push("/workout/session");
+      router.push("/workout/viewWorkout");
     } catch (err: any) { alert(err.message || "Failed to save"); } finally { setIsSubmitting(false); }
   };
 
@@ -77,7 +61,7 @@ function SelectEquipContent() {
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e] pb-40">
-      
+
       {/* HEADER */}
       <div className="bg-white px-4 sm:px-8 py-6 flex items-center justify-between sticky top-0 z-50 border-b border-gray-50">
         <div className="flex items-center gap-4">
@@ -97,19 +81,21 @@ function SelectEquipContent() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 mt-6">
-        
-        {/* TOP: QUICK RELOAD */}
-        <div className="mb-8 p-4 bg-gray-50 rounded-2xl flex items-center gap-4 border border-gray-100">
-          <MapPin size={20} className="text-[#7c3aed] ml-2" />
-          <select
-            value={selectedLocation}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-gray-700 cursor-pointer"
-          >
-            <option value="">Load gear from a saved location...</option>
-            {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-          </select>
-        </div>
+
+        {/* CREATE LOCATION SHORTCUT */}
+        {/* <button
+          onClick={() => router.push("/location/addLocation")}
+          className="mb-8 w-full p-4 bg-gray-50 rounded-2xl flex items-center gap-4 border border-gray-100 hover:border-[#7c3aed] hover:bg-[#7c3aed]/5 transition-all group"
+        >
+          <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+            <Plus size={18} className="text-white" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-gray-800">Create a Location</p>
+            <p className="text-xs text-gray-400 font-medium">Save your gym setup for future sessions</p>
+          </div>
+          <MapPin size={18} className="text-gray-300 ml-auto group-hover:text-[#7c3aed] transition-colors" />
+        </button> */}
 
         {/* EQUIPMENT GRID */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -133,7 +119,7 @@ function SelectEquipContent() {
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-4">
           <div className="relative flex-1 w-full">
             <Save size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
+            <input
               type="text"
               placeholder="Name this configuration (e.g. Hotel Gym)"
               value={newLocationName}
@@ -141,7 +127,7 @@ function SelectEquipContent() {
               className="w-full pl-11 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-[#7c3aed]/20 transition-all"
             />
           </div>
-          <button 
+          <button
             onClick={handleStartWorkout}
             disabled={isSubmitting || selectedCount === 0}
             className="w-full sm:w-auto px-10 py-4 bg-[#7c3aed] text-white rounded-full font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50 disabled:grayscale"

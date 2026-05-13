@@ -19,6 +19,7 @@ export default function LocationList() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [defaultLocationId, setDefaultLocationId] = useState<number | null>(null);
 
   const fetchLocations = async () => {
     try {
@@ -45,6 +46,8 @@ export default function LocationList() {
 
   useEffect(() => {
     fetchLocations();
+    const saved = localStorage.getItem("defaultLocationId");
+    if (saved) setDefaultLocationId(Number(saved));
   }, []);
 
   return (
@@ -150,6 +153,30 @@ export default function LocationList() {
                           </span>
                         )}
                       </div>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 mb-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`default-${location.id}`}
+                        checked={defaultLocationId === location.id}
+                        onChange={() => {
+                          const next = defaultLocationId === location.id ? null : location.id;
+                          setDefaultLocationId(next);
+                          if (next) localStorage.setItem("defaultLocationId", String(next));
+                          else localStorage.removeItem("defaultLocationId");
+                        }}
+                        className="w-4 h-4 accent-purple-600 cursor-pointer"
+                      />
+                      <label
+                        htmlFor={`default-${location.id}`}
+                        className="text-[11px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none"
+                      >
+                        Default
+                      </label>
                     </div>
 
                     <div className="space-y-4" onClick={(e) => e.stopPropagation()}>

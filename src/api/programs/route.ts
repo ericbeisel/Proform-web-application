@@ -22,6 +22,7 @@ export interface Program {
   package: string;
   package_id: string;
    sport?: string; 
+   code: string; 
 }
 
 export interface ProgramWithUI extends Program {
@@ -159,6 +160,8 @@ export interface ProgramDetail {
     key: string;
     week: string;
     order: number;
+    title: string;
+    muscles_used?: string;
   }[];
   trainers: any[];
   objectives: string[];
@@ -168,6 +171,8 @@ export interface ProgramDetail {
   pre_req?: string;
   addworkoutcount: number;  // Changed from addworkoutCount to addworkoutcount (all lowercase)
   supplementalWorkoutCounts: number;  // Keep as is
+  code?: string;  // Add code field for fetching exercises and equipment
+
 }
 
 export interface StartProgramPayload {
@@ -261,6 +266,35 @@ export interface ProgramsBySettingResponse {
   totalPages: number;
 }
 
+export interface Exercise {
+  id: number;
+  exercise_uuid: string;
+  exercise_id: string;
+  name: string;
+  supplemental?: string;      // this is the equipment type e.g. "BARBELL"
+  specialized_title?: string; // e.g. "ANE01" — use this for filtering
+  order?: number;
+  demoGif?: string;
+  video?: string;
+  altVideo?: string | null;
+}
+
+export interface ExercisesResponse {
+  data: Exercise[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface Equipment {
+  id: number;
+  name: string;
+  slug?: string;
+  type?: string;
+  keyword?: string;
+  icon?: string;          // was "image" before — this is why icons weren't showing
+  hideonlocations?: boolean;
+}
 
 // ===========================================
 // ERROR HANDLER
@@ -526,6 +560,42 @@ export const getProgramsBySetting = async (settingId: string, page: number = 1):
   }
 };
 
+export const getProgramExercises = async (
+  programCode: string, 
+  page: number = 1, 
+  take: number = 50
+): Promise<ExercisesResponse> => {
+  try {
+    const { data } = await apiClient.get<ExercisesResponse>(
+      `/programs/${programCode}/exercises?page=${page}&take=${take}`
+    );
+    console.log("📋 Program exercises response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch program exercises.")
+    );
+  }
+};
+
+// Get equipment for a program
+export const getProgramEquipment = async (
+  programCode: string,
+  hideOnLocation: boolean = false
+): Promise<Equipment[]> => {
+  try {
+    const { data } = await apiClient.get<Equipment[]>(
+      `/programs/${programCode}/equipment?hideOnLocation=${hideOnLocation}`
+    );
+    console.log("📋 Program equipment response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch program equipment.")
+    );
+  }
+};
+
 export const workoutApi = {
   getWorkoutPageData,
   getAllSportCategories,
@@ -538,6 +608,8 @@ export const workoutApi = {
     getProgramsByFocus,
     getProgramsByAgeGroup,
     getProgramsBySetting,
+    getProgramExercises,
+    getProgramEquipment,
 };
 
 export default workoutApi;

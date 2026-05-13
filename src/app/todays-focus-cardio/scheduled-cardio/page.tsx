@@ -224,7 +224,12 @@ export default function ScheduledCardioPage() {
         {/* RIGHT */}
 
         <div className="flex items-center gap-2">
-
+   <button
+            onClick={() => router.push("/todays-focus-cardio/cardio-dashboard")}
+            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-sm font-semibold hover:from-green-600 hover:to-green-700 transition shadow-md flex items-center gap-2"
+          >
+            Go to Cardio Dashboard
+          </button>
           <button
             onClick={() =>
               router.push(

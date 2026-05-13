@@ -590,10 +590,17 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
                       </p>
                     </div>
                   </div>
-                  <button className="w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition rounded-b-xl">
-                    <Play size={11} fill="currentColor" />
-                    Preview Week
-                  </button>
+             <button
+onClick={() => {
+  console.log("🔍 workout.title (code):", workout.title);
+  localStorage.setItem("workoutIsFree", program?.free_is_program ? "true" : "false");
+  router.push(`/workout/detail?code=${workout.title}&workoutKey=${encodeURIComponent(workout.workout_title)}`);
+}}
+  className="w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition rounded-b-xl"
+>
+  <Play size={11} fill="currentColor" />
+  Preview Workout
+</button>
                 </div>
               ))}
             </div>

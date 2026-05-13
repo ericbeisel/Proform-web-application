@@ -359,6 +359,7 @@ export default function CardioEditTimes() {
           <ArrowLeft size={24} className="text-[#333]" />
         </button>
         <h2 className="text-xl md:text-2xl font-bold text-[#1a1a1a]">Edit Cardio Times</h2>
+        
       </div>
 
       {/* Content */}

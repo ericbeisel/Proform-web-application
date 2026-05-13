@@ -23,9 +23,12 @@ import {
   X,
   Plus,
   Save,
+  Replace,
+  Shuffle,
 } from "lucide-react";
-
+import { useRouter } from "next/navigation";
 export default function AthenaWorkoutPage() {
+  const router = useRouter();
   const [isNotePopupOpen, setIsNotePopupOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [shareWithCoach, setShareWithCoach] = useState(false);
@@ -142,9 +145,10 @@ export default function AthenaWorkoutPage() {
 
             {/* Rotate + 1/6 */}
             <div className="flex items-center gap-2 shrink-0">
-              <button className="p-2 bg-[#6202AC] rounded-lg shadow-sm border border-gray-200 hover:bg-[#4d0187] transition">
-                <RotateCcw size={18} className="text-white" />
-              </button>
+              
+            <button onClick={() =>  router.push("/workout/swapExercise")} className="p-2 bg-[#6202AC] rounded-lg shadow-sm border border-gray-200 hover:bg-[#4d0187] transition">
+  <Shuffle size={18} className="text-white" />
+</button>
               <span className="text-sm font-bold text-gray-600">1/6</span>
             </div>
           </div>

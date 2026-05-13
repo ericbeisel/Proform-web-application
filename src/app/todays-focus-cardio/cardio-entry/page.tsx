@@ -17,7 +17,8 @@ import {
   Target,
   Play,
   ArrowRight,
-  Activity
+  Activity,
+  ArrowLeft
 } from "lucide-react";
 import {
   getCardioMenu,
@@ -847,9 +848,12 @@ const plusMinutes = lastCard?.minutes || 0;
       {/* HEADER */}
       <div className="bg-white px-4 sm:px-6 py-4 flex items-center justify-between border-b sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-2xl">
-            ←
-          </button>
+        <button
+        onClick={() => router.back()}
+        className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center hover:bg-purple-600/30 transition"
+      >
+        <ArrowLeft size={18} className="text-white" />
+      </button>
           <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center">
             <Flame size={18} className="text-white" />
           </div>

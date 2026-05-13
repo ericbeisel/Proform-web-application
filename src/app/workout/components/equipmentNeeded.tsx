@@ -7,7 +7,7 @@ import { equipmentApi, EquipmentItem, LocationItem } from "@/api/location/route"
 
 export default function EquipmentNeededPage() {
   const router = useRouter();
-
+const [workoutEquipment, setWorkoutEquipment] = useState<any[]>([]);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
   const [equipments, setEquipments] = useState<EquipmentItem[]>([]);
@@ -32,6 +32,10 @@ export default function EquipmentNeededPage() {
           const shuffled = [...allEquip].sort(() => 0.5 - Math.random());
           setRequiredItems(shuffled.slice(0, 3));
         }
+        const savedWorkoutEquipment = localStorage.getItem("workoutEquipment");
+
+if (savedWorkoutEquipment) {
+  setWorkoutEquipment(JSON.parse(savedWorkoutEquipment));}
       } catch (err) {
         console.error("Initialization failed:", err);
       }
@@ -81,12 +85,26 @@ export default function EquipmentNeededPage() {
     setSelectedEquipIds(newSelection);
   };
 
-  const handleStartSession = () => {
-    const idsParam = Array.from(selectedEquipIds).join(",");
-    const locationPart = selectedLocation ? `&locationId=${selectedLocation}` : "";
-    router.push(`/workout/session?equipment=${idsParam}${locationPart}`);
-  };
+const handleStartSession = () => {
+  const idsParam = Array.from(selectedEquipIds).join(",");
+  const locationPart = selectedLocation
+    ? `&locationId=${selectedLocation}`
+    : "";
 
+  // OPTIONAL:
+  // save selected equipment for session page
+  localStorage.setItem(
+    "selectedSessionEquipment",
+    JSON.stringify(
+      equipments.filter((eq) => selectedEquipIds.has(eq.id))
+    )
+  );
+
+  // redirect to full workout session page
+  router.push(
+    `/workout/viewWorkoutSession?equipment=${idsParam}${locationPart}`
+  );
+};
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
       {/* HEADER */}
@@ -105,12 +123,12 @@ export default function EquipmentNeededPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-4">
         
         {/* REQUIREMENTS BANNER */}
-        {requiredItems.length > 0 && (
-          <div className="mb-8 p-5 bg-[#7c3aed]/5 rounded-[2rem] border border-[#7c3aed]/10">
+{workoutEquipment.length > 0 && (
+            <div className="mb-8 p-5 bg-[#7c3aed]/5 rounded-[2rem] border border-[#7c3aed]/10">
             <h3 className="text-xs font-bold text-[#7c3aed] uppercase tracking-widest mb-3">Goal Requirements</h3>
             <div className="flex flex-wrap gap-2">
-              {requiredItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-100 shadow-sm">
+{workoutEquipment.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-100 shadow-sm">
                   {item.icon && <img src={item.icon} alt="" className="w-4 h-4 object-contain" />}
                   <span className="text-xs font-semibold text-gray-700">{item.name}</span>
                 </div>
@@ -165,61 +183,149 @@ export default function EquipmentNeededPage() {
         </div>
 
         {/* EQUIPMENT GRID */}
-        <div className="min-h-[200px]">
-          {loading ? (
-            <div className="py-20 flex justify-center">
-              <Loader2 className="animate-spin text-[#7c3aed]" size={40} />
+    <div className="min-h-[200px]">
+  {loading ? (
+    <div className="py-20 flex justify-center">
+      <Loader2 className="animate-spin text-[#7c3aed]" size={40} />
+    </div>
+  ) : (
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* REQUIRED WORKOUT EQUIPMENT */}
+      {workoutEquipment.length > 0 && (
+        <div>
+          <div className="mb-5 flex items-center justify-between px-1">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Required For Workout
+              </h2>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Equipment needed to perform this session
+              </p>
             </div>
-          ) : equipments.length > 0 ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="mb-6 flex justify-between items-center px-2">
-                <h2 className="text-xl font-bold text-gray-900">Available Gear</h2>
-                <span className="text-xs font-bold text-[#7c3aed] bg-purple-50 px-3 py-1 rounded-full uppercase">
-                  {selectedEquipIds.size} Matched
-                </span>
-              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {equipments.map((eq) => {
-                  const isRequired = requiredItems.some(req => req.id === eq.id);
-                  const isSelected = selectedEquipIds.has(eq.id);
+            <span className="text-xs font-bold bg-[#7c3aed] text-white px-3 py-1 rounded-full uppercase">
+              {workoutEquipment.length} Items
+            </span>
+          </div>
 
-                  return (
-                    <button
-                      key={eq.id}
-                      type="button"
-                      onClick={() => toggleEquipment(eq.id)}
-                      className={`relative flex flex-col items-center bg-white border rounded-3xl p-6 shadow-sm transition-all hover:shadow-md
-                        ${isSelected ? 'border-[#7c3aed] ring-2 ring-[#7c3aed]/10' : 'border-gray-100 opacity-80'}
-                        ${isRequired && !isSelected ? 'bg-purple-50/10 border-dashed border-purple-200' : ''}`}
-                    >
-                      {isSelected && (
-                        <div className="absolute top-3 right-3 text-[#7c3aed] animate-in zoom-in">
-                          <CheckCircle2 size={22} fill="white" />
-                        </div>
-                      )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {workoutEquipment.map((eq: any, i: number) => (
+              <div
+                key={i}
+                className="relative flex flex-col items-center bg-gradient-to-b from-[#faf7ff] to-white border-2 border-[#7c3aed] rounded-3xl p-6 shadow-sm"
+              >
+                <div className="absolute top-3 right-3 text-[#7c3aed]">
+                  <CheckCircle2 size={20} fill="white" />
+                </div>
 
-                      <div className="h-16 w-16 mb-4 flex items-center justify-center bg-gray-50 rounded-2xl p-2">
-                        <img src={eq.icon} alt={eq.name} className="max-h-full max-w-full object-contain" />
-                      </div>
-                      
-                      <p className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-[#7c3aed]' : 'text-gray-500'}`}>
-                        {eq.name}
-                      </p>
-                    </button>
-                  );
-                })}
+                <div className="h-16 w-16 mb-4 flex items-center justify-center bg-white rounded-2xl p-2 shadow-sm border border-purple-100">
+                  {eq.icon ? (
+                    <img
+                      src={eq.icon}
+                      alt={eq.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <Dumbbell size={28} className="text-[#7c3aed]" />
+                  )}
+                </div>
+
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#7c3aed] text-center">
+                  {eq.name}
+                </p>
               </div>
-            </div>
-          ) : (
-            selectedLocation && (
-              <div className="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 text-gray-400">
-                <Dumbbell size={32} className="mx-auto mb-3 opacity-10" />
-                <p className="text-sm font-medium">No equipment at this location</p>
-              </div>
-            )
-          )}
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* AVAILABLE LOCATION EQUIPMENT */}
+      {equipments.length > 0 && (
+        <div>
+          <div className="mb-6 flex justify-between items-center px-2">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Available At Location
+              </h2>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Tap to verify available equipment
+              </p>
+            </div>
+
+            <span className="text-xs font-bold text-[#7c3aed] bg-purple-50 px-3 py-1 rounded-full uppercase">
+              {selectedEquipIds.size} Matched
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {equipments.map((eq) => {
+              const isRequired = workoutEquipment.some(
+                (req: any) =>
+                  req.name?.toLowerCase() === eq.name?.toLowerCase()
+              );
+
+              const isSelected = selectedEquipIds.has(eq.id);
+
+              return (
+                <button
+                  key={eq.id}
+                  type="button"
+                  onClick={() => toggleEquipment(eq.id)}
+                  className={`relative flex flex-col items-center bg-white border rounded-3xl p-6 shadow-sm transition-all hover:shadow-md
+                  ${
+                    isSelected
+                      ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
+                      : "border-gray-100 opacity-80"
+                  }
+                  ${
+                    isRequired && !isSelected
+                      ? "bg-purple-50 border-[#7c3aed]"
+                      : ""
+                  }`}
+                >
+                  {(isSelected || isRequired) && (
+                    <div className="absolute top-3 right-3 text-[#7c3aed] animate-in zoom-in">
+                      <CheckCircle2 size={22} fill="white" />
+                    </div>
+                  )}
+
+                  <div className="h-16 w-16 mb-4 flex items-center justify-center bg-gray-50 rounded-2xl p-2">
+                    <img
+                      src={eq.icon}
+                      alt={eq.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+
+                  <p
+                    className={`text-[10px] font-bold uppercase tracking-widest text-center ${
+                      isSelected ? "text-[#7c3aed]" : "text-gray-500"
+                    }`}
+                  >
+                    {eq.name}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* EMPTY STATE */}
+      {!selectedLocation && equipments.length === 0 && (
+        <div className="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 text-gray-400">
+          <Dumbbell size={32} className="mx-auto mb-3 opacity-10" />
+          <p className="text-sm font-medium">
+            Select a location to view available equipment
+          </p>
+        </div>
+      )}
+    </div>
+  )}
+</div>
 
         {/* START SESSION BUTTON */}
         <div className="mt-16 flex flex-col items-center gap-4">
