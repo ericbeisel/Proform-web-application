@@ -411,17 +411,19 @@ className="p-2 border-r border-gray-200 last:border-r-0 flex flex-col gap-3"  >
       </h2>
 
       {/* Activity Title */}
-      <div className="mb-4">
-        <p className="text-[11px] font-bold text-gray-500 mb-1">
-          Activity Title
-        </p>
-        <input
-            value={activityTitle}
-            onChange={(e) => setActivityTitle(e.target.value)}
-          placeholder="e.g., RECOVERY FLOW, LEG DAY"
-          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-        />
-      </div>
+      {activityType === "Custom" && (
+        <div className="mb-4">
+          <p className="text-[11px] font-bold text-gray-500 mb-1">
+            Activity Title
+          </p>
+          <input
+              value={activityTitle}
+              onChange={(e) => setActivityTitle(e.target.value)}
+            placeholder="e.g., RECOVERY FLOW, LEG DAY"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+        </div>
+      )}
 
       {/* Date + Time */}
       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -860,17 +862,19 @@ className="p-2 border-r border-gray-200 last:border-r-0 flex flex-col gap-3"  >
       </h2>
 
       {/* Activity Title */}
-      <div className="mb-4">
-        <p className="text-[11px] font-bold text-gray-500 mb-1">
-          Activity Title
-        </p>
-        <input
-          value={editActivityTitle}
-          onChange={(e) => setEditActivityTitle(e.target.value)}
-          placeholder="e.g., RECOVERY FLOW, LEG DAY"
-          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-        />
-      </div>
+      {editActivityType === "Custom" && (
+        <div className="mb-4">
+          <p className="text-[11px] font-bold text-gray-500 mb-1">
+            Activity Title
+          </p>
+          <input
+            value={editActivityTitle}
+            onChange={(e) => setEditActivityTitle(e.target.value)}
+            placeholder="e.g., RECOVERY FLOW, LEG DAY"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+        </div>
+      )}
 
       {/* Day + Time */}
       <div className="grid grid-cols-2 gap-3 mb-4">

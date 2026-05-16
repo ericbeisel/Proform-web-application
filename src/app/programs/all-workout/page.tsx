@@ -153,7 +153,7 @@ export default function SearchWorkoutsPage() {
             {filteredWorkouts.map((workout) => (
               <div
                 key={workout.id}
-                onClick={() => router.push(`/workout/${workout.id}`)}
+                // onClick={() => router.push(`/workout/${workout.id}`)}
                 className="relative h-[220px] rounded-2xl overflow-hidden cursor-pointer group"
               >
 

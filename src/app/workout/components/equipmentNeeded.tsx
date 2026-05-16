@@ -1,43 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Plus, MapPin, Dumbbell, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Dumbbell, ChevronRight, Loader2, CheckCircle2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { equipmentApi, EquipmentItem, LocationItem } from "@/api/location/route";
+import { getProgramEquipment, Equipment } from "@/api/programs/route";
 
 export default function EquipmentNeededPage() {
   const router = useRouter();
-const [workoutEquipment, setWorkoutEquipment] = useState<any[]>([]);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
   const [equipments, setEquipments] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Type-safe states for matching logic
-  const [requiredItems, setRequiredItems] = useState<any[]>([]);
+  const [programEquipment, setProgramEquipment] = useState<Equipment[]>([]);
+  const [programEquipmentLoading, setProgramEquipmentLoading] = useState(true);
   const [selectedEquipIds, setSelectedEquipIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const initializeData = async () => {
       try {
-        const [locData, allEquip] = await Promise.all([
-          equipmentApi.getLocationList(),
-          equipmentApi.getAllEquipment()
-        ]);
-        
+        const programCode = localStorage.getItem("workoutProgramCode");
+
+        const promises: Promise<any>[] = [equipmentApi.getLocationList()];
+        if (programCode) promises.push(getProgramEquipment(programCode));
+
+        const [locData, programEquip] = await Promise.all(promises);
+
         setLocations(locData);
-
-        if (allEquip && allEquip.length > 0) {
-          // Generate random requirements
-          const shuffled = [...allEquip].sort(() => 0.5 - Math.random());
-          setRequiredItems(shuffled.slice(0, 3));
+        if (programEquip && Array.isArray(programEquip)) {
+          setProgramEquipment(programEquip);
         }
-        const savedWorkoutEquipment = localStorage.getItem("workoutEquipment");
-
-if (savedWorkoutEquipment) {
-  setWorkoutEquipment(JSON.parse(savedWorkoutEquipment));}
       } catch (err) {
         console.error("Initialization failed:", err);
+      } finally {
+        setProgramEquipmentLoading(false);
       }
     };
     initializeData();
@@ -50,9 +46,9 @@ if (savedWorkoutEquipment) {
       const fetchedList = data.equipmentList || [];
       setEquipments(fetchedList);
       
-      // Auto-match random requirements with fetched equipment
+      // Auto-match program required equipment with fetched location equipment
       const matchedIds = fetchedList
-        .filter((eq: EquipmentItem) => requiredItems.some(req => req.id === eq.id))
+        .filter((eq: EquipmentItem) => programEquipment.some((req: Equipment) => req.id === eq.id || req.name?.toLowerCase() === eq.name?.toLowerCase()))
         .map((eq: EquipmentItem) => eq.id);
         
       setSelectedEquipIds(new Set(matchedIds));
@@ -146,9 +142,18 @@ const handleStartSession = () => {
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <ChevronRight size={18} className="rotate-90" />
-                </div>
+                {selectedLocation ? (
+                  <button
+                    onClick={() => { setSelectedLocation(""); setEquipments([]); setSelectedEquipIds(new Set()); }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    <X size={16} />
+                  </button>
+                ) : (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <ChevronRight size={18} className="rotate-90" />
+                  </div>
+                )}
               </div>
 
               {/* PLUS BUTTON WITH ORIGINAL LOCATION ID LOGIC */}
@@ -177,6 +182,53 @@ const handleStartSession = () => {
   ) : (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
+      {/* REQUIRED EQUIPMENT FOR THIS PROGRAM */}
+      {programEquipmentLoading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="animate-spin text-[#7c3aed]" size={28} />
+        </div>
+      ) : programEquipment.length > 0 && (
+        <div>
+          <div className="mb-6 px-2">
+            <h2 className="text-xl font-bold text-gray-900">Required for this Workout</h2>
+            <p className="text-sm text-gray-400 mt-1">Make sure you have this equipment ready</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {programEquipment.map((eq) => {
+              const isSelected = selectedEquipIds.has(eq.id);
+              return (
+                <button
+                  key={eq.id}
+                  type="button"
+                  onClick={() => toggleEquipment(eq.id)}
+                  className={`relative flex flex-col items-center rounded-3xl p-5 shadow-sm transition-all hover:shadow-md border ${
+                    isSelected
+                      ? "bg-purple-50 border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
+                      : "bg-white border-gray-100 opacity-80"
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute top-3 right-3 text-[#7c3aed]">
+                      <CheckCircle2 size={20} fill="white" />
+                    </div>
+                  )}
+                  <div className="h-14 w-14 mb-3 flex items-center justify-center bg-gray-50 rounded-2xl p-2">
+                    {eq.icon ? (
+                      <img src={eq.icon} alt={eq.name} className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <Dumbbell size={24} className="text-purple-400" />
+                    )}
+                  </div>
+                  <p className={`text-[10px] font-bold uppercase tracking-widest text-center ${isSelected ? "text-[#7c3aed]" : "text-gray-500"}`}>
+                    {eq.name}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* AVAILABLE LOCATION EQUIPMENT */}
       {equipments.length > 0 && (
         <div>
@@ -198,8 +250,8 @@ const handleStartSession = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {equipments.map((eq) => {
-              const isRequired = workoutEquipment.some(
-                (req: any) =>
+              const isRequired = programEquipment.some(
+                (req: Equipment) =>
                   req.name?.toLowerCase() === eq.name?.toLowerCase()
               );
 
@@ -250,15 +302,6 @@ const handleStartSession = () => {
         </div>
       )}
 
-      {/* EMPTY STATE */}
-      {!selectedLocation && equipments.length === 0 && (
-        <div className="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 text-gray-400">
-          <Dumbbell size={32} className="mx-auto mb-3 opacity-10" />
-          <p className="text-sm font-medium">
-            Select a location to view available equipment
-          </p>
-        </div>
-      )}
     </div>
   )}
 </div>
@@ -273,9 +316,7 @@ const handleStartSession = () => {
             <ChevronRight size={20} />
           </button>
           
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-            {selectedLocation ? "Location verified" : "Manual equipment mode"}
-          </p>
+       
         </div>
       </div>
     </div>

@@ -154,7 +154,7 @@ export default function AthenaWorkoutPage() {
           </div>
 
           {/* Adjusted aspect ratio for mobile vs desktop */}
-          <div className="relative aspect-[16/9] lg:aspect-[16/5] bg-[#e4ebf3] rounded-md flex items-center justify-center border border-white shadow-sm overflow-hidden shrink-0">
+          <div className="relative aspect-[16/6] lg:aspect-[16/4] bg-[#e4ebf3] rounded-md flex items-center justify-center border border-white shadow-sm overflow-hidden shrink-0">
             <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
               <div className="w-5 h-5 bg-white rounded-full" />
             </div>

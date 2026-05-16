@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Calendar, X, ChevronRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getItinerary, getCustomActivities, ItineraryWorkout, CustomActivity } from "@/api/itinerary/route";
+import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
 
 type FilterTab =
   | "PRIMARY"
@@ -30,6 +30,7 @@ const DAYS_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const getFilterFromType = (type: string): FilterTab => {
   switch (type.toLowerCase()) {
     case "workout":
+    case "field workout":
       return "PRIMARY";
     case "supplemental":
       return "SUPPLEMENTAL";
@@ -37,10 +38,12 @@ const getFilterFromType = (type: string): FilterTab => {
       return "CONDITIONING";
     case "cardio":
       return "CARDIO";
-    case "hydration":  // Add this
+    case "hydration":
       return "HYDRATION";
-    case "field workout":  // Add this
-      return "PRIMARY";  // Or create a new category
+    case "recovery":
+      return "RECOVERY";
+    case "custom":
+      return "CUSTOM";
     default:
       return "PRIMARY";
   }
@@ -52,16 +55,20 @@ const getDotColor = (type: string): string => {
   switch (type.toLowerCase()) {
     case "workout":
       return "bg-blue-500";
+    case "field workout":
+      return "bg-blue-500";
     case "supplemental":
       return "bg-green-500";
     case "conditioning":
       return "bg-yellow-400";
     case "cardio":
       return "bg-red-400";
-    case "hydration":  // Add this
+    case "hydration":
       return "bg-cyan-400";
-    case "field workout":  // Add this
-      return "bg-orange-500";
+    case "recovery":
+      return "bg-purple-500";
+    case "custom":
+      return "bg-gray-500";
     default:
       return "bg-purple-500";
   }
@@ -160,22 +167,16 @@ export default function ItineraryPage() {
   const [repeatType, setRepeatType] = useState<"week" | "repeat">("repeat");
   const [selectedWorkout, setSelectedWorkout] = useState<ItineraryWorkout | null>(null);
   const [itineraryData, setItineraryData] = useState<ItineraryWorkout[]>([]);
-  const [customActivities, setCustomActivities] = useState<CustomActivity[]>([]);
   const [scheduleType, setScheduleType] = useState<string>("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch itinerary and custom activities data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [itinerary, activities] = await Promise.all([
-          getItinerary(),
-          getCustomActivities()
-        ]);
+        const itinerary = await getItinerary();
         setItineraryData(itinerary);
-        setCustomActivities(activities);
         setError(null);
       } catch (err: any) {
         console.error("Error fetching data:", err);
@@ -198,14 +199,14 @@ export default function ItineraryPage() {
     }
   }
 
-  // Create dots for calendar view from custom activities
-  const dotsByDay: Record<number, CustomActivity[]> = {};
+  // Create dots for calendar view from itinerary data
+  const dotsByDay: Record<number, ItineraryWorkout[]> = {};
   for (let i = 0; i < 7; i++) dotsByDay[i] = [];
-  
-  for (const activity of customActivities) {
-    const dayNum = activity.day_number;
+
+  for (const workout of itineraryData) {
+    const dayNum = workout.day_number;
     if (dayNum >= 0 && dayNum < 7) {
-      dotsByDay[dayNum].push(activity);
+      dotsByDay[dayNum].push(workout);
     }
   }
 
@@ -256,13 +257,8 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
     return `${displayHour}:${minute} ${period}`;
   };
 
-  // Find workout by activity ID when a dot is clicked
-  const handleDotClick = (activity: CustomActivity) => {
-    // Find matching workout in itinerary data
-    const workout = itineraryData.find(w => w.activity_id === activity.id);
-    if (workout) {
-      setSelectedWorkout(workout);
-    }
+  const handleDotClick = (workout: ItineraryWorkout) => {
+    setSelectedWorkout(workout);
   };
 
   if (loading) {
@@ -310,9 +306,8 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
       {/* ── Filter Pills ── */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-4 overflow-x-auto scrollbar-hide flex-shrink-0">
         {FILTER_TABS.map((tab) => {
-          // Calculate count for each filter type from custom activities
-          const count = customActivities.filter(
-            (a) => getFilterFromType(a.type) === tab.key
+          const count = itineraryData.filter(
+            (w) => getFilterFromType(w.type) === tab.key
           ).length;
           
           return (

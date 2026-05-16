@@ -266,6 +266,46 @@ export interface ProgramsBySettingResponse {
   totalPages: number;
 }
 
+export interface WorkoutStats {
+  calories: string;
+  power: number;
+}
+
+export interface PowerSetChild {
+  id: string;
+  label: string;
+  multiplier: number;
+  calculated_weight: number;
+  reps: string;
+  msrmt: string;
+}
+
+export interface PowerSet {
+  id: string;
+  title_primary: string;
+  title_secondary: string;
+  demo_gif?: string;
+  child_sets: PowerSetChild[];
+}
+
+export interface WorkoutGroupItem {
+  title: string;
+  program: string;
+  overlay: string;
+  reps: string;
+  order: number;
+  exercise_id: string;
+  exercise_name: string;
+  supplemental: string;
+  demo_gif: string;
+}
+
+export interface WorkoutGroup {
+  label: string;
+  rounds: string;
+  workouts: WorkoutGroupItem[];
+}
+
 export interface Exercise {
   id: number;
   exercise_uuid: string;
@@ -424,6 +464,8 @@ export const getProgramDetail = async (programId: string): Promise<ProgramDetail
     );
   }
 };
+
+
 
 export const startProgram = async (payload: StartProgramPayload): Promise<StartProgramResponse> => {
   try {
@@ -593,6 +635,99 @@ export const getProgramEquipment = async (
     throw new Error(
       getErrorMessage(error, "Failed to fetch program equipment.")
     );
+  }
+};
+
+export const getProgramWorkoutStats = async (programCode: string): Promise<WorkoutStats> => {
+  try {
+    const { data } = await apiClient.get<WorkoutStats>(`/programs/${programCode}/workout-stats`);
+    console.log("📋 Program workout stats response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch workout stats."));
+  }
+};
+
+export const getProgramPowerSets = async (programCode: string): Promise<PowerSet[]> => {
+  try {
+    const { data } = await apiClient.get<PowerSet[]>(`/programs/${programCode}/power-sets`);
+       console.log("📋 Program power sets response:", data);
+ return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch power sets."));
+  }
+};
+
+export const getProgramIdByCode = async (programCode: string): Promise<string | null> => {
+  // Strip trailing digits: "rc2" → "rc", "ne01" stays "ne01"  
+  const baseCode = programCode.replace(/\d+$/, '') || programCode;
+  
+  // Fast path: try the workout-page discovery endpoint which returns programs with codes
+  try {
+    const pageData = await getWorkoutPageData();
+    const allDiscoveryPrograms = [
+      pageData.featuredPrograms,
+      ...pageData.popularPrograms,
+      ...pageData.freePrograms,
+      ...pageData.suggestedPrograms,
+    ].filter(Boolean);
+    
+    const match = allDiscoveryPrograms.find(
+      (p) => p?.code?.toLowerCase() === baseCode.toLowerCase()
+    );
+    if (match?.id) {
+      console.log(`✅ Found UUID via discovery for "${baseCode}":`, match.id);
+      return match.id;
+    }
+  } catch {}
+
+  // Slow fallback: scan all programs
+  try {
+    const programs = await getAllPrograms();
+    const match = programs.find(
+      (p) => p.code?.toLowerCase() === baseCode.toLowerCase()
+    );
+    if (match?.id) {
+      console.log(`✅ Found UUID via all programs for "${baseCode}":`, match.id);
+      return match.id;
+    }
+  } catch {}
+
+  return null;
+};
+
+// export const getProgramIdByCode = async (programCode: string): Promise<string | null> => {
+//   // Try 1: discovery program endpoint (accepts code on many backends)
+//   try {
+//     const { data } = await apiClient.get<ProgramDetail>(`/discovery/program/${programCode}`);
+//     if (data?.id) return data.id;
+//   } catch {}
+
+//   // Try 2: dedicated by-code endpoint
+//   try {
+//     const { data } = await apiClient.get<Program>(`/programs/by-code/${programCode}`);
+//     if (data?.id) return data.id;
+//   } catch {}
+
+//   // Try 3: search paginated programs list
+//   try {
+//     const programs = await getAllPrograms();
+//     const match = programs.find(
+//       (p) => p.code?.toLowerCase() === programCode.toLowerCase()
+//     );
+//     if (match?.id) return match.id;
+//   } catch {}
+
+//   return null;
+// };
+
+export const getProgramGroupedWorkouts = async (programCode: string): Promise<WorkoutGroup[]> => {
+  try {
+    const { data } = await apiClient.get<WorkoutGroup[]>(`/programs/${programCode}/workouts`);
+   console.log("📋 Program grouped workouts response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch grouped workouts."));
   }
 };
 

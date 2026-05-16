@@ -11,16 +11,16 @@ console.log("🔧 API Base URL:", API_BASE);
 // ===========================================
 
 export interface Feed {
-  id: number;
-  user_id: string;
+  id: string;
+  user_id: number;
   title: string;
-  username: string;
+  username: string | null;
   buttonLabel: string | null;
-  likes: string[];
+  likes: (string | number)[];
   othertable_id: number | null;
   type: string;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   likeCount: number;
 }
 
@@ -172,7 +172,6 @@ export const feedApi = {
       const res = await apiClient.get<FeedResponse>(`/feed?page=${page}`);
   
       return res.data;
-      console.log("get feed response:", res.data);
     } catch (err) {
       console.error("💥 Failed to fetch feed");
       throw new Error(
@@ -184,32 +183,19 @@ export const feedApi = {
   /**
    * ⚠️ FIXED: Like Feed (correct API)
    */
-  likeFeed: async (id: number): Promise<void> => {
-    console.log("❤️ Liking feed with ID:", id, "Type:", typeof id);
+  likeFeed: async (id: string): Promise<void> => {
     try {
-      const response = await apiClient.get(`/like-feed?id=${id}`);
-      console.log("✅ Feed liked successfully:", response.data);
+      await apiClient.get(`/like-feed?id=${id}`);
     } catch (err) {
-      console.error(`💥 Failed to like feed ${id}`);
-      throw new Error(
-        extractErrorMessage(err, "Failed to like feed.")
-      );
+      throw new Error(extractErrorMessage(err, "Failed to like feed."));
     }
   },
 
-  /**
-   * Unlike Feed
-   */
-  unlikeFeed: async (id: number): Promise<void> => {
-    console.log("💔 Unliking feed with ID:", id, "Type:", typeof id);
+  unlikeFeed: async (id: string): Promise<void> => {
     try {
-      const response = await apiClient.get(`/unlike-feed?id=${id}`);
-      console.log("✅ Feed unliked successfully:", response.data);
+      await apiClient.get(`/unlike-feed?id=${id}`);
     } catch (err) {
-      console.error(`💥 Failed to unlike feed ${id}`);
-      throw new Error(
-        extractErrorMessage(err, "Failed to unlike feed.")
-      );
+      throw new Error(extractErrorMessage(err, "Failed to unlike feed."));
     }
   },
 

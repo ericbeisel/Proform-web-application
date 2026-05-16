@@ -183,26 +183,28 @@ export default function ProgramDetailPage() {
 
   const programId = params.id as string;
 
-  useEffect(() => {
-    const fetchProgramDetail = async () => {
-      try {
-        setLoading(true);
-        const data = await getProgramDetail(programId);
-        setProgram(data);
-          console.log("Program counts:", {
-        addworkoutcount: data.addworkoutcount,
-        supplementalWorkoutCounts: data.supplementalWorkoutCounts,
-        workoutsLength: data.workouts?.length
-      });
-      } catch (err) {
-        console.error("Error fetching program details:", err);
-        setError("Failed to load program details. Please try again.");
-      } finally {
-        setLoading(false);
+useEffect(() => {
+  const fetchProgramDetail = async () => {
+    try {
+      setLoading(true);
+      const data = await getProgramDetail(programId);
+      setProgram(data);
+      
+      // ← Store immediately when program loads
+      if (data.id) {
+        localStorage.setItem("workoutProgramId", data.id);
+        console.log("✅ Stored workoutProgramId:", data.id);
       }
-    };
-    if (programId) fetchProgramDetail();
-  }, [programId]);
+      
+    } catch (err) {
+      console.error("Error fetching program details:", err);
+      setError("Failed to load program details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (programId) fetchProgramDetail();
+}, [programId]);
 
   const handleStartProgram = () => {
     const isFree = program?.free_is_program === true;
@@ -594,6 +596,7 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
 onClick={() => {
   console.log("🔍 workout.title (code):", workout.title);
   localStorage.setItem("workoutIsFree", program?.free_is_program ? "true" : "false");
+  if (program?.id) localStorage.setItem("workoutProgramId", program.id);
   router.push(`/workout/detail?code=${workout.title}&workoutKey=${encodeURIComponent(workout.workout_title)}`);
 }}
   className="w-full py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition rounded-b-xl"

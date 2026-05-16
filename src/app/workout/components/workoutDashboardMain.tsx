@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Check, Calendar, Dumbbell, Loader2, CheckCircle, RefreshCw, Settings } from "lucide-react";
+import { Plus, Check, Calendar, Loader2, RefreshCw, Settings } from "lucide-react";
 import { getActivityWorkoutQueue } from "@/api/programs/route";
 
 interface ActivityWorkoutQueueItem {
@@ -51,12 +51,12 @@ interface Session {
   muscles_used?: string;
   cover_photo?: string;
   type?: string;
+  programCode?: string;
 }
 
 export default function WorkoutDashboard() {
   const router = useRouter();
 
-  const [goalCalories, setGoalCalories] = useState(4000);
   const [workouts, setWorkouts] = useState<ActivityWorkoutQueueItem[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +100,7 @@ export default function WorkoutDashboard() {
       muscles_used: workout.muscles_used,
       cover_photo: workout.cover_photo,
       type: workout.type,
+      programCode: workout.title,
     }));
 
     setSessions(mappedSessions);
@@ -107,8 +108,14 @@ export default function WorkoutDashboard() {
 
   const completedSessions = sessions.filter((s) => s.completed).length;
 
-  const handleSessionClick = (sessionId: string) => {
-    router.push(`/workout/detail?id=${sessionId}`);
+  const handleSessionClick = (session: Session) => {
+    const code = session.programCode?.toLowerCase()?.trim();
+    const workoutKey = encodeURIComponent(session.title);
+    if (!code) return;
+    localStorage.removeItem("workoutProgramId");
+    localStorage.setItem("workoutProgramCode", code);
+    localStorage.setItem("workoutTitle", session.title);
+    router.push(`/workout/detail?code=${code}&workoutKey=${workoutKey}`);
   };
 
   const completeActivity = (sessionId: string) => {
@@ -118,12 +125,6 @@ export default function WorkoutDashboard() {
     setWorkouts((prev) =>
       prev.map((w) => (w.id === sessionId ? { ...w, completed: true, completed_activity: true } : w))
     );
-  };
-
-  const deleteSession = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    setWorkouts((prev) => prev.filter((w) => w.id !== id));
   };
 
   // Helper to format time (08:30:00 → 8:30 AM)
@@ -293,7 +294,7 @@ export default function WorkoutDashboard() {
             {sessions.map((session) => (
               <div
                 key={session.id}
-                onClick={() => handleSessionClick(session.id)}
+                onClick={() => handleSessionClick(session)}
                 className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
                   session.completed ? "opacity-75" : ""
                 }`}

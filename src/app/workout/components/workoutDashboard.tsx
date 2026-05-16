@@ -73,6 +73,7 @@ interface Session {
   activityDay?: string;
   group?: string;
   order?: number;
+  programCode?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -167,6 +168,7 @@ export default function WorkoutDashboard() {
         activityDay: matchingActivity?.day,
         group: workout.group,
         order: workout.order || index + 1,
+        programCode: workout.title,
       };
     });
 
@@ -197,7 +199,14 @@ export default function WorkoutDashboard() {
     }
   };
 
-  const handleSessionClick = (sessionId: string) => router.push(`/workout/detail?id=${sessionId}`);
+  const handleSessionClick = (session: Session) => {
+    const code = session.programCode?.toLowerCase()?.trim();
+    if (!code) return;
+    localStorage.removeItem("workoutProgramId");
+    localStorage.setItem("workoutProgramCode", code);
+    localStorage.setItem("workoutTitle", session.title);
+    router.push(`/workout/detail?code=${code}&workoutKey=${encodeURIComponent(session.title)}`);
+  };
 
   const completeActivity = (sessionId: string) => {
     setSessions((prev) => prev.map((s) => s.id === sessionId ? { ...s, completed: true } : s));
@@ -340,7 +349,7 @@ export default function WorkoutDashboard() {
             {sessions.map((session, index) => (
               <div
                 key={session.id}
-                onClick={() => handleSessionClick(session.id)}
+                onClick={() => handleSessionClick(session)}
                 className={`rounded-xl p-3 sm:p-5 flex items-stretch gap-2 sm:gap-3 cursor-pointer transition-all ${
                   session.completed
                     ? "bg-[#1e3a2e] border border-green-500/20"

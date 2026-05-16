@@ -846,48 +846,55 @@ const plusMinutes = lastCard?.minutes || 0;
   return (
     <div className="min-h-screen bg-[#f4f4f8] text-[#1a1a2e] pb-12">
       {/* HEADER */}
-      <div className="bg-white px-4 sm:px-6 py-4 flex items-center justify-between border-b sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-        <button
-        onClick={() => router.back()}
-        className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center hover:bg-purple-600/30 transition"
-      >
-        <ArrowLeft size={18} className="text-white" />
-      </button>
-          <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center">
-            <Flame size={18} className="text-white" />
-          </div>
-          <h1 className="font-bold text-lg">Submit Cardio</h1>
-        </div>
+  {/* HEADER */}
+<div className="bg-white px-3 sm:px-6 py-3 flex items-center justify-between border-b sticky top-0 z-40 gap-2">
+  <div className="flex items-center gap-2 min-w-0">
+    <button
+      onClick={() => router.back()}
+      className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center hover:bg-purple-600/30 transition flex-shrink-0"
+    >
+      <ArrowLeft size={18} className="text-white" />
+    </button>
+    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+      <Flame size={16} className="text-white" />
+    </div>
+    <h1 className="font-bold text-base truncate">Submit Cardio</h1>
+  </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={() => router.push("/todays-focus-cardio/cardio-dashboard")}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-sm font-semibold hover:from-green-600 hover:to-green-700 transition shadow-md flex items-center gap-2"
-          >
-            Go to Cardio Dashboard
-          </button>
-
-          <button
-            onClick={() => router.push("/todays-focus-cardio/manifest-cardio")}
-            className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"
-          >
-            <List size={18} />
-          </button>
-          <button
-            onClick={addSession}
-            className="w-9 h-9 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white rounded-full flex items-center justify-center"
-          >
-            <Plus size={18} />
-          </button>
-          <button
-            onClick={() => router.push("/itinerary")}
-            className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"
-          >
-            <Calendar size={18} />
-          </button>
-        </div>
-      </div>
+  <div className="flex gap-2 flex-shrink-0">
+    {/* Hide text on mobile, show icon only */}
+    <button
+      onClick={() => router.push("/todays-focus-cardio/cardio-dashboard")}
+      className="hidden sm:flex px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-sm font-semibold transition shadow-md items-center gap-2"
+    >
+      Go to Cardio Dashboard
+    </button>
+    <button
+      onClick={() => router.push("/todays-focus-cardio/cardio-dashboard")}
+      className="sm:hidden w-9 h-9 bg-purple-600 rounded-full flex items-center justify-center"
+    >
+      <Activity size={16} className="text-white" />
+    </button>
+    <button
+      onClick={() => router.push("/todays-focus-cardio/manifest-cardio")}
+      className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"
+    >
+      <List size={18} />
+    </button>
+    <button
+      onClick={addSession}
+      className="w-9 h-9 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white rounded-full flex items-center justify-center"
+    >
+      <Plus size={18} />
+    </button>
+    <button
+      onClick={() => router.push("/itinerary")}
+      className="hidden sm:flex w-9 h-9 bg-gray-100 rounded-full items-center justify-center"
+    >
+      <Calendar size={18} />
+    </button>
+  </div>
+</div>
          
     <div className="px-4 sm:px-6 py-6">
   <div className="border border-[#a78bfa] rounded-2xl p-5 bg-[#ede9fe]">
@@ -1153,438 +1160,775 @@ const plusMinutes = lastCard?.minutes || 0;
 </div>
 
       {/* QUICK LOG CONTENT */}
-      {(sessionType === "quick" || workoutStarted) && (
-        <>
-    
+   {/* QUICK LOG CONTENT */}
+{(sessionType === "quick" || workoutStarted) && (
+  <>
+    <div className="px-4 sm:px-6 mb-6">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Header */}
+        <button
+          onClick={() => setIsQuickLogOpen(!isQuickLogOpen)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <Activity size={18} className="text-purple-600 flex-shrink-0" />
+            <p className="text-sm font-semibold text-gray-800">
+              Cardio Completion
+            </p>
+            <span className="text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+              {sessions.filter(s => s.submitted).length} {sessions.filter(s => s.submitted).length === 1 ? "entry" : "entries"}
+            </span>
+          </div>
+          <ChevronDown
+            size={18}
+            className={`text-gray-500 transition-transform duration-200 flex-shrink-0 ${
+              isQuickLogOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-          {/* Proof Image Upload */}
+        {/* Collapsible Content */}
+        {isQuickLogOpen && (
+          <div className="p-4 pt-0 border-t border-gray-100">
+            {/* TITLE */}
+            <div className="mb-4 mt-2">
+              <p className="text-green-600 font-semibold text-sm">
+                Quick Cardio Log:
+              </p>
+              <p className="text-xs text-gray-400">
+                Log and submit what you completed during your cardio workout.
+              </p>
+            </div>
 
+            {/* SESSIONS */}
+            <div className="space-y-5">
+              {sessions.map((s, index) => (
+                <div
+                  key={s.id}
+                  className="bg-white border rounded-2xl p-5 shadow-sm"
+                >
+                  {sessionType === "start" && workoutStarted && (
+                    <>
+                      {index === 0 && (
+                        <div className="mb-3 pb-2">
+                          <p className="text-purple-600 font-semibold text-sm">
+                            Cardio Plan:
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Create and share your plan to help you achieve your Cardio Goal.
+                          </p>
+                        </div>
+                      )}
+                      {index > 0 && (
+                        <div className="mb-3 pb-2">
+                          <p className="text-green-600 font-semibold text-sm">
+                            Completed Cardio:
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Log and submit what you completed during your cardio workout.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
 
-<div className="px-4 sm:px-6 mb-6">
-  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-    {/* Header - Click to collapse/expand */}
-    <button
-      onClick={() => setIsQuickLogOpen(!isQuickLogOpen)}
-      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-    >
-    <div className="flex items-center gap-2">
-    <Activity size={18} className="text-purple-600" />
-    <p className="text-sm font-semibold text-gray-800">
-      Cardio Completion
-    </p>
-<span className="text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-  {sessions.filter(s => s.submitted).length} {sessions.filter(s => s.submitted).length === 1 ? "entry" : "entries"}
-</span>
-  </div>
-      <ChevronDown
-        size={18}
-        className={`text-gray-500 transition-transform duration-200 ${
-          isQuickLogOpen ? "rotate-180" : ""
-        }`}
-      />
-    </button>
-
-    {/* Collapsible Content */}
-    {isQuickLogOpen && (
-      <div className="p-4 pt-0 border-t border-gray-100">
-        {/* TITLE */}
-        <div className="mb-4 mt-2">
-          <p className="text-green-600 font-semibold text-sm">
-            Quick Cardio Log:
-          </p>
-          <p className="text-xs text-gray-400">
-            Log and submit what you completed during your cardio workout.
-          </p>
-        </div>
-
-        {/* SESSIONS */}
-        <div className="space-y-5">
-          {sessions.map((s, index) => (
-            <div
-              key={s.id}
-              className="bg-white border rounded-2xl p-5 shadow-sm"
-            >
-              {sessionType === "start" && workoutStarted && (
-                <>
-                  {index === 0 && (
-                    <div className="mb-3 pb-2">
-                      <p className="text-purple-600 font-semibold text-sm">
-                        Cardio Plan:
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Create and share your plan to help you achieve your Cardio Goal.
-                      </p>
+                  {s.submitted && (
+                    <div className="mb-3 flex items-center gap-2 text-green-600">
+                      <CheckCircle size={16} />
+                      <span className="text-xs font-medium">
+                        Successfully submitted - you can edit and resubmit
+                      </span>
                     </div>
                   )}
-                  {index > 0 && (
-                    <div className="mb-3 pb-2">
-                      <p className="text-green-600 font-semibold text-sm">
-                        Completed Cardio:
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Log and submit what you completed during your cardio workout.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
 
-              {s.submitted && (
-                <div className="mb-3 flex items-center gap-2 text-green-600">
-                  <CheckCircle size={16} />
-                  <span className="text-xs font-medium">
-                    Successfully submitted - you can edit and resubmit
-                  </span>
-                </div>
-              )}
+                  {/* WEB LAYOUT - visible on sm and above */}
+                  <div className="hidden sm:block">
+                    <div className="flex flex-col gap-4">
+                      {/* Main Row */}
+                      <div className="flex flex-row items-start gap-4">
+                        <div className="flex gap-2 self-start">
+                          {s.submitted && (
+                            <button
+                              onClick={() => {
+                                updateSession(s.id, "submitted", false);
+                                updateSession(s.id, "isEditing", true);
+                              }}
+                              className="bg-gray-100 p-2.5 rounded-xl"
+                              disabled={s.submitting}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          )}
+                          {s.submitted && (
+                            <button
+                              onClick={() => deleteSession(s.id)}
+                              className="bg-red-100 p-2.5 rounded-xl text-red-500"
+                              disabled={s.submitting}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
 
-              <div className="flex flex-col gap-4">
-                {/* Main Row */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="flex gap-2 self-start">
-                    {s.submitted && (
-                      <button
-                        onClick={() => {
-                          updateSession(s.id, "submitted", false);
-                          updateSession(s.id, "isEditing", true);
-                        }}
-                        className="bg-gray-100 p-2.5 rounded-xl"
-                        disabled={s.submitting}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                    )}
-                    {s.submitted && (
-                      <button
-                        onClick={() => deleteSession(s.id)}
-                        className="bg-red-100 p-2.5 rounded-xl text-red-500"
-                        disabled={s.submitting}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
+                        <div className="flex-1">
+                          <div className="border rounded-xl px-4 py-3 bg-white border-gray-300">
+                            <select
+                              value={s.name}
+                              onChange={(e) => handleCardioSelect(s.id, e.target.value)}
+                              className="w-full text-sm outline-none bg-transparent"
+                              disabled={s.submitting}
+                            >
+                              {cardioMenu.map((item) => (
+                                <option key={item.id} value={item.name}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                  <div className="flex-1 w-full">
-                    <div className="border rounded-xl px-4 py-3 bg-white border-gray-300">
-                      <select
-                        value={s.name}
-                        onChange={(e) => handleCardioSelect(s.id, e.target.value)}
-                        className="w-full text-sm outline-none bg-transparent"
-                        disabled={s.submitting}
-                      >
-                        {cardioMenu.map((item) => (
-                          <option key={item.id} value={item.name}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                          {s.suggestion && (
+                            <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                              <p className="text-xs text-blue-700">💡 {s.suggestion}</p>
+                            </div>
+                          )}
+                          {s.demo_url && (
+                            <div className="mt-3">
+                              <img
+                                src={s.demo_url}
+                                alt={s.name}
+                                className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
+                              />
+                            </div>
+                          )}
 
-                    {s.suggestion && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
-                        <p className="text-xs text-blue-700">💡 {s.suggestion}</p>
-                      </div>
-                    )}
-                    {s.demo_url && (
-                      <div className="mt-3">
-                        <img
-                          src={s.demo_url}
-                          alt={s.name}
-                          className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
-                        />
-                      </div>
-                    )}
+                          {s.uploadedImage && (
+                            <div className="mt-3 relative">
+                              <img
+                                src={s.uploadedImage}
+                                alt="Uploaded"
+                                className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
+                              />
+                              <button
+                                onClick={() => updateSession(s.id, "uploadedImage", null)}
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
 
-                    {s.uploadedImage && (
-                      <div className="mt-3 relative">
-                        <img
-                          src={s.uploadedImage}
-                          alt="Uploaded"
-                          className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
-                        />
+                        {/* Calories Input */}
+                        <div className="bg-gray-50 px-5 py-3 rounded-2xl text-center min-w-[110px]">
+                          <input
+                            type="number"
+                            value={s.calories ?? ""}
+                            onChange={(e) =>
+                              updateSession(
+                                s.id,
+                                "calories",
+                                e.target.value === "" ? null : Number(e.target.value),
+                              )
+                            }
+                            placeholder="0"
+                            className="w-20 bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
+                            disabled={s.submitting}
+                          />
+                          <p className="text-[10px] text-gray-400 -mt-1">Calories*</p>
+                        </div>
+
+                        {/* Minutes Input */}
+                        <div className="bg-gray-50 px-5 py-3 rounded-2xl text-center min-w-[110px]">
+                          <input
+                            type="number"
+                            value={s.minutes ?? ""}
+                            onChange={(e) =>
+                              updateSession(
+                                s.id,
+                                "minutes",
+                                e.target.value === "" ? null : Number(e.target.value),
+                              )
+                            }
+                            placeholder="0"
+                            className="w-20 bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
+                            disabled={s.submitting}
+                          />
+                          <p className="text-[10px] text-gray-400 -mt-1">Minutes</p>
+                        </div>
+
+                        {/* Camera Button */}
+                        <div className="relative">
+                          <input
+                            type="file"
+                            id={`camera-${s.id}`}
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  updateSession(s.id, "uploadedImage", reader.result);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => document.getElementById(`camera-${s.id}`)?.click()}
+                            className="bg-purple-600 text-white p-3.5 rounded-2xl self-start hover:bg-purple-700 transition"
+                            disabled={s.submitting}
+                          >
+                            <Camera size={20} />
+                          </button>
+                        </div>
+
                         <button
-                          onClick={() => updateSession(s.id, "uploadedImage", null)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                          onClick={() => toggleExpand(s.id)}
+                          className="p-2 hover:bg-gray-100 rounded-full transition"
+                          disabled={s.submitting}
                         >
-                          <X size={14} />
+                          {expandedCards[s.id] ? (
+                            <ChevronUp size={20} />
+                          ) : (
+                            <ChevronDown size={20} />
+                          )}
                         </button>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Calories Input */}
-                  <div className="bg-gray-50 px-5 py-3 rounded-2xl text-center min-w-[110px]">
-                    <input
-                      type="number"
-                      value={s.calories ?? ""}
-                      onChange={(e) =>
-                        updateSession(
-                          s.id,
-                          "calories",
-                          e.target.value === "" ? null : Number(e.target.value),
-                        )
-                      }
-                      placeholder="0"
-                      className="w-20 bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
-                      disabled={s.submitting}
-                    />
-                    <p className="text-[10px] text-gray-400 -mt-1">Calories*</p>
-                  </div>
+                      {/* Expanded Fields - Web */}
+                      {expandedCards[s.id] && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.distance ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "distance",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Distance (mi)</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.mets ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "mets",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">METS</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.avgWatts ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "avgWatts",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Avg. Watts</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.rpms ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "rpms",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">RPM's</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.peakHr ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "peakHr",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Peak HR</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.avgHr ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "avgHr",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Avg. HR</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Minutes Input */}
-                  <div className="bg-gray-50 px-5 py-3 rounded-2xl text-center min-w-[110px]">
-                    <input
-                      type="number"
-                      value={s.minutes ?? ""}
-                      onChange={(e) =>
-                        updateSession(
-                          s.id,
-                          "minutes",
-                          e.target.value === "" ? null : Number(e.target.value),
-                        )
-                      }
-                      placeholder="0"
-                      className="w-20 bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
-                      disabled={s.submitting}
-                    />
-                    <p className="text-[10px] text-gray-400 -mt-1">Minutes</p>
-                  </div>
-
-                  {/* Camera Button */}
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id={`camera-${s.id}`}
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            updateSession(s.id, "uploadedImage", reader.result);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => document.getElementById(`camera-${s.id}`)?.click()}
-                      className="bg-purple-600 text-white p-3.5 rounded-2xl self-start sm:self-center hover:bg-purple-700 transition"
-                      disabled={s.submitting}
-                    >
-                      <Camera size={20} />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => toggleExpand(s.id)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition"
-                    disabled={s.submitting}
-                  >
-                    {expandedCards[s.id] ? (
-                      <ChevronUp size={20} />
-                    ) : (
-                      <ChevronDown size={20} />
-                    )}
-                  </button>
-                </div>
-
-                {/* Expanded Fields */}
-                {expandedCards[s.id] && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.distance ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "distance",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                      {/* Submit Button - Web */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <button
+                          onClick={() => handleSubmitCard(s)}
                           disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">Distance (mi)</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.mets ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "mets",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
-                          disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">METS</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.avgWatts ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "avgWatts",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
-                          disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">Avg. Watts</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.rpms ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "rpms",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
-                          disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">RPM's</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.peakHr ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "peakHr",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
-                          disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">Peak HR</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <input
-                          type="number"
-                          value={s.avgHr ?? ""}
-                          onChange={(e) =>
-                            updateSession(
-                              s.id,
-                              "avgHr",
-                              e.target.value === "" ? null : Number(e.target.value),
-                            )
-                          }
-                          placeholder="0"
-                          className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
-                          disabled={s.submitting}
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">Avg. HR</p>
+                          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {s.submitting ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <CheckCircle size={18} />
+                          )}
+                          {s.submitting
+                            ? "Submitting..."
+                            : s.submitted
+                            ? `Resubmit ${s.name}`
+                            : `Submit ${s.name}`}
+                        </button>
                       </div>
                     </div>
                   </div>
-                )}
 
-                {/* Submit Button */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={() => handleSubmitCard(s)}
-                    disabled={s.submitting}
-                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {s.submitting ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <CheckCircle size={18} />
-                    )}
-                    {s.submitting
-                      ? "Submitting..."
-                      : s.submitted
-                      ? `Resubmit ${s.name}`
-                      : `Submit ${s.name}`}
-                  </button>
+                  {/* MOBILE LAYOUT - visible on mobile only */}
+                  <div className="block sm:hidden">
+                    <div className="flex flex-col gap-4">
+                      {/* Action Buttons Row */}
+                      <div className="flex justify-end gap-2">
+                        {s.submitted && (
+                          <>
+                            <button
+                              onClick={() => {
+                                updateSession(s.id, "submitted", false);
+                                updateSession(s.id, "isEditing", true);
+                              }}
+                              className="bg-gray-100 p-2 rounded-xl"
+                              disabled={s.submitting}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => deleteSession(s.id)}
+                              className="bg-red-100 p-2 rounded-xl text-red-500"
+                              disabled={s.submitting}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Cardio Selection */}
+                      <div className="w-full">
+                        <div className="border rounded-xl px-4 py-3 bg-white border-gray-300">
+                          <select
+                            value={s.name}
+                            onChange={(e) => handleCardioSelect(s.id, e.target.value)}
+                            className="w-full text-sm outline-none bg-transparent"
+                            disabled={s.submitting}
+                          >
+                            {cardioMenu.map((item) => (
+                              <option key={item.id} value={item.name}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {s.suggestion && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                            <p className="text-xs text-blue-700">💡 {s.suggestion}</p>
+                          </div>
+                        )}
+                        {s.demo_url && (
+                          <div className="mt-3">
+                            <img
+                              src={s.demo_url}
+                              alt={s.name}
+                              className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
+                            />
+                          </div>
+                        )}
+
+                        {s.uploadedImage && (
+                          <div className="mt-3 relative">
+                            <img
+                              src={s.uploadedImage}
+                              alt="Uploaded"
+                              className="w-full h-32 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
+                            />
+                            <button
+                              onClick={() => updateSession(s.id, "uploadedImage", null)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Inputs Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 px-4 py-3 rounded-2xl text-center">
+                          <input
+                            type="number"
+                            value={s.calories ?? ""}
+                            onChange={(e) =>
+                              updateSession(
+                                s.id,
+                                "calories",
+                                e.target.value === "" ? null : Number(e.target.value),
+                              )
+                            }
+                            placeholder="0"
+                            className="w-full bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
+                            disabled={s.submitting}
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Calories*</p>
+                        </div>
+                        <div className="bg-gray-50 px-4 py-3 rounded-2xl text-center">
+                          <input
+                            type="number"
+                            value={s.minutes ?? ""}
+                            onChange={(e) =>
+                              updateSession(
+                                s.id,
+                                "minutes",
+                                e.target.value === "" ? null : Number(e.target.value),
+                              )
+                            }
+                            placeholder="0"
+                            className="w-full bg-transparent text-blue-600 font-bold text-2xl text-center outline-none placeholder:text-gray-300"
+                            disabled={s.submitting}
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Minutes</p>
+                        </div>
+                      </div>
+
+                      {/* Camera & Expand Buttons */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="relative flex-1">
+                          <input
+                            type="file"
+                            id={`camera-mobile-${s.id}`}
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  updateSession(s.id, "uploadedImage", reader.result);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => document.getElementById(`camera-mobile-${s.id}`)?.click()}
+                            className="bg-purple-600 text-white p-3 rounded-2xl hover:bg-purple-700 transition flex items-center justify-center gap-2 w-full"
+                            disabled={s.submitting}
+                          >
+                            <Camera size={18} />
+                            <span className="text-sm">Upload</span>
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => toggleExpand(s.id)}
+                          className="p-2 hover:bg-gray-100 rounded-full transition flex items-center justify-center gap-1"
+                          disabled={s.submitting}
+                        >
+                          {expandedCards[s.id] ? (
+                            <ChevronUp size={20} />
+                          ) : (
+                            <ChevronDown size={20} />
+                          )}
+                          <span className="text-xs text-gray-500">
+                            {expandedCards[s.id] ? "Less" : "More"}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* Expanded Fields - Mobile */}
+                      {expandedCards[s.id] && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.distance ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "distance",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Distance (mi)</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.mets ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "mets",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">METS</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.avgWatts ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "avgWatts",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Avg. Watts</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.rpms ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "rpms",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">RPM's</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.peakHr ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "peakHr",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Peak HR</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-3 text-center">
+                              <input
+                                type="number"
+                                value={s.avgHr ?? ""}
+                                onChange={(e) =>
+                                  updateSession(
+                                    s.id,
+                                    "avgHr",
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full bg-transparent text-purple-600 font-bold text-xl text-center outline-none placeholder:text-gray-300"
+                                disabled={s.submitting}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">Avg. HR</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Submit Button - Mobile */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <button
+                          onClick={() => handleSubmitCard(s)}
+                          disabled={s.submitting}
+                          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {s.submitting ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <CheckCircle size={18} />
+                          )}
+                          {s.submitting
+                            ? "Submitting..."
+                            : s.submitted
+                            ? `Resubmit ${s.name}`
+                            : `Submit ${s.name}`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Add Button */}
-        <div className="flex justify-center my-8">
+            {/* Add Button */}
+            <div className="flex justify-center my-8">
+              <button
+                onClick={addSession}
+                className="w-14 h-14 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform"
+              >
+                <Plus size={28} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* TOTALS & COMPLETE CARDIO SESSION BUTTON */}
+    {sessions.some((s) => s.submitted) && (
+      <>
+        {/* Web Totals */}
+        <div className="hidden sm:block mx-4 sm:mx-6 mb-10 border border-red-300 rounded-3xl bg-[#fdf2f2] p-6 text-center">
+          <p className="text-purple-600 text-sm mb-5 font-medium">Totals:</p>
+          <div className="flex justify-center gap-12 mb-8 flex-wrap">
+            <div>
+              <p className="text-xs text-gray-400">Total Calories</p>
+              <p className="text-4xl font-bold text-gray-800">
+                {totalCalories}
+                {shouldShowPlus && plusCalories > 0 && (
+                  <span className="text-sm ml-2 text-green-500">
+                    (+{plusCalories})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Total Minutes</p>
+              <p className="text-4xl font-bold text-gray-800">
+                {totalMinutes}
+                {shouldShowPlus && plusMinutes > 0 && (
+                  <span className="text-sm ml-2 text-red-500">
+                    (+{plusMinutes})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
           <button
-            onClick={addSession}
-            className="w-14 h-14 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform"
+            onClick={() => setShowCompletePopup(true)}
+            disabled={isCompleting || sessions.length === 0}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-2xl font-semibold text-lg shadow-md hover:from-purple-700 hover:to-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus size={28} />
+            {isCompleting ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <Flame size={20} />
+            )}
+            {isCompleting ? "Completing..." : "Complete Cardio Session"}
           </button>
         </div>
-      </div>
-    )}
-  </div>
-</div>
 
-          {/* TOTALS & COMPLETE CARDIO SESSION BUTTON */}
-{/* TOTALS & COMPLETE CARDIO SESSION BUTTON */}
-{sessions.some((s) => s.submitted) && (
-<div className="mx-4 sm:mx-6 mb-10 border border-red-300 rounded-3xl bg-[#fdf2f2] p-6 text-center">
-            <p className="text-purple-600 text-sm mb-5 font-medium">Totals:</p>
-<div className="flex justify-center gap-12 mb-8 flex-wrap">
-  <div>
-    <p className="text-xs text-gray-400">Total Calories</p>
-    <p className="text-4xl font-bold text-gray-800">
-      {totalCalories}
-      {shouldShowPlus && plusCalories > 0 && (
-        <span className="text-sm ml-2 text-green-500">
-          (+{plusCalories})
-        </span>
-      )}
-    </p>
-  </div>
-  <div>
-    <p className="text-xs text-gray-400">Total Minutes</p>
-    <p className="text-4xl font-bold text-gray-800">
-      {totalMinutes}
-      {shouldShowPlus && plusMinutes > 0 && (
-        <span className="text-sm ml-2 text-red-500">
-          (+{plusMinutes})
-        </span>
-      )}
-    </p>
-  </div>
-</div>
-            <button
-              onClick={() => setShowCompletePopup(true)}
-              disabled={isCompleting || sessions.length === 0}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-2xl font-semibold text-lg shadow-md hover:from-purple-700 hover:to-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCompleting ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : (
-                <Flame size={20} />
-              )}
-              {isCompleting ? "Completing..." : "Complete Cardio Session"}
-            </button>
+        {/* Mobile Totals */}
+        <div className="block sm:hidden mx-4 mb-10 border border-red-300 rounded-3xl bg-[#fdf2f2] p-5 text-center">
+          <p className="text-purple-600 text-sm mb-4 font-medium">Totals:</p>
+          <div className="flex justify-center gap-8 mb-6 flex-wrap">
+            <div className="text-center">
+              <p className="text-xs text-gray-400">Total Calories</p>
+              <div className="flex items-baseline gap-1 justify-center">
+                <p className="text-3xl font-bold text-gray-800">
+                  {totalCalories}
+                </p>
+                {shouldShowPlus && plusCalories > 0 && (
+                  <span className="text-xs text-green-500 whitespace-nowrap">
+                    (+{plusCalories})
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-400">Total Minutes</p>
+              <div className="flex items-baseline gap-1 justify-center">
+                <p className="text-3xl font-bold text-gray-800">
+                  {totalMinutes}
+                </p>
+                {shouldShowPlus && plusMinutes > 0 && (
+                  <span className="text-xs text-red-500 whitespace-nowrap">
+                    (+{plusMinutes})
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-           )} 
-        </>
-      )}
-
+          <button
+            onClick={() => setShowCompletePopup(true)}
+            disabled={isCompleting || sessions.length === 0}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3.5 rounded-2xl font-semibold shadow-md hover:from-purple-700 hover:to-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-base"
+          >
+            {isCompleting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Flame size={18} />
+            )}
+            {isCompleting ? "Completing..." : "Complete Cardio Session"}
+          </button>
+        </div>
+      </>
+    )}
+  </>
+)}
       {/* COMPLETE POPUP */}
       {showCompletePopup && (
         <div
