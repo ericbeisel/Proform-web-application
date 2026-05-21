@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronRight, Users, Lock, FileText, X, Dumbbell, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
+import {
+  getIncompleteSessions,
+  createWorkoutSession,
+  IncompleteSession,
+} from "@/api/workouts/route";
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -25,6 +30,8 @@ export default function ViewWorkoutPage() {
   const [filterByLocation, setFilterByLocation] = useState(false);
   const isLocked = !hasPurchased;
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [incompleteSession, setIncompleteSession] = useState<IncompleteSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(null);
   const [sets, setSets] = useState<{ weight: string; reps: string }[]>([{ weight: "", reps: "" }]);
 
@@ -51,9 +58,8 @@ export default function ViewWorkoutPage() {
     const isFree = localStorage.getItem("workoutIsFree");
     if (isFree === "true") setHasPurchased(true);
 
-    const activeSession = localStorage.getItem(`activeSessionId_${programCode}`);
-    if (activeSession) setSessionStarted(true);
-
+    const storedSessionId = localStorage.getItem(`activeSessionId_${programCode}`);
+    if (storedSessionId) setSessionStarted(true);
 
     if (!programCode) {
       setLoading(false);
@@ -64,6 +70,15 @@ export default function ViewWorkoutPage() {
       .then((res) => setWorkoutGroups(Array.isArray(res) ? res : []))
       .catch((err) => console.error("Failed to fetch grouped workouts:", err))
       .finally(() => setLoading(false));
+
+    const normalizedCode = programCode.toUpperCase();
+    console.log("🔍 Fetching incomplete sessions for:", normalizedCode);
+    getIncompleteSessions(normalizedCode)
+      .then((sessions) => {
+        console.log("✅ Incomplete sessions:", sessions);
+        if (sessions.length > 0) setIncompleteSession(sessions[0]);
+      })
+      .catch((err) => console.error("❌ Rejoin session error:", err));
   }, []);
 
 const ExerciseCard = ({
@@ -180,15 +195,24 @@ const ExerciseCard = ({
 
               {!isLocked ? (
                 <button
-                  onClick={() => {
-                    const code = localStorage.getItem("workoutProgramCode") || "unknown";
-                    const sessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
-                    localStorage.setItem(`activeSessionId_${code}`, sessionId);
-                    setSessionStarted(true);
-                    router.push("/workout/equipmentNeeded");
+                  onClick={async () => {
+                    const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+                    setSessionLoading(true);
+                    try {
+                      const { session } = await createWorkoutSession({ workoutLibraryId: code, locationId: null });
+                      localStorage.setItem("pendingSessionId", session.id);
+                      localStorage.setItem("pendingSessionCode", code);
+                      router.push("/workout/equipmentNeeded");
+                    } catch (err) {
+                      console.error("Failed to start session:", err);
+                    } finally {
+                      setSessionLoading(false);
+                    }
                   }}
-                  className="bg-[#3b82f6] text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center gap-2 text-xs sm:text-sm hover:bg-[#2563eb] transition-colors"
+                  disabled={sessionLoading}
+                  className="bg-[#3b82f6] text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center gap-2 text-xs sm:text-sm hover:bg-[#2563eb] transition-colors disabled:opacity-60"
                 >
+                  {sessionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                   Start Session
                 </button>
               ) : (
@@ -209,26 +233,28 @@ const ExerciseCard = ({
           </div>
 
           {/* Row 2: Rejoin Live Session */}
+          {incompleteSession && (
           <div className="pb-3 sm:pb-4">
             <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
                   <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
-                    Rejoin Live Session: Bdb377
+                    Rejoin Live Session: {incompleteSession.id.slice(0, 6)}
                   </h3>
                   <p className="text-white/90 text-[10px] mt-1 font-medium">
-                    Started 3/26/2026, 4:44 AM
+                    Started {new Date(incompleteSession.created_at).toLocaleString()}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => router.push("/workout/liveSession")}
+                onClick={() => router.push("/workout/viewWorkoutSession")}
                 className="bg-white hover:bg-gray-100 transition px-4 sm:px-6 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm flex-shrink-0"
               >
                 Go To Session
               </button>
             </div>
           </div>
+          )}
 
         </div>
       </div>

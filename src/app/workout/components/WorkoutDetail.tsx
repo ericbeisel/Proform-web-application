@@ -268,16 +268,34 @@ const filteredExercises = exercises;
               ))}
             </div>
           </div>
-          <button 
-onClick={() => {
-  localStorage.setItem("workoutEquipment", JSON.stringify(uniqueEquipment));
-  localStorage.setItem("workoutProgramCode", programCode);
-  localStorage.setItem("workoutTitle", workoutTitle);
-  router.push("/workout/viewWorkout");
-}}            className="w-full md:w-auto bg-[#6D28D9] text-white px-8 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-purple-100 transition-all active:scale-95 flex items-center justify-center gap-2"
-          >
-            View Workout <ChevronRight size={14} />
-          </button>
+   <button 
+  onClick={() => {
+    // Store all necessary data in localStorage
+    localStorage.setItem("workoutEquipment", JSON.stringify(uniqueEquipment));
+    localStorage.setItem("workoutProgramCode", programCode);
+    localStorage.setItem("workoutTitle", workoutTitle);
+    
+    // ⭐ READ the workoutIsFree value that was set by the program page
+    const isWorkoutFree = localStorage.getItem("workoutIsFree");
+    console.log("📝 workoutIsFree from localStorage:", isWorkoutFree);
+    
+    // Pass it forward (or re-store it to ensure it's there)
+    localStorage.setItem("workoutIsFree", isWorkoutFree === "true" ? "true" : "false");
+    
+    // Store the program ID for session creation
+    const resolvedProgramId = programId || localStorage.getItem("workoutProgramId");
+    if (resolvedProgramId) {
+      localStorage.setItem("workoutProgramId", resolvedProgramId);
+    }
+    
+    // Navigate to the updated session page
+    router.push("/workout/viewWorkoutSession");
+  }}            
+  className="w-full md:w-auto bg-[#6D28D9] text-white px-8 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-purple-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+>
+  View Workout <ChevronRight size={14} />
+</button>
+
         </div>
 
         {/* MAIN RESPONSIVE GRID */}

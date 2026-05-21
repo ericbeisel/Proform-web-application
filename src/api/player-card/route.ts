@@ -32,30 +32,30 @@ export interface PlayerCardDetail {
   body_fat?: number | null;
   height: number | null;
   name?: string;
-  
+
   // Accountability tools fields
   bpImage?: string | null;
   bpPhoto?: string | null;
   bp_test_image?: string | null;
   bp_test_type?: string | null;
-  
+
   breathingImage?: string | null;
   breathingPhoto?: string | null;
   breathing_test_image?: string | null;
   breathing_test_type?: string | null;
-  
+
   hydrationImage?: string | null;
   hydrationPhoto?: string | null;
   hydration_test_image?: string | null;
   hydration_test_type?: string | null;
-  
+
   bloodworkImage?: string | null;
   bloodworkPhoto?: string | null;
   bloodwork_test_image?: string | null;
-  
+
   other_image?: string | null;
   other_description?: string | null;
-  
+
   // Diff fields
   smm_diff?: string | number | null;
   bf_diff?: string | number | null;
@@ -67,7 +67,7 @@ export interface PlayerCardDetail {
   bodyCampScoreDiff?: string | number | null;
   currentWeightDiff?: string | number | null;
   heightDiff?: string | number | null;
-  
+
   type?: string | null;
   user?: any;
 }
@@ -83,10 +83,10 @@ export interface PlayerCardDetailsResponse {
 
 export interface AcceptPlayerCardParams {
   id: number;
-  currentWeight: number;  // Changed from string to number
-  height: number;         // Changed from string to number
-  smm: number;           // Changed from string to number
-  bodyFat: number;       // Changed from string to number
+  currentWeight: number; // Changed from string to number
+  height: number; // Changed from string to number
+  smm: number; // Changed from string to number
+  bodyFat: number; // Changed from string to number
   bodyCampScore: number; // Changed from string to number
 }
 
@@ -271,22 +271,28 @@ export const getAdminPlayerCardDetails = async (
   }
 };
 
-export const acceptAdminPlayerCard = async (params: AcceptPlayerCardParams): Promise<unknown> => {
+export const acceptAdminPlayerCard = async (
+  params: AcceptPlayerCardParams,
+): Promise<unknown> => {
   try {
     // Send as JSON, not FormData
-    const { data } = await apiClient.post("/accept-admin-playercard", {
-      id: Number(params.id),
-      currentWeight: Number(params.currentWeight),
-      height: Number(params.height),
-      smm: Number(params.smm),
-      bodyFat: Number(params.bodyFat),
-      bodyCampScore: Number(params.bodyCampScore),
-    }, {
-      headers: {
-        "Content-Type": "application/json",  // Changed from multipart/form-data
-        Accept: "application/json",
+    const { data } = await apiClient.post(
+      "/accept-admin-playercard",
+      {
+        id: Number(params.id),
+        currentWeight: Number(params.currentWeight),
+        height: Number(params.height),
+        smm: Number(params.smm),
+        bodyFat: Number(params.bodyFat),
+        bodyCampScore: Number(params.bodyCampScore),
       },
-    });
+      {
+        headers: {
+          "Content-Type": "application/json", // Changed from multipart/form-data
+          Accept: "application/json",
+        },
+      },
+    );
     return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to accept player card."));

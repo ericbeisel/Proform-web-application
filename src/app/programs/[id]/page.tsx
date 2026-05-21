@@ -60,6 +60,123 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
   );
 }
 
+// Pricing Plans Modal for paid programs
+function PricingPlansModal({
+  isOpen,
+  onClose,
+  programTitle,
+  packageName,
+  addWorkoutCount,
+  onAddToQueuePayLater,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  programTitle: string;
+  packageName: string;
+  addWorkoutCount: number;
+  onAddToQueuePayLater: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-sm overflow-y-auto max-h-[90vh] relative">
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition"
+        >
+          <X size={16} className="text-gray-600" />
+        </button>
+
+        <div className="p-6 space-y-5">
+          {/* Icon */}
+          <div className="flex justify-center pt-2">
+            <div className="relative">
+              <div className="bg-gradient-to-br from-purple-500 to-indigo-500 p-4 rounded-2xl">
+                <FileText className="text-white" size={28} />
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-blue-400 w-5 h-5 rounded-md" />
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="text-center">
+            <h2 className="text-lg font-bold text-gray-900 leading-snug">
+              You don&apos;t have access to<br />this workout or program
+            </h2>
+            <p className="text-sm text-gray-400 mt-1">Purchase this program individually</p>
+          </div>
+
+          {/* Purchase individually button */}
+          <button className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold py-3.5 rounded-2xl hover:opacity-90 transition text-sm">
+            Purchase Program
+          </button>
+
+          {/* Workout count */}
+          <p className="text-center text-green-600 text-sm font-semibold">
+            *Add {addWorkoutCount} Workout{addWorkoutCount !== 1 ? "s" : ""}
+          </p>
+
+          {/* Divider */}
+          <div className="border-t border-gray-100" />
+
+          {/* Package section */}
+          {packageName && (
+            <div className="text-center space-y-2">
+              <div className="flex justify-center">
+                <span className="bg-orange-400 text-white text-sm font-bold px-5 py-1.5 rounded-full">
+                  {packageName}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                You can access this program and all other workouts/programs in this package by purchasing a Franchise License.
+              </p>
+              <p className="text-sm text-gray-400">View details and options below:</p>
+            </div>
+          )}
+
+          {/* Franchise subscription */}
+          <div className="space-y-3">
+            <p className="text-sm text-gray-700 font-medium">Purchase a franchise subscription:</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="border-2 border-cyan-400 text-cyan-500 font-bold py-3 rounded-xl text-sm hover:bg-cyan-50 transition">
+                $29/mo
+              </button>
+              <button className="bg-gray-900 text-white font-bold py-3 rounded-xl text-sm hover:bg-black transition">
+                $299/yr
+              </button>
+            </div>
+            <div className="text-center">
+              <a href="#" className="text-blue-500 underline text-sm font-medium">
+                View Franchise Details
+              </a>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-100" />
+
+          {/* Add to queue pay later */}
+          <div className="space-y-2 pb-2">
+            <button
+              onClick={onAddToQueuePayLater}
+              disabled={false}
+              className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold py-3.5 rounded-2xl hover:opacity-90 transition text-sm"
+            >
+              Add to queue and pay later
+            </button>
+            <p className="text-center text-green-600 text-xs font-medium">
+              *You will able to purchase these workouts before starting them
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Original popup from your code
 // Update the AddToQueueModal component props
 function AddToQueueModal({
@@ -178,6 +295,7 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -213,8 +331,7 @@ useEffect(() => {
       // Show popup for free program
       setIsModalOpen(true);
     } else {
-      // For paid program, show pricing alert or navigate to pricing
-      alert("Please see pricing plans to access this program.");
+      setIsPricingModalOpen(true);
     }
   };
 
@@ -306,8 +423,20 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
   programTitle={program.title}
   onAddToQueue={handleAddToQueue}
   isAdding={isAdding}
-  addWorkoutCount={program.addworkoutcount || 0}  // Add this
-  supplementalWorkoutCounts={program.supplementalWorkoutCounts || 0}  // Add this
+  addWorkoutCount={program.addworkoutcount || 0}
+  supplementalWorkoutCounts={program.supplementalWorkoutCounts || 0}
+/>
+
+<PricingPlansModal
+  isOpen={isPricingModalOpen}
+  onClose={() => setIsPricingModalOpen(false)}
+  programTitle={program.title}
+  packageName={program.package || ""}
+  addWorkoutCount={program.addworkoutcount || 0}
+  onAddToQueuePayLater={() => {
+    setIsPricingModalOpen(false);
+    setIsModalOpen(true);
+  }}
 />
 
       {/* ══════════════════════════════════════

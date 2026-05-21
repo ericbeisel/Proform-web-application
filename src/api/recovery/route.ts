@@ -2,7 +2,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
 
 // ===========================================
 // TYPES
@@ -127,12 +128,12 @@ export interface RecoveryRecord {
   created_date: string;
   updated_date: string;
   owner: string;
-  recovery_zone?: RecoveryZoneBasic;  // ← ADD THIS
+  recovery_zone?: RecoveryZoneBasic; // ← ADD THIS
 }
 
 // FIX: Change from 'data' to 'items' to match actual API response
 export interface RecoveryRecordsResponse {
-  items: RecoveryRecord[];  // ← CHANGE from 'data' to 'items'
+  items: RecoveryRecord[]; // ← CHANGE from 'data' to 'items'
   total: number;
   currentPage: number;
   totalPages: number;
@@ -140,12 +141,12 @@ export interface RecoveryRecordsResponse {
 
 export interface RecoveryCustomActivity {
   id: string | number;
-  custom_activity_id?: number;  
-  name: string;                    // Activity name from API
-  title?: string;                  // Optional title
-  type: string;                    // "recovery", "sleep", etc.
-  day: string;                     // "Monday", "Tuesday", etc.
-  time: string;                    // "16:30:00"
+  custom_activity_id?: number;
+  name: string; // Activity name from API
+  title?: string; // Optional title
+  type: string; // "recovery", "sleep", etc.
+  day: string; // "Monday", "Tuesday", etc.
+  time: string; // "16:30:00"
   duration: number;
   intensity: string;
   completed: boolean;
@@ -155,8 +156,8 @@ export interface RecoveryCustomActivity {
   notes?: string;
   recovery_score?: number;
   cover_image?: string;
-  recurring?: string;              // "Every Week", etc.
-  day_number?: number;             // 1 = Monday, 2 = Tuesday, etc.
+  recurring?: string; // "Every Week", etc.
+  day_number?: number; // 1 = Monday, 2 = Tuesday, etc.
   activity_time?: string;
   activity_day?: string;
   created_at?: string;
@@ -174,7 +175,6 @@ export interface RecoveryCustomActivity {
   cardio_id?: string | null;
   user_completed?: boolean | null;
 }
-
 
 // ===========================================
 // ERROR HANDLER
@@ -227,29 +227,35 @@ apiClient.interceptors.request.use(
 // RECOVERY API
 // ===========================================
 
-export const getSuggestedAndFavouriteZones = async (): Promise<SuggestedAndFavouriteResponse> => {
-  try {
-    const { data } = await apiClient.get<SuggestedAndFavouriteResponse>("/recovery/suggested-and-favourite-zones");
-    console.log("📋 Recovery zones response:", data);
-    return data;
-  } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch recovery zones."),
-    );
-  }
-};
+export const getSuggestedAndFavouriteZones =
+  async (): Promise<SuggestedAndFavouriteResponse> => {
+    try {
+      const { data } = await apiClient.get<SuggestedAndFavouriteResponse>(
+        "/recovery/suggested-and-favourite-zones",
+      );
+      console.log("📋 Recovery zones response:", data);
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(error, "Failed to fetch recovery zones."),
+      );
+    }
+  };
 
-export const getRecoveryDashboard = async (): Promise<RecoveryDashboardData> => {
-  try {
-    const { data } = await apiClient.get<RecoveryDashboardData>("/recovery/dashboard");
-    console.log("📋 Recovery dashboard response:", data);
-    return data;
-  } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch recovery dashboard data."),
-    );
-  }
-};
+export const getRecoveryDashboard =
+  async (): Promise<RecoveryDashboardData> => {
+    try {
+      const { data } = await apiClient.get<RecoveryDashboardData>(
+        "/recovery/dashboard",
+      );
+      console.log("📋 Recovery dashboard response:", data);
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(error, "Failed to fetch recovery dashboard data."),
+      );
+    }
+  };
 
 export const getAllRecoveryZones = async (): Promise<RecoveryZone[]> => {
   try {
@@ -257,13 +263,13 @@ export const getAllRecoveryZones = async (): Promise<RecoveryZone[]> => {
     console.log("📋 All recovery zones response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch recovery zones."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch recovery zones."));
   }
 };
 
-export const getRecoveryZoneById = async (id: string): Promise<RecoveryZone> => {
+export const getRecoveryZoneById = async (
+  id: string,
+): Promise<RecoveryZone> => {
   try {
     const { data } = await apiClient.get<RecoveryZone>(`/recovery/zones/${id}`);
     console.log("📋 Recovery zone details response:", data);
@@ -276,10 +282,13 @@ export const getRecoveryZoneById = async (id: string): Promise<RecoveryZone> => 
 };
 
 export const createRecoveryRecord = async (
-  payload: CreateRecoveryRecordPayload
+  payload: CreateRecoveryRecordPayload,
 ): Promise<CreateRecoveryRecordResponse> => {
   try {
-    const { data } = await apiClient.post<CreateRecoveryRecordResponse>("/recovery/records", payload);
+    const { data } = await apiClient.post<CreateRecoveryRecordResponse>(
+      "/recovery/records",
+      payload,
+    );
     console.log("📋 Create recovery record response:", data);
     return data;
   } catch (error: unknown) {
@@ -290,24 +299,30 @@ export const createRecoveryRecord = async (
 };
 
 export const updateRecoveryGoal = async (
-  recoveryGoal: number
+  recoveryGoal: number,
 ): Promise<UpdateRecoveryGoalResponse> => {
   try {
-    const { data } = await apiClient.patch<UpdateRecoveryGoalResponse>("/recovery/goal", {
-      recovery_goal: recoveryGoal,
-    });
+    const { data } = await apiClient.patch<UpdateRecoveryGoalResponse>(
+      "/recovery/goal",
+      {
+        recovery_goal: recoveryGoal,
+      },
+    );
     console.log("📋 Update recovery goal response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to update recovery goal."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to update recovery goal."));
   }
 };
 
-export const getRecoveryRecords = async (page: number = 1, limit: number = 10): Promise<RecoveryRecordsResponse> => {
+export const getRecoveryRecords = async (
+  page: number = 1,
+  limit: number = 10,
+): Promise<RecoveryRecordsResponse> => {
   try {
-    const { data } = await apiClient.get<RecoveryRecordsResponse>(`/recovery/records?page=${page}&limit=${limit}`);
+    const { data } = await apiClient.get<RecoveryRecordsResponse>(
+      `/recovery/records?page=${page}&limit=${limit}`,
+    );
     console.log("📋 Recovery records response:", data);
     return data;
   } catch (error: unknown) {
@@ -317,7 +332,9 @@ export const getRecoveryRecords = async (page: number = 1, limit: number = 10): 
   }
 };
 
-export const getRecoveryCustomActivities = async (): Promise<RecoveryCustomActivity[]> => {
+export const getRecoveryCustomActivities = async (): Promise<
+  RecoveryCustomActivity[]
+> => {
   try {
     const token = getAuthToken();
     const { data } = await axios.get(`${API_BASE}/recovery/custom-activities`, {
@@ -341,25 +358,25 @@ export const completeRecoveryCustomActivity = async (
   title: string,
   time_spent: number,
   recovery_id?: string,
-  upload_image?: File | string
+  upload_image?: File | string,
 ): Promise<void> => {
   try {
     const token = getAuthToken();
-    
+
     const requestBody: any = {
       custom_activity_id: custom_activity_id,
       title: title,
       time_spent: time_spent,
     };
-    
+
     if (recovery_id) {
       requestBody.recovery_id = recovery_id;
     }
-    
+
     if (upload_image) {
       requestBody.upload_image = upload_image;
     }
-    
+
     await axios.post(
       `${API_BASE}/recovery/custom-activities/complete`,
       requestBody,
@@ -369,7 +386,7 @@ export const completeRecoveryCustomActivity = async (
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-      }
+      },
     );
   } catch (error: unknown) {
     console.error("Error completing recovery activity:", error);
@@ -378,18 +395,17 @@ export const completeRecoveryCustomActivity = async (
 };
 
 // Delete a custom recovery activity
-export const deleteRecoveryCustomActivity = async (activityId: string | number): Promise<void> => {
+export const deleteRecoveryCustomActivity = async (
+  activityId: string | number,
+): Promise<void> => {
   try {
     const token = getAuthToken();
-    await axios.delete(
-      `${API_BASE}/recovery/custom-activities/${activityId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      }
-    );
+    await axios.delete(`${API_BASE}/recovery/custom-activities/${activityId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
   } catch (error: unknown) {
     console.error("Error deleting recovery activity:", error);
     throw new Error("Failed to delete recovery activity");

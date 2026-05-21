@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  Loader2,
   Heart,
   Plus,
   Search,
@@ -84,6 +85,10 @@ export default function FeedMainPage() {
   const router = useRouter();
 
   const [feeds, setFeeds] = useState<ExtendedFeed[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showCardioPopup, setShowCardioPopup] = useState(false);
   const [showHighlightPopup, setShowHighlightPopup] =
   useState(false);
@@ -174,32 +179,34 @@ const [creatingHighlight, setCreatingHighlight] =
     loadData();
   }, []);
 
+ const mapFeeds = (rawFeeds: any[]): ExtendedFeed[] =>
+  rawFeeds.map((feed) => {
+    const raw = feed as any;
+    return {
+      ...feed,
+      date: raw.date || feed.created_at,
+      activity_id: raw.activity_id,
+      user: raw.user,
+      member_id: raw.member_id,
+      type: raw.type || "activity",
+      description: raw.description,
+      mediaUrl: raw.mediaUrl || raw.media_url,
+      media_url: raw.media_url,
+      title2: raw.title2,
+    };
+  });
+
  const loadData = async () => {
   try {
     const res = await feedApi.getFeed(1);
-
     const rawFeeds = res.feeds || [];
-    const mappedFeeds: ExtendedFeed[] = rawFeeds.map((feed) => {
-      const raw = feed as any;
-      return {
-        ...feed,
-        date: raw.date || feed.created_at,
-        activity_id: raw.activity_id,
-        user: raw.user,
-        member_id: raw.member_id,
-        type: raw.type || "activity",
-        description: raw.description,
-        mediaUrl: raw.mediaUrl || raw.media_url,
-        media_url: raw.media_url,
-        title2: raw.title2,
-      };
-    });
+    const mapped = mapFeeds(rawFeeds);
+    const user = res.currectUser || (res as any).currentUser || null;
 
-    setFeeds(mappedFeeds);
-
-    setCurrentUser(res.currectUser || (res as any).currentUser || null);
-
-    // FETCH HIGHLIGHTS
+    setFeeds(mapped);
+    setHasMore(rawFeeds.length === 20);
+    setPage(1);
+    setCurrentUser(user);
     const highlightsData = await feedApi.listHighlights(1);
     setHighlights(highlightsData);
   } catch (err) {
@@ -208,6 +215,23 @@ const [creatingHighlight, setCreatingHighlight] =
     setLoading(false);
   }
 };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await feedApi.getFeed(nextPage);
+      const rawFeeds = res.feeds || [];
+      setFeeds((prev) => [...prev, ...mapFeeds(rawFeeds)]);
+      setHasMore(rawFeeds.length === 20);
+      setPage(nextPage);
+    } catch (err) {
+      console.error("Failed to load more feeds:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleLike = async (feed: ExtendedFeed) => {
     if (!currentUser || !feed.id || likingFeedId === feed.id) return;
@@ -300,13 +324,22 @@ const [creatingHighlight, setCreatingHighlight] =
     );
   }
 
-  const filteredFeeds = showMyWorkoutsOnly
-    ? feeds.filter(
-        (feed) =>
-          String(feed.member_id) ===
-          String(currentUser?.id)
-      )
-    : feeds;
+  const q = searchQuery.toLowerCase().trim();
+
+  const filteredFeeds = feeds.filter((feed) => {
+    const matchesOwner = showMyWorkoutsOnly
+      ? String(feed.member_id) === String(currentUser?.id)
+      : true;
+
+    const matchesSearch = q
+      ? feed.title?.toLowerCase().includes(q) ||
+        feed.user?.username?.toLowerCase().includes(q) ||
+        feed.user?.name?.toLowerCase().includes(q) ||
+        feed.type?.toLowerCase().includes(q)
+      : true;
+
+    return matchesOwner && matchesSearch;
+  });
 
   const grouped = groupByDate(filteredFeeds);
 
@@ -367,9 +400,10 @@ const [creatingHighlight, setCreatingHighlight] =
             size={17}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
           />
-
           <input
             type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search feed..."
             className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
           />
@@ -424,9 +458,10 @@ const [creatingHighlight, setCreatingHighlight] =
         size={17}
         className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
       />
-
       <input
         type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
         placeholder="Search feed..."
         className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
       />
@@ -536,6 +571,13 @@ const [creatingHighlight, setCreatingHighlight] =
   </div>
 </div>
 
+        {/* FEED COUNT */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-700">
+            {filteredFeeds.length}{hasMore ? "+" : ""} posts
+          </span>
+        </div>
+
         <div className="flex flex-col lg:flex-row gap-6">
           {/* MAIN FEED */}
           <div className="flex-1">
@@ -627,7 +669,7 @@ const [creatingHighlight, setCreatingHighlight] =
                             onClick={() => {
                               if (feed.type === "CompleteCardio") {
                                 const params = new URLSearchParams({
-                                  feedId: String(feed.id),
+                                  feedId: feed.activity_id || String(feed.id),
                                   userName: feed.user?.name || "",
                                   userUsername: feed.user?.username || "",
                                   title: feed.title || "",
@@ -707,6 +749,22 @@ const [creatingHighlight, setCreatingHighlight] =
                   Follow friends to see their workouts
                   here
                 </p>
+              </div>
+            )}
+
+            {/* LOAD MORE */}
+            {hasMore && filteredFeeds.length > 0 && (
+              <div className="flex justify-center mt-4 mb-8">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="flex items-center gap-2 px-8 py-3 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  {loadingMore ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : null}
+                  {loadingMore ? "Loading..." : "Load More"}
+                </button>
               </div>
             )}
           </div>
@@ -1314,7 +1372,7 @@ const [creatingHighlight, setCreatingHighlight] =
                 onClick={() => {
                   if (selectedSessionFeed.type === "CompleteCardio") {
                     const params = new URLSearchParams({
-                      feedId: String(selectedSessionFeed.id),
+                      feedId: selectedSessionFeed.activity_id || String(selectedSessionFeed.id),
                       userName: selectedSessionFeed.user?.name || "",
                       userUsername: selectedSessionFeed.user?.username || "",
                       title: selectedSessionFeed.title || "",

@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  MapPin,
-  Calendar,
   Search,
   Share2,
   ChevronLeft,
@@ -31,13 +29,33 @@ import { getDashboardData } from "@/api/auth/dashboard/route";
 
 type Modal = "edit" | "social" | null;
 
-interface UserData {
-  id: number;
-  name: string;
-  username: string;
-  email: string;
-  role_id: string;
-  image: string | null;
+const CACHE_TTL = 5 * 60 * 1000;
+
+function getCachedData(username: string) {
+  try {
+    const raw = sessionStorage.getItem(`profile_${username}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) {
+      sessionStorage.removeItem(`profile_${username}`);
+      return null;
+    }
+    return data as { profile: ProfileData; socials: DetailedSocialMedia[] };
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData(
+  username: string,
+  data: { profile: ProfileData; socials: DetailedSocialMedia[] },
+) {
+  try {
+    sessionStorage.setItem(
+      `profile_${username}`,
+      JSON.stringify({ data, ts: Date.now() }),
+    );
+  } catch {}
 }
 
 export default function ProfilePage() {
@@ -54,184 +72,89 @@ export default function ProfilePage() {
     username: string;
     name: string;
   } | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-
-  // Function to fetch current user data from API and store in localStorage
-  const fetchCurrentUserData = async () => {
-    try {
-      console.log("🔄 Fetching current user data from dashboard API...");
-      const dashboard = await getDashboardData();
-      const user = dashboard?.user;
-
-      if (user) {
-        // Type assertion to ensure we have the correct shape
-        const userData: UserData = {
-          id: Number(user.id),
-          name: String(user.name || ""),
-          username: String(user.username || ""),
-          email: String(user.email || ""),
-          role_id: String(user.role_id || "1"),
-          image: user.image ? String(user.image) : null,
-        };
-
-        // Store user data in localStorage for future use
-        localStorage.setItem("user", JSON.stringify(userData));
-        console.log("✅ Stored user data in localStorage:", userData);
-
-        // Return the data for currentUser state
-        return {
-          id: userData.id,
-          name: userData.name,
-          username: userData.username,
-        };
-      }
-    } catch (err) {
-      console.error("❌ Failed to fetch current user:", err);
-    }
-    return null;
-  };
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    console.log("📦 localStorage user data:", storedUser);
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setCurrentUser({
-          id: Number(parsed.id),
-          name: String(parsed.name),
-          username: String(parsed.username),
-        });
-        console.log("👤 Current user parsed:", {
-          id: Number(parsed.id),
-          name: String(parsed.name),
-          username: String(parsed.username),
-        });
-      } catch (err) {
-        console.error("Error parsing stored user:", err);
-      }
-    }
-    setUserLoaded(true);
-  }, []);
+    let cancelled = false;
 
-  const fetchProfileData = async (username: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log(`🔍 Fetching profile for username: "${username}"`);
-      console.log(`📡 API call: /my-profile?username=${username}`);
-
-      // 1. Fetch Basic Profile
-      const profileData = await profileApi.getProfileByUsername(username);
-      console.log("✅ Profile data received:", profileData);
-      console.log("📊 Profile details:", {
-        id: profileData.id,
-        name: profileData.name,
-        username: profileData.username,
-        image: profileData.image,
-        role_id: profileData.role_id,
-        workoutCount: profileData.workoutCount,
-        FollowsCount: profileData.followersCount,
-        Strength: profileData.Strength,
-        Bench_CMP: profileData.Bench_CMP,
-        Squat_CMP: profileData.Squat_CMP,
-        Deadlift_CMP: profileData.Deadlift_CMP,
-        followtype: profileData.followtype,
-        SocialMedia: profileData.SocialMedia,
-      });
-
-      setProfile(profileData);
-
-      // 2. Fetch Social Media for the icons
-      console.log(`🔍 Fetching social media for user ID: ${profileData.id}`);
-      const socialMediaLinks = await profileApi.getSocialMedia(profileData.id);
-      console.log("✅ Social media data received:", socialMediaLinks);
-      console.log("📱 Social media count:", socialMediaLinks.length);
-      socialMediaLinks.forEach((social, idx) => {
-        console.log(
-          `  ${idx + 1}. ${social.type}: ${social.url} (hide: ${social.hide})`,
-        );
-      });
-
-      setSocials(socialMediaLinks);
-    } catch (err: any) {
-      console.error("❌ Error fetching profile:", err);
-      console.error("Error details:", {
-        message: err.message,
-        status: err.response?.status,
-        data: err.response?.data,
-      });
-
-      // If profile not found and we have retries left, wait and retry
-      if (err.message?.includes("not found") && retryCount < 3) {
-        console.log(`🔄 Profile not found, retrying... (${retryCount + 1}/3)`);
-        setTimeout(() => {
-          setRetryCount((prev) => prev + 1);
-        }, 1000);
-        return;
-      }
-
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!userLoaded) return;
-
-    const resolveUsername = async () => {
+    const load = async () => {
       const urlUsername = searchParams.get("username");
-      const storedUser = localStorage.getItem("user");
-      let parsed = null;
 
+      // Read stored user once
+      let stored: { id: number; name: string; username: string; [k: string]: any } | null = null;
       try {
-        if (storedUser) {
-          parsed = JSON.parse(storedUser);
-        }
-      } catch (err) {
-        console.error("Error parsing stored user:", err);
+        const raw = localStorage.getItem("user");
+        if (raw) stored = JSON.parse(raw);
+      } catch {}
+
+      let resolvedUsername = urlUsername || stored?.username || "";
+
+      // Last resort: fetch from dashboard API
+      if (!resolvedUsername) {
+        try {
+          const dashboard = await getDashboardData();
+          const u = dashboard?.user;
+          if (u) {
+            stored = {
+              id: Number(u.id),
+              name: String(u.name || ""),
+              username: String(u.username || ""),
+              email: String(u.email || ""),
+              role_id: String(u.role_id || "1"),
+              image: u.image ? String(u.image) : null,
+            };
+            localStorage.setItem("user", JSON.stringify(stored));
+            resolvedUsername = stored.username;
+          }
+        } catch {}
       }
 
-      let resolvedUsername = urlUsername || parsed?.username || "";
-
-      // If no username and no stored user, try to fetch from API
       if (!resolvedUsername) {
-        console.log(
-          "📌 No username found in URL or localStorage, fetching from API...",
-        );
-        const currentUserData = await fetchCurrentUserData();
-        if (currentUserData) {
-          resolvedUsername = currentUserData.username;
-          setCurrentUser(currentUserData);
-          console.log("✅ Got current user from API:", currentUserData);
+        if (!cancelled) {
+          setLoading(false);
+          setError("No user found. Please log in.");
         }
-      } else if (parsed) {
-        setCurrentUser({
-          id: Number(parsed.id),
-          name: String(parsed.name),
-          username: String(parsed.username),
-        });
-      }
-
-      console.log("🔗 URL parameters:", searchParams.toString());
-      console.log("👤 URL username param:", urlUsername);
-      console.log("👤 Stored user:", parsed);
-      console.log("✅ Resolved username:", resolvedUsername);
-
-      if (!resolvedUsername) {
-        setLoading(false);
-        setError("No user found. Please log in.");
         return;
       }
 
-      fetchProfileData(resolvedUsername);
+      if (stored) {
+        setCurrentUser({ id: Number(stored.id), name: String(stored.name), username: String(stored.username) });
+      }
+
+      // Serve from cache immediately — no spinner on revisit
+      const cached = getCachedData(resolvedUsername);
+      if (cached) {
+        if (!cancelled) {
+          setProfile(cached.profile);
+          setSocials(cached.socials);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Fresh fetch: profile first (need ID for socials), then socials
+      try {
+        setLoading(true);
+        setError(null);
+
+        const profileData = await profileApi.getProfileByUsername(resolvedUsername);
+        if (cancelled) return;
+        setProfile(profileData);
+
+        const socialData = await profileApi.getSocialMedia(profileData.id);
+        if (cancelled) return;
+        setSocials(socialData);
+
+        setCachedData(resolvedUsername, { profile: profileData, socials: socialData });
+      } catch (err: any) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
-    resolveUsername();
-  }, [userLoaded, searchParams, retryCount]);
+    load();
+    return () => { cancelled = true; };
+  }, [searchParams]);
 
   // Add this function to refresh social links
   const refreshSocialLinks = async () => {
@@ -290,11 +213,6 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-        {retryCount > 0 && (
-          <p className="text-sm text-gray-500 mt-4">
-            Loading profile... ({retryCount}/3)
-          </p>
-        )}
       </div>
     );
   }
@@ -615,7 +533,10 @@ export default function ProfilePage() {
               <EditProfilePage
                 profileData={profile}
                 onClose={() => setModal(null)}
-                onUpdateSuccess={() => fetchProfileData(profile.username)}
+                onUpdateSuccess={() => {
+                  sessionStorage.removeItem(`profile_${profile.username}`);
+                  window.location.reload();
+                }}
               />
             )}
             {modal === "social" && (

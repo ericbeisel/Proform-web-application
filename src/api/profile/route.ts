@@ -138,7 +138,6 @@ apiClient.interceptors.request.use((config) => {
 // ===========================================
 
 export const profileApi = {
- 
   getProfileByUsername: async (username: string): Promise<ProfileData> => {
     try {
       const res = await apiClient.get<ProfileResponse>(
@@ -181,11 +180,14 @@ export const profileApi = {
     }
   },
 
-  updateProfile: async (payload: { name: string; image?: File | null }): Promise<void> => {
+  updateProfile: async (payload: {
+    name: string;
+    image?: File | null;
+  }): Promise<void> => {
     try {
       const formData = new FormData();
       formData.append("name", payload.name);
-      
+
       if (payload.image) {
         formData.append("image", payload.image);
       }
@@ -219,13 +221,16 @@ export const profileApi = {
   // USER SEARCH API
   // ===========================================
 
-  searchUsers: async (page: number = 1, search?: string): Promise<UserSearchResponse> => {
+  searchUsers: async (
+    page: number = 1,
+    search?: string,
+  ): Promise<UserSearchResponse> => {
     try {
       let url = `/user-search?page=${page}`;
       if (search) {
         url += `&search=${encodeURIComponent(search)}`;
       }
-      
+
       const res = await apiClient.get<UserSearchResponse>(url);
       return res.data;
     } catch (err) {

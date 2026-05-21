@@ -9,14 +9,15 @@ import {
   ChevronUp,
   Plus,
   Calendar,
+  X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getCardioMenu,
-  CardioMenuItem,
-  getCardioHistory,
+  getCardioSessionDetails,
+  updateCardioGoal,
+  CardioSessionDetailsResponse,
 } from "@/api/cardio/route";
-import { preferenceApi } from "@/api/preferences/route";
 
 interface Session {
   name: string;
@@ -30,50 +31,74 @@ export default function FeedCardioSessionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const feedId = searchParams.get("feedId") || "";
   const userName = searchParams.get("userName") || "User";
   const userUsername = searchParams.get("userUsername") || "user";
   const feedDate = searchParams.get("date") || "";
 
-  const [cardioMenu, setCardioMenu] = useState<CardioMenuItem[]>([]);
   const [caloriesLeftWeek, setCaloriesLeftWeek] = useState(0);
   const [loading, setLoading] = useState(true);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [isGoalOpen, setIsGoalOpen] = useState(true);
   const [isRecordsOpen, setIsRecordsOpen] = useState(true);
 
-  const [goalCalories, setGoalCalories] = useState<number>(290);
-  const [goalMinutes, setGoalMinutes] = useState<number>(42);
+  const [goalCalories] = useState<number>(290);
+  const [goalMinutes] = useState<number>(42);
+  const [showResetGoalModal, setShowResetGoalModal] = useState(false);
+  const [newGoalInput, setNewGoalInput] = useState("");
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [isMetricsOpen, setIsMetricsOpen] = useState(false);
+  const [metrics, setMetrics] = useState({
+    distance: "",
+    mets: "",
+    avgWatts: "",
+    rpm: "",
+    peakHr: "",
+    avgHr: "",
+  });
 
   const [session, setSession] = useState<Session>({
-    name: "BOXING BAG. HEAVY",
-    calories: 290,
-    minutes: 23,
+    name: "",
+    calories: null,
+    minutes: null,
     suggestion: null,
     uploadedImage: null,
   });
 
+  const [sessionData, setSessionData] =
+    useState<CardioSessionDetailsResponse | null>(null);
+
   useEffect(() => {
     const load = async () => {
       try {
-        const [menu, prefs, history] = await Promise.all([
+        const [menu, details] = await Promise.all([
           getCardioMenu(),
-          preferenceApi.getPreferencesData(),
-          getCardioHistory("thisweek", 1, 100),
+          feedId ? getCardioSessionDetails(feedId) : Promise.resolve(null),
         ]);
 
-        setCardioMenu(menu);
+        if (details) {
+          setSessionData(details);
+          setCaloriesLeftWeek(details.left_this_week);
 
-        const goal = prefs.calories_goal || 0;
-        const burned = (history as any).weeklyCaloriesSum || 0;
-        setCaloriesLeftWeek(Math.max(0, goal - burned));
-
-        const defaultItem = menu.find((i) => i.name === session.name) || menu[0];
-        if (defaultItem) {
-          setSession((prev) => ({
-            ...prev,
-            name: defaultItem.name,
-            suggestion: defaultItem.suggestion,
-          }));
+          const calc = details.calculators[0];
+          if (calc) {
+            setSession({
+              name: calc.cardio_option || calc.title || menu[0]?.name || "",
+              calories: calc.calories_burned,
+              minutes: calc.minutes,
+              suggestion: calc.suggestion || null,
+              uploadedImage: null,
+            });
+          }
+        } else {
+          const defaultItem = menu[0];
+          if (defaultItem) {
+            setSession((prev) => ({
+              ...prev,
+              name: defaultItem.name,
+              suggestion: defaultItem.suggestion,
+            }));
+          }
         }
       } catch (e) {
         console.error(e);
@@ -82,31 +107,13 @@ export default function FeedCardioSessionPage() {
       }
     };
     load();
-  }, []);
-
-  const handleCardioSelect = (selectedName: string) => {
-    const item = cardioMenu.find((i) => i.name === selectedName);
-    setSession((prev) => ({
-      ...prev,
-      name: selectedName,
-      suggestion: item?.suggestion ?? null,
-    }));
-  };
+  }, [feedId]);
 
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => setProofImage(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleSessionImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () =>
-      setSession((prev) => ({ ...prev, uploadedImage: reader.result as string }));
     reader.readAsDataURL(file);
   };
 
@@ -129,6 +136,11 @@ export default function FeedCardioSessionPage() {
   };
 
   const caloriesLeft = Math.max(0, goalCalories - (session.calories || 0));
+
+  const displayName = sessionData?.user?.username
+    ? sessionData.user.username
+    : userName;
+  const displayUsername = sessionData?.user?.username || userUsername;
 
   if (loading) {
     return (
@@ -157,8 +169,8 @@ export default function FeedCardioSessionPage() {
 
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-gray-500 hidden sm:inline">
-            <span className="font-semibold">Author:</span> {userName}{" "}
-            <span className="text-[#1da1f2]">@{userUsername}</span>
+            <span className="font-semibold">Author:</span> {displayName}{" "}
+            <span className="text-[#1da1f2]">@{displayUsername}</span>
           </span>
           <button className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center shadow-sm">
             <Plus size={14} className="text-white" />
@@ -179,7 +191,10 @@ export default function FeedCardioSessionPage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <button className="bg-white px-4 py-2 text-xs rounded-xl font-medium whitespace-nowrap shadow-sm border border-gray-100">
+              <button
+                onClick={() => { setNewGoalInput(""); setShowResetGoalModal(true); }}
+                className="bg-white px-4 py-2 text-xs rounded-xl font-medium whitespace-nowrap shadow-sm border border-gray-100"
+              >
                 Reset Goal
               </button>
 
@@ -251,41 +266,17 @@ export default function FeedCardioSessionPage() {
               <div className="grid grid-cols-2 gap-4">
                 {/* Calories */}
                 <div className="rounded-2xl border border-gray-200 py-4 px-3 flex flex-col items-center">
-                  <button
-                    onClick={() => setGoalCalories((c) => c + 1)}
-                    className="text-gray-300 hover:text-purple-600 transition"
-                  >
-                    <ChevronUp size={18} />
-                  </button>
-                  <span className="text-3xl font-bold text-[#6c3fef] my-0.5">
-                    {goalCalories}
-                  </span>
-                  <button
-                    onClick={() => setGoalCalories((c) => Math.max(0, c - 1))}
-                    className="text-gray-300 hover:text-purple-600 transition"
-                  >
-                    <ChevronDown size={18} />
-                  </button>
+                  <ChevronUp size={18} className="text-gray-300" />
+                  <span className="text-3xl font-bold text-[#6c3fef] my-0.5">{goalCalories}</span>
+                  <ChevronDown size={18} className="text-gray-300" />
                   <p className="text-[11px] text-gray-400 mt-1">Calories*</p>
                 </div>
 
                 {/* Minutes */}
                 <div className="rounded-2xl border border-gray-200 py-4 px-3 flex flex-col items-center">
-                  <button
-                    onClick={() => setGoalMinutes((m) => m + 1)}
-                    className="text-gray-300 hover:text-purple-600 transition"
-                  >
-                    <ChevronUp size={18} />
-                  </button>
-                  <span className="text-3xl font-bold text-[#6c3fef] my-0.5">
-                    {goalMinutes}
-                  </span>
-                  <button
-                    onClick={() => setGoalMinutes((m) => Math.max(0, m - 1))}
-                    className="text-gray-300 hover:text-purple-600 transition"
-                  >
-                    <ChevronDown size={18} />
-                  </button>
+                  <ChevronUp size={18} className="text-gray-300" />
+                  <span className="text-3xl font-bold text-[#6c3fef] my-0.5">{goalMinutes}</span>
+                  <ChevronDown size={18} className="text-gray-300" />
                   <p className="text-[11px] text-gray-400 mt-1">Minutes</p>
                 </div>
               </div>
@@ -319,123 +310,29 @@ export default function FeedCardioSessionPage() {
 
               {/* Session entry card */}
               <div className="border border-gray-200 rounded-2xl p-4">
-                {/* Row: dropdown + calories + minutes + camera */}
+                {/* Row: activity + calories + minutes */}
                 <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                  {/* Activity dropdown */}
+                  {/* Activity (read-only) */}
                   <div className="flex-1 min-w-0 border rounded-xl px-3 py-2.5 border-gray-300 bg-white">
-                    <select
-                      value={session.name}
-                      onChange={(e) => handleCardioSelect(e.target.value)}
-                      className="w-full text-sm outline-none bg-transparent font-medium text-gray-700"
-                    >
-                      {cardioMenu.map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                    <p className="text-sm font-medium text-gray-700 truncate">{session.name}</p>
                   </div>
 
-                  {/* Calories spinner */}
+                  {/* Calories (read-only) */}
                   <div className="bg-gray-50 px-4 py-2 rounded-2xl flex flex-col items-center min-w-[80px]">
-                    <button
-                      onClick={() =>
-                        setSession((s) => ({
-                          ...s,
-                          calories: (s.calories || 0) + 1,
-                        }))
-                      }
-                      className="text-gray-300 hover:text-purple-600 transition"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <span className="text-xl font-bold text-[#6c3fef]">
-                      {session.calories ?? 0}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setSession((s) => ({
-                          ...s,
-                          calories: Math.max(0, (s.calories || 0) - 1),
-                        }))
-                      }
-                      className="text-gray-300 hover:text-purple-600 transition"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
+                    <ChevronUp size={14} className="text-gray-300" />
+                    <span className="text-xl font-bold text-[#6c3fef]">{session.calories ?? 0}</span>
+                    <ChevronDown size={14} className="text-gray-300" />
                     <p className="text-[10px] text-gray-400 mt-0.5">Calories*</p>
                   </div>
 
-                  {/* Minutes spinner */}
+                  {/* Minutes (read-only) */}
                   <div className="bg-gray-50 px-4 py-2 rounded-2xl flex flex-col items-center min-w-[80px]">
-                    <button
-                      onClick={() =>
-                        setSession((s) => ({
-                          ...s,
-                          minutes: (s.minutes || 0) + 1,
-                        }))
-                      }
-                      className="text-gray-300 hover:text-purple-600 transition"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <span className="text-xl font-bold text-[#6c3fef]">
-                      {session.minutes ?? 0}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setSession((s) => ({
-                          ...s,
-                          minutes: Math.max(0, (s.minutes || 0) - 1),
-                        }))
-                      }
-                      className="text-gray-300 hover:text-purple-600 transition"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
+                    <ChevronUp size={14} className="text-gray-300" />
+                    <span className="text-xl font-bold text-[#6c3fef]">{session.minutes ?? 0}</span>
+                    <ChevronDown size={14} className="text-gray-300" />
                     <p className="text-[10px] text-gray-400 mt-0.5">Minutes</p>
                   </div>
-
-                  {/* Camera */}
-                  <label className="bg-purple-600 text-white p-3 rounded-2xl cursor-pointer hover:bg-purple-700 transition flex-shrink-0">
-                    <Camera size={18} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleSessionImageUpload}
-                    />
-                  </label>
                 </div>
-
-                {/* Uploaded session image */}
-                {session.uploadedImage && (
-                  <div className="mt-3 relative">
-                    <img
-                      src={session.uploadedImage}
-                      alt="uploaded"
-                      className="w-full h-28 object-contain rounded-xl border border-gray-200 bg-gray-50 p-2"
-                    />
-                    <button
-                      onClick={() =>
-                        setSession((s) => ({ ...s, uploadedImage: null }))
-                      }
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
 
                 {/* Suggestion */}
                 {session.suggestion && (
@@ -445,11 +342,121 @@ export default function FeedCardioSessionPage() {
                     </p>
                   </div>
                 )}
+
+                {/* Metrics toggle */}
+                <button
+                  onClick={() => setIsMetricsOpen((o) => !o)}
+                  className="mt-3 w-full flex items-center justify-center gap-1 text-xs font-semibold text-gray-400 hover:text-purple-600 transition"
+                >
+                  {isMetricsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {/* Metrics inputs */}
+                {isMetricsOpen && (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Distance (mi)", key: "distance" },
+                      { label: "METS", key: "mets" },
+                      { label: "Avg. Watts", key: "avgWatts" },
+                      { label: "RPM's", key: "rpm" },
+                      { label: "Peak HR", key: "peakHr" },
+                      { label: "Avg. HR", key: "avgHr" },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+                        <input
+                          type="number"
+                          value={metrics[key as keyof typeof metrics]}
+                          onChange={(e) => setMetrics((m) => ({ ...m, [key]: e.target.value }))}
+                          placeholder="0"
+                          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-300 placeholder:font-normal"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* RESET GOAL MODAL */}
+      {showResetGoalModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-sm rounded-[30px] bg-white shadow-2xl border border-gray-100 overflow-hidden">
+
+            {/* Close */}
+            <button
+              onClick={() => setShowResetGoalModal(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 transition flex items-center justify-center"
+            >
+              <X size={16} className="text-gray-700" />
+            </button>
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center shadow-md">
+                  <Flame size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-900">Cardio Goal</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">You're adjusting your weekly calorie goal</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              {/* Current goal */}
+              <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-4">
+                <p className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">Current Goal (kcal)</p>
+                <p className="text-4xl font-black text-[#6c3fef]">{caloriesLeftWeek}</p>
+              </div>
+
+              {/* New goal input */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">New Goal (kcal)</p>
+                <input
+                  type="number"
+                  value={newGoalInput}
+                  onChange={(e) => setNewGoalInput(e.target.value)}
+                  placeholder="Enter new goal..."
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-5 py-3.5 text-xl font-bold text-gray-800 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition placeholder:text-gray-300 placeholder:font-normal"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setShowResetGoalModal(false)}
+                className="flex-1 h-12 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={savingGoal || !newGoalInput}
+                onClick={async () => {
+                  setSavingGoal(true);
+                  try {
+                    await updateCardioGoal(Number(newGoalInput));
+                    setShowResetGoalModal(false);
+                  } catch (err) {
+                    console.error("Failed to update cardio goal:", err);
+                  } finally {
+                    setSavingGoal(false);
+                  }
+                }}
+                className="flex-1 h-12 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:opacity-90 transition disabled:opacity-50"
+              >
+                {savingGoal ? "Saving..." : "Save Goal"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOTTOM STICKY FOOTER */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#fdf2f2] border-t border-red-100 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">

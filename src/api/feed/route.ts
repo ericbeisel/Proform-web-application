@@ -75,6 +75,7 @@ export interface FeedResponse {
   hightlightUser: HighlightUser[];
   feeds: Feed[];
   currectUser: CurrentUser;
+  total?: number;
 }
 
 // ===========================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, User, LogOut, Menu, X } from "lucide-react";
+import { BarChart2, User, LogOut, Menu, X , ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
 import Link from "next/link";
@@ -86,6 +86,13 @@ export default function DashboardHeader({
             <BarChart2 size={18} />
           </button>
 
+  <button
+    onClick={() => router.push("/coach/coach-onboarding")}
+    className="hidden sm:flex items-center gap-1.5 px-3 h-9 rounded-[10px] bg-gradient-to-r from-[#6c5ce7] to-[#8e7dff] text-white hover:opacity-90 transition-all text-sm font-medium shadow-sm"
+  >
+    <ArrowRightLeft size={15} />
+    Switch to Coach
+  </button>
           {/* Logout Button - Desktop */}
           <button
             onClick={handleLogout}

@@ -26,13 +26,33 @@ import {
   ChevronDown,
   Dumbbell,
   CheckCircle2,
+  Lock,
+  Loader2,
+  Plus,
+  Trash2,
+  FileText,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
+import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
+import {
+  getIncompleteSessions,
+  IncompleteSession,
+} from "@/api/workouts/route";
+
+function resolveWixImage(url?: string): string {
+  if (!url) return "";
+  if (url.startsWith("wix:image://v1/")) {
+    const mediaId = url.replace("wix:image://v1/", "").split("#")[0].split("/")[0];
+    return `https://static.wixstatic.com/media/${mediaId}`;
+  }
+  return url;
+}
 
 export default function ViewWorkoutSessionPage() {
   const router = useRouter();
 
+  // Existing state
   const [location, setLocation] = useState<string | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -40,7 +60,24 @@ export default function ViewWorkoutSessionPage() {
   const [activeView, setActiveView] = useState("Overview");
   const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<number>>(new Set());
+  const [selectedExercises, setSelectedExercises] = useState<Set<number>>(new Set());
+  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
+const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGroupItem>>(new Map());
+  // New state from 1st code
+  const [activeSession, setActiveSession] = useState<IncompleteSession | null>(null);
+  const [workoutGroups, setWorkoutGroups] = useState<WorkoutGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [workoutTitle, setWorkoutTitle] = useState<string>("");
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [incompleteSessions, setIncompleteSessions] = useState<IncompleteSession[]>([]);
+  const incompleteSession = incompleteSessions[0] ?? null;
+  const [showRejoinModal, setShowRejoinModal] = useState(false);
+  const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(null);
+  const [sets, setSets] = useState<{ weight: string; reps: string }[]>([{ weight: "", reps: "" }]);
 
+  // Existing handlers
   const toggleCard = (i: number) => {
     setSelectedCards(prev => {
       const next = new Set(prev);
@@ -48,8 +85,6 @@ export default function ViewWorkoutSessionPage() {
       return next;
     });
   };
-  const [selectedExercises, setSelectedExercises] = useState<Set<number>>(new Set());
-  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
 
   const toggleExercise = (id: number) => {
     setSelectedExercises(prev => {
@@ -75,61 +110,179 @@ export default function ViewWorkoutSessionPage() {
     });
   };
 
-  useEffect(() => {
-    const savedLocation = localStorage.getItem("selectedLocation");
-    if (savedLocation) {
-      setLocation(savedLocation);
+  // New handlers from 1st code
+  const addSet = () => setSets((prev) => [...prev, { weight: "", reps: "" }]);
+  const removeSet = (i: number) => setSets((prev) => prev.filter((_, idx) => idx !== i));
+  const updateSet = (i: number, field: "weight" | "reps", val: string) =>
+    setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)));
+
+  const openTracking = (item: WorkoutGroupItem) => {
+    setTrackingItem(item);
+    setSets([{ weight: "", reps: "" }]);
+  };
+
+
+  const totalExercises = workoutGroups.reduce((sum, g) => sum + g.workouts.length, 0);
+  const isLocked = !hasPurchased;
+
+const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
+  const swapped = swappedExercises.get(original.exercise_id);
+  if (swapped) {
+    return swapped;
+  }
+  return original;
+};
+
+  // Fetch real data (from 1st code)
+ useEffect(() => {
+  const initializeWorkout = async () => {
+    const savedLocation = localStorage.getItem("workoutLocationName");
+    if (savedLocation) setLocation(savedLocation);
+
+    const programCode = localStorage.getItem("workoutProgramCode");
+    const title = localStorage.getItem("workoutTitle");
+    if (title) setWorkoutTitle(title);
+
+    const isFree = localStorage.getItem("workoutIsFree");
+    if (isFree === "true") setHasPurchased(true);
+
+    const storedSessionId = localStorage.getItem(`activeSessionId_${programCode?.toUpperCase()}`);
+    if (storedSessionId) {
+      setSessionStarted(true);
     }
-  }, []);
 
-  const warmup = [
-    { name: "Band-Resisted Row-to-Squat", reps: "12-15" },
-    { name: "Floor Groin Flow", reps: "8/e" },
-    { name: "Band-Resisted Crossover Step Up", reps: "8/e" },
-  ];
+    if (!programCode) {
+      setLoading(false);
+      return;
+    }
 
-  const round1 = [
-    { name: "Box SL Depth Squat", reps: "15/e" },
-    { name: "Barbell Back Squat", reps: "8-12", notes: ["@12 EL", "@12 EL", "@10 EL"] },
-    { name: "Dumbbell RDL", reps: "20" },
-  ];
+    // Load persisted swapped exercises (saved right after session creation)
+    const savedSwaps = localStorage.getItem(`swappedExercises_${programCode.toUpperCase()}`);
+    if (savedSwaps) {
+      try {
+        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
+        setSwappedExercises(new Map(entries));
+      } catch {
+        // ignore malformed data
+      }
+    }
 
-  const round2 = [
-    { name: "Balance-Pad Adduction", reps: "15-20" },
-    { name: 'Band-Resisted "X" Lateral Walk', reps: "20/e" },
-    { name: "Dumbbell Goblet Squat", reps: "12-15" },
-  ];
+    getProgramGroupedWorkouts(programCode)
+      .then((res) => {
+        const groups = Array.isArray(res) ? res : [];
+        const getRoundNum = (label: string) => {
+          const m = label.match(/^ROUND\s+(\d+)/i);
+          return m ? parseInt(m[1], 10) : Infinity;
+        };
+        groups.sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
+        setWorkoutGroups(groups);
+      })
+      .catch((err) => console.error("Failed to fetch grouped workouts:", err))
+      .finally(() => setLoading(false));
 
-  const ExerciseCard = ({ ex }: any) => (
-    <div className="bg-white rounded-[24px] border border-[#e8e8ef] p-5 min-h-[180px] sm:min-h-[210px] relative hover:shadow-md transition-all">
-      <div className="absolute top-4 left-4 text-emerald-500">
-        <Home size={16} />
+    const normalizedCode = programCode.toUpperCase();
+  getIncompleteSessions(normalizedCode)
+  .then((sessions) => {
+    if (sessions.length > 0) {
+      setIncompleteSessions(sessions);
+      const storedId = localStorage.getItem(`activeSessionId_${normalizedCode}`);
+      if (storedId) {
+        const matched = sessions.find(s => s.id === storedId);
+        if (matched) setActiveSession(matched);
+      }
+    }
+  })
+  .catch((err) => console.error("[rejoin] API error:", err));
+  };
+
+  initializeWorkout();
+}, []);
+
+  // Dynamic ExerciseCard that uses real data
+const DynamicExerciseCard = ({
+  item,
+  locked = false,
+  sessionStarted = false,
+}: {
+  item: WorkoutGroupItem;
+  locked?: boolean;
+  sessionStarted?: boolean;
+}) => {
+  const actualItem = getActualExercise(item);
+  const isSwapped = swappedExercises.has(item.exercise_id);
+  
+  return (
+    <div className={`bg-white rounded-[24px] border border-[#e8e8ef] p-5 min-h-[180px] sm:min-h-[210px] relative transition-all ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"}`}>
+      <div className="absolute top-4 left-4 flex items-center gap-1.5">
+        {actualItem.is_power_set && (
+          <span className="text-[10px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">$</span>
+        )}
+        {isSwapped && <Home size={16} className="text-emerald-500" />}
       </div>
-      <div className="w-14 h-14 rounded-2xl bg-[#f3f3f6] mx-auto mb-6 flex items-center justify-center">
-        <div className="w-7 h-7 rounded-full bg-[#1e1e22]" />
-      </div>
-      <h3 className="text-[13px] font-semibold text-center text-[#222] leading-tight min-h-[38px] flex items-center justify-center">
-        {ex.name}
-      </h3>
-      <div className="mt-4 text-center">
-        <p className="text-[32px] sm:text-[40px] leading-none font-black tracking-tight text-[#222]">
-          {ex.reps}
-        </p>
-      </div>
-      {ex.notes && (
-        <div className="flex gap-2 justify-center mt-4 flex-wrap">
-          {ex.notes.map((note: string, i: number) => (
-            <div key={i} className="px-2 py-1 rounded-md bg-[#f4f4f5] text-[8px] font-bold text-gray-500 uppercase">
-              {note}
-            </div>
-          ))}
+
+      {!locked && sessionStarted && (
+        <button
+          onClick={(e) => { e.stopPropagation(); openTracking(actualItem); }}
+          className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center hover:bg-purple-50 transition z-10"
+        >
+          <Edit size={14} className="text-[#7c3aed]" />
+        </button>
+      )}
+
+      {locked && (
+        <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/90 shadow flex items-center justify-center">
+          <Lock size={13} className="text-[#7c3aed]" />
         </div>
       )}
-      <div className="absolute bottom-4 right-4 text-[#7c3aed]">
-        <Edit size={16} />
+      
+      <div className="w-14 h-14 rounded-2xl bg-[#f3f3f6] mx-auto mb-6 flex items-center justify-center overflow-hidden">
+        {actualItem.demo_gif ? (
+          <img src={resolveWixImage(actualItem.demo_gif)} alt={actualItem.exercise_name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-[#1e1e22]" />
+        )}
       </div>
+      
+      <h3 className="text-[13px] font-semibold text-center text-[#222] leading-tight min-h-[38px] flex items-center justify-center">
+        {actualItem.exercise_name}
+      </h3>
+      
+      <div className="mt-4 text-center">
+        <p className="text-[32px] sm:text-[40px] leading-none font-black tracking-tight text-[#222]">
+          {actualItem.reps || "—"}
+        </p>
+      </div>
+      
+      {actualItem.supplemental && (
+        <div className="flex gap-2 justify-center mt-4 flex-wrap">
+          <div className="px-2 py-1 rounded-md bg-[#f4f4f5] text-[8px] font-bold text-gray-500 uppercase">
+            {actualItem.supplemental}
+          </div>
+        </div>
+      )}
     </div>
   );
+};
+
+  // Transform workoutGroups to rounds format for the existing UI
+  const transformToRounds = () => {
+    return workoutGroups.map((group, idx) => ({
+      id: idx + 1,
+      label: group.label,
+      rounds: group.rounds || "1x",
+      exercises: group.workouts.map((item, exIdx) => ({
+        id: exIdx + 1,
+        name: item.exercise_name,
+        reps: item.reps,
+        supplemental: item.supplemental,
+        demo_gif: item.demo_gif,
+        order: item.order,
+        loc: location === "Gym" ? "GYM" : "HOME", // Dynamic based on location
+      })),
+    }));
+  };
+
+  const rounds = transformToRounds();
 
   return (
     <div className="h-screen overflow-hidden bg-[#f7f7fa] flex">
@@ -139,9 +292,9 @@ export default function ViewWorkoutSessionPage() {
 
         <div className="bg-white/10 rounded-[24px] p-4 mb-8">
           <h2 className="text-[11px] font-black leading-tight break-words uppercase tracking-wide">
-            RECONDITIONING
+            {workoutTitle || "RECONDITIONING"}
           </h2>
-          <p className="text-[10px] uppercase mt-1 opacity-70">Upper Body</p>
+          <p className="text-[10px] uppercase mt-1 opacity-70">Workout</p>
           <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
             <div className="w-[35%] h-full bg-white rounded-full" />
           </div>
@@ -165,10 +318,18 @@ export default function ViewWorkoutSessionPage() {
           ))}
         </div>
 
-        <button  onClick={() => router.push("/workout/athenaWorkout")} className="mt-auto bg-white text-[#7c3aed] py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
-          <Play size={16} fill="currentColor" />
-          Start Workout
-        </button>
+    <button
+  onClick={() => router.push("/workout/athenaWorkout")}
+  disabled={!activeSession && !sessionStarted}
+  className={`mt-auto py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition
+    ${(activeSession || sessionStarted)
+      ? "bg-white text-[#7c3aed]"
+      : "bg-white/20 text-white/40 cursor-not-allowed"
+    }`}
+>
+  <Play size={16} fill="currentColor" />
+  Start Workout
+</button>
       </div>
 
       {/* MAIN CONTENT */}
@@ -185,10 +346,10 @@ export default function ViewWorkoutSessionPage() {
               </button>
               <div>
                 <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase">
-                  Formula-1
+                  {workoutTitle || "Formula-1"}
                 </h1>
                 <p className="text-[12px] font-black uppercase tracking-wide text-[#222] mt-1">
-                  Lower Body
+                  {totalExercises} Exercises
                 </p>
               </div>
             </div>
@@ -196,15 +357,34 @@ export default function ViewWorkoutSessionPage() {
             <div className="flex items-center gap-3">
 
               {/* Session info + Share in a box */}
-              <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-400">Session</p>
-                  <p className="text-[12px] font-black text-[#222]">5/11/2026 @ 11:22 AM</p>
-                </div>
-                <button onClick={() => setShowInviteModal(true)} className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center">
-                  <Share2 size={15} />
-                </button>
-              </div>
+             <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
+  <div className="text-right">
+    <p className="text-[10px] font-bold text-gray-400">Session</p>
+    {activeSession ? (
+      <>
+        <p className="text-[12px] font-black text-[#222]">
+          {activeSession.id.slice(0, 8)}
+        </p>
+        <p className="text-[9px] text-gray-400">
+          {new Date(activeSession.created_at).toLocaleString('en-US', {
+            month: 'numeric', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true,
+          }).replace(',', '')}
+        </p>
+      </>
+    ) : (
+      <p className="text-[12px] font-black text-[#222]">
+        {incompleteSession ? `In Progress` : "Not Started"}
+      </p>
+    )}
+  </div>
+  <button
+    onClick={() => setShowInviteModal(true)}
+    className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+  >
+    <Share2 size={15} />
+  </button>
+</div>
 
               <button className="w-9 h-9 rounded-full bg-[#f3f3f6] text-gray-500 flex items-center justify-center">
                 <ClipboardList size={16} />
@@ -222,23 +402,37 @@ export default function ViewWorkoutSessionPage() {
           {activeView !== "Results" && activeView !== "Powersets" && activeView !== "Map" && (
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
 
-              {/* Right Side - Location + Buttons + Free Text */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
 
-                {/* Location Text - Close to buttons */}
                 <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-500">
                   <MapPin size={14} className="text-[#7c3aed]" />
                   <span className="text-[#7c3aed]">Location :</span>
-                  <span>{location || "Home"}</span>
+                  <span>{location || "None"}</span>
                 </div>
 
-                {/* Buttons Container */}
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-center gap-2">
-                    <button className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5">
-                      Start a new Session
-                      <ChevronRight size={14} />
-                    </button>
+                    {!isLocked ? (
+                 <button
+  onClick={() => {
+    const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+    localStorage.setItem("pendingSessionCode", code);
+    localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+    router.push("/workout/equipmentNeeded");
+  }}
+  className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+>
+  {activeSession ? "Start a New Session" : incompleteSession ? "Start Session" : "Start a New Session"}
+  <ChevronRight size={14} />
+</button>
+                    ) : (
+                      <button
+                        onClick={() => setShowPurchaseModal(true)}
+                        className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                      >
+                        Buy Session <Lock size={12} />
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowInviteModal(true)}
                       className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
@@ -248,9 +442,8 @@ export default function ViewWorkoutSessionPage() {
                     </button>
                   </div>
 
-                  {/* "This workout is free" - Below Invite User Button */}
-                  <p className="text-emerald-500 text-[11px] font-semibold">
-                    • This workout is free
+                  <p className={`text-[11px] font-semibold ${isLocked ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {isLocked ? "• This workout requires purchase" : "• This workout is free"}
                   </p>
                 </div>
               </div>
@@ -259,378 +452,381 @@ export default function ViewWorkoutSessionPage() {
           )}
         </div>
 
+        {/* REJOIN BANNER */}
+        {!activeSession && incompleteSessions.length > 0 &&  (
+          <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
+            <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
+                    {incompleteSession
+                      ? `Rejoin Live Session: ${incompleteSession.id.slice(0, 6)}`
+                      : "Active Session In Progress"}
+                  </h3>
+                  <p className="text-white/80 text-[10px] mt-1 font-medium">
+                    {incompleteSession
+                      ? `Started ${new Date(incompleteSession.created_at).toLocaleString()}`
+                      : "You have an ongoing workout session"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+               <button
+  onClick={async () => {
+    setSessionStarted(true);
+    setActiveSession(incompleteSession);
+    // swaps already saved in localStorage from original session — just reload them
+    const programCode = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+    const savedSwaps = programCode ? localStorage.getItem(`swappedExercises_${programCode}`) : null;
+    if (savedSwaps) {
+      try {
+        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
+        setSwappedExercises(new Map(entries));
+      } catch {}
+    }
+  }}
+  className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
+>
+  Rejoin
+</button>
+                <button
+                  onClick={() => setShowRejoinModal(true)}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
+                >
+                  <ChevronRight size={16} className="text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* REJOIN SESSIONS MODAL */}
+        {showRejoinModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+            onClick={() => setShowRejoinModal(false)}
+          >
+            <div
+              className="w-full max-w-[420px] bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[70vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h2 className="text-[16px] font-black text-gray-900">Incomplete Sessions</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{incompleteSessions.length} session{incompleteSessions.length > 1 ? "s" : ""} waiting</p>
+                </div>
+                <button
+                  onClick={() => setShowRejoinModal(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+                {incompleteSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 py-4 flex items-center justify-between gap-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+                      <div className="min-w-0">
+                        <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
+                          Rejoin Live Session: {session.id.slice(0, 6)}
+                        </h3>
+                        <p className="text-white/80 text-[10px] mt-1 font-medium">
+                          Started {new Date(session.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { setShowRejoinModal(false); router.push("/workout/athenaWorkout"); }}
+                      className="bg-white hover:bg-gray-100 transition text-[#ef4444] text-[11px] font-bold px-4 py-2 rounded-xl flex-shrink-0 shadow-sm"
+                    >
+                      Rejoin
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* SCROLLABLE CONTENT AREA */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 py-6">
 
-          {activeView === "Results" ? (
-            <div className="space-y-8">
-
-              {/* PAGE TITLE */}
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                  <Activity size={18} />
-                </div>
-                <div>
-                  <h2 className="text-[20px] font-black text-[#222]">Live Results</h2>
-                  <p className="text-[11px] text-gray-400">Real-time performance data</p>
-                </div>
-              </div>
-
-              {/* THIS WORKOUT */}
-              <div>
-                <p className="text-[13px] font-black text-[#222] mb-4 flex items-center gap-2">
-                  <Users size={14} className="text-gray-400" /> This Workout:
-                </p>
-                <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                  <div className="rounded-[20px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                      <Activity size={16} />
-                    </div>
-                    <p className="text-[32px] sm:text-[44px] font-black leading-none">97</p>
-                    <p className="text-[11px] opacity-80 mt-1">Load</p>
-                  </div>
-                  <div className="rounded-[20px] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                      <Zap size={16} />
-                    </div>
-                    <p className="text-[32px] sm:text-[44px] font-black leading-none">26</p>
-                    <p className="text-[11px] opacity-80 mt-1">Power</p>
-                  </div>
-                  <div className="rounded-[20px] bg-gradient-to-br from-[#f97316] to-[#ea580c] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                      <Flame size={16} />
-                    </div>
-                    <p className="text-[32px] sm:text-[44px] font-black leading-none">277</p>
-                    <p className="text-[11px] opacity-80 mt-1">Cals</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* COMPARISON TABLE */}
-              <div className="bg-white rounded-[20px] border border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-gray-100">
-                  {/* YOUR AVG */}
-                  <div className="p-5">
-                    <p className="text-[11px] font-black text-[#222] mb-4">Your Average Workout:</p>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      {[["Load","85","text-[#3b82f6]"],["Power","22","text-[#7c3aed]"],["Cals","245","text-orange-500"]].map(([label,val,color]) => (
-                        <div key={label}>
-                          <p className="text-[10px] text-gray-400 mb-1">{label}</p>
-                          <p className={`text-[22px] font-black ${color}`}>{val}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {/* ALL USERS AVG */}
-                  <div className="p-5 border-t sm:border-t-0 border-gray-100">
-                    <p className="text-[11px] font-black text-[#222] mb-4 flex items-center gap-1">
-                      <Users size={11} className="text-[#7c3aed]" /> This Workout Avg. (all users):
-                    </p>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      {[["Load","78","text-[#3b82f6]"],["Power","20","text-[#7c3aed]"],["Cals","230","text-orange-500"]].map(([label,val,color]) => (
-                        <div key={label}>
-                          <p className="text-[10px] text-gray-400 mb-1">{label}</p>
-                          <p className={`text-[22px] font-black ${color}`}>{val}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* LOAD CHART */}
-              <div>
-                <p className="text-[13px] font-black text-[#222] mb-4">Load Chart:</p>
-                <div className="bg-white rounded-[20px] border border-gray-100 p-5">
-                  <svg viewBox="0 0 540 200" className="w-full" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.15"/>
-                        <stop offset="100%" stopColor="#7c3aed" stopOpacity="0"/>
-                      </linearGradient>
-                    </defs>
-                    {/* Y-axis labels */}
-                    {[["60",162],["65",143],["70",124],["78",98],["85",73],["97",31]].map(([v,y]) => (
-                      <text key={v} x="32" y={Number(y)+4} textAnchor="end" className="fill-[#7c3aed]" fontSize="11" fontWeight="700">{v}</text>
-                    ))}
-                    {/* Grid lines */}
-                    {[162,143,124,98,73,31].map((y) => (
-                      <line key={y} x1="40" y1={y} x2="530" y2={y} stroke="#f0f0f5" strokeWidth="1"/>
-                    ))}
-                    {/* Fill area */}
-                    <path d="M40,162 L136,143 L232,124 L328,98 L424,73 L520,31 L520,180 L40,180 Z" fill="url(#chartGrad)"/>
-                    {/* Line */}
-                    <polyline points="40,162 136,143 232,124 328,98 424,73 520,31" fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
-                    {/* Dots */}
-                    {[[40,162],[136,143],[232,124],[328,98],[424,73],[520,31]].map(([x,y],i) => (
-                      <circle key={i} cx={x} cy={y} r="4" fill="#7c3aed"/>
-                    ))}
-                  </svg>
-                  <div className="flex items-center gap-2 mt-3 justify-end">
-                    <div className="w-3 h-3 rounded-full bg-[#7c3aed]"/>
-                    <span className="text-[11px] text-gray-400 font-medium">Your Progress</span>
-                  </div>
-                </div>
-              </div>
-
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
             </div>
-          ) : activeView === "Powersets" ? (
-            <div className="space-y-6 pb-20">
+          ) : (
+            <>
+              {activeView === "Results" ? (
+                <div className="space-y-8">
 
-              {/* PAGE TITLE */}
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                  <Zap size={18} />
-                </div>
-                <div>
-                  <h2 className="text-[20px] font-black text-[#222]">Power Sets</h2>
-                  <p className="text-[11px] text-gray-400">Your strength movements</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-black text-[#7c3aed] uppercase tracking-widest">RECONDITIONING</p>
-                <p className="text-[18px] font-black text-[#222]">LOWER BODY, Day 1, Week 1</p>
-              </div>
-
-              {/* CARDS GRID */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  {
-                    round: "ROUND 1", roundColor: "bg-teal-500",
-                    moneyset: true,
-                    name: "BARBELL BENCH SQUAT (ECCL)",
-                    sets: 3,
-                    rows: [{ n:1, w:"45 lbs", r:"10 reps" }, { n:2, w:"95 lbs", r:"8 reps" }, { n:3, w:"135 lbs", r:"5 reps" }],
-                  },
-                  {
-                    round: "ROUND 2", roundColor: "bg-[#7c3aed]",
-                    moneyset: true,
-                    name: "BARBELL BOX SQUAT",
-                    sets: 3,
-                    rows: [{ n:1, w:"135 lbs", r:"5 reps" }, { n:2, w:"185 lbs", r:"3 reps" }, { n:3, w:"225 lbs", r:"1 rep" }],
-                  },
-                  {
-                    round: "ROUND 2", roundColor: "bg-[#7c3aed]",
-                    moneyset: false,
-                    name: "ANTI-LATERAL RUN (SB HOLD 40 LBS + LAT BAR)",
-                    sets: null,
-                    rows: [],
-                  },
-                  {
-                    round: "ROUND 3", roundColor: "bg-emerald-500",
-                    moneyset: true,
-                    name: "HAMSTRING CURL MACHINE (SL CURL LL OR ALT)",
-                    sets: 3,
-                    rows: [{ n:1, w:"50 lbs", r:"12 reps" }, { n:2, w:"70 lbs", r:"10 reps" }, { n:3, w:"90 lbs", r:"8 reps" }],
-                  },
-                ].map((card, ci) => {
-                  const sel = selectedCards.has(ci);
-                  return (
-                    <button
-                      key={ci}
-                      onClick={() => toggleCard(ci)}
-                      className={`text-left w-full rounded-[20px] border-2 p-5 relative transition-all ${
-                        sel
-                          ? "bg-[#f5f0ff] border-[#7c3aed] shadow-md shadow-purple-100"
-                          : "bg-white border-[#ede9fe] hover:border-[#c4b5fd]"
-                      }`}
-                    >
-                      {/* TOP ROW */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase ${card.roundColor}`}>
-                            {card.round}
-                          </span>
-                          {card.moneyset && (
-                            <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full flex items-center gap-1">
-                              ★ MONEY SET
-                            </span>
-                          )}
-                        </div>
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${sel ? "bg-[#7c3aed]" : "bg-gray-100"}`}>
-                          <Edit size={13} className={sel ? "text-white" : "text-gray-400"} />
-                        </div>
-                      </div>
-
-                      {/* EXERCISE INFO */}
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${sel ? "bg-[#ede9fe]" : "bg-[#f3f3f6]"}`}>
-                          <Zap size={16} className="text-[#7c3aed]" />
-                        </div>
-                        <div>
-                          <p className={`text-[12px] font-black uppercase leading-tight ${sel ? "text-[#7c3aed]" : "text-[#222]"}`}>{card.name}</p>
-                          {card.sets && <p className="text-[10px] text-gray-400 mt-0.5">{card.sets} sets</p>}
-                        </div>
-                      </div>
-
-                      {/* SET ROWS (display only) */}
-                      {card.rows.map((row) => (
-                        <div key={row.n} className="flex items-center gap-3 mb-2 px-1">
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 ${sel ? "bg-[#7c3aed]" : "bg-gray-300"}`}>
-                            {row.n}
-                          </div>
-                          <p className={`text-[12px] font-bold flex-1 ${sel ? "text-[#7c3aed]" : "text-[#222]"}`}>{row.w}</p>
-                          <p className="text-[10px] text-gray-400">{row.r}</p>
-                        </div>
-                      ))}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* BOTTOM BANNER */}
-              <div className="fixed bottom-20 lg:bottom-4 left-4 lg:left-[236px] right-4 lg:right-8 z-10">
-                <div className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-2xl py-3 px-5 text-white flex items-center justify-center gap-3 shadow-lg">
-                  <Zap size={14} fill="currentColor" />
-                  <p className="text-[13px] font-black">3 Money Sets</p>
-                  <span className="text-[10px] opacity-70">· Focus on progressive overload for maximum gains</span>
-                </div>
-              </div>
-
-            </div>
-          ) : activeView === "Map" ? (() => {
-            const rounds = [
-              {
-                id: 1, label: "Round 1: Warm-up & Mobility",
-                exercises: [
-                  { id: 1, name: "Dynamic Stretching",  loc: "HOME" },
-                  { id: 2, name: "Foam Rolling",         loc: "HOME" },
-                  { id: 3, name: "Band Pull-aparts",     loc: "HOME" },
-                ],
-              },
-              {
-                id: 2, label: "Round 2: Strength Training",
-                exercises: [
-                  { id: 4, name: "Barbell Bench Squat",  loc: "GYM" },
-                  { id: 5, name: "Barbell Box Squat",    loc: "GYM" },
-                  { id: 6, name: "Anti-Lateral Run",     loc: "GYM" },
-                ],
-              },
-              {
-                id: 3, label: "Round 3: Accessory Work",
-                exercises: [
-                  { id: 7, name: "Hamstring Curl Machine", loc: "GYM" },
-                  { id: 8, name: "Leg Extensions",         loc: "GYM" },
-                  { id: 9, name: "Calf Raises",            loc: "GYM" },
-                ],
-              },
-            ];
-            return (
-              <div className="space-y-6">
-                {/* HEADER */}
-                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                      <MapPin size={20} />
+                    <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
+                      <Activity size={18} />
                     </div>
                     <div>
-                      <h2 className="text-[22px] font-black text-[#222]">Workout Map</h2>
-                      <p className="text-[11px] text-gray-400">Exercise breakdown by rounds</p>
+                      <h2 className="text-[20px] font-black text-[#222]">Live Results</h2>
+                      <p className="text-[11px] text-gray-400">Real-time performance data</p>
                     </div>
                   </div>
-                  <button className="bg-emerald-500 hover:bg-emerald-600 transition text-white font-black text-[13px] px-6 py-3 rounded-2xl">
-                    Complete Workout
-                  </button>
+
+                  <div>
+                    <p className="text-[13px] font-black text-[#222] mb-4 flex items-center gap-2">
+                      <Users size={14} className="text-gray-400" /> This Workout:
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                      <div className="rounded-[20px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                          <Activity size={16} />
+                        </div>
+                        <p className="text-[32px] sm:text-[44px] font-black leading-none">{totalExercises}</p>
+                        <p className="text-[11px] opacity-80 mt-1">Exercises</p>
+                      </div>
+                      <div className="rounded-[20px] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                          <Zap size={16} />
+                        </div>
+                        <p className="text-[32px] sm:text-[44px] font-black leading-none">{workoutGroups.length}</p>
+                        <p className="text-[11px] opacity-80 mt-1">Rounds</p>
+                      </div>
+                      <div className="rounded-[20px] bg-gradient-to-br from-[#f97316] to-[#ea580c] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                          <Flame size={16} />
+                        </div>
+                        <p className="text-[32px] sm:text-[44px] font-black leading-none">0</p>
+                        <p className="text-[11px] opacity-80 mt-1">Cals</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-[20px] border border-gray-100 overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-gray-100">
+                      <div className="p-5">
+                        <p className="text-[11px] font-black text-[#222] mb-4">Your Progress:</p>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-[10px] text-gray-400 mb-1">Completed</p>
+                            <p className="text-[22px] font-black text-[#3b82f6]">0</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 mb-1">Remaining</p>
+                            <p className="text-[22px] font-black text-[#7c3aed]">{totalExercises}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-5 border-t sm:border-t-0 border-gray-100">
+                        <p className="text-[11px] font-black text-[#222] mb-4 flex items-center gap-1">
+                          <Users size={11} className="text-[#7c3aed]" /> Session Status:
+                        </p>
+                        <div className="text-center">
+                          <p className="text-[13px] font-black text-gray-600">
+                            {sessionStarted ? "Active Session" : "No Active Session"}
+                          </p>
+                          {incompleteSession && (
+                            <button
+                              onClick={() => router.push("/workout/viewWorkoutSession")}
+                              className="mt-3 bg-[#7c3aed] text-white px-4 py-2 rounded-xl text-xs font-bold"
+                            >
+                              Rejoin Session
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              ) : activeView === "Powersets" ? (
+                <div className="space-y-6 pb-20">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-[20px] font-black text-[#222]">Power Sets</h2>
+                      <p className="text-[11px] text-gray-400">Your strength movements</p>
+                    </div>
+                  </div>
 
-                {/* ROUND CARDS GRID */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {rounds.map((round) => {
-                    const done = round.exercises.filter(e => selectedExercises.has(e.id)).length;
-                    const collapsed = collapsedRounds.has(round.id);
+                  <div>
+                    <p className="text-[11px] font-black text-[#7c3aed] uppercase tracking-widest">
+                      {workoutTitle || "WORKOUT"}
+                    </p>
+                    <p className="text-[18px] font-black text-[#222]">
+                      {totalExercises} total exercises
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {workoutGroups.slice(0, 4).map((group, gi) => (
+                      <div key={gi} className="bg-white rounded-[20px] border-2 border-[#ede9fe] p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-[#7c3aed] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
+                              {group.label}
+                            </span>
+                            {group.rounds && (
+                              <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full">
+                                {group.rounds}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {group.workouts.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-50">
+                              <span className="text-[11px] font-semibold text-gray-700">{item.exercise_name}</span>
+                              <span className="text-[10px] text-gray-400">{item.reps || "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : activeView === "Map" ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
+                        <MapPin size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-[22px] font-black text-[#222]">Workout Map</h2>
+                        <p className="text-[11px] text-gray-400">Exercise breakdown by rounds</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+                        localStorage.setItem("pendingSessionCode", code);
+                        localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+                        router.push("/workout/equipmentNeeded");
+                      }}
+                      disabled={isLocked}
+                      className={`${isLocked ? 'bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'} transition text-white font-black text-[13px] px-6 py-3 rounded-2xl disabled:opacity-60`}
+                    >
+                      Complete Workout
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {rounds.map((round) => {
+                      const done = round.exercises.filter(e => selectedExercises.has(e.id)).length;
+                      const collapsed = collapsedRounds.has(round.id);
+                      return (
+                        <div key={round.id} className="bg-white rounded-[20px] border border-gray-100 overflow-hidden shadow-sm">
+                          <button
+                            onClick={() => toggleRound(round.id)}
+                            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-[#7c3aed] flex items-center justify-center text-white text-[13px] font-black flex-shrink-0">
+                              {round.id}
+                            </div>
+                            <div className="flex-1 text-left">
+                              <p className="text-[13px] font-black text-[#222]">{round.label}</p>
+                              <p className="text-[10px] text-gray-400">{round.rounds} · {done}/{round.exercises.length} exercises</p>
+                            </div>
+                            {collapsed ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronUp size={16} className="text-gray-400" />}
+                          </button>
+
+                          {!collapsed && (
+                            <div className="px-4 pb-4 space-y-2">
+                              {round.exercises.map((ex) => {
+                                const sel = selectedExercises.has(ex.id);
+                                return (
+                                  <button
+                                    key={ex.id}
+                                    onClick={() => !isLocked && toggleExercise(ex.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${sel ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-transparent hover:border-gray-200"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                                    disabled={isLocked}
+                                  >
+                                    <span className={`text-[11px] font-bold w-5 text-center flex-shrink-0 ${sel ? "text-emerald-500" : "text-gray-400"}`}>
+                                      {ex.order || ex.id}
+                                    </span>
+                                    <span className={`flex-1 text-left text-[12px] font-semibold ${sel ? "text-emerald-600" : "text-[#222]"}`}>
+                                      {ex.name}
+                                    </span>
+                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full ${ex.loc === "HOME" ? "bg-gray-100 text-gray-500" : "bg-red-50 text-red-400"}`}>
+                                      {ex.loc}
+                                    </span>
+                                    {sel
+                                      ? <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" fill="white" />
+                                      : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
+                                    }
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                // OVERVIEW - Dynamic from API
+                <div className="space-y-10">
+                  {workoutGroups.map((group, groupIdx) => {
+                    const isGroupLocked = isLocked && groupIdx > 0;
+                    const previewItems = isGroupLocked ? group.workouts.slice(0, 3) : group.workouts;
+                    
                     return (
-                      <div key={round.id} className="bg-white rounded-[20px] border border-gray-100 overflow-hidden shadow-sm">
-                        {/* ROUND HEADER */}
-                        <button
-                          onClick={() => toggleRound(round.id)}
-                          className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-[#7c3aed] flex items-center justify-center text-white text-[13px] font-black flex-shrink-0">
-                            {round.id}
-                          </div>
-                          <div className="flex-1 text-left">
-                            <p className="text-[13px] font-black text-[#222]">{round.label}</p>
-                            <p className="text-[10px] text-gray-400">{done}/{round.exercises.length} exercises</p>
-                          </div>
-                          {collapsed ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronUp size={16} className="text-gray-400" />}
-                        </button>
+                      <section key={`${group.label}-${groupIdx}`}>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className={`w-8 h-1 rounded-full ${groupIdx === 0 ? 'bg-orange-400' : groupIdx === 1 ? 'bg-[#7c3aed]' : 'bg-emerald-500'}`} />
+                          <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">
+                            {group.label} {group.rounds && `(${group.rounds})`}
+                          </h2>
+                          {isGroupLocked && <Lock size={12} className="text-gray-300 ml-auto" />}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
+                          {previewItems.map((item, i) => (
+                            <DynamicExerciseCard
+                              key={item.exercise_id || i}
+                              item={item}
+                              locked={isGroupLocked}
+                              sessionStarted={sessionStarted}
+                            />
+                          ))}
+                        </div>
 
-                        {/* EXERCISES */}
-                        {!collapsed && (
-                          <div className="px-4 pb-4 space-y-2">
-                            {round.exercises.map((ex) => {
-                              const sel = selectedExercises.has(ex.id);
-                              return (
-                                <button
-                                  key={ex.id}
-                                  onClick={() => toggleExercise(ex.id)}
-                                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${sel ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-transparent hover:border-gray-200"}`}
-                                >
-                                  <span className={`text-[11px] font-bold w-5 text-center flex-shrink-0 ${sel ? "text-emerald-500" : "text-gray-400"}`}>
-                                    {ex.id}
-                                  </span>
-                                  <span className={`flex-1 text-left text-[12px] font-semibold ${sel ? "text-emerald-600" : "text-[#222]"}`}>
-                                    {ex.name}
-                                  </span>
-                                  <span className={`flex items-center gap-1 text-[9px] font-black px-2 py-1 rounded-full ${ex.loc === "HOME" ? "bg-gray-100 text-gray-500" : "bg-red-50 text-red-400"}`}>
-                                    {ex.loc === "HOME" ? <Home size={9} /> : <Dumbbell size={9} />}
-                                    {ex.loc}
-                                  </span>
-                                  {sel
-                                    ? <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" fill="white" />
-                                    : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
-                                  }
-                                </button>
-                              );
-                            })}
+                        {isGroupLocked && groupIdx === 1 && (
+                          <div className="flex justify-center mt-8">
+                            <div className="bg-white shadow-2xl border border-purple-100 rounded-3xl px-5 sm:px-10 py-8 sm:py-10 text-center max-w-xl w-full">
+                              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-100 to-violet-200 flex items-center justify-center">
+                                <Lock size={28} className="text-purple-700" />
+                              </div>
+                              <h2 className="text-xl sm:text-2xl font-black text-purple-700 mb-2">
+                                Unlock Full Program
+                              </h2>
+                              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+                                Get access to all exercises, detailed form videos,
+                                progression systems, and advanced athlete coaching tools.
+                              </p>
+                              <button
+                                onClick={() => setShowPurchaseModal(true)}
+                                className="bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black px-8 py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition flex items-center gap-3 mx-auto text-sm"
+                              >
+                                Buy Workout
+                                <Lock size={16} />
+                              </button>
+                            </div>
                           </div>
                         )}
-                      </div>
+                      </section>
                     );
                   })}
                 </div>
-              </div>
-            );
-          })() : (
-            <div className="space-y-10">
-
-              {/* WARMUP */}
-              <section>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-1 rounded-full bg-orange-400" />
-                  <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">Warm-Up (1x)</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
-                  {warmup.map((ex, i) => <ExerciseCard key={i} ex={ex} />)}
-                </div>
-              </section>
-
-              {/* ROUND 1 */}
-              <section>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-1 rounded-full bg-[#7c3aed]" />
-                  <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">Round 1 (3x)</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
-                  {round1.map((ex, i) => <ExerciseCard key={i} ex={ex} />)}
-                </div>
-              </section>
-
-              {/* ROUND 2 */}
-              <section>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-1 rounded-full bg-emerald-500" />
-                  <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">Round 3 (3x)</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
-                  {round2.map((ex, i) => <ExerciseCard key={i} ex={ex} />)}
-                </div>
-              </section>
-
-            </div>
+              )}
+            </>
           )}
-
         </div>
       </div>
 
@@ -651,7 +847,12 @@ export default function ViewWorkoutSessionPage() {
             {item}
           </button>
         ))}
-        <button className="flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide text-[#7c3aed]">
+        <button
+          onClick={() => router.push("/workout/athenaWorkout")}
+          disabled={!activeSession && !sessionStarted}
+          className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide transition
+            ${activeSession || sessionStarted ? "text-[#7c3aed]" : "text-gray-300 cursor-not-allowed"}`}
+        >
           <Play size={18} fill="currentColor" />
           Start
         </button>
@@ -667,21 +868,14 @@ export default function ViewWorkoutSessionPage() {
             className="w-full max-w-[380px] rounded-[24px] overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* PURPLE HEADER */}
             <div className="bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] px-5 pt-5 pb-5 text-white">
-
-              {/* TOP */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                     <Users size={15} />
                   </div>
-
-                  <span className="text-[14px] font-black">
-                    Session Details
-                  </span>
+                  <span className="text-[14px] font-black">Session Details</span>
                 </div>
-
                 <button
                   onClick={() => setShowSessionModal(false)}
                   className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition"
@@ -690,79 +884,59 @@ export default function ViewWorkoutSessionPage() {
                 </button>
               </div>
 
-              {/* SESSION BADGE */}
               <div className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-[10px] font-bold mb-3">
                 <Sparkles size={8} />
-                ID: 5si8ln
+                ID: {incompleteSession?.id?.slice(0, 6) || "pending"}
               </div>
 
-              {/* TITLE */}
               <h2 className="text-[22px] leading-[24px] font-black uppercase mb-1">
-                RECONDITIONING
-                <br />
-                UPPER BODY
+                {workoutTitle || "RECONDITIONING"}
               </h2>
 
               <p className="text-[13px] opacity-75 mb-4">
-                Week 1, Day 1 • Reconditioning
+                {totalExercises} exercises • {workoutGroups.length} rounds
               </p>
 
-              {/* STATS */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-white/15 rounded-2xl px-3.5 py-3">
                   <div className="flex items-center gap-1 text-[10px] font-bold uppercase opacity-70 mb-1">
                     <Calendar size={8} />
-                    Created
+                    Status
                   </div>
-
                   <p className="text-[10px] font-black">
-                    5/11/2026 2:35 PM
+                    {sessionStarted ? "Active" : "Not Started"}
                   </p>
                 </div>
-
                 <div className="bg-white/15 rounded-2xl px-3.5 py-3">
                   <div className="flex items-center gap-1 text-[10px] font-bold uppercase opacity-70 mb-1">
                     <Users size={8} />
-                    Joined
+                    Location
                   </div>
-
                   <p className="text-[10px] font-black">
-                    0 People
+                    {location || "None"}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* WHITE SECTION */}
             <div className="bg-white px-5 py-5">
-
-              {/* HEADER */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] font-black text-[#222]">
-                  Participants
-                </span>
-
+                <span className="text-[13px] font-black text-[#222]">Participants</span>
                 <button className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center">
                   <Share2 size={12} />
                 </button>
               </div>
 
-              {/* CARD */}
               <div className="bg-[#fafafa] border border-gray-100 rounded-[22px] p-5 text-center">
-
                 <div className="w-14 h-14 mx-auto rounded-2xl bg-[#f0eeff] flex items-center justify-center mb-4">
                   <UserPlus size={24} className="text-[#7c3aed] opacity-70" />
                 </div>
-
                 <h3 className="text-[14px] font-black text-[#222] mb-1">
                   Waiting for teammates
                 </h3>
-
                 <p className="text-[10px] text-gray-400 leading-relaxed mb-5">
                   Share this workout session with your team.
                 </p>
-
-                {/* PREVIEW BUTTON */}
                 <button className="w-full border border-dashed border-gray-300 text-gray-500 py-3 rounded-2xl text-[11px] font-bold hover:bg-gray-50 transition flex items-center justify-center gap-2">
                   <Eye size={14} />
                   Preview Mode
@@ -784,12 +958,11 @@ export default function ViewWorkoutSessionPage() {
             style={{ height: "520px" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* HEADER */}
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-[18px] font-black text-[#7c3aed]">Share This Session:</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Session ID: apxsoc</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Session ID: {incompleteSession?.id?.slice(0, 6) || "pending"}</p>
                 </div>
                 <button
                   onClick={() => setShowInviteModal(false)}
@@ -801,24 +974,22 @@ export default function ViewWorkoutSessionPage() {
             </div>
 
             <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-              {/* QR CODE */}
               <div className="bg-[#f5f5f7] rounded-2xl p-5 flex flex-col items-center">
                 <div className="border-2 border-[#7c3aed] rounded-xl p-3 bg-white mb-3">
                   <svg width="100" height="100" viewBox="0 0 100 100" className="text-[#1e1e22]">
-                    {/* QR code pattern approximation */}
-                    <rect x="0"  y="0"  width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="60" y="0"  width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="0"  y="60" width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="8"  y="8"  width="24" height="24" rx="2" fill="white"/>
-                    <rect x="68" y="8"  width="24" height="24" rx="2" fill="white"/>
-                    <rect x="8"  y="68" width="24" height="24" rx="2" fill="white"/>
+                    <rect x="0" y="0" width="40" height="40" rx="4" fill="currentColor"/>
+                    <rect x="60" y="0" width="40" height="40" rx="4" fill="currentColor"/>
+                    <rect x="0" y="60" width="40" height="40" rx="4" fill="currentColor"/>
+                    <rect x="8" y="8" width="24" height="24" rx="2" fill="white"/>
+                    <rect x="68" y="8" width="24" height="24" rx="2" fill="white"/>
+                    <rect x="8" y="68" width="24" height="24" rx="2" fill="white"/>
                     <rect x="16" y="16" width="8" height="8" fill="currentColor"/>
                     <rect x="76" y="16" width="8" height="8" fill="currentColor"/>
                     <rect x="16" y="76" width="8" height="8" fill="currentColor"/>
-                    <rect x="52" y="4"  width="6" height="6" fill="currentColor"/>
-                    <rect x="62" y="4"  width="6" height="6" fill="currentColor"/>
+                    <rect x="52" y="4" width="6" height="6" fill="currentColor"/>
+                    <rect x="62" y="4" width="6" height="6" fill="currentColor"/>
                     <rect x="52" y="14" width="6" height="6" fill="currentColor"/>
-                    <rect x="4"  y="52" width="6" height="6" fill="currentColor"/>
+                    <rect x="4" y="52" width="6" height="6" fill="currentColor"/>
                     <rect x="14" y="52" width="6" height="6" fill="currentColor"/>
                     <rect x="24" y="52" width="6" height="6" fill="currentColor"/>
                     <rect x="52" y="52" width="6" height="6" fill="currentColor"/>
@@ -833,7 +1004,6 @@ export default function ViewWorkoutSessionPage() {
                 <p className="text-[11px] text-gray-400 font-medium">Scan this code to join the session</p>
               </div>
 
-              {/* SHARE WITH FOLLOWERS */}
               <div>
                 <p className="text-[13px] font-black text-[#222] mb-3">Share with Followers:</p>
                 <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-4 py-2.5 mb-3">
@@ -848,13 +1018,13 @@ export default function ViewWorkoutSessionPage() {
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
                   {[
-                    { initials: "JD", name: "johndoe",  color: "bg-[#7c3aed]" },
-                    { initials: "SK", name: "sarahk",   color: "bg-blue-500" },
-                    { initials: "AM", name: "alexm",    color: "bg-orange-400" },
-                    { initials: "LW", name: "lisawong",  color: "bg-teal-400" },
-                    { initials: "RG", name: "robg",     color: "bg-green-500" },
-                    { initials: "TP", name: "tompark",  color: "bg-yellow-400" },
-                    { initials: "MK", name: "marykay",  color: "bg-red-400" },
+                    { initials: "JD", name: "johndoe", color: "bg-[#7c3aed]" },
+                    { initials: "SK", name: "sarahk", color: "bg-blue-500" },
+                    { initials: "AM", name: "alexm", color: "bg-orange-400" },
+                    { initials: "LW", name: "lisawong", color: "bg-teal-400" },
+                    { initials: "RG", name: "robg", color: "bg-green-500" },
+                    { initials: "TP", name: "tompark", color: "bg-yellow-400" },
+                    { initials: "MK", name: "marykay", color: "bg-red-400" },
                   ].map((u) => (
                     <div key={u.initials} className="flex flex-col items-center gap-1 flex-shrink-0">
                       <div className={`w-10 h-10 rounded-full ${u.color} flex items-center justify-center text-white text-[11px] font-black`}>
@@ -866,13 +1036,12 @@ export default function ViewWorkoutSessionPage() {
                 </div>
               </div>
 
-              {/* INVITE VIA LINK */}
               <div>
                 <p className="text-[13px] font-black text-[#222] mb-3">Invite via Link</p>
                 <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Link size={12} className="text-gray-400 flex-shrink-0" />
-                    <p className="text-[11px] text-gray-400 truncate">https://www.proformapp.com/session/apxsoc</p>
+                    <p className="text-[11px] text-gray-400 truncate">https://www.proformapp.com/session/{incompleteSession?.id?.slice(0, 6) || "pending"}</p>
                   </div>
                 </div>
                 <button className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2">
@@ -880,6 +1049,206 @@ export default function ViewWorkoutSessionPage() {
                   Copy URL
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PURCHASE MODAL (from 1st code) */}
+      {showPurchaseModal && (
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-3">
+          <div className="bg-white w-full max-w-[420px] rounded-[24px] shadow-2xl relative overflow-hidden">
+            <button
+              onClick={() => setShowPurchaseModal(false)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} />
+            </button>
+
+            <div className="px-5 py-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-14 h-14 rounded-[18px] bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md relative">
+                  <FileText size={22} className="text-white" />
+                  <div className="absolute -right-1 -bottom-1 w-6 h-6 rounded-full bg-blue-500 border-[3px] border-white" />
+                </div>
+              </div>
+
+              <h2 className="text-[19px] font-black text-center text-gray-900 leading-snug">
+                You don't have access to this
+                <br />
+                workout or program
+              </h2>
+
+              <p className="text-center text-gray-500 mt-3 text-[13px]">
+                Purchase this Workout / Program
+              </p>
+
+              <p className="text-center text-gray-400 text-[11px] mt-1">
+                (Expires in 30 days)
+              </p>
+
+              <div className="flex justify-center mt-5">
+                <button
+                  onClick={() => {
+                    setHasPurchased(true);
+                    setShowPurchaseModal(false);
+                  }}
+                  className="bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] px-6 py-2.5 rounded-xl shadow-md transition"
+                >
+                  Purchase for $19.95
+                </button>
+              </div>
+
+              <div className="border-t border-gray-200 my-5" />
+
+              <div className="bg-[#faf7ff] border border-purple-100 rounded-[20px] p-4 text-center">
+                <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-[#ff6b2c] text-white font-black text-[11px] mb-4">
+                  OPM
+                </div>
+                <p className="text-gray-500 leading-relaxed text-[12px]">
+                  You can access this program and all other workouts/programs
+                  in this package by purchasing a Franchise License.
+                </p>
+                <p className="text-gray-400 text-[11px] mt-5">
+                  View details and options below:
+                </p>
+                <button className="mt-4 text-[#00b7ff] font-black hover:opacity-80 transition inline-flex items-center gap-1.5 text-[13px]">
+                  Other options
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              <div className="text-center mt-5">
+                <button className="text-[#3b82f6] font-black hover:opacity-80 transition inline-flex items-center gap-1.5 text-[13px]">
+                  View Franchise Details
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXERCISE TRACKING MODAL (from 1st code) */}
+      {trackingItem && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[3px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-[480px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-[15px] font-black text-gray-900">Exercise Tracking</h2>
+              <button
+                onClick={() => setTrackingItem(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 bg-[#efefef] rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center">
+                  {trackingItem.demo_gif ? (
+                    <img src={resolveWixImage(trackingItem.demo_gif)} alt={trackingItem.exercise_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Dumbbell className="w-7 h-7 text-gray-300" />
+                  )}
+                </div>
+                <p className="text-[13px] font-black text-gray-800 uppercase tracking-wide leading-snug">
+                  {trackingItem.exercise_name}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last</p>
+                  <p className="text-[12px] font-bold text-gray-500">No records yet</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Best</p>
+                  <p className="text-[12px] font-bold text-gray-500">No records yet</p>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Suggested</p>
+                  <p className="text-[13px] font-black text-purple-700">{trackingItem.reps || "1x 8/e"}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] font-black text-purple-700">3 kg</p>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-400 text-center">
+                Log your reps and weight to better track your progress
+              </p>
+
+              <button className="w-full border border-gray-200 rounded-xl py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 transition">
+                Add custom exercise Standard
+              </button>
+
+              <div className="space-y-3">
+                {sets.map((set, i) => (
+                  <div key={i} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Set {i + 1}</span>
+                      {sets.length > 1 && (
+                        <button onClick={() => removeSet(i)} className="text-gray-300 hover:text-red-400 transition">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Weight (lbs)</p>
+                        <input
+                          type="number"
+                          value={set.weight}
+                          onChange={(e) => updateSet(i, "weight", e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-white rounded-xl border border-gray-200 px-3 py-2.5 text-[15px] font-bold text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-300"
+                        />
+                      </div>
+                      <X size={12} className="text-gray-300 flex-shrink-0 mt-5" />
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Reps /e</p>
+                        <input
+                          type="number"
+                          value={set.reps}
+                          onChange={(e) => updateSet(i, "reps", e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-white rounded-xl border border-gray-200 px-3 py-2.5 text-[15px] font-bold text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-300"
+                        />
+                      </div>
+                    </div>
+                    <button className="mt-3 w-full bg-white border border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition">
+                      Save
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addSet}
+                className="w-full border-2 border-dashed border-purple-200 rounded-2xl py-3 flex items-center justify-center gap-2 text-[12px] font-bold text-purple-500 hover:bg-purple-50 transition"
+              >
+                <Plus size={15} />
+                Add Set
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-2 flex-shrink-0">
+              <button
+                onClick={() => setTrackingItem(null)}
+                className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black py-3 rounded-xl text-[13px] hover:opacity-90 transition"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setTrackingItem(null)}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-[12px] hover:bg-gray-100 transition"
+              >
+                Save and Add custom exercise Standard
+              </button>
             </div>
           </div>
         </div>

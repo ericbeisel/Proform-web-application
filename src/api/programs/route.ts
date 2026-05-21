@@ -21,8 +21,8 @@ export interface Program {
   times_completed: number;
   package: string;
   package_id: string;
-   sport?: string; 
-   code: string; 
+  sport?: string;
+  code: string;
 }
 
 export interface ProgramWithUI extends Program {
@@ -169,16 +169,15 @@ export interface ProgramDetail {
   nutrition?: string;
   intensity?: string;
   pre_req?: string;
-  addworkoutcount: number;  // Changed from addworkoutCount to addworkoutcount (all lowercase)
-  supplementalWorkoutCounts: number;  // Keep as is
-  code?: string;  // Add code field for fetching exercises and equipment
-
+  addworkoutcount: number; // Changed from addworkoutCount to addworkoutcount (all lowercase)
+  supplementalWorkoutCounts: number; // Keep as is
+  code?: string; // Add code field for fetching exercises and equipment
 }
 
 export interface StartProgramPayload {
   programId: string;
-  type: string;  // "Workout" or other types
-  addSuggested: number;  // 1 for true, 0 for false (includes supplemental)
+  type: string; // "Workout" or other types
+  addSuggested: number; // 1 for true, 0 for false (includes supplemental)
 }
 
 export interface StartProgramResponse {
@@ -298,6 +297,7 @@ export interface WorkoutGroupItem {
   exercise_name: string;
   supplemental: string;
   demo_gif: string;
+  is_power_set: boolean;
 }
 
 export interface WorkoutGroup {
@@ -311,7 +311,7 @@ export interface Exercise {
   exercise_uuid: string;
   exercise_id: string;
   name: string;
-  supplemental?: string;      // this is the equipment type e.g. "BARBELL"
+  supplemental?: string; // this is the equipment type e.g. "BARBELL"
   specialized_title?: string; // e.g. "ANE01" — use this for filtering
   order?: number;
   demoGif?: string;
@@ -332,7 +332,7 @@ export interface Equipment {
   slug?: string;
   type?: string;
   keyword?: string;
-  icon?: string;          // was "image" before — this is why icons weren't showing
+  icon?: string; // was "image" before — this is why icons weren't showing
   hideonlocations?: boolean;
 }
 
@@ -403,7 +403,9 @@ export const getWorkoutPageData = async (): Promise<WorkoutPageResponse> => {
 
 export const getAllSportCategories = async (): Promise<SportCategoryName[]> => {
   try {
-    const { data } = await apiClient.get<SportCategoryName[]>("/sport-categories/names");
+    const { data } = await apiClient.get<SportCategoryName[]>(
+      "/sport-categories/names",
+    );
     console.log("📋 All sport categories:", data);
     return data;
   } catch (error: unknown) {
@@ -421,7 +423,7 @@ export const getAllPrograms = async (): Promise<Program[]> => {
 
     while (hasMore) {
       const { data } = await apiClient.get<Program[]>(`/programs?page=${page}`);
-      
+
       if (!Array.isArray(data) || data.length === 0) {
         hasMore = false;
       } else {
@@ -443,7 +445,8 @@ export const getAllPrograms = async (): Promise<Program[]> => {
 
 export const getAllFeaturedTrainers = async (): Promise<FeaturedTrainer[]> => {
   try {
-    const { data } = await apiClient.get<FeaturedTrainer[]>("/featured-trainers");
+    const { data } =
+      await apiClient.get<FeaturedTrainer[]>("/featured-trainers");
     console.log("📋 All featured trainers:", data);
     return data;
   } catch (error: unknown) {
@@ -453,48 +456,57 @@ export const getAllFeaturedTrainers = async (): Promise<FeaturedTrainer[]> => {
   }
 };
 
-export const getProgramDetail = async (programId: string): Promise<ProgramDetail> => {
+export const getProgramDetail = async (
+  programId: string,
+): Promise<ProgramDetail> => {
   try {
-    const { data } = await apiClient.get<ProgramDetail>(`/discovery/program/${programId}`);
+    const { data } = await apiClient.get<ProgramDetail>(
+      `/discovery/program/${programId}`,
+    );
     console.log("📋 Program detail response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch program details."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch program details."));
   }
 };
 
-
-
-export const startProgram = async (payload: StartProgramPayload): Promise<StartProgramResponse> => {
+export const startProgram = async (
+  payload: StartProgramPayload,
+): Promise<StartProgramResponse> => {
   try {
-    const { data } = await apiClient.post<StartProgramResponse>("/programs/start-program", payload);
+    const { data } = await apiClient.post<StartProgramResponse>(
+      "/programs/start-program",
+      payload,
+    );
     console.log("📋 Start program response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to start program."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to start program."));
   }
 };
 
-export const getWorkoutQueue = async (type: string = "workout"): Promise<WorkoutQueueItem[]> => {
+export const getWorkoutQueue = async (
+  type: string = "workout",
+): Promise<WorkoutQueueItem[]> => {
   try {
-    const { data } = await apiClient.get<WorkoutQueueItem[]>(`/programs/workout-queue?type=${type}`);
+    const { data } = await apiClient.get<WorkoutQueueItem[]>(
+      `/programs/workout-queue?type=${type}`,
+    );
     console.log("📋 Workout queue response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch workout queue."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch workout queue."));
   }
 };
 
 // NEW: Get Activity Workout Queue
-export const getActivityWorkoutQueue = async (type: string = "Workout"): Promise<ActivityWorkoutQueueItem[]> => {
+export const getActivityWorkoutQueue = async (
+  type: string = "Workout",
+): Promise<ActivityWorkoutQueueItem[]> => {
   try {
-    const { data } = await apiClient.get<ActivityWorkoutQueueItem[]>(`/programs/activity-workout-queue?type=${type}`);
+    const { data } = await apiClient.get<ActivityWorkoutQueueItem[]>(
+      `/programs/activity-workout-queue?type=${type}`,
+    );
     console.log("📋 Activity workout queue response:", data);
     return data;
   } catch (error: unknown) {
@@ -509,42 +521,46 @@ export const getAllWorkoutQueues = async (type: string = "Workout") => {
   try {
     const [workoutQueue, activityWorkoutQueue] = await Promise.all([
       getWorkoutQueue(type.toLowerCase()),
-      getActivityWorkoutQueue(type)
+      getActivityWorkoutQueue(type),
     ]);
-    
+
     return {
       workoutQueue,
-      activityWorkoutQueue
+      activityWorkoutQueue,
     };
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch workout queues."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch workout queues."));
   }
 };
 
 // CORRECTED: Reorder Workout Queue
-export const reorderWorkoutQueue = async (type: string, orderedIds: string[]): Promise<any> => {
+export const reorderWorkoutQueue = async (
+  type: string,
+  orderedIds: string[],
+): Promise<any> => {
   try {
-    console.log(type,orderedIds);
-    
+    console.log(type, orderedIds);
+
     const { data } = await apiClient.post("/programs/reorder-queue", {
       type: type,
-      workoutIds: orderedIds
+      workoutIds: orderedIds,
     });
     console.log("📋 Reorder response:", data);
     return data;
   } catch (error: unknown) {
     console.error("Reorder API error:", error);
-    throw new Error(
-      getErrorMessage(error, "Failed to reorder workout queue."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to reorder workout queue."));
   }
 };
 
-export const getProgramsBySport = async (sport: string, page: number = 1): Promise<ProgramsBySportResponse> => {
+export const getProgramsBySport = async (
+  sport: string,
+  page: number = 1,
+): Promise<ProgramsBySportResponse> => {
   try {
-    const { data } = await apiClient.get<ProgramsBySportResponse>(`/programs/by-sport?sport=${encodeURIComponent(sport)}&page=${page}`);
+    const { data } = await apiClient.get<ProgramsBySportResponse>(
+      `/programs/by-sport?sport=${encodeURIComponent(sport)}&page=${page}`,
+    );
     console.log("📋 Programs by sport response:", data);
     return data;
   } catch (error: unknown) {
@@ -554,9 +570,14 @@ export const getProgramsBySport = async (sport: string, page: number = 1): Promi
   }
 };
 
-export const getProgramsByTrainer = async (trainer: string, page: number = 1): Promise<ProgramsByTrainerResponse> => {
+export const getProgramsByTrainer = async (
+  trainer: string,
+  page: number = 1,
+): Promise<ProgramsByTrainerResponse> => {
   try {
-    const { data } = await apiClient.get<ProgramsByTrainerResponse>(`/programs/by-trainer?trainer=${encodeURIComponent(trainer)}&page=${page}`);
+    const { data } = await apiClient.get<ProgramsByTrainerResponse>(
+      `/programs/by-trainer?trainer=${encodeURIComponent(trainer)}&page=${page}`,
+    );
     console.log("📋 Programs by trainer response:", data);
     return data;
   } catch (error: unknown) {
@@ -566,9 +587,14 @@ export const getProgramsByTrainer = async (trainer: string, page: number = 1): P
   }
 };
 
-export const getProgramsByFocus = async (focusId: string, page: number = 1): Promise<ProgramsByFocusResponse> => {
+export const getProgramsByFocus = async (
+  focusId: string,
+  page: number = 1,
+): Promise<ProgramsByFocusResponse> => {
   try {
-    const { data } = await apiClient.get<ProgramsByFocusResponse>(`/programs/by-focus?focusId=${focusId}&page=${page}`);
+    const { data } = await apiClient.get<ProgramsByFocusResponse>(
+      `/programs/by-focus?focusId=${focusId}&page=${page}`,
+    );
     console.log("📋 Programs by focus response:", data);
     return data;
   } catch (error: unknown) {
@@ -578,9 +604,14 @@ export const getProgramsByFocus = async (focusId: string, page: number = 1): Pro
   }
 };
 
-export const getProgramsByAgeGroup = async (ageGroupId: string, page: number = 1): Promise<ProgramsByAgeGroupResponse> => {
+export const getProgramsByAgeGroup = async (
+  ageGroupId: string,
+  page: number = 1,
+): Promise<ProgramsByAgeGroupResponse> => {
   try {
-    const { data } = await apiClient.get<ProgramsByAgeGroupResponse>(`/programs/by-age-group?ageGroupId=${ageGroupId}&page=${page}`);
+    const { data } = await apiClient.get<ProgramsByAgeGroupResponse>(
+      `/programs/by-age-group?ageGroupId=${ageGroupId}&page=${page}`,
+    );
     console.log("📋 Programs by age group response:", data);
     return data;
   } catch (error: unknown) {
@@ -590,9 +621,14 @@ export const getProgramsByAgeGroup = async (ageGroupId: string, page: number = 1
   }
 };
 
-export const getProgramsBySetting = async (settingId: string, page: number = 1): Promise<ProgramsBySettingResponse> => {
+export const getProgramsBySetting = async (
+  settingId: string,
+  page: number = 1,
+): Promise<ProgramsBySettingResponse> => {
   try {
-    const { data } = await apiClient.get<ProgramsBySettingResponse>(`/programs/by-setting?settingId=${settingId}&page=${page}`);
+    const { data } = await apiClient.get<ProgramsBySettingResponse>(
+      `/programs/by-setting?settingId=${settingId}&page=${page}`,
+    );
     console.log("📋 Programs by setting response:", data);
     return data;
   } catch (error: unknown) {
@@ -603,19 +639,19 @@ export const getProgramsBySetting = async (settingId: string, page: number = 1):
 };
 
 export const getProgramExercises = async (
-  programCode: string, 
-  page: number = 1, 
-  take: number = 50
+  programCode: string,
+  page: number = 1,
+  take: number = 50,
 ): Promise<ExercisesResponse> => {
   try {
     const { data } = await apiClient.get<ExercisesResponse>(
-      `/programs/${programCode}/exercises?page=${page}&take=${take}`
+      `/programs/${programCode}/exercises?page=${page}&take=${take}`,
     );
     console.log("📋 Program exercises response:", data);
     return data;
   } catch (error: unknown) {
     throw new Error(
-      getErrorMessage(error, "Failed to fetch program exercises.")
+      getErrorMessage(error, "Failed to fetch program exercises."),
     );
   }
 };
@@ -623,24 +659,28 @@ export const getProgramExercises = async (
 // Get equipment for a program
 export const getProgramEquipment = async (
   programCode: string,
-  hideOnLocation: boolean = false
+  hideOnLocation: boolean = false,
 ): Promise<Equipment[]> => {
   try {
     const { data } = await apiClient.get<Equipment[]>(
-      `/programs/${programCode}/equipment?hideOnLocation=${hideOnLocation}`
+      `/programs/${programCode}/equipment?hideOnLocation=${hideOnLocation}`,
     );
     console.log("📋 Program equipment response:", data);
     return data;
   } catch (error: unknown) {
     throw new Error(
-      getErrorMessage(error, "Failed to fetch program equipment.")
+      getErrorMessage(error, "Failed to fetch program equipment."),
     );
   }
 };
 
-export const getProgramWorkoutStats = async (programCode: string): Promise<WorkoutStats> => {
+export const getProgramWorkoutStats = async (
+  programCode: string,
+): Promise<WorkoutStats> => {
   try {
-    const { data } = await apiClient.get<WorkoutStats>(`/programs/${programCode}/workout-stats`);
+    const { data } = await apiClient.get<WorkoutStats>(
+      `/programs/${programCode}/workout-stats`,
+    );
     console.log("📋 Program workout stats response:", data);
     return data;
   } catch (error: unknown) {
@@ -648,20 +688,26 @@ export const getProgramWorkoutStats = async (programCode: string): Promise<Worko
   }
 };
 
-export const getProgramPowerSets = async (programCode: string): Promise<PowerSet[]> => {
+export const getProgramPowerSets = async (
+  programCode: string,
+): Promise<PowerSet[]> => {
   try {
-    const { data } = await apiClient.get<PowerSet[]>(`/programs/${programCode}/power-sets`);
-       console.log("📋 Program power sets response:", data);
- return data;
+    const { data } = await apiClient.get<PowerSet[]>(
+      `/programs/${programCode}/power-sets`,
+    );
+    console.log("📋 Program power sets response:", data);
+    return data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch power sets."));
   }
 };
 
-export const getProgramIdByCode = async (programCode: string): Promise<string | null> => {
-  // Strip trailing digits: "rc2" → "rc", "ne01" stays "ne01"  
-  const baseCode = programCode.replace(/\d+$/, '') || programCode;
-  
+export const getProgramIdByCode = async (
+  programCode: string,
+): Promise<string | null> => {
+  // Strip trailing digits: "rc2" → "rc", "ne01" stays "ne01"
+  const baseCode = programCode.replace(/\d+$/, "") || programCode;
+
   // Fast path: try the workout-page discovery endpoint which returns programs with codes
   try {
     const pageData = await getWorkoutPageData();
@@ -671,9 +717,9 @@ export const getProgramIdByCode = async (programCode: string): Promise<string | 
       ...pageData.freePrograms,
       ...pageData.suggestedPrograms,
     ].filter(Boolean);
-    
+
     const match = allDiscoveryPrograms.find(
-      (p) => p?.code?.toLowerCase() === baseCode.toLowerCase()
+      (p) => p?.code?.toLowerCase() === baseCode.toLowerCase(),
     );
     if (match?.id) {
       console.log(`✅ Found UUID via discovery for "${baseCode}":`, match.id);
@@ -685,10 +731,13 @@ export const getProgramIdByCode = async (programCode: string): Promise<string | 
   try {
     const programs = await getAllPrograms();
     const match = programs.find(
-      (p) => p.code?.toLowerCase() === baseCode.toLowerCase()
+      (p) => p.code?.toLowerCase() === baseCode.toLowerCase(),
     );
     if (match?.id) {
-      console.log(`✅ Found UUID via all programs for "${baseCode}":`, match.id);
+      console.log(
+        `✅ Found UUID via all programs for "${baseCode}":`,
+        match.id,
+      );
       return match.id;
     }
   } catch {}
@@ -721,13 +770,19 @@ export const getProgramIdByCode = async (programCode: string): Promise<string | 
 //   return null;
 // };
 
-export const getProgramGroupedWorkouts = async (programCode: string): Promise<WorkoutGroup[]> => {
+export const getProgramGroupedWorkouts = async (
+  programCode: string,
+): Promise<WorkoutGroup[]> => {
   try {
-    const { data } = await apiClient.get<WorkoutGroup[]>(`/programs/${programCode}/workouts`);
-   console.log("📋 Program grouped workouts response:", data);
+    const { data } = await apiClient.get<WorkoutGroup[]>(
+      `/programs/${programCode}/workouts`,
+    );
+    console.log("📋 Program grouped workouts response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch grouped workouts."));
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch grouped workouts."),
+    );
   }
 };
 
@@ -736,15 +791,15 @@ export const workoutApi = {
   getAllSportCategories,
   getAllPrograms,
   getAllFeaturedTrainers,
-  getActivityWorkoutQueue,  // NEW: Add to API object
-  getAllWorkoutQueues,      // NEW: Add to API object
-   getProgramsBySport,
-   getProgramsByTrainer,
-    getProgramsByFocus,
-    getProgramsByAgeGroup,
-    getProgramsBySetting,
-    getProgramExercises,
-    getProgramEquipment,
+  getActivityWorkoutQueue, // NEW: Add to API object
+  getAllWorkoutQueues, // NEW: Add to API object
+  getProgramsBySport,
+  getProgramsByTrainer,
+  getProgramsByFocus,
+  getProgramsByAgeGroup,
+  getProgramsBySetting,
+  getProgramExercises,
+  getProgramEquipment,
 };
 
 export default workoutApi;

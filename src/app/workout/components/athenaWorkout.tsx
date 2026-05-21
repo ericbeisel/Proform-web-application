@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  RotateCcw,
   Award,
   Clock,
   Play,
@@ -19,14 +18,27 @@ import {
   Info,
   Pen,
   Star,
-  StarHalfIcon,
   X,
   Plus,
-  Save,
-  Replace,
   Shuffle,
+  DollarSign,
+  TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getWorkoutSection, SectionExercise } from "@/api/workouts/route";
+import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
+
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("wix:image://")) {
+    // wix:image://v1/{hash}/{filename}#... → https://static.wixstatic.com/media/{hash}
+    const hash = url.replace("wix:image://v1/", "").split("/")[0];
+    return `https://static.wixstatic.com/media/${hash}`;
+  }
+  return url;
+}
+
 export default function AthenaWorkoutPage() {
   const router = useRouter();
   const [isNotePopupOpen, setIsNotePopupOpen] = useState(false);
@@ -36,38 +48,130 @@ export default function AthenaWorkoutPage() {
   const [velocitySets, setVelocitySets] = useState([
     { id: 1, weight: 9, reps: "12-15", maxV: 1.0, unit: "m/s" },
   ]);
-  const [isRunning, setIsRunning] = useState(true);
-  const [progress] = useState(45);
+  const SETUP_DURATION = 15;
+  const WORK_DURATION = 45;
 
-  const exercises = [
-    { id: 1, title: "WIDE-GRIP PULL UP", subtitle: "1x AMRP", isCurrent: true },
-    {
-      id: 2,
-      title: "STANDING SQUAT HOLD",
-      subtitle: "1x HOLD",
-      isCurrent: false,
+  const [isRunning, setIsRunning] = useState(true);
+  const [timerPhase, setTimerPhase] = useState<"setup" | "work">("setup");
+  const [timeRemaining, setTimeRemaining] = useState(SETUP_DURATION);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerStateRef = useRef({ phase: "setup" as "setup" | "work", remaining: SETUP_DURATION });
+
+  const [sections, setSections] = useState<WorkoutGroup[]>([]);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [sectionExercises, setSectionExercises] = useState<SectionExercise[]>([]);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [workoutCode, setWorkoutCode] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [locationName, setLocationName] = useState<string>("Temporary Location");
+
+  // Keep ref in sync so the interval always reads fresh values
+  useEffect(() => {
+    timerStateRef.current = { phase: timerPhase, remaining: timeRemaining };
+  });
+
+  useEffect(() => {
+    if (!isRunning) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    timerRef.current = setInterval(() => {
+      const { phase, remaining } = timerStateRef.current;
+      if (remaining > 1) {
+        setTimeRemaining(remaining - 1);
+      } else if (phase === "setup") {
+        // Setup done → start work phase
+        setTimerPhase("work");
+        setTimeRemaining(WORK_DURATION);
+      } else {
+        // Work done → advance to next exercise
+        setCurrentExerciseIndex((i) => i + 1);
+      }
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isRunning]);
+
+  // Reset to setup phase on exercise change
+  useEffect(() => {
+    setTimerPhase("setup");
+    setTimeRemaining(SETUP_DURATION);
+  }, [currentExerciseIndex]);
+
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+
+  const handleSkipNext = () => {
+    setCurrentExerciseIndex((i) => Math.min(sectionExercises.length - 1, i + 1));
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const code = localStorage.getItem("workoutProgramCode");
+        if (!code) { setDataLoading(false); return; }
+        setWorkoutCode(code);
+
+        const sid = localStorage.getItem(`activeSessionId_${code}`);
+        setSessionId(sid);
+        const loc = localStorage.getItem("workoutLocationName");
+        if (loc) setLocationName(loc);
+        console.log("[athena] code:", code, "sessionId:", sid);
+
+        const groups = await getProgramGroupedWorkouts(code);
+        setSections(groups);
+        console.log("[athena] sections:", groups.length, groups.map((g) => g.label));
+
+        if (groups.length > 0) {
+          const exercises = await getWorkoutSection({
+            sessionId: sid,
+            programCode: code,
+            section: groups[0].label,
+          });
+          setSectionExercises(exercises);
+          console.log("[athena] exercises for section 0:", exercises.length);
+        }
+      } catch (err) {
+        console.error("[athena] Failed to load workout data:", err);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const loadSectionExercises = useCallback(
+    async (sectionIndex: number, code: string | null, sid: string | null, groups: WorkoutGroup[]) => {
+      if (!groups[sectionIndex] || !code) return;
+      setDataLoading(true);
+      setCurrentExerciseIndex(0);
+      try {
+        const exercises = await getWorkoutSection({
+          sessionId: sid,
+          programCode: code,
+          section: groups[sectionIndex].label,
+        });
+        setSectionExercises(exercises);
+        console.log("[athena] loaded section", sectionIndex, ":", exercises.length, "exercises");
+      } catch (err) {
+        console.error("[athena] Failed to load section exercises:", err);
+      } finally {
+        setDataLoading(false);
+      }
     },
-    {
-      id: 3,
-      title: "OBLIQUE BRIDGE ADD",
-      subtitle: "1x 12-15",
-      isCurrent: false,
-    },
-    {
-      id: 4,
-      title: "FLOOR PUSHUP W/ CHAIR",
-      subtitle: "1x AMRP",
-      isCurrent: false,
-    },
-    {
-      id: 5,
-      title: "FLOOR PLANK-TO-PUSH",
-      subtitle: "1x 8-12s",
-      isCurrent: false,
-    },
-    { id: 6, title: "FLOOR GROIN FLOW", subtitle: "1x 6/s", isCurrent: false },
-    { id: 7, title: "REST PERIOD", subtitle: "60s", isCurrent: false },
-  ];
+    [],
+  );
+
+  const currentSection = sections[currentSectionIndex];
+  const currentExercise = sectionExercises[currentExerciseIndex];
+
+  const exercisesForSidebar = sectionExercises.map((ex, i) => ({
+    id: i + 1,
+    title: ex.exercise_name || ex.title,
+    subtitle: ex.reps,
+    isCurrent: i === currentExerciseIndex,
+    gifUrl: resolveMediaUrl(ex.demo_gif || ex.demoGif),
+  }));
 
   const addNewSet = () => {
     const newId = velocitySets.length + 1;
@@ -83,7 +187,7 @@ export default function AthenaWorkoutPage() {
       {/* SECTION 1: Fixed Headers */}
       <div className="flex flex-col shrink-0">
         <header className="bg-[#6202AC] text-white py-2 px-4 flex items-center justify-between">
-          <button className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider hover:opacity-80 transition">
+          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider hover:opacity-80 transition">
             <ChevronLeft size={16} strokeWidth={3} />
             <span className="hidden sm:inline">Return to Workout</span>
             <span className="inline sm:hidden">Back</span>
@@ -112,18 +216,23 @@ export default function AthenaWorkoutPage() {
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-gray-700" />
             <h2 className="font-bold text-sm md:text-base tracking-tight">
-              WARM-UP (1x)
+              {dataLoading && !currentSection ? (
+                <Loader2 size={14} className="animate-spin inline mr-1" />
+              ) : null}
+              {currentSection
+                ? `${currentSection.label} (${currentSection.rounds}x)`
+                : "Loading..."}
             </h2>
           </div>
           <p className="text-gray-500 text-[10px] md:text-[11px] mt-0.5">
-            Complete the following warm-up sets in order
+            Complete the following sets in order
           </p>
         </div>
 
         <div className="bg-[#0FCC91] text-white text-[9px] md:text-[10px] font-bold py-1.5 px-4 flex items-center justify-center gap-1.5 text-center">
           <Award size={14} className="shrink-0" />
           <span className="truncate">
-            Exercises customized to your location: Gym1
+            Exercises customized to your location: {locationName}
           </span>
         </div>
       </div>
@@ -132,42 +241,80 @@ export default function AthenaWorkoutPage() {
       {/* flex-col on mobile, flex-row on desktop */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-[1440px] mx-auto w-full">
         {/* Left: Main Exercise */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col gap-3 custom-scrollbar">
+        <div className="w-full lg:w-[58%] overflow-y-auto p-3 md:p-4 flex flex-col gap-3 custom-scrollbar">
           <div className="flex items-center justify-between">
             {/* Title + Star */}
             <div className="flex items-center gap-2">
               <Star size={18} className="text-yellow-500" />
 
               <h1 className="text-lg md:text-xl font-black tracking-tighter uppercase truncate mr-2">
-                WIDE-GRIP PULL UP
+                {currentExercise?.exercise_name || currentExercise?.title || (dataLoading ? "Loading..." : "—")}
               </h1>
             </div>
 
             {/* Rotate + 1/6 */}
             <div className="flex items-center gap-2 shrink-0">
               
-            <button onClick={() =>  router.push("/workout/swapExercise")} className="p-2 bg-[#6202AC] rounded-lg shadow-sm border border-gray-200 hover:bg-[#4d0187] transition">
-  <Shuffle size={18} className="text-white" />
-</button>
-              <span className="text-sm font-bold text-gray-600">1/6</span>
+            <button onClick={() => router.push("/workout/swapExercise")} className="p-2 bg-[#6202AC] rounded-lg shadow-sm border border-gray-200 hover:bg-[#4d0187] transition">
+              <Shuffle size={18} className="text-white" />
+            </button>
+              <span className="text-sm font-bold text-gray-600">
+                {sectionExercises.length > 0 ? `${currentExerciseIndex + 1}/${sectionExercises.length}` : "—"}
+              </span>
             </div>
           </div>
 
           {/* Adjusted aspect ratio for mobile vs desktop */}
-          <div className="relative aspect-[16/6] lg:aspect-[16/4] bg-[#e4ebf3] rounded-md flex items-center justify-center border border-white shadow-sm overflow-hidden shrink-0">
-            <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
-              <div className="w-5 h-5 bg-white rounded-full" />
-            </div>
-            <p className="absolute bottom-1.5 text-[7px] font-black text-gray-400 tracking-wider uppercase">
-              Exercise placeholder
-            </p>
+          <div className="relative aspect-[3/2] lg:aspect-[16/7] bg-[#e4ebf3] rounded-md flex items-center justify-center border border-white shadow-sm overflow-hidden shrink-0">
+            {resolveMediaUrl(currentExercise?.demo_gif || currentExercise?.demoGif) ? (
+              <img
+                src={resolveMediaUrl(currentExercise.demo_gif || currentExercise.demoGif)!}
+                alt={currentExercise.exercise_name}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <>
+                <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
+                  <div className="w-5 h-5 bg-white rounded-full" />
+                </div>
+                {!dataLoading && (
+                  <p className="absolute bottom-1.5 text-[7px] font-black text-gray-400 tracking-wider uppercase">
+                    No preview available
+                  </p>
+                )}
+              </>
+            )}
+            {dataLoading && (
+              <div className="absolute inset-0 bg-[#e4ebf3]/80 flex items-center justify-center">
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+              </div>
+            )}
 
-            <button className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-white/90 p-0.5 rounded-full shadow-sm hover:bg-white transition">
+            <button
+              onClick={() => setCurrentExerciseIndex((i) => Math.max(0, i - 1))}
+              disabled={currentExerciseIndex === 0}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-white/90 p-0.5 rounded-full shadow-sm hover:bg-white transition disabled:opacity-30"
+            >
               <ChevronLeft size={25} />
             </button>
-            <button className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-white/90 p-0.5 rounded-full shadow-sm hover:bg-white transition">
+            <button
+              onClick={() => setCurrentExerciseIndex((i) => Math.min(sectionExercises.length - 1, i + 1))}
+              disabled={currentExerciseIndex >= sectionExercises.length - 1}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-white/90 p-0.5 rounded-full shadow-sm hover:bg-white transition disabled:opacity-30"
+            >
               <ChevronRight size={25} />
             </button>
+
+            {/* Bottom-right: Dollar icon — only for power sets */}
+            {currentExercise?.is_power_set && (
+              <div className="absolute bottom-2 right-2">
+                <DollarSign
+                  size={32}
+                  onClick={() => router.push("/workout/dollarSet")}
+                  className="text-white bg-gradient-to-br from-green-400 to-green-600 p-2 md:p-3 md:w-10 md:h-10 rounded-full shadow-xl hover:scale-110 transition-transform cursor-pointer"
+                />
+              </div>
+            )}
 
             {/* Bottom-left icons - scaled for mobile */}
             <div className="absolute bottom-2 left-2 flex items-center gap-2 md:gap-3">
@@ -203,7 +350,7 @@ export default function AthenaWorkoutPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-bold text-gray-700">
-                          WIDE-GRIP PULL UP
+                          {currentExercise?.exercise_name || "—"}
                         </p>
                         <button
                           onClick={() => setIsVelocityPopupOpen(false)}
@@ -226,6 +373,18 @@ export default function AthenaWorkoutPage() {
                         </p>
                       </div>
 
+                      {/* Last / Best chips */}
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-red-500 underline border border-red-200 bg-red-50 px-2.5 py-1 rounded-full">
+                          <TrendingUp size={11} />
+                          Last
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-green-600 underline border border-green-200 bg-green-50 px-2.5 py-1 rounded-full">
+                          <TrendingUp size={11} />
+                          Best
+                        </span>
+                      </div>
+
                       {/* Sets */}
                       {velocitySets.map((set, idx) => (
                         <div
@@ -233,50 +392,49 @@ export default function AthenaWorkoutPage() {
                           className="mb-6 border border-gray-200 rounded-xl p-4 bg-gray-50/30"
                         >
                           <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-bold text-sm text-gray-700">
-                              Set {idx + 1}
-                            </h3>
-                            {/* Remove button */}
-                            <button
-                              onClick={() => {
-                                const newSets = velocitySets.filter(
-                                  (_, i) => i !== idx,
-                                );
-                                setVelocitySets(newSets);
-                              }}
-                              className="p-1 hover:bg-red-100 rounded-full transition"
-                            >
-                              <X size={16} className="text-red-500" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-sm text-gray-700">
+                                Set {idx + 1}
+                              </h3>
+                            </div>
+                            {/* Remove button — hidden for first set */}
+                            {idx !== 0 && (
+                              <button
+                                onClick={() => {
+                                  const newSets = velocitySets.filter(
+                                    (_, i) => i !== idx,
+                                  );
+                                  setVelocitySets(newSets);
+                                }}
+                                className="p-1 hover:bg-red-100 rounded-full transition"
+                              >
+                                <X size={16} className="text-red-500" />
+                              </button>
+                            )}
                           </div>
 
                           {/* Horizontal layout */}
-                          <div className="flex flex-wrap items-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500">
-                                Weight (lbs):
-                              </span>
+                          <div className="grid grid-cols-4 gap-3 text-sm">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-semibold text-gray-500">Weight (lbs)</span>
                               <input
                                 type="number"
                                 value={set.weight}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                className="w-full px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
                                 onChange={(e) => {
                                   const newSets = [...velocitySets];
-                                  newSets[idx].weight =
-                                    parseInt(e.target.value) || 0;
+                                  newSets[idx].weight = parseInt(e.target.value) || 0;
                                   setVelocitySets(newSets);
                                 }}
                               />
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500">
-                                Reps:
-                              </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-semibold text-gray-500">Reps</span>
                               <input
                                 type="text"
                                 value={set.reps}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                className="w-full px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
                                 onChange={(e) => {
                                   const newSets = [...velocitySets];
                                   newSets[idx].reps = e.target.value;
@@ -285,31 +443,26 @@ export default function AthenaWorkoutPage() {
                               />
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500">
-                                Max V.:
-                              </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-semibold text-gray-500">Max V.</span>
                               <input
                                 type="number"
                                 step="0.01"
                                 value={set.maxV}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                className="w-full px-2 py-1 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-1 focus:ring-purple-500"
                                 onChange={(e) => {
                                   const newSets = [...velocitySets];
-                                  newSets[idx].maxV =
-                                    parseFloat(e.target.value) || 0;
+                                  newSets[idx].maxV = parseFloat(e.target.value) || 0;
                                   setVelocitySets(newSets);
                                 }}
                               />
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500">
-                                Unit:
-                              </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-semibold text-gray-500">Unit</span>
                               <select
                                 value={set.unit}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                className="w-full px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
                                 onChange={(e) => {
                                   const newSets = [...velocitySets];
                                   newSets[idx].unit = e.target.value;
@@ -342,7 +495,6 @@ export default function AthenaWorkoutPage() {
                         }}
                         className="w-full bg-[#6202AC] text-white font-bold py-3 rounded-xl hover:bg-[#4d0187] transition flex items-center justify-center gap-2"
                       >
-                        <Save size={18} />
                         Save
                       </button>
                     </div>
@@ -429,106 +581,147 @@ export default function AthenaWorkoutPage() {
 
           {/* Action Bar - wrapping for small screens */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 pb-1">
-            <div className="flex-1 bg-white rounded-lg p-2.5 border border-gray-100 flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    className="w-3.5 h-3.5 accent-[#6202AC] rounded"
-                  />
-                  <p className="text-[9px] font-bold text-gray-400">
-                    Check when completed
-                  </p>
+            <div className="flex-1 bg-white rounded-lg p-2.5 border border-gray-100 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      className="w-3.5 h-3.5 accent-[#6202AC] rounded"
+                    />
+                    <p className="text-[9px] font-bold text-gray-400">
+                      Check when completed
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-purple-600">
+                    What's Next?
+                  </span>
                 </div>
-                <span className="text-xs font-medium text-purple-600">
-                  What's Next?
-                </span>
+
+                <div className="flex items-center gap-2 md:gap-4">
+                  <div className="text-center">
+                    <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Sets</p>
+                    <span className="text-xs font-black text-gray-700">
+                      {currentSection?.rounds || "1x"}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Reps</p>
+                    <span className="text-xs font-black text-gray-700">{currentExercise?.reps || "—"}</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Weight</p>
+                    <span className="text-xs font-black text-gray-700">
+                      {currentExercise?.weight && currentExercise.weight !== "0" ? `${currentExercise.weight} lbs` : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 md:gap-2">
+                    <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
+                      <Pen size={14} />
+                    </button>
+                    <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
+                      <Info size={14} />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 md:gap-4">
-                <div className="text-center">
-                  <p className="text-[9px] md:text-[10px] font-bold text-gray-400">
-                    Sets
+              {/* $ set message — only for power sets */}
+              {currentExercise?.is_power_set && (
+                <div className="bg-purple-50 rounded-lg px-3 py-2 flex flex-col gap-0.5 w-fit">
+                  <p className="text-[11px] font-semibold text-purple-600">
+                    complete the <span className="text-green-500 font-bold">$</span> set to continue
                   </p>
-                  <span className="text-xs font-black text-gray-700">1x</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-[9px] md:text-[10px] font-bold text-gray-400">
-                    Reps
+                  <p className="text-[11px] font-semibold text-green-500">
+                    Complete the required set-tracking
                   </p>
-                  <span className="text-xs font-black text-gray-700">AMRP</span>
                 </div>
-                <div className="flex items-center gap-1 md:gap-2">
-                  <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
-                    <Pen size={14} />
-                  </button>
-                  <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
-                    <Info size={14} />
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
-            <button className="bg-[#6202AC] hover:bg-[#4d0187] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0">
-              ROUND 1
+            <button
+              onClick={() => {
+                const next = currentSectionIndex + 1;
+                if (next < sections.length) {
+                  setCurrentSectionIndex(next);
+                  loadSectionExercises(next, workoutCode, sessionId, sections);
+                }
+              }}
+              disabled={currentSectionIndex >= sections.length - 1}
+              className="bg-[#6202AC] hover:bg-[#4d0187] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0 disabled:opacity-60"
+            >
+              {sections.length > 0 ? `ROUND ${currentSectionIndex + 1}/${sections.length}` : "ROUND 1"}
             </button>
           </div>
         </div>
 
         {/* Right Panel: Exercise Overview */}
         {/* Hidden on very small screens or shown as a bottom section */}
-        <aside className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col overflow-hidden h-[300px] lg:h-full">
+        <aside className="w-full lg:flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col overflow-hidden h-[300px] lg:h-full">
           <div className="flex flex-col h-full">
             <div className="p-3 pb-2 shrink-0">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-sm">Exercise Overview</h3>
                 <span className="text-[9px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
-                  1/6
+                  {sectionExercises.length > 0 ? `${currentExerciseIndex + 1}/${sectionExercises.length}` : "—"}
                 </span>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-3 custom-scrollbar">
-              <div className="grid grid-cols-2 lg:grid-cols-2 gap-1.5 pb-2">
-                {exercises.map((ex, idx) => (
-                  <div
-                    key={ex.id}
-                    className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-20 md:h-24 ${
-                      ex.isCurrent
-                        ? "border-[#6202AC] bg-[#f8f5ff] shadow-sm"
-                        : "border-gray-200 hover:border-gray-300 bg-white"
-                    }`}
-                  >
-                    <div
-                      className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white shadow-sm ${
+              <div className="grid grid-cols-3 gap-1.5 pt-3 pb-2">
+                {dataLoading && exercisesForSidebar.length === 0 ? (
+                  <div className="col-span-3 flex justify-center py-6">
+                    <Loader2 size={24} className="animate-spin text-gray-300" />
+                  </div>
+                ) : (
+                  exercisesForSidebar.map((ex, idx) => (
+                    <button
+                      key={ex.id}
+                      onClick={() => setCurrentExerciseIndex(idx)}
+                      className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-20 md:h-24 w-full ${
                         ex.isCurrent
-                          ? "bg-[#6202AC] text-white"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div
-                      className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center mb-1 border ${
-                        ex.isCurrent
-                          ? "bg-black border-black"
-                          : "bg-gray-200 border-gray-300"
+                          ? "border-[#6202AC] bg-[#f8f5ff] shadow-sm"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
                       }`}
                     >
                       <div
-                        className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${ex.isCurrent ? "bg-white" : "bg-gray-400"}`}
-                      />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-bold text-[9px] md:text-[10px] leading-tight tracking-tight line-clamp-1">
-                        {ex.title}
-                      </p>
-                      <p className="text-[8px] md:text-[9px] mt-0.5 font-medium text-gray-400">
-                        {ex.subtitle}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                        className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white shadow-sm ${
+                          ex.isCurrent
+                            ? "bg-[#6202AC] text-white"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {idx + 1}
+                      </div>
+                      {ex.gifUrl ? (
+                        <div className="w-full h-10 md:h-12 mb-1 rounded-md bg-[#e4ebf3] flex items-center justify-center overflow-hidden">
+                          <img
+                            src={ex.gifUrl}
+                            alt={ex.title}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center mb-1 border ${
+                            ex.isCurrent ? "bg-black border-black" : "bg-gray-200 border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${ex.isCurrent ? "bg-white" : "bg-gray-400"}`} />
+                        </div>
+                      )}
+                      <div className="text-center">
+                        <p className="font-bold text-[9px] md:text-[10px] leading-tight tracking-tight line-clamp-1">
+                          {ex.title}
+                        </p>
+                        <p className="text-[8px] md:text-[9px] mt-0.5 font-medium text-gray-400">
+                          {ex.subtitle}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
@@ -557,24 +750,40 @@ export default function AthenaWorkoutPage() {
 
           <div className="flex-1 relative h-7 md:h-8 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
             <div
-              className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-500 to-red-500 transition-all duration-700"
-              style={{ width: `${progress}%` }}
+              className={`absolute top-0 left-0 h-full transition-all duration-1000 ${
+                timerPhase === "setup"
+                  ? "bg-gradient-to-r from-yellow-400 to-orange-500"
+                  : "bg-gradient-to-r from-orange-500 to-red-500"
+              }`}
+              style={{
+                width: `${(1 - timeRemaining / (timerPhase === "setup" ? SETUP_DURATION : WORK_DURATION)) * 100}%`,
+              }}
             />
             <div className="absolute inset-0 flex items-center px-2 justify-between text-[11px] font-bold z-10">
               <div className="flex items-center gap-1">
                 <Clock size={12} className="text-gray-500" />
-                <span className="tabular-nums text-xs md:text-sm">00:45</span>
-                <span className="text-[7px] hidden sm:inline text-emerald-600 font-black tracking-widest ml-1 uppercase">
-                  ACTIVE
+                <span className="tabular-nums text-xs md:text-sm">{formatTime(timeRemaining)}</span>
+                <span className={`text-[7px] hidden sm:inline font-black tracking-widest ml-1 uppercase ${
+                  !isRunning ? "text-gray-400" : timerPhase === "setup" ? "text-yellow-600" : "text-emerald-600"
+                }`}>
+                  {!isRunning ? "PAUSED" : timerPhase === "setup" ? "SETUP" : "ACTIVE"}
                 </span>
               </div>
-              <button className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase">
+              <button
+                onClick={handleSkipNext}
+                disabled={currentExerciseIndex >= sectionExercises.length - 1}
+                className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase disabled:opacity-30"
+              >
                 Skip
               </button>
             </div>
           </div>
 
-          <button className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-gray-400 hover:text-purple-600 transition shrink-0">
+          <button
+            onClick={handleSkipNext}
+            disabled={currentExerciseIndex >= sectionExercises.length - 1}
+            className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-gray-400 hover:text-purple-600 transition shrink-0 disabled:opacity-30"
+          >
             <SkipForward size={16} />
           </button>
         </div>

@@ -2,7 +2,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
 
 // ===========================================
 // TYPES
@@ -51,11 +52,11 @@ export interface CompleteCardioPayload {
   minutes: number;
   calories_burned: number;
   manifest_id: string;
-  "distance mi": number;  // Note: space in the name
+  "distance mi": number; // Note: space in the name
   mets: number;
-  "avg watts": number;    // Note: space in the name
-  "гра": number;          // This appears to be RPM in Cyrillic
-  "peak hr": number;      // Note: space in the name
+  "avg watts": number; // Note: space in the name
+  гра: number; // This appears to be RPM in Cyrillic
+  "peak hr": number; // Note: space in the name
   avg_hr: number;
   avg_mets: number;
   image?: string;
@@ -72,10 +73,9 @@ export interface CompleteCardioResponse {
 // }
 
 export interface CardioGoalPayload {
-  cardio_goal: number;  // Changed from 'calories_goal' to 'cardio_goal'
+  cardio_goal: number; // Changed from 'calories_goal' to 'cardio_goal'
   member_id: string;
 }
-
 
 export interface CardioGoalResponse {
   message: string;
@@ -152,14 +152,14 @@ export interface CardioHistoryResponse {
 
 // /api/cardio/route.ts
 export interface CardioActivity {
-  id: number;  // Change from string to number
+  id: number; // Change from string to number
   cardio_id: string | null;
-  completed_activity: boolean | null;  // Add this field
+  completed_activity: boolean | null; // Add this field
   created_at: string;
   day: string;
   day_number: number;
   default_value: string | null;
-  name: string;  // Add this field
+  name: string; // Add this field
   number: string | null;
   recurring: string;
   remove: boolean;
@@ -236,7 +236,6 @@ export interface CardioSchedulesResponse {
 //   notes?: string;
 //   image?: string; // base64 image
 // }
-
 
 // ===========================================
 // ERROR HANDLER
@@ -335,32 +334,34 @@ export const getCardioMenu = async (): Promise<CardioMenuItem[]> => {
     console.log("📋 Cardio menu response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch cardio menu."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch cardio menu."));
   }
 };
 
 export const addCardioSession = async (
-  payload: AddCardioPayload
+  payload: AddCardioPayload,
 ): Promise<AddCardioResponse> => {
   try {
-    const { data } = await apiClient.post<AddCardioResponse>("/cardio/session", payload);
+    const { data } = await apiClient.post<AddCardioResponse>(
+      "/cardio/session",
+      payload,
+    );
     console.log("📋 Add cardio session response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to add cardio session."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to add cardio session."));
   }
 };
 
 export const completeCardioSession = async (
-  payload: CompleteCardioPayload
+  payload: CompleteCardioPayload,
 ): Promise<CompleteCardioResponse> => {
   try {
     const token = getAuthToken();
-    const { data } = await apiClient.post<CompleteCardioResponse>("/cardio/calculator", payload);
+    const { data } = await apiClient.post<CompleteCardioResponse>(
+      "/cardio/calculator",
+      payload,
+    );
     console.log("📋 Complete cardio session response:", data);
     return data;
   } catch (error: unknown) {
@@ -370,19 +371,24 @@ export const completeCardioSession = async (
   }
 };
 
-export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioGoalResponse> => {
+export const setCardioGoal = async (
+  payload: CardioGoalPayload,
+): Promise<CardioGoalResponse> => {
   try {
     const token = getAuthToken();
-    
+
     // Ensure the payload has the correct field names
     const requestPayload = {
       cardio_goal: payload.cardio_goal,
       member_id: payload.member_id,
     };
-    
+
     console.log("📤 Sending to /cardio/goal:", requestPayload);
-    
-    const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", requestPayload);
+
+    const { data } = await apiClient.post<CardioGoalResponse>(
+      "/cardio/goal",
+      requestPayload,
+    );
     console.log("📋 Set cardio goal response:", data);
     return data;
   } catch (error: unknown) {
@@ -393,12 +399,12 @@ export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioG
 // export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioGoalResponse> => {
 //   try {
 //     const token = getAuthToken();
-    
+
 //     console.log("📤 Sending to /cardio/goal:", {
 //       cardio_goal: payload.cardio_goal,
 //       member_id: payload.member_id,
 //     });
-    
+
 //     const { data } = await apiClient.post<CardioGoalResponse>("/cardio/goal", {
 //       cardio_goal: payload.cardio_goal,
 //       member_id: payload.member_id,
@@ -421,20 +427,29 @@ export const setCardioGoal = async (payload: CardioGoalPayload): Promise<CardioG
 //   }
 // };
 
-export const getCardioDashboard = async (): Promise<CardioDashboardResponse> => {
+export const getCardioDashboard =
+  async (): Promise<CardioDashboardResponse> => {
+    try {
+      const token = getAuthToken();
+      const { data } =
+        await apiClient.get<CardioDashboardResponse>("/cardio/dashboard");
+      console.log("📋 Cardio dashboard response:", data);
+      return data;
+    } catch (error: unknown) {
+      throw new Error(
+        getErrorMessage(error, "Failed to fetch cardio dashboard."),
+      );
+    }
+  };
+export const getCardioSessions = async (
+  page: number = 1,
+  limit: number = 10,
+): Promise<CardioSessionsResponse> => {
   try {
     const token = getAuthToken();
-    const { data } = await apiClient.get<CardioDashboardResponse>("/cardio/dashboard");
-    console.log("📋 Cardio dashboard response:", data);
-    return data;
-  } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch cardio dashboard."));
-  }
-};
-export const getCardioSessions = async (page: number = 1, limit: number = 10): Promise<CardioSessionsResponse> => {
-  try {
-    const token = getAuthToken();
-    const { data } = await apiClient.get<CardioSessionsResponse>(`/cardio/sessions?page=${page}&limit=${limit}`);
+    const { data } = await apiClient.get<CardioSessionsResponse>(
+      `/cardio/sessions?page=${page}&limit=${limit}`,
+    );
     console.log("📋 Cardio sessions response:", data);
     return data;
   } catch (error: unknown) {
@@ -445,12 +460,12 @@ export const getCardioSessions = async (page: number = 1, limit: number = 10): P
 export const getCardioHistory = async (
   filter: string = "thisweek",
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
 ): Promise<CardioHistoryResponse> => {
   try {
     const token = getAuthToken();
     const { data } = await apiClient.get<CardioHistoryResponse>(
-      `/cardio/history?filter=${filter}&page=${page}&limit=${limit}`
+      `/cardio/history?filter=${filter}&page=${page}&limit=${limit}`,
     );
     console.log("📋 Cardio history response:", data);
     return data;
@@ -459,55 +474,70 @@ export const getCardioHistory = async (
   }
 };
 
-
-
-export const deleteCardioActivity = async (activityId: string): Promise<{ message: string }> => {
+export const deleteCardioActivity = async (
+  activityId: string,
+): Promise<{ message: string }> => {
   try {
     const token = getAuthToken();
     const { data } = await apiClient.delete(`/cardio/activity/${activityId}`);
     console.log("📋 Delete cardio activity response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to delete cardio activity."));
+    throw new Error(
+      getErrorMessage(error, "Failed to delete cardio activity."),
+    );
   }
 };
 
-export const getCardioActivities = async (): Promise<{ data: CardioActivity[] }> => {
+export const getCardioActivities = async (): Promise<{
+  data: CardioActivity[];
+}> => {
   try {
     const token = getAuthToken();
     const response = await apiClient.get("/cardio/activities");
     console.log("📋 Cardio activities response:", response.data);
-    
+
     // Handle different response structures
     let activities = [];
     if (response.data?.data && Array.isArray(response.data.data)) {
       activities = response.data.data;
     } else if (Array.isArray(response.data)) {
       activities = response.data;
-    } else if (response.data?.activity && Array.isArray(response.data.activity)) {
+    } else if (
+      response.data?.activity &&
+      Array.isArray(response.data.activity)
+    ) {
       activities = response.data.activity;
     } else {
       activities = [];
     }
-    
+
     return { data: activities };
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to fetch cardio activities."));
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch cardio activities."),
+    );
   }
 };
 
-export const completeCardioActivity = async (payload: CompleteCardioActivityPayload): Promise<any> => {
+export const completeCardioActivity = async (
+  payload: CompleteCardioActivityPayload,
+): Promise<any> => {
   try {
     const token = getAuthToken();
     const { data } = await apiClient.post("/cardio/complete-activity", payload);
     console.log("📋 Complete cardio activity response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(getErrorMessage(error, "Failed to complete cardio activity."));
+    throw new Error(
+      getErrorMessage(error, "Failed to complete cardio activity."),
+    );
   }
 };
 
-export const quickLogCardio = async (payload: QuickLogPayload): Promise<any> => {
+export const quickLogCardio = async (
+  payload: QuickLogPayload,
+): Promise<any> => {
   try {
     const token = getAuthToken();
     const { data } = await apiClient.post("/cardio/quick-log", payload);
@@ -517,7 +547,9 @@ export const quickLogCardio = async (payload: QuickLogPayload): Promise<any> => 
     throw new Error(getErrorMessage(error, "Failed to quick log cardio."));
   }
 };
-export const deleteCardioSession = async (sessionId: string): Promise<{ message: string }> => {
+export const deleteCardioSession = async (
+  sessionId: string,
+): Promise<{ message: string }> => {
   try {
     const token = getAuthToken();
     const { data } = await apiClient.delete(`/cardio/session/${sessionId}`);
@@ -532,37 +564,111 @@ export const getCardioSchedules =
   async (): Promise<CardioSchedulesResponse> => {
     try {
       const { data } =
-        await apiClient.get<CardioSchedulesResponse>(
-          "/cardio/schedules"
-        );
+        await apiClient.get<CardioSchedulesResponse>("/cardio/schedules");
 
       console.log("📋 Cardio schedules:", data);
 
       return data;
     } catch (error: unknown) {
       throw new Error(
-        getErrorMessage(
-          error,
-          "Failed to fetch cardio schedules."
-        )
+        getErrorMessage(error, "Failed to fetch cardio schedules."),
       );
     }
   };
 
+export interface SessionCalculator {
+  id: string;
+  title: string;
+  owner_id: string;
+  minutes: number;
+  calories_burned: number;
+  cardio_option: string;
+  image: string;
+  current_load: number | null;
+  power: number | null;
+  distance_mi: number;
+  mets: number;
+  avg_watts: number;
+  rpm: number;
+  peak_hr: number;
+  avg_hr: number;
+  like: boolean | null;
+  likes: number | null;
+  avg_mets: number;
+  manifest_id: string;
+  created_at: string;
+  updated_at: string;
+  menu_name?: string;
+  suggestion?: string;
+}
+
+export interface CardioSessionDetailsResponse {
+  session: {
+    id: string;
+    title: string;
+    owner_id: string;
+    member_id: string;
+    minutes: number;
+    calories_burned: number;
+    created_at: string;
+    updated_at: string;
+    calculators: SessionCalculator[];
+  };
+  calculators: SessionCalculator[];
+  user: {
+    id: number;
+    username: string;
+    image: string;
+  };
+  cardio_goal: number;
+  weekly_burnt: number;
+  left_this_week: number;
+}
+
+export const getCardioSessionDetails = async (
+  sessionId: string,
+): Promise<CardioSessionDetailsResponse> => {
+  try {
+    const { data } = await apiClient.get<CardioSessionDetailsResponse>(
+      `/cardio/session-details/${sessionId}`,
+    );
+    console.log("📋 Cardio session details response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch cardio session details."),
+    );
+  }
+};
+
+export const updateCardioGoal = async (
+  cardio_goal: number,
+): Promise<{ message: string }> => {
+  try {
+    const { data } = await apiClient.post("/update-cardio-goal", { cardio_goal });
+    console.log("📋 Update cardio goal response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to update cardio goal."));
+  }
+};
+
 export const cardioApi = {
   getCardioMenu,
+  updateCardioGoal,
   addCardioSession,
-    completeCardioSession,
-    setCardioGoal,
-    getCardioDashboard,
-    getCardioSessions,
-    getCardioHistory,
-    getCardioActivities,
-    deleteCardioActivity,
-    completeCardioActivity,
-    quickLogCardio,
-    deleteCardioSession,
-    getCardioSchedules,
+  completeCardioSession,
+  setCardioGoal,
+  getCardioDashboard,
+  getCardioSessions,
+  getCardioHistory,
+  getCardioActivities,
+  deleteCardioActivity,
+  completeCardioActivity,
+  quickLogCardio,
+  deleteCardioSession,
+  getCardioSchedules,
+  getCardioSessionDetails,
 };
 
 export default cardioApi;

@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
 export interface PreferencesData {
   workout: number;
@@ -85,7 +86,9 @@ export const preferenceApi = {
       console.log("📋 Preferences data response:", response.data);
       return response.data?.data as PreferencesData;
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load preference data."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load preference data."),
+      );
     }
   },
 
@@ -94,7 +97,9 @@ export const preferenceApi = {
       const response = await apiClient.get("/weekly-target");
       return response.data?.data as WeeklyTarget;
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load weekly targets."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load weekly targets."),
+      );
     }
   },
 
@@ -103,7 +108,9 @@ export const preferenceApi = {
       const response = await apiClient.get("/cardio-goal");
       return response.data?.data as CardioGoal;
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load cardio goal."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load cardio goal."),
+      );
     }
   },
 
@@ -112,13 +119,17 @@ export const preferenceApi = {
       const response = await apiClient.get("/avg-step");
       return response.data?.data as AverageSteps;
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to load average daily steps."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to load average daily steps."),
+      );
     }
   },
 
   getActivityDays: async (type: string): Promise<ActivityDay[]> => {
     try {
-      const response = await apiClient.get(`/get-activity-days?type=${encodeURIComponent(type)}`);
+      const response = await apiClient.get(
+        `/get-activity-days?type=${encodeURIComponent(type)}`,
+      );
       const activity = response.data?.activity;
       if (!activity) return [];
       if (typeof activity === "string") {
@@ -130,7 +141,9 @@ export const preferenceApi = {
       }
       return Array.isArray(activity) ? (activity as ActivityDay[]) : [];
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, `Failed to load ${type} schedule.`));
+      throw new Error(
+        extractErrorMessage(error, `Failed to load ${type} schedule.`),
+      );
     }
   },
 
@@ -143,7 +156,9 @@ export const preferenceApi = {
       formData.append("conditioning", String(target.conditioning));
       await apiClient.post("/update-weekly-target", formData);
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to update weekly targets."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to update weekly targets."),
+      );
     }
   },
 
@@ -153,7 +168,9 @@ export const preferenceApi = {
       formData.append("calories_goal", String(caloriesGoal));
       await apiClient.post("/update-cardio-goal", formData);
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to update cardio goal."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to update cardio goal."),
+      );
     }
   },
 
@@ -163,11 +180,16 @@ export const preferenceApi = {
       formData.append("avarage_daily_steps", String(steps));
       await apiClient.post("/update-avg-step", formData);
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, "Failed to update average daily steps."));
+      throw new Error(
+        extractErrorMessage(error, "Failed to update average daily steps."),
+      );
     }
   },
 
-  addActivityDays: async (type: string, activity: ActivityDay[]): Promise<void> => {
+  addActivityDays: async (
+    type: string,
+    activity: ActivityDay[],
+  ): Promise<void> => {
     try {
       const body = new URLSearchParams();
       body.append("Activity", JSON.stringify(activity));
@@ -181,7 +203,9 @@ export const preferenceApi = {
       });
       console.log(`Successfully updated ${type} schedule.`);
     } catch (error: unknown) {
-      throw new Error(extractErrorMessage(error, `Failed to update ${type} schedule.`));
+      throw new Error(
+        extractErrorMessage(error, `Failed to update ${type} schedule.`),
+      );
     }
   },
 };

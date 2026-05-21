@@ -2,7 +2,8 @@
 import axios from "axios";
 import { getAuthToken } from "@/lib/auth/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
 
 export interface ItineraryWorkout {
   id: string;
@@ -89,19 +90,21 @@ apiClient.interceptors.request.use(
 
 export const getItinerary = async (): Promise<ItineraryWorkout[]> => {
   try {
-    const { data } = await apiClient.get<ItineraryWorkout[]>("/itinerary-setup/get-itinerary");
+    const { data } = await apiClient.get<ItineraryWorkout[]>(
+      "/itinerary-setup/get-itinerary",
+    );
     console.log("📋 Itinerary response:", data);
     return data;
   } catch (error: unknown) {
-    throw new Error(
-      getErrorMessage(error, "Failed to fetch itinerary."),
-    );
+    throw new Error(getErrorMessage(error, "Failed to fetch itinerary."));
   }
 };
 
 export const getCustomActivities = async (): Promise<CustomActivity[]> => {
   try {
-    const { data } = await apiClient.get<CustomActivity[]>("/itinerary-setup/get-custom-activities");
+    const { data } = await apiClient.get<CustomActivity[]>(
+      "/itinerary-setup/get-custom-activities",
+    );
     console.log("📋 Custom activities response:", data);
     return data;
   } catch (error: unknown) {

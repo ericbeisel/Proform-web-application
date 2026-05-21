@@ -197,7 +197,9 @@ async function fetchOnce(): Promise<DashboardResponse> {
     })
     .catch((err: unknown) => {
       _cachePromise = null;
-      throw new Error(extractErrorMessage(err, "Failed to load dashboard data."));
+      throw new Error(
+        extractErrorMessage(err, "Failed to load dashboard data."),
+      );
     });
 
   return _cachePromise;
@@ -213,7 +215,9 @@ export const getActivityLevels = async (): Promise<ActivityLevel[]> => {
     const response = await apiClient.get("/activity_level");
     return response.data as ActivityLevel[];
   } catch (error: unknown) {
-    throw new Error(extractErrorMessage(error, "Failed to load activity levels."));
+    throw new Error(
+      extractErrorMessage(error, "Failed to load activity levels."),
+    );
   }
 };
 
@@ -239,8 +243,7 @@ export const dashboardApi = {
     const details = user?.OtherDetail || ({} as UserOtherDetail);
 
     const setupStr = String(details.accountsetup || "").toLowerCase();
-    const accountSetupComplete =
-      setupStr === "1" || setupStr === "completed";
+    const accountSetupComplete = setupStr === "1" || setupStr === "completed";
 
     return {
       userName: user?.name || "User",
@@ -273,14 +276,29 @@ export const dashboardApi = {
     };
   },
 
-  getUserProfile: async (): Promise<Pick<UserData, "id" | "name" | "email" | "image">> => {
+  getUserProfile: async (): Promise<
+    Pick<UserData, "id" | "name" | "email" | "image">
+  > => {
     const data = await fetchOnce();
     const user = data.user;
-    return { id: user.id, name: user.name, email: user.email, image: user.image };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    };
   },
 
   getUserMetrics: async (): Promise<
-    Pick<UserOtherDetail, "currentWeight" | "goalWeight" | "height" | "bodyfat" | "avarage_daily_steps" | "calories_goal">
+    Pick<
+      UserOtherDetail,
+      | "currentWeight"
+      | "goalWeight"
+      | "height"
+      | "bodyfat"
+      | "avarage_daily_steps"
+      | "calories_goal"
+    >
   > => {
     const data = await fetchOnce();
     const details = data.user.OtherDetail;
@@ -326,7 +344,7 @@ export const dashboardApi = {
     };
   },
 
-    getActivityLevels: getActivityLevels,
+  getActivityLevels: getActivityLevels,
 };
 
 export default dashboardApi;
