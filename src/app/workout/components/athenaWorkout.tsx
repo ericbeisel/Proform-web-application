@@ -24,10 +24,13 @@ import {
   TrendingUp,
   Loader2,
   Home,
+  Pencil,
+  Dumbbell,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getWorkoutSection, SectionExercise } from "@/api/workouts/route";
+import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
+import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import SwapExerciseModal from "./swapExerciseModal";
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
@@ -68,6 +71,16 @@ export default function AthenaWorkoutPage() {
   const [locationName, setLocationName] = useState<string>("Temporary Location");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [showSwapModal, setShowSwapModal] = useState(false);
+
+  // Exercise tracking
+  const [trackingExercise, setTrackingExercise] = useState<SectionExercise | null>(null);
+  const [trackingSets, setTrackingSets] = useState<{ weight: string; reps: string; saved: boolean; load?: number }[]>([{ weight: "", reps: "", saved: false }]);
+  const [lastRecord, setLastRecord] = useState<{ weight: number; reps: number } | null>(null);
+  const [bestRecord, setBestRecord] = useState<{ weight: number; reps: number } | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [savingLogs, setSavingLogs] = useState(false);
+  const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
+  const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
 
   // Keep ref in sync so the interval always reads fresh values
   useEffect(() => {
@@ -198,6 +211,68 @@ export default function AthenaWorkoutPage() {
       { id: newId, weight: 0, reps: "", maxV: 0, unit: "m/s" },
     ]);
   };
+
+  // Fetch user detail once on mount for weight calculations
+  useEffect(() => {
+    dashboardApi.getDashboardData()
+      .then((res) => setUserOtherDetail(res.user.OtherDetail))
+      .catch(() => {});
+  }, []);
+
+  const openTracking = async (ex: SectionExercise) => {
+    setTrackingExercise(ex);
+    setTrackingSets([{ weight: "", reps: "", saved: false }]);
+    setLastRecord(null);
+    setBestRecord(null);
+    console.log("[tracking] Opening exercise:", ex.exercise_name, "| exercise_id:", ex.exercise_id, "| sessionId:", sessionId);
+    if (!ex.exercise_id) { console.warn("[tracking] No exercise_id — skipping fetch"); return; }
+    setLogsLoading(true);
+    try {
+      const allLogs = await getTrackingLogs({ exercise_id: ex.exercise_id });
+      console.log("[tracking] All-time logs:", allLogs.length, allLogs);
+      if (allLogs.length > 0) {
+        setLastRecord({ weight: allLogs[0].weight, reps: allLogs[0].repetitions });
+        const best = allLogs.reduce((b, r) => r.weight > b.weight ? r : b, allLogs[0]);
+        setBestRecord({ weight: best.weight, reps: best.repetitions });
+        console.log("[tracking] Last:", allLogs[0].weight, "×", allLogs[0].repetitions, "| Best:", best.weight, "×", best.repetitions);
+      } else {
+        console.log("[tracking] No all-time logs found");
+      }
+      if (sessionId) {
+        const sessionLogs = await getTrackingLogs({ sessionId, exercise_id: ex.exercise_id });
+        console.log("[tracking] Session logs:", sessionLogs.length, sessionLogs);
+        if (sessionLogs.length > 0) {
+          const sorted = [...sessionLogs].sort((a, b) => {
+            const numA = parseInt(a.title?.replace(/\D/g, "") || "0");
+            const numB = parseInt(b.title?.replace(/\D/g, "") || "0");
+            return numA - numB;
+          });
+          const populated = sorted.map((log) => ({
+            weight: String(log.weight ?? ""),
+            reps: String(log.repetitions ?? ""),
+            saved: log.status === true,
+            load: log.load,
+          }));
+          console.log("[tracking] Populating sets from session logs:", populated);
+          setTrackingSets(populated);
+        } else {
+          console.log("[tracking] No session logs — showing empty set");
+        }
+      } else {
+        console.log("[tracking] No sessionId — skipping session log fetch");
+      }
+    } catch (err) {
+      console.error("[tracking] Failed to fetch logs:", err);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const addTrackingSet = () =>
+    setTrackingSets((prev) => [...prev, { weight: prev[prev.length - 1]?.weight || "", reps: "", saved: false }]);
+
+  const updateTrackingSet = (i: number, field: "weight" | "reps", val: string) =>
+    setTrackingSets((prev) => prev.map((s, idx) => idx === i ? { ...s, [field]: val } : s));
 
   return (
     // Changed h-screen to min-h-screen for mobile safety, but kept h-screen for desktop
@@ -645,7 +720,10 @@ export default function AthenaWorkoutPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1 md:gap-2">
-                    <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
+                    <button
+                      onClick={() => currentExercise && openTracking(currentExercise)}
+                      className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition"
+                    >
                       <Pen size={14} />
                     </button>
                     <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
@@ -733,6 +811,12 @@ export default function AthenaWorkoutPage() {
                           <Home size={9} className="text-white" />
                         </div>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openTracking(sectionExercises[idx]); }}
+                        className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-gray-400 flex items-center justify-center shadow-sm hover:bg-gray-600 transition"
+                      >
+                        <Pencil size={8} className="text-white" />
+                      </button>
                       {ex.gifUrl ? (
                         <div className="w-full h-16 md:h-20 mb-1 rounded-md flex items-center justify-center overflow-hidden">
                           <img
@@ -861,6 +945,249 @@ export default function AthenaWorkoutPage() {
             }
           }}
         />
+      )}
+
+      {/* EXERCISE TRACKING MODAL */}
+      {trackingExercise && (
+        <div className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-[3px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-[480px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-[15px] font-black text-gray-900">Exercise Tracking</h2>
+              <button
+                onClick={() => setTrackingExercise(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {/* Exercise info */}
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 bg-[#efefef] rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center">
+                  {resolveMediaUrl(trackingExercise.demo_gif || trackingExercise.demoGif) ? (
+                    <img
+                      src={resolveMediaUrl(trackingExercise.demo_gif || trackingExercise.demoGif)!}
+                      alt={trackingExercise.exercise_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Dumbbell className="w-7 h-7 text-gray-300" />
+                  )}
+                </div>
+                <p className="text-[13px] font-black text-gray-800 uppercase tracking-wide leading-snug">
+                  {trackingExercise.exercise_name}
+                </p>
+              </div>
+
+              {/* Last / Best / Suggested */}
+              {(() => {
+                const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                const toUnit = (val: string) => {
+                  const n = parseFloat(val) || 0;
+                  return userUnit === "kg" ? n / 2.20462 : n;
+                };
+                const wMap: Record<string, number> = userOtherDetail ? {
+                  "of InputBarbellSquat": toUnit(userOtherDetail.r_back_squat),
+                  "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
+                  "of InputBenchPress": toUnit(userOtherDetail.r_bench_press),
+                  "of InputPowerClean": toUnit(userOtherDetail.r_power_clean),
+                  "of BodyWeight": toUnit(userOtherDetail.currentWeight),
+                } : {};
+                const weightAdj = (trackingExercise.weight_adj || "").trim();
+                const weightVal = trackingExercise.weight || "0";
+                let displayWeight = "";
+                const base = wMap[weightAdj];
+                if (base !== undefined && base > 0) {
+                  const calc = Math.ceil(base * (parseFloat(weightVal) || 0));
+                  if (calc > 0) displayWeight = `${calc} ${userUnit}`;
+                } else {
+                  const n = parseFloat(weightVal) || 0;
+                  if (n > 0) displayWeight = `${weightVal} ${userUnit}`;
+                }
+                const cleanReps = (r: string | number | null | undefined) =>
+                  (String(r ?? "").trim().split("-").pop()?.trim() || "").replace(/\D/g, "");
+                const suggestedSets = trackingExercise.sets || "1";
+                const suggestedReps = cleanReps(trackingExercise.reps) || "15";
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last</p>
+                        {logsLoading ? (
+                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                        ) : lastRecord ? (
+                          <>
+                            <p className="text-[13px] font-black text-gray-700">{lastRecord.weight}</p>
+                            <p className="text-[10px] text-gray-400">{userUnit}</p>
+                            <p className="text-[11px] font-bold text-gray-500">×{lastRecord.reps} reps</p>
+                          </>
+                        ) : (
+                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                        )}
+                      </div>
+                      <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Best</p>
+                        {logsLoading ? (
+                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                        ) : bestRecord ? (
+                          <>
+                            <p className="text-[13px] font-black text-gray-700">{bestRecord.weight}</p>
+                            <p className="text-[10px] text-gray-400">{userUnit}</p>
+                            <p className="text-[11px] font-bold text-gray-500">×{bestRecord.reps} reps</p>
+                          </>
+                        ) : (
+                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Suggested</p>
+                        <p className="text-[13px] font-black text-purple-700">{suggestedSets}x {suggestedReps}</p>
+                      </div>
+                      {displayWeight && (
+                        <p className="text-[13px] font-black text-purple-700">{displayWeight}</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <p className="text-[11px] text-gray-400 text-center">
+                Log your reps and weight to better track your progress
+              </p>
+
+              {/* Sets */}
+              <div className="space-y-3">
+                {trackingSets.map((set, i) => (
+                  <div key={i} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Set {i + 1}</span>
+                      {set.saved && set.load != null && (
+                        <span className="text-[10px] font-bold text-gray-400">Load: {set.load}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Weight (lbs)</p>
+                        <input
+                          type="number"
+                          value={set.weight}
+                          onChange={(e) => updateTrackingSet(i, "weight", e.target.value)}
+                          placeholder="0"
+                          disabled={set.saved}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-[15px] font-bold outline-none transition placeholder:text-gray-300 ${set.saved ? "bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400" : "bg-white border-gray-200 text-gray-800 focus:border-purple-400 focus:ring-2 focus:ring-purple-100"}`}
+                        />
+                      </div>
+                      <X size={12} className="text-gray-300 flex-shrink-0 mt-5" />
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Reps /e</p>
+                        <input
+                          type="number"
+                          value={set.reps}
+                          onChange={(e) => updateTrackingSet(i, "reps", e.target.value)}
+                          placeholder="0"
+                          disabled={set.saved}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-[15px] font-bold outline-none transition placeholder:text-gray-300 ${set.saved ? "bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400" : "bg-white border-gray-200 text-gray-800 focus:border-purple-400 focus:ring-2 focus:ring-purple-100"}`}
+                        />
+                      </div>
+                    </div>
+                    {!set.saved && (
+                      <button
+                        disabled={savingSetIndex === i}
+                        onClick={async () => {
+                          if (!trackingExercise || !sessionId) return;
+                          const code = workoutCode?.toUpperCase();
+                          if (!code) return;
+                          const setNumber = i + 1;
+                          const weightNum = parseFloat(set.weight) || 0;
+                          const repsNum = parseInt(set.reps) || 0;
+                          const userWeight = parseFloat(userOtherDetail?.currentWeight || "0") || 0;
+                          const userHeight = parseFloat(userOtherDetail?.height || "0") || 0;
+                          const computedLoad = Math.ceil(((userWeight * userHeight) + repsNum * weightNum) / 2600);
+                          setSavingSetIndex(i);
+                          try {
+                            const result = await createTrackingLog({
+                              title: `Set ${setNumber}`,
+                              exerciseId: trackingExercise.exercise_id,
+                              sessionId,
+                              workoutLibraryId: code,
+                              weight: weightNum,
+                              repetitions: repsNum,
+                              status: true,
+                              tag: "/e",
+                              load: computedLoad,
+                            });
+                            setTrackingSets((prev) => prev.map((s, idx) => idx === i ? { ...s, saved: true, load: result.load ?? computedLoad } : s));
+                          } catch (err) {
+                            console.error("[tracking] Failed to save set:", err);
+                          } finally {
+                            setSavingSetIndex(null);
+                          }
+                        }}
+                        className="mt-3 w-full bg-white border border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition disabled:opacity-60 flex items-center justify-center gap-1"
+                      >
+                        {savingSetIndex === i ? <><Loader2 size={11} className="animate-spin" /> Saving...</> : "Save"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addTrackingSet}
+                className="w-full border-2 border-dashed border-purple-200 rounded-2xl py-3 flex items-center justify-center gap-2 text-[12px] font-bold text-purple-500 hover:bg-purple-50 transition"
+              >
+                <Plus size={15} />
+                Add Set
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-2 flex-shrink-0">
+              <button
+                disabled={savingLogs}
+                onClick={async () => {
+                  if (!trackingExercise || !sessionId) { setTrackingExercise(null); return; }
+                  const code = workoutCode?.toUpperCase();
+                  if (!code) { setTrackingExercise(null); return; }
+                  setSavingLogs(true);
+                  try {
+                    const unsaved = trackingSets
+                      .map((s, i) => ({ s, i }))
+                      .filter(({ s }) => !s.saved);
+                    if (unsaved.length > 0) {
+                      await Promise.all(unsaved.map(({ s, i }) => createTrackingLog({
+                        title: `Set ${i + 1}`,
+                        exerciseId: trackingExercise.exercise_id,
+                        sessionId,
+                        workoutLibraryId: code,
+                        weight: parseFloat(s.weight) || 0,
+                        repetitions: parseInt(s.reps) || 0,
+                      })));
+                    }
+                  } catch (err) {
+                    console.error("[tracking] Failed to save logs:", err);
+                  } finally {
+                    setSavingLogs(false);
+                    setTrackingExercise(null);
+                  }
+                }}
+                className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black py-3 rounded-xl text-[13px] hover:opacity-90 transition disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {savingLogs ? <><Loader2 size={15} className="animate-spin" /> Saving...</> : "Save"}
+              </button>
+              <button
+                onClick={() => setTrackingExercise(null)}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-[12px] hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
