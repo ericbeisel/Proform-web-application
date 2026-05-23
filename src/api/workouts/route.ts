@@ -295,12 +295,78 @@ export const getWorkoutSection = async (params: {
   }
 };
 
+export interface TrackingLog {
+  id: string;
+  title: string;
+  created_date: string;
+  exerciseId: string;
+  sessionId: string;
+  workoutLibraryId: string;
+  weight: number;
+  repetitions: number;
+  tag?: string;
+  load?: number;
+  status?: boolean;
+}
+
+export interface CreateTrackingLogPayload {
+  title: string;
+  exerciseId: string;
+  sessionId: string;
+  workoutLibraryId: string;
+  weight: number;
+  repetitions: number;
+  tag?: string;
+  status?: boolean;
+  load?: number;
+  specializedWorkoutId?: string;
+}
+
+export const getTrackingLogs = async (params: {
+  sessionId?: string;
+  exercise_id?: string;
+}): Promise<TrackingLog[]> => {
+  try {
+    const query = new URLSearchParams();
+    if (params.sessionId) query.set("sessionId", params.sessionId);
+    if (params.exercise_id) query.set("exercise_id", params.exercise_id);
+    const { data } = await apiClient.get<any>(
+      `/workouts/tracking-logs?${query.toString()}`,
+    );
+    console.log("[tracking] Raw GET response:", data);
+    if (Array.isArray(data)) return data;
+    if (data?.records && Array.isArray(data.records)) return data.records;
+    if (data?.logs && Array.isArray(data.logs)) return data.logs;
+    if (data?.data && Array.isArray(data.data)) return data.data;
+    if (data?.trackingLogs && Array.isArray(data.trackingLogs)) return data.trackingLogs;
+    return [];
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch tracking logs."));
+  }
+};
+
+export const createTrackingLog = async (
+  payload: CreateTrackingLogPayload,
+): Promise<TrackingLog> => {
+  try {
+    const { data } = await apiClient.post<{ message: string; trackingLog: TrackingLog }>(
+      "/workouts/tracking-log",
+      payload,
+    );
+    return data.trackingLog;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to create tracking log."));
+  }
+};
+
 export const workoutsApi = {
   getIncompleteSessions,
   createWorkoutLocation,
   createWorkoutSession,
   createFeedPost,
   deleteWorkoutSession,
+  getTrackingLogs,
+  createTrackingLog,
 };
 
 export default workoutsApi;

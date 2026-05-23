@@ -101,8 +101,15 @@ export default function AthenaWorkoutPage() {
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
-  const handleSkipNext = () => {
-    setCurrentExerciseIndex((i) => Math.min(sectionExercises.length - 1, i + 1));
+  const handleSkip = () => {
+    if (timerPhase === "setup") {
+      // Setup → jump straight to work phase
+      setTimerPhase("work");
+      setTimeRemaining(WORK_DURATION);
+    } else {
+      // Work → advance to next exercise (resets to setup automatically)
+      setCurrentExerciseIndex((i) => Math.min(sectionExercises.length - 1, i + 1));
+    }
   };
 
   useEffect(() => {
@@ -770,7 +777,7 @@ export default function AthenaWorkoutPage() {
                 </span>
               </div>
               <button
-                onClick={handleSkipNext}
+                onClick={handleSkip}
                 disabled={currentExerciseIndex >= sectionExercises.length - 1}
                 className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase disabled:opacity-30"
               >
@@ -780,7 +787,7 @@ export default function AthenaWorkoutPage() {
           </div>
 
           <button
-            onClick={handleSkipNext}
+            onClick={handleSkip}
             disabled={currentExerciseIndex >= sectionExercises.length - 1}
             className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-gray-400 hover:text-purple-600 transition shrink-0 disabled:opacity-30"
           >

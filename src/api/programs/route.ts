@@ -292,12 +292,15 @@ export interface WorkoutGroupItem {
   program: string;
   overlay: string;
   reps: string;
+  sets?: string;
   order: number;
   exercise_id: string;
   exercise_name: string;
   supplemental: string;
   demo_gif: string;
   is_power_set: boolean;
+  weight?: string;
+  weight_adj?: string;
 }
 
 export interface WorkoutGroup {

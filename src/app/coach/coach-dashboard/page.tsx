@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Award,
@@ -9,6 +10,8 @@ import {
   SlidersHorizontal,
   Users,
   MessageSquare,
+  Megaphone,
+  Search,
 } from "lucide-react";
 
 const quickActions = [
@@ -97,6 +100,8 @@ const teams = [
 ];
 
 export default function CoachDashboardPage() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
       {/* Header */}
@@ -111,10 +116,17 @@ export default function CoachDashboardPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition">
+            <Search size={18} className="text-gray-700" />
+          </button>
+
+          <button onClick={() => router.push("/coach/bulletin")} className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition">
+            <Megaphone size={18} className="text-gray-700" />
+          </button>
+
           <button className="relative w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition">
             <Bell size={18} className="text-gray-700" />
-
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
           </button>
 

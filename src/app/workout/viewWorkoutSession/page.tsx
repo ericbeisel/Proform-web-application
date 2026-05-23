@@ -29,7 +29,6 @@ import {
   Lock,
   Loader2,
   Plus,
-  Trash2,
   FileText,
 } from "lucide-react";
 
@@ -37,8 +36,11 @@ import { useEffect, useState } from "react";
 import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
 import {
   getIncompleteSessions,
+  getTrackingLogs,
+  createTrackingLog,
   IncompleteSession,
 } from "@/api/workouts/route";
+import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -75,7 +77,13 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const incompleteSession = incompleteSessions[0] ?? null;
   const [showRejoinModal, setShowRejoinModal] = useState(false);
   const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(null);
-  const [sets, setSets] = useState<{ weight: string; reps: string }[]>([{ weight: "", reps: "" }]);
+  const [sets, setSets] = useState<{ weight: string; reps: string; saved: boolean; load?: number }[]>([{ weight: "", reps: "", saved: false }]);
+  const [lastRecord, setLastRecord] = useState<{ weight: number; reps: number } | null>(null);
+  const [bestRecord, setBestRecord] = useState<{ weight: number; reps: number } | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [savingLogs, setSavingLogs] = useState(false);
+  const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
+  const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
 
   // Existing handlers
   const toggleCard = (i: number) => {
@@ -111,14 +119,57 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   };
 
   // New handlers from 1st code
-  const addSet = () => setSets((prev) => [...prev, { weight: "", reps: "" }]);
-  const removeSet = (i: number) => setSets((prev) => prev.filter((_, idx) => idx !== i));
-  const updateSet = (i: number, field: "weight" | "reps", val: string) =>
+  const addSet = () => setSets((prev) => [...prev, { weight: prev[prev.length - 1]?.weight || "", reps: "", saved: false }]);
+const updateSet = (i: number, field: "weight" | "reps", val: string) =>
     setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)));
 
-  const openTracking = (item: WorkoutGroupItem) => {
+  const openTracking = async (item: WorkoutGroupItem) => {
     setTrackingItem(item);
-    setSets([{ weight: "", reps: "" }]);
+    setSets([{ weight: "", reps: "", saved: false }]);
+    setLastRecord(null);
+    setBestRecord(null);
+
+    const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+    const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
+    console.log("[tracking] openTracking — code:", code, "sessionId:", sessionId, "exerciseId:", item.exercise_id);
+
+    if (!item.exercise_id) { console.warn("[tracking] ✗ No exercise_id on item — skipping fetch"); return; }
+
+    setLogsLoading(true);
+    try {
+      // 1. All-time records for Last / Best (no sessionId filter — matches mobile)
+      const allLogs = await getTrackingLogs({ exercise_id: item.exercise_id });
+      console.log("[tracking] All-time logs:", allLogs.length);
+      if (allLogs.length > 0) {
+        // API returns desc by date — index 0 is most recent
+        setLastRecord({ weight: allLogs[0].weight, reps: allLogs[0].repetitions });
+        const best = allLogs.reduce((b, r) => r.weight > b.weight ? r : b, allLogs[0]);
+        setBestRecord({ weight: best.weight, reps: best.repetitions });
+      }
+
+      // 2. Session-specific records to pre-populate set inputs
+      if (sessionId) {
+        const sessionLogs = await getTrackingLogs({ sessionId, exercise_id: item.exercise_id });
+        console.log("[tracking] Session logs:", sessionLogs.length, sessionLogs);
+        if (sessionLogs.length > 0) {
+          const sorted = [...sessionLogs].sort((a, b) => {
+            const numA = parseInt(a.title?.replace(/\D/g, "") || "0");
+            const numB = parseInt(b.title?.replace(/\D/g, "") || "0");
+            return numA - numB;
+          });
+          setSets(sorted.map((log) => ({
+            weight: String(log.weight ?? ""),
+            reps: String(log.repetitions ?? ""),
+            saved: log.status === true,
+            load: log.load,
+          })));
+        }
+      }
+    } catch (err) {
+      console.error("[tracking] ✗ Failed to fetch logs:", err);
+    } finally {
+      setLogsLoading(false);
+    }
   };
 
 
@@ -196,6 +247,10 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
   };
 
   initializeWorkout();
+
+  dashboardApi.getDashboardData()
+    .then((res) => setUserOtherDetail(res.user.OtherDetail))
+    .catch(() => {/* non-critical */});
 }, []);
 
   // Dynamic ExerciseCard that uses real data
@@ -1157,44 +1212,98 @@ const DynamicExerciseCard = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last</p>
-                  <p className="text-[12px] font-bold text-gray-500">No records yet</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Best</p>
-                  <p className="text-[12px] font-bold text-gray-500">No records yet</p>
-                </div>
-              </div>
+              {(() => {
+                const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                const toUnit = (val: string) => {
+                  const n = parseFloat(val) || 0;
+                  return userUnit === "kg" ? n / 2.20462 : n;
+                };
+                const wMap: Record<string, number> = userOtherDetail ? {
+                  "of InputBarbellSquat": toUnit(userOtherDetail.r_back_squat),
+                  "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
+                  "of InputBenchPress": toUnit(userOtherDetail.r_bench_press),
+                  "of InputPowerClean": toUnit(userOtherDetail.r_power_clean),
+                  "of BodyWeight": toUnit(userOtherDetail.currentWeight),
+                } : {};
+                const weightAdj = (trackingItem.weight_adj || "").trim();
+                const weightVal = trackingItem.weight || "0";
+                let displayWeight = "";
+                const base = wMap[weightAdj];
+                if (base !== undefined && base > 0) {
+                  const calc = Math.ceil(base * (parseFloat(weightVal) || 0));
+                  if (calc > 0) displayWeight = `${calc} ${userUnit}`;
+                } else {
+                  const n = parseFloat(weightVal) || 0;
+                  if (n > 0) displayWeight = `${weightVal} ${userUnit}`;
+                }
+                const cleanReps = (r: string | number | null | undefined) => {
+                  const s = String(r ?? "").trim();
+                  return (s.split("-").pop()?.trim() || "").replace(/\D/g, "");
+                };
+                const suggestedSets = trackingItem.sets || "1";
+                const suggestedReps = cleanReps(trackingItem.reps) || "15";
 
-              <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Suggested</p>
-                  <p className="text-[13px] font-black text-purple-700">{trackingItem.reps || "1x 8/e"}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[13px] font-black text-purple-700">3 kg</p>
-                </div>
-              </div>
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last</p>
+                        {logsLoading ? (
+                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                        ) : lastRecord ? (
+                          <>
+                            <p className="text-[13px] font-black text-gray-700">{lastRecord.weight}</p>
+                            <p className="text-[10px] text-gray-400">{userUnit}</p>
+                            <p className="text-[11px] font-bold text-gray-500">×{lastRecord.reps} reps</p>
+                          </>
+                        ) : (
+                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                        )}
+                      </div>
+                      <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Best</p>
+                        {logsLoading ? (
+                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                        ) : bestRecord ? (
+                          <>
+                            <p className="text-[13px] font-black text-gray-700">{bestRecord.weight}</p>
+                            <p className="text-[10px] text-gray-400">{userUnit}</p>
+                            <p className="text-[11px] font-bold text-gray-500">×{bestRecord.reps} reps</p>
+                          </>
+                        ) : (
+                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Suggested</p>
+                        <p className="text-[13px] font-black text-purple-700">{suggestedSets}x {suggestedReps}</p>
+                      </div>
+                      {displayWeight && (
+                        <p className="text-[13px] font-black text-purple-700">{displayWeight}</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
 
               <p className="text-[11px] text-gray-400 text-center">
                 Log your reps and weight to better track your progress
               </p>
 
-              <button className="w-full border border-gray-200 rounded-xl py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 transition">
+              {/* <button className="w-full border border-gray-200 rounded-xl py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 transition">
                 Add custom exercise Standard
-              </button>
+              </button> */}
 
               <div className="space-y-3">
                 {sets.map((set, i) => (
                   <div key={i} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Set {i + 1}</span>
-                      {sets.length > 1 && (
-                        <button onClick={() => removeSet(i)} className="text-gray-300 hover:text-red-400 transition">
-                          <Trash2 size={14} />
-                        </button>
+                      {set.saved && set.load != null && (
+                        <span className="text-[10px] font-bold text-gray-400">Load: {set.load}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
@@ -1205,7 +1314,8 @@ const DynamicExerciseCard = ({
                           value={set.weight}
                           onChange={(e) => updateSet(i, "weight", e.target.value)}
                           placeholder="0"
-                          className="w-full bg-white rounded-xl border border-gray-200 px-3 py-2.5 text-[15px] font-bold text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-300"
+                          disabled={set.saved}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-[15px] font-bold outline-none transition placeholder:text-gray-300 ${set.saved ? "bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400" : "bg-white border-gray-200 text-gray-800 focus:border-purple-400 focus:ring-2 focus:ring-purple-100"}`}
                         />
                       </div>
                       <X size={12} className="text-gray-300 flex-shrink-0 mt-5" />
@@ -1216,13 +1326,53 @@ const DynamicExerciseCard = ({
                           value={set.reps}
                           onChange={(e) => updateSet(i, "reps", e.target.value)}
                           placeholder="0"
-                          className="w-full bg-white rounded-xl border border-gray-200 px-3 py-2.5 text-[15px] font-bold text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-300"
+                          disabled={set.saved}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-[15px] font-bold outline-none transition placeholder:text-gray-300 ${set.saved ? "bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400" : "bg-white border-gray-200 text-gray-800 focus:border-purple-400 focus:ring-2 focus:ring-purple-100"}`}
                         />
                       </div>
                     </div>
-                    <button className="mt-3 w-full bg-white border border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition">
-                      Save
-                    </button>
+                    {!set.saved && (
+                      <button
+                        disabled={savingSetIndex === i}
+                        onClick={async () => {
+                          if (!trackingItem) return;
+                          const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+                          const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
+                          if (!sessionId || !code) return;
+                          const setNumber = i + 1;
+                          const weightNum = parseFloat(set.weight) || 0;
+                          const repsNum = parseInt(set.reps) || 0;
+                          const userWeight = parseFloat(userOtherDetail?.currentWeight || "0") || 0;
+                          const userHeight = parseFloat(userOtherDetail?.height || "0") || 0;
+                          const computedLoad = Math.ceil(((userWeight * userHeight) + repsNum * weightNum) / 2600);
+                          const payload = {
+                            title: `Set ${setNumber}`,
+                            exerciseId: trackingItem.exercise_id,
+                            sessionId,
+                            workoutLibraryId: code,
+                            weight: weightNum,
+                            repetitions: repsNum,
+                            status: true,
+                            tag: "/e",
+                            load: computedLoad,
+                          };
+                          console.log("[tracking] Saving set", setNumber, payload);
+                          setSavingSetIndex(i);
+                          try {
+                            const result = await createTrackingLog(payload);
+                            console.log("[tracking] Set", setNumber, "saved:", result);
+                            setSets((prev) => prev.map((s, idx) => idx === i ? { ...s, saved: true, load: result.load ?? computedLoad } : s));
+                          } catch (err) {
+                            console.error("[tracking] Failed to save set", setNumber, err);
+                          } finally {
+                            setSavingSetIndex(null);
+                          }
+                        }}
+                        className="mt-3 w-full bg-white border border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition disabled:opacity-60 flex items-center justify-center gap-1"
+                      >
+                        {savingSetIndex === i ? <><Loader2 size={11} className="animate-spin" /> Saving...</> : "Save"}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1238,16 +1388,46 @@ const DynamicExerciseCard = ({
 
             <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-2 flex-shrink-0">
               <button
-                onClick={() => setTrackingItem(null)}
-                className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black py-3 rounded-xl text-[13px] hover:opacity-90 transition"
+                disabled={savingLogs}
+                onClick={async () => {
+                  if (!trackingItem) return;
+                  const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+                  const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
+                  if (!sessionId || !code) { setTrackingItem(null); return; }
+                  setSavingLogs(true);
+                  try {
+                    const payloads = sets
+                      .map((set, i) => ({ set, setNumber: i + 1 }))
+                      .filter(({ set }) => !set.saved)
+                      .map(({ set, setNumber }) => ({
+                        title: `Set ${setNumber}`,
+                        exerciseId: trackingItem.exercise_id,
+                        sessionId,
+                        workoutLibraryId: code,
+                        weight: parseFloat(set.weight) || 0,
+                        repetitions: parseInt(set.reps) || 0,
+                      }));
+                    console.log("[tracking] Saving", payloads.length, "unsaved set(s):", payloads);
+                    if (payloads.length > 0) {
+                      const results = await Promise.all(payloads.map((p) => createTrackingLog(p)));
+                      console.log("[tracking] Saved successfully:", results);
+                    }
+                  } catch (err) {
+                    console.error("[tracking] Failed to save logs:", err);
+                  } finally {
+                    setSavingLogs(false);
+                    setTrackingItem(null);
+                  }
+                }}
+                className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black py-3 rounded-xl text-[13px] hover:opacity-90 transition disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Save
+                {savingLogs ? <><Loader2 size={15} className="animate-spin" /> Saving...</> : "Save"}
               </button>
               <button
                 onClick={() => setTrackingItem(null)}
                 className="w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-[12px] hover:bg-gray-100 transition"
               >
-                Save and Add custom exercise Standard
+                Cancel
               </button>
             </div>
           </div>
