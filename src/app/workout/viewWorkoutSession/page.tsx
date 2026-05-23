@@ -267,50 +267,50 @@ const DynamicExerciseCard = ({
   const isSwapped = swappedExercises.has(item.exercise_id);
   
   return (
-    <div className={`bg-white rounded-[24px] border border-[#e8e8ef] p-5 min-h-[180px] sm:min-h-[210px] relative transition-all ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"}`}>
-      <div className="absolute top-4 left-4 flex items-center gap-1.5">
+    <div className={`bg-white rounded-[24px] border border-[#e8e8ef] relative transition-all p-4 min-h-[170px] ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"}`}>
+      <div className="absolute top-2 left-2 flex items-center gap-1">
         {actualItem.is_power_set && (
-          <span className="text-[10px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">$</span>
+          <span className="text-[9px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">$</span>
         )}
-        {isSwapped && <Home size={16} className="text-emerald-500" />}
+        {isSwapped && <Home size={12} className="text-emerald-500" />}
       </div>
 
       {!locked && sessionStarted && (
         <button
           onClick={(e) => { e.stopPropagation(); openTracking(actualItem); }}
-          className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center hover:bg-purple-50 transition z-10"
+          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center hover:bg-purple-50 transition z-10"
         >
-          <Edit size={14} className="text-[#7c3aed]" />
+          <Edit size={11} className="text-[#7c3aed]" />
         </button>
       )}
 
       {locked && (
-        <div className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/90 shadow flex items-center justify-center">
-          <Lock size={13} className="text-[#7c3aed]" />
+        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 shadow flex items-center justify-center">
+          <Lock size={11} className="text-[#7c3aed]" />
         </div>
       )}
-      
-      <div className="w-14 h-14 rounded-2xl bg-[#f3f3f6] mx-auto mb-6 flex items-center justify-center overflow-hidden">
+
+      <div className="w-full h-36 rounded-2xl mx-auto mb-2 mt-4 flex items-center justify-center overflow-hidden">
         {actualItem.demo_gif ? (
-          <img src={resolveWixImage(actualItem.demo_gif)} alt={actualItem.exercise_name} className="w-full h-full object-cover" />
+          <img src={resolveWixImage(actualItem.demo_gif)} alt={actualItem.exercise_name} className="w-full h-full object-contain" />
         ) : (
           <div className="w-7 h-7 rounded-full bg-[#1e1e22]" />
         )}
       </div>
-      
-      <h3 className="text-[13px] font-semibold text-center text-[#222] leading-tight min-h-[38px] flex items-center justify-center">
+
+      <h3 className="text-[9px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
         {actualItem.exercise_name}
       </h3>
-      
-      <div className="mt-4 text-center">
-        <p className="text-[32px] sm:text-[40px] leading-none font-black tracking-tight text-[#222]">
+
+      <div className="mt-1 text-center">
+        <p className="text-[16px] leading-none font-black tracking-tight text-[#222]">
           {actualItem.reps || "—"}
         </p>
       </div>
-      
+
       {actualItem.supplemental && (
-        <div className="flex gap-2 justify-center mt-4 flex-wrap">
-          <div className="px-2 py-1 rounded-md bg-[#f4f4f5] text-[8px] font-bold text-gray-500 uppercase">
+        <div className="flex gap-2 justify-center mt-1 flex-wrap">
+          <div className="px-2 py-0.5 rounded-md bg-[#f4f4f5] text-[7px] font-bold text-gray-500 uppercase">
             {actualItem.supplemental}
           </div>
         </div>
@@ -342,8 +342,8 @@ const DynamicExerciseCard = ({
   return (
     <div className="h-screen overflow-hidden bg-[#f7f7fa] flex">
 
-      {/* SIDEBAR */}
-      <div className="hidden lg:flex w-[220px] bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white flex-col p-6 flex-shrink-0">
+      {/* SIDEBAR — only visible once session is started */}
+      {sessionStarted && <div className="hidden lg:flex w-[220px] bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white flex-col p-6 flex-shrink-0">
 
         <div className="bg-white/10 rounded-[24px] p-4 mb-8">
           <h2 className="text-[11px] font-black leading-tight break-words uppercase tracking-wide">
@@ -385,7 +385,7 @@ const DynamicExerciseCard = ({
   <Play size={16} fill="currentColor" />
   Start Workout
 </button>
-      </div>
+      </div>}
 
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col overflow-hidden pb-16 lg:pb-0">
@@ -841,7 +841,7 @@ const DynamicExerciseCard = ({
                           {isGroupLocked && <Lock size={12} className="text-gray-300 ml-auto" />}
                         </div>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
+                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                           {previewItems.map((item, i) => (
                             <DynamicExerciseCard
                               key={item.exercise_id || i}

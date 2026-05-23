@@ -6,7 +6,7 @@ import {
   Plus, Pencil, Trash2, Dumbbell, Check, X, BarChart2, Loader2,
   Calendar, CheckCircle, ArrowUp, ArrowDown
 } from "lucide-react";
-import { getWorkoutQueue, reorderWorkoutQueue } from "@/api/programs/route";
+import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue } from "@/api/programs/route";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,6 +91,7 @@ export default function WorkoutDashboard() {
   const [showEditGoal, setShowEditGoal] = useState(false);
   const [newGoalValue, setNewGoalValue] = useState("");
   const [isReordering, setIsReordering] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -213,10 +214,22 @@ export default function WorkoutDashboard() {
     setWorkouts((prev) => prev.map((w) => w.id === sessionId ? { ...w, completed: true } : w));
   };
 
-  const deleteSession = (id: string, e: React.MouseEvent) => {
+  const deleteSession = (id: string, title: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteConfirm({ id, title });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
     setSessions((prev) => prev.filter((s) => s.id !== id));
     setWorkouts((prev) => prev.filter((w) => w.id !== id));
+    setDeleteConfirm(null);
+    try {
+      await deleteFromQueue(id);
+    } catch (err) {
+      console.error("Failed to delete from queue:", err);
+    }
   };
 
   const handleContinue = () => {
@@ -402,12 +415,13 @@ export default function WorkoutDashboard() {
                   )}
 
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                       {session.group && (
+                      <span className="text-xs text-gray-400">{session.group}</span>
+                    )}
                     {session.day && (
                       <span className="text-xs text-gray-400">{session.day}</span>
                     )}
-                    {session.group && (
-                      <span className="text-xs text-gray-400">{session.group}</span>
-                    )}
+                 
                   </div>
 
                   {session.muscles_used && (
@@ -461,7 +475,7 @@ export default function WorkoutDashboard() {
                     </label>
 
                     <button
-                      onClick={(e) => deleteSession(session.id, e)}
+                      onClick={(e) => deleteSession(session.id, session.title, e)}
                       className="bg-[#2a2a3e] border-none rounded-lg text-[#888] cursor-pointer p-1.5 sm:p-2 flex items-center justify-center hover:text-red-400 transition-colors"
                     >
                       <Trash2 size={13} />
@@ -470,6 +484,38 @@ export default function WorkoutDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirm Modal ─────────────────────────────────────────── */}
+      {deleteConfirm && (
+        <div
+          onClick={() => setDeleteConfirm(null)}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-6 w-full max-w-[360px] shadow-2xl"
+          >
+            <h2 className="text-[18px] font-black text-gray-900 mb-2">Remove from Queue?</h2>
+            <p className="text-[13px] text-gray-500 mb-6 leading-snug">
+              Are you sure you want to remove &quot;{deleteConfirm.title}&quot; from your queue?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-[13px] font-bold transition"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

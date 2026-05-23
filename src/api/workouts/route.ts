@@ -257,6 +257,7 @@ export interface SectionExercise {
   exercise_uuid: string;
   exercise_name: string;
   reps: string;
+  sets?: string;
   supplemental: string;
   demo_gif: string;
   demoGif: string;
@@ -265,6 +266,9 @@ export interface SectionExercise {
   title: string;
   weight?: string;
   weight_adj?: string;
+  original_exercise_name?: string;
+  original_demo_gif?: string;
+  swapped?: boolean;
 }
 
 export interface GetSectionResponse {
@@ -287,8 +291,9 @@ export const getWorkoutSection = async (params: {
     const { data } = await apiClient.get<GetSectionResponse>(
       `/workouts/section?${query.toString()}`,
     );
+    const exercises = data.exercises || data.workouts || [];
     console.log("[section] API response:", data);
-    return data.exercises || data.workouts || [];
+    return exercises;
   } catch (error: unknown) {
     console.error("[section] API error:", error);
     throw new Error(getErrorMessage(error, "Failed to fetch workout section."));
@@ -370,3 +375,69 @@ export const workoutsApi = {
 };
 
 export default workoutsApi;
+
+// ===========================================
+// SUGGESTED EXERCISES + SAVE SWAP
+// ===========================================
+
+export interface SuggestedExercise {
+  id: number;
+  exercise_uuid: string;
+  exercise_id: string;
+  name: string;
+  demoGif: string;
+  demo_gif?: string;
+  supplemental: string;
+  defaultReps: string;
+  sets?: string;
+  weight?: string;
+  weight_adj?: string;
+}
+
+export const getSuggestedExercises = async (params: {
+  exerciseId: string;
+  sessionId?: string | null;
+  section?: string | null;
+  existingExercises?: string[];
+}): Promise<SuggestedExercise[]> => {
+  try {
+    const query = new URLSearchParams();
+    query.set("exerciseId", params.exerciseId);
+    if (params.sessionId) query.set("sessionId", params.sessionId);
+    if (params.section) query.set("section", params.section);
+    params.existingExercises?.forEach((id) => query.append("existingExercises", id));
+    const { data } = await apiClient.get<SuggestedExercise[] | { exercises: SuggestedExercise[] }>(
+      `/workouts/suggested-exercises?${query.toString()}`,
+    );
+    if (Array.isArray(data)) return data;
+    if ("exercises" in data && Array.isArray(data.exercises)) return data.exercises;
+    return [];
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch suggested exercises."));
+  }
+};
+
+export interface SaveSwapPayload {
+  exerciseId: string;
+  swapExerciseId: string;
+  specializedWorkoutId?: string;
+  sessionId?: string;
+  oneLocation?: string;
+  allLocations?: boolean;
+  title?: string;
+  sets?: string;
+  reps?: string;
+  weight?: number;
+  weightAdj?: string;
+}
+
+export const saveExerciseSwap = async (
+  payload: SaveSwapPayload,
+): Promise<{ message: string }> => {
+  try {
+    const { data } = await apiClient.post<{ message: string }>("/workouts/save-swap", payload);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to save exercise swap."));
+  }
+};

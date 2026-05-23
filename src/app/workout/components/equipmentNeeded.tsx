@@ -154,6 +154,7 @@ const handleStartSession = async () => {
     console.log("[session] ✓ Session created — id:", sessionId);
     localStorage.setItem(`activeSessionId_${pendingSessionCode.toUpperCase()}`, sessionId);
     localStorage.setItem("workoutLocationName", selectedLocationName);
+    localStorage.setItem("workoutLocationId", locationId);
     localStorage.removeItem("pendingSessionCode");
 
     // 3. Swap exercises

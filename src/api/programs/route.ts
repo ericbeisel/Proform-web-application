@@ -556,6 +556,14 @@ export const reorderWorkoutQueue = async (
   }
 };
 
+export const deleteFromQueue = async (id: string): Promise<void> => {
+  try {
+    await apiClient.post("/programs/delete-queue", { id });
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to remove from queue."));
+  }
+};
+
 export const getProgramsBySport = async (
   sport: string,
   page: number = 1,

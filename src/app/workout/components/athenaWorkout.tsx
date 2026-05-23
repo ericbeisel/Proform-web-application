@@ -20,14 +20,15 @@ import {
   Star,
   X,
   Plus,
-  Shuffle,
   DollarSign,
   TrendingUp,
   Loader2,
+  Home,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getWorkoutSection, SectionExercise } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
+import SwapExerciseModal from "./swapExerciseModal";
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -55,7 +56,7 @@ export default function AthenaWorkoutPage() {
   const [timerPhase, setTimerPhase] = useState<"setup" | "work">("setup");
   const [timeRemaining, setTimeRemaining] = useState(SETUP_DURATION);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timerStateRef = useRef({ phase: "setup" as "setup" | "work", remaining: SETUP_DURATION });
+  const timerStateRef = useRef({ phase: "setup" as "setup" | "work", remaining: SETUP_DURATION, totalExercises: 0 });
 
   const [sections, setSections] = useState<WorkoutGroup[]>([]);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
@@ -65,10 +66,12 @@ export default function AthenaWorkoutPage() {
   const [workoutCode, setWorkoutCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [locationName, setLocationName] = useState<string>("Temporary Location");
+  const [locationId, setLocationId] = useState<string | null>(null);
+  const [showSwapModal, setShowSwapModal] = useState(false);
 
   // Keep ref in sync so the interval always reads fresh values
   useEffect(() => {
-    timerStateRef.current = { phase: timerPhase, remaining: timeRemaining };
+    timerStateRef.current = { phase: timerPhase, remaining: timeRemaining, totalExercises: sectionExercises.length };
   });
 
   useEffect(() => {
@@ -85,8 +88,11 @@ export default function AthenaWorkoutPage() {
         setTimerPhase("work");
         setTimeRemaining(WORK_DURATION);
       } else {
-        // Work done → advance to next exercise
-        setCurrentExerciseIndex((i) => i + 1);
+        // Work done → loop back to first exercise when at the end
+        setCurrentExerciseIndex((i) => {
+          const total = timerStateRef.current.totalExercises;
+          return total > 0 ? (i + 1) % total : 0;
+        });
       }
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -107,8 +113,8 @@ export default function AthenaWorkoutPage() {
       setTimerPhase("work");
       setTimeRemaining(WORK_DURATION);
     } else {
-      // Work → advance to next exercise (resets to setup automatically)
-      setCurrentExerciseIndex((i) => Math.min(sectionExercises.length - 1, i + 1));
+      // Work → loop back to first exercise when at the end
+      setCurrentExerciseIndex((i) => sectionExercises.length > 0 ? (i + 1) % sectionExercises.length : 0);
     }
   };
 
@@ -119,10 +125,12 @@ export default function AthenaWorkoutPage() {
         if (!code) { setDataLoading(false); return; }
         setWorkoutCode(code);
 
-        const sid = localStorage.getItem(`activeSessionId_${code}`);
+        const sid = localStorage.getItem(`activeSessionId_${code?.toUpperCase()}`);
         setSessionId(sid);
         const loc = localStorage.getItem("workoutLocationName");
         if (loc) setLocationName(loc);
+        const locId = localStorage.getItem("workoutLocationId");
+        if (locId) setLocationId(locId);
         console.log("[athena] code:", code, "sessionId:", sid);
 
         const groups = await getProgramGroupedWorkouts(code);
@@ -148,10 +156,10 @@ export default function AthenaWorkoutPage() {
   }, []);
 
   const loadSectionExercises = useCallback(
-    async (sectionIndex: number, code: string | null, sid: string | null, groups: WorkoutGroup[]) => {
+    async (sectionIndex: number, code: string | null, sid: string | null, groups: WorkoutGroup[], preserveIndex?: number) => {
       if (!groups[sectionIndex] || !code) return;
       setDataLoading(true);
-      setCurrentExerciseIndex(0);
+      if (preserveIndex === undefined) setCurrentExerciseIndex(0);
       try {
         const exercises = await getWorkoutSection({
           sessionId: sid,
@@ -159,6 +167,7 @@ export default function AthenaWorkoutPage() {
           section: groups[sectionIndex].label,
         });
         setSectionExercises(exercises);
+        if (preserveIndex !== undefined) setCurrentExerciseIndex(preserveIndex);
         console.log("[athena] loaded section", sectionIndex, ":", exercises.length, "exercises");
       } catch (err) {
         console.error("[athena] Failed to load section exercises:", err);
@@ -178,6 +187,8 @@ export default function AthenaWorkoutPage() {
     subtitle: ex.reps,
     isCurrent: i === currentExerciseIndex,
     gifUrl: resolveMediaUrl(ex.demo_gif || ex.demoGif),
+    isPowerSet: ex.is_power_set,
+    isSwapped: ex.swapped || !!ex.original_demo_gif,
   }));
 
   const addNewSet = () => {
@@ -248,7 +259,7 @@ export default function AthenaWorkoutPage() {
       {/* flex-col on mobile, flex-row on desktop */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-[1440px] mx-auto w-full">
         {/* Left: Main Exercise */}
-        <div className="w-full lg:w-[58%] overflow-y-auto p-3 md:p-4 flex flex-col gap-3 custom-scrollbar">
+        <div className="w-full lg:w-[58%] overflow-hidden p-3 md:p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             {/* Title + Star */}
             <div className="flex items-center gap-2">
@@ -259,20 +270,14 @@ export default function AthenaWorkoutPage() {
               </h1>
             </div>
 
-            {/* Rotate + 1/6 */}
-            <div className="flex items-center gap-2 shrink-0">
-              
-            <button onClick={() => router.push("/workout/swapExercise")} className="p-2 bg-[#6202AC] rounded-lg shadow-sm border border-gray-200 hover:bg-[#4d0187] transition">
-              <Shuffle size={18} className="text-white" />
-            </button>
-              <span className="text-sm font-bold text-gray-600">
-                {sectionExercises.length > 0 ? `${currentExerciseIndex + 1}/${sectionExercises.length}` : "—"}
-              </span>
-            </div>
+            {/* 1/N counter */}
+            <span className="text-sm font-bold text-gray-600 shrink-0">
+              {sectionExercises.length > 0 ? `${currentExerciseIndex + 1}/${sectionExercises.length}` : "—"}
+            </span>
           </div>
 
           {/* Adjusted aspect ratio for mobile vs desktop */}
-          <div className="relative aspect-[3/2] lg:aspect-[16/7] bg-[#e4ebf3] rounded-md flex items-center justify-center border border-white shadow-sm overflow-hidden shrink-0">
+          <div className="relative flex-1 min-h-0 rounded-md flex items-center justify-center overflow-hidden">
             {resolveMediaUrl(currentExercise?.demo_gif || currentExercise?.demoGif) ? (
               <img
                 src={resolveMediaUrl(currentExercise.demo_gif || currentExercise.demoGif)!}
@@ -311,6 +316,23 @@ export default function AthenaWorkoutPage() {
             >
               <ChevronRight size={25} />
             </button>
+
+            {/* Top-right: swap thumbnail — always visible, click to open swap modal */}
+            {currentExercise && (
+              <button
+                onClick={() => setShowSwapModal(true)}
+                className="absolute top-2 right-2 w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center overflow-hidden border border-gray-100 hover:scale-105 transition-transform"
+              >
+                {(() => {
+                  const thumbnailGif =
+                    resolveMediaUrl(currentExercise.original_demo_gif) ||
+                    resolveMediaUrl(currentExercise.demo_gif || currentExercise.demoGif);
+                  return thumbnailGif ? (
+                    <img src={thumbnailGif} alt="swap" className="w-full h-full object-contain" />
+                  ) : null;
+                })()}
+              </button>
+            )}
 
             {/* Bottom-right: Dollar icon — only for power sets */}
             {currentExercise?.is_power_set && (
@@ -686,7 +708,7 @@ export default function AthenaWorkoutPage() {
                     <button
                       key={ex.id}
                       onClick={() => setCurrentExerciseIndex(idx)}
-                      className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-20 md:h-24 w-full ${
+                      className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-28 md:h-32 w-full ${
                         ex.isCurrent
                           ? "border-[#6202AC] bg-[#f8f5ff] shadow-sm"
                           : "border-gray-200 hover:border-gray-300 bg-white"
@@ -701,8 +723,18 @@ export default function AthenaWorkoutPage() {
                       >
                         {idx + 1}
                       </div>
+                      {ex.isPowerSet && (
+                        <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                          <DollarSign size={9} className="text-white" />
+                        </div>
+                      )}
+                      {ex.isSwapped && (
+                        <div className="absolute bottom-1 left-1 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+                          <Home size={9} className="text-white" />
+                        </div>
+                      )}
                       {ex.gifUrl ? (
-                        <div className="w-full h-10 md:h-12 mb-1 rounded-md bg-[#e4ebf3] flex items-center justify-center overflow-hidden">
+                        <div className="w-full h-16 md:h-20 mb-1 rounded-md flex items-center justify-center overflow-hidden">
                           <img
                             src={ex.gifUrl}
                             alt={ex.title}
@@ -778,7 +810,7 @@ export default function AthenaWorkoutPage() {
               </div>
               <button
                 onClick={handleSkip}
-                disabled={currentExerciseIndex >= sectionExercises.length - 1}
+                disabled={sectionExercises.length === 0}
                 className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase disabled:opacity-30"
               >
                 Skip
@@ -788,7 +820,7 @@ export default function AthenaWorkoutPage() {
 
           <button
             onClick={handleSkip}
-            disabled={currentExerciseIndex >= sectionExercises.length - 1}
+            disabled={sectionExercises.length === 0}
             className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-gray-400 hover:text-purple-600 transition shrink-0 disabled:opacity-30"
           >
             <SkipForward size={16} />
@@ -812,6 +844,24 @@ export default function AthenaWorkoutPage() {
           background: #9ca3af;
         }
       `}</style>
+
+      {showSwapModal && currentExercise && (
+        <SwapExerciseModal
+          exercise={currentExercise}
+          sessionId={sessionId}
+          locationId={locationId}
+          locationName={locationName}
+          section={currentSection?.label || ""}
+          sectionExercises={sectionExercises}
+          onClose={() => setShowSwapModal(false)}
+          onSwapSaved={() => {
+            setShowSwapModal(false);
+            if (workoutCode && currentSection) {
+              loadSectionExercises(currentSectionIndex, workoutCode, sessionId, sections, currentExerciseIndex);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

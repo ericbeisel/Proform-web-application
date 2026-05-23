@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Share2, Bookmark, X,
-  Dumbbell, Zap, Plus, ChevronRight, ChevronLeft, Loader2
+  Dumbbell, Zap, Plus, ChevronRight, Loader2
 } from "lucide-react";
 import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
 interface WorkoutDetailProps {
@@ -30,26 +30,11 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
   const [includeSupplemental, setIncludeSupplemental] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
-  const exerciseScrollRef = useRef<HTMLDivElement>(null);
-  const powerSetScrollRef = useRef<HTMLDivElement>(null);
-
   // Add this line at the top of the component, before any hooks
 console.log("=== WorkoutDetail mount ===");
 console.log("localStorage workoutProgramId:", typeof window !== 'undefined' ? localStorage.getItem("workoutProgramId") : "SSR");
 console.log("programUuid from URL:", programUuid);
 
-  const scrollExercises = (dir: "left" | "right") => {
-    const el = exerciseScrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir === "right" ? 220 : -220, behavior: "smooth" });
-  };
-
-  const scrollPowerSets = (dir: "left" | "right") => {
-    const el = powerSetScrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir === "right" ? 220 : -220, behavior: "smooth" });
-  };
-  
 
 
   // Dummy data for static UI elements
@@ -90,13 +75,21 @@ console.log("programUuid from URL:", programUuid);
 
       if (workoutKey) setWorkoutTitle(workoutKey);
 
-      // ← Read from localStorage first (set by programs/[id]/page.tsx)
+      // ← Read from localStorage first, fall back to API lookup
       const storedId = localStorage.getItem("workoutProgramId");
       if (storedId) {
         console.log("✅ Program UUID from localStorage:", storedId);
         setProgramId(storedId);
       } else {
-        console.warn("⚠️ No workoutProgramId in localStorage");
+        console.warn("⚠️ No workoutProgramId in localStorage — fetching via API");
+        const resolvedId = await getProgramIdByCode(lowerCode).catch(() => null);
+        if (resolvedId) {
+          console.log("✅ Program UUID resolved:", resolvedId);
+          setProgramId(resolvedId);
+          localStorage.setItem("workoutProgramId", resolvedId);
+        } else {
+          console.warn("⚠️ Could not resolve program UUID");
+        }
       }
 
     } catch (err) {
@@ -353,39 +346,24 @@ const filteredExercises = exercises;
 
             {/* REAL Exercises from Backend */}
             <div className="pt-4">
-              <div className="flex justify-between items-center mb-6 px-1">
+              <div className="flex justify-between items-center mb-4 px-1">
                 <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-900">
                   Exercises:
                 </h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                    {filteredExercises.length} total
-                  </span>
-                  <button
-                    onClick={() => scrollExercises("left")}
-                    className="p-1.5 bg-slate-50 rounded-lg hover:bg-slate-100 active:scale-90 transition-all"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
-                  </button>
-                  <button
-                    onClick={() => scrollExercises("right")}
-                    className="p-1.5 bg-slate-50 rounded-lg hover:bg-slate-100 active:scale-90 transition-all"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                  </button>
-                </div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  {filteredExercises.length} total
+                </span>
               </div>
               <div
-                ref={exerciseScrollRef}
-                className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory"
-                style={{ scrollbarWidth: "none" }}
+                className="grid gap-3 overflow-x-auto pb-2"
+                style={{ gridTemplateRows: "repeat(2, auto)", gridAutoFlow: "column", gridAutoColumns: "110px", scrollbarWidth: "none" }}
               >
                 {filteredExercises.map((ex, i) => (
                   <div
                     key={ex.id || i}
-                    className="snap-start shrink-0 w-[110px] bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-50 flex flex-col items-center text-center"
+                    className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-50 flex flex-col items-center text-center"
                   >
-                    <div className="w-11 h-11 rounded-xl mb-3 overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
+                    <div className="w-11 h-11 rounded-xl mb-3 overflow-hidden bg-slate-100 border border-slate-100 shrink-0 flex items-center justify-center">
                       {ex.demoGif ? (
                         <img
                           src={resolveWixImage(ex.demoGif)}
@@ -393,9 +371,7 @@ const filteredExercises = exercises;
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Dumbbell className="w-4 h-4 text-slate-400" />
-                        </div>
+                        <Dumbbell className="w-4 h-4 text-slate-400" />
                       )}
                     </div>
                     <p className="text-[8px] font-black leading-tight mb-1 uppercase line-clamp-2">
@@ -460,47 +436,37 @@ const filteredExercises = exercises;
 
             {/* Power Sets */}
             {powerSets.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                      <Zap className="w-3 h-3" fill="currentColor" />
-                    </div>
-                    <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">Power Sets</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                    <Zap className="w-3 h-3" fill="currentColor" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{powerSets.length} sets</span>
-                    <button onClick={() => scrollPowerSets("left")} className="p-1.5 bg-slate-50 rounded-lg hover:bg-slate-100 active:scale-90 transition-all">
-                      <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
-                    </button>
-                    <button onClick={() => scrollPowerSets("right")} className="p-1.5 bg-slate-50 rounded-lg hover:bg-slate-100 active:scale-90 transition-all">
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                    </button>
-                  </div>
+                  <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">Power Sets</span>
+                  <span className="text-[9px] font-bold text-slate-400 ml-auto">{powerSets.length} sets</span>
                 </div>
-                <div
-                  ref={powerSetScrollRef}
-                  className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory"
-                  style={{ scrollbarWidth: "none" }}
-                >
+                <div className="space-y-2">
                   {powerSets.map((ps) => (
-                    <div key={ps.id} className="snap-start shrink-0 w-[200px] bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col">
-                      <div className="bg-slate-50 w-16 h-16 rounded-2xl flex items-center justify-center text-slate-300 mb-3 border border-slate-100 overflow-hidden shrink-0">
+                    <div key={ps.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm flex gap-4 items-center p-3">
+                      {/* Gif */}
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-300">
                         {ps.demo_gif ? (
-                          <img src={resolveWixImage(ps.demo_gif)} alt={ps.title_secondary} className="w-full h-full object-cover" />
+                          <img src={resolveWixImage(ps.demo_gif)} alt={ps.title_secondary} className="w-full h-full object-contain" />
                         ) : (
                           <Dumbbell className="w-6 h-6" />
                         )}
                       </div>
-                      <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">{ps.title_primary}</p>
-                      <p className="text-[10px] font-black uppercase leading-tight text-slate-900 mb-3">{ps.title_secondary}</p>
-                      <div className="space-y-1.5 mt-auto">
-                        {(ps.child_sets || []).map((s) => (
-                          <div key={s.id} className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100/80">
-                            <p className="text-sm font-black text-slate-900 leading-none mb-0.5">{s.calculated_weight} {s.msrmt}</p>
-                            <p className="text-[8px] font-bold text-slate-400">{s.label} · {s.reps} reps</p>
-                          </div>
-                        ))}
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5 truncate">{ps.title_primary}</p>
+                        <p className="text-[11px] font-black uppercase leading-tight text-slate-900 mb-2 truncate">{ps.title_secondary}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(ps.child_sets || []).map((s) => (
+                            <div key={s.id} className="bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
+                              <p className="text-[10px] font-black text-slate-900 leading-none">{s.calculated_weight} {s.msrmt}</p>
+                              <p className="text-[7px] font-bold text-slate-400">{s.label} · {s.reps}r</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   ))}
