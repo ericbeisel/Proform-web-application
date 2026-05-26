@@ -236,8 +236,9 @@ const handleStartSession = async () => {
       console.error("[session] ✗ createFeedPost failed:", err)
     );
 
+    localStorage.setItem("sessionJustCreated", "true");
     console.log("[session] ✓ Navigating to viewWorkoutSession");
-    router.push("/workout/viewWorkoutSession");
+    router.replace("/workout/viewWorkoutSession");
   } catch (err) {
     console.error("[session] ✗ handleStartSession failed:", err);
   } finally {

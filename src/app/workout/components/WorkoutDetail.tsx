@@ -7,6 +7,7 @@ import {
   Dumbbell, Zap, Plus, ChevronRight, Loader2
 } from "lucide-react";
 import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
+import { getCompletedUsers, CompletedUser } from "@/api/workouts/route";
 interface WorkoutDetailProps {
   workoutId?: number | string;
   onClose?: () => void;
@@ -30,6 +31,7 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const [showAddToQueueModal, setShowAddToQueueModal] = useState(false);
   const [includeSupplemental, setIncludeSupplemental] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
+  const [completedUsers, setCompletedUsers] = useState<CompletedUser[]>([]);
   // Add this line at the top of the component, before any hooks
 console.log("=== WorkoutDetail mount ===");
 console.log("localStorage workoutProgramId:", typeof window !== 'undefined' ? localStorage.getItem("workoutProgramId") : "SSR");
@@ -44,9 +46,7 @@ console.log("programUuid from URL:", programUuid);
     { label: 'Movements', value: '24' }
   ];
 
-  const dummyRecentlyCompleted = ['JD', 'SK', 'AM', 'LW', 'RG', 'TP', 'MK', 'BC'];
-
-  useEffect(() => {
+useEffect(() => {
   const fetchWorkoutData = async () => {
     const code = programUuid || (workoutId ? String(workoutId) : null);
 
@@ -74,6 +74,13 @@ console.log("programUuid from URL:", programUuid);
       setProgramCode(lowerCode);
 
       if (workoutKey) setWorkoutTitle(workoutKey);
+
+      const name = workoutKey || "";
+      if (name) {
+        getCompletedUsers(name)
+          .then(setCompletedUsers)
+          .catch(() => {});
+      }
 
       // ← Read from localStorage first, fall back to API lookup
       const storedId = localStorage.getItem("workoutProgramId");
@@ -281,6 +288,9 @@ const filteredExercises = exercises;
       localStorage.setItem("workoutProgramId", resolvedProgramId);
     }
     
+    // Clear active session flag so rejoin banner shows fresh
+    localStorage.removeItem("sessionActive");
+
     // Navigate to the updated session page
     router.push("/workout/viewWorkoutSession");
   }}            
@@ -331,22 +341,40 @@ const filteredExercises = exercises;
               ))}
             </div>
 
-            {/* Dummy Recently Completed */}
-            <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">Recently Completed:</h3>
-              <div className="flex flex-wrap gap-2 md:gap-2.5">
-                {dummyRecentlyCompleted.map((name, i) => (
-                  <div key={i} className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-black text-white shadow-md
-                    ${i % 3 === 0 ? 'bg-indigo-400' : i % 3 === 1 ? 'bg-blue-500' : 'bg-orange-400'}`}>
-                    {name}
-                  </div>
-                ))}
+            {/* Recently Completed */}
+            {completedUsers.length > 0 && (
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">
+                  Recently Completed:
+                </h3>
+                <div className="flex flex-wrap gap-2 md:gap-2.5">
+                  {completedUsers.map((user, i) => (
+                    user.image ? (
+                      <img
+                        key={user.id}
+                        src={user.image}
+                        alt={user.name}
+                        title={user.name}
+                        className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover shadow-md"
+                      />
+                    ) : (
+                      <div
+                        key={user.id}
+                        title={user.name}
+                        className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-black text-white shadow-md
+                          ${i % 3 === 0 ? 'bg-indigo-400' : i % 3 === 1 ? 'bg-blue-500' : 'bg-orange-400'}`}
+                      >
+                        {user.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* REAL Exercises from Backend */}
-            <div className="pt-4">
-              <div className="flex justify-between items-center mb-4 px-1">
+            <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-900">
                   Exercises:
                 </h3>
@@ -524,22 +552,23 @@ onClick={() => {
               <span className="text-[13px] text-gray-700 font-medium">Include Supplemental Workouts</span>
             </label>
 
-         {/* Add workout again */}
+         {/* Add to top */}
 <button
   disabled={addingToQueue}
   onClick={async () => {
-    const resolvedProgramId = programId || localStorage.getItem("workoutProgramId");
-    if (!resolvedProgramId) {
+    const title = workoutTitle || localStorage.getItem("workoutTitle");
+    if (!title) {
       alert("Unable to add to queue. Please go back and try again.");
       return;
     }
     setAddingToQueue(true);
     try {
-      const { startProgram } = await import("@/api/programs/route");
-      await startProgram({ 
-        programId: resolvedProgramId,
-        type: "Workout", 
-        addSuggested: includeSupplemental ? 1 : 0 
+      const { addWorkoutToQueue } = await import("@/api/programs/route");
+      await addWorkoutToQueue({
+        workoutTitle: title,
+        type: "Workout",
+        priority: "top",
+        includeSupplemental,
       });
       setShowAddToQueueModal(false);
       router.push("/workout");
@@ -558,21 +587,21 @@ onClick={() => {
 <button
   disabled={addingToQueue}
   onClick={async () => {
-    const resolvedProgramId = programId || localStorage.getItem("workoutProgramId");
-    if (!resolvedProgramId) {
+    const title = workoutTitle || localStorage.getItem("workoutTitle");
+    if (!title) {
       alert("Unable to add to queue. Please go back and try again.");
       return;
     }
     setAddingToQueue(true);
     try {
-      const { startProgram } = await import("@/api/programs/route");
-      await startProgram({ 
-        programId: resolvedProgramId,
-        type: "Workout", 
-        addSuggested: includeSupplemental ? 1 : 0 
+      const { addWorkoutToQueue } = await import("@/api/programs/route");
+      await addWorkoutToQueue({
+        workoutTitle: title,
+        type: "Workout",
+        priority: "bottom",
+        includeSupplemental,
       });
       setShowAddToQueueModal(false);
-      
       router.push("/workout");
     } catch (err) {
       console.error("Failed to add to queue:", err);

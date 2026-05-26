@@ -552,6 +552,26 @@ export interface DropdownOptions {
   opmRecords: string[];
 }
 
+export interface CompletedUser {
+  id: number;
+  name: string;
+  username: string;
+  member_id: string;
+  image: string | null;
+}
+
+export const getCompletedUsers = async (workoutName: string): Promise<CompletedUser[]> => {
+  try {
+    const { data } = await apiClient.get<CompletedUser[]>("/workouts/completed-users", {
+      params: { workoutName },
+    });
+    console.log("[completed users] API response:", data);
+    return Array.isArray(data) ? data : [];
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch completed users."));
+  }
+};
+
 export const getDropdownOptions = async (): Promise<DropdownOptions> => {
   try {
     const { data } = await apiClient.get("/workouts/dropdown-options");

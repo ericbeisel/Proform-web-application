@@ -241,7 +241,7 @@ export default function CoachDashboardPage() {
             <div className="bg-[#f5f5f7] rounded-2xl p-4 sm:p-6 flex flex-col items-center gap-3">
               <div className="p-3 bg-white rounded-2xl border-2 border-[#8B5CF6]">
                 <QRCodeSVG
-                  value={inviteTeam.invite_link ?? `https://www.proformapp.com/join-team/${inviteTeam.id}`}
+                  value={`https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
                   size={140}
                 />
               </div>
@@ -254,12 +254,12 @@ export default function CoachDashboardPage() {
             <div className="flex flex-col gap-2">
               <p className="text-sm font-bold text-[#222]">Share with URL:</p>
               <div className="h-11 rounded-xl bg-[#f5f5f7] px-4 flex items-center text-xs text-gray-500 truncate border border-transparent">
-                {inviteTeam.invite_link ?? `https://www.proformapp.com/join-team/${inviteTeam.id}`}
+                {`https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
               </div>
               <button
                 onClick={() =>
                   handleCopyUrl(
-                    inviteTeam.invite_link ?? `https://www.proformapp.com/join-team/${inviteTeam.id}`,
+                    `https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`,
                   )
                 }
                 className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)]"
@@ -423,7 +423,8 @@ export default function CoachDashboardPage() {
             {teams.map((team) => (
               <div
                 key={team.id}
-                className="bg-white border border-gray-200 rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md transition"
+                onClick={() => router.push(`/coach/team/${team.id}`)}
+                className="bg-white border border-gray-200 rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md transition cursor-pointer"
               >
                 <div className="flex justify-between gap-3">
                   {/* Left */}
@@ -447,7 +448,7 @@ export default function CoachDashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-start gap-1.5 shrink-0">
+                  <div className="flex items-start gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setInviteTeam(team)}
                       className="w-9 h-9 rounded-full bg-[#f0fdf4] flex items-center justify-center text-green-500 hover:bg-green-100 hover:text-green-600 transition"

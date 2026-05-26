@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Check, Calendar, Loader2, RefreshCw, Settings } from "lucide-react";
 import { getActivityWorkoutQueue } from "@/api/programs/route";
 
@@ -57,11 +57,12 @@ interface Session {
 export default function WorkoutDashboard() {
   const router = useRouter();
 
+  const searchParams = useSearchParams();
   const [workouts, setWorkouts] = useState<ActivityWorkoutQueueItem[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [workoutType, setWorkoutType] = useState("Workout");
+  const [workoutType, setWorkoutType] = useState(searchParams.get("tab") || "Workout");
 
   // Fetch workouts
   useEffect(() => {

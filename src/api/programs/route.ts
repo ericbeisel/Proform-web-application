@@ -488,6 +488,24 @@ export const startProgram = async (
   }
 };
 
+export const addWorkoutToQueue = async (payload: {
+  workoutTitle: string;
+  type: string;
+  priority: "top" | "bottom";
+  includeSupplemental: boolean;
+}): Promise<{ message: string }> => {
+  try {
+    const { data } = await apiClient.post<{ message: string }>(
+      "/programs/add-workout-to-queue",
+      payload,
+    );
+    console.log("📋 Add workout to queue response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to add workout to queue."));
+  }
+};
+
 export const getWorkoutQueue = async (
   type: string = "workout",
 ): Promise<WorkoutQueueItem[]> => {

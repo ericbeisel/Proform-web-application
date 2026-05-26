@@ -36,6 +36,7 @@ import { useEffect, useState } from "react";
 import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
 import {
   getIncompleteSessions,
+  getWorkoutSection,
   getTrackingLogs,
   createTrackingLog,
   IncompleteSession,
@@ -69,6 +70,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [activeSession, setActiveSession] = useState<IncompleteSession | null>(null);
   const [workoutGroups, setWorkoutGroups] = useState<WorkoutGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rejoinLoading, setRejoinLoading] = useState(false);
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -176,6 +178,57 @@ const updateSet = (i: number, field: "weight" | "reps", val: string) =>
   const totalExercises = workoutGroups.reduce((sum, g) => sum + g.workouts.length, 0);
   const isLocked = !hasPurchased;
 
+const handleRejoin = async (session: IncompleteSession) => {
+    setSessionStarted(true);
+    setActiveSession(session);
+    setRejoinLoading(true);
+    const programCode = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+    localStorage.setItem(`activeSessionId_${programCode}`, session.id);
+
+    try {
+      const newSwapsMap: [string, WorkoutGroupItem][] = [];
+      for (const group of workoutGroups) {
+        const sectionExercises = await getWorkoutSection({
+          sessionId: session.id,
+          section: group.label,
+        });
+        sectionExercises.forEach((sectionEx, i) => {
+          const originalEx = group.workouts[i];
+          const isSwapped = !!sectionEx.original_exercise_name && sectionEx.original_exercise_name !== "null";
+          if (isSwapped && originalEx) {
+            const swappedItem: WorkoutGroupItem = {
+              ...originalEx,
+              exercise_id: sectionEx.exercise_id,
+              exercise_name: sectionEx.exercise_name,
+              demo_gif: sectionEx.demo_gif || sectionEx.demoGif,
+              reps: sectionEx.reps,
+              sets: sectionEx.sets,
+              supplemental: sectionEx.supplemental,
+              weight: sectionEx.weight,
+              weight_adj: sectionEx.weight_adj,
+            };
+            newSwapsMap.push([originalEx.exercise_id, swappedItem]);
+          }
+        });
+      }
+      setSwappedExercises(new Map(newSwapsMap));
+      if (programCode) {
+        localStorage.setItem(`swappedExercises_${programCode}`, JSON.stringify(newSwapsMap));
+      }
+    } catch (err) {
+      console.error("[rejoin] Failed to fetch swaps:", err);
+      const savedSwaps = programCode ? localStorage.getItem(`swappedExercises_${programCode}`) : null;
+      if (savedSwaps) {
+        try {
+          const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
+          setSwappedExercises(new Map(entries));
+        } catch {}
+      }
+    } finally {
+      setRejoinLoading(false);
+    }
+  };
+
 const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
   const swapped = swappedExercises.get(original.exercise_id);
   if (swapped) {
@@ -207,17 +260,6 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
       return;
     }
 
-    // Load persisted swapped exercises (saved right after session creation)
-    const savedSwaps = localStorage.getItem(`swappedExercises_${programCode.toUpperCase()}`);
-    if (savedSwaps) {
-      try {
-        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
-        setSwappedExercises(new Map(entries));
-      } catch {
-        // ignore malformed data
-      }
-    }
-
     getProgramGroupedWorkouts(programCode)
       .then((res) => {
         const groups = Array.isArray(res) ? res : [];
@@ -232,14 +274,40 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
       .finally(() => setLoading(false));
 
     const normalizedCode = programCode.toUpperCase();
+  const justCreated = localStorage.getItem("sessionJustCreated") === "true";
+  if (justCreated) localStorage.removeItem("sessionJustCreated");
+  const sessionActive = localStorage.getItem("sessionActive") === "true";
+
+  console.log("[mount] justCreated:", justCreated, "| sessionActive:", sessionActive, "| normalizedCode:", normalizedCode);
+
+  // Load saved swaps on first visit after session creation OR when returning from athenaWorkout
+  if (justCreated || sessionActive) {
+    const savedSwaps = localStorage.getItem(`swappedExercises_${normalizedCode}`);
+    console.log("[mount] loading swaps from localStorage (justCreated:", justCreated, "| sessionActive:", sessionActive, "):", savedSwaps ? "found" : "not found");
+    if (savedSwaps) {
+      try {
+        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
+        setSwappedExercises(new Map(entries));
+      } catch {}
+    }
+  }
+
   getIncompleteSessions(normalizedCode)
   .then((sessions) => {
+    console.log("[mount] incompleteSessions returned:", sessions.length, sessions.map(s => s.id));
     if (sessions.length > 0) {
       setIncompleteSessions(sessions);
-      const storedId = localStorage.getItem(`activeSessionId_${normalizedCode}`);
-      if (storedId) {
-        const matched = sessions.find(s => s.id === storedId);
-        if (matched) setActiveSession(matched);
+      if (justCreated || sessionActive) {
+        const storedId = localStorage.getItem(`activeSessionId_${normalizedCode}`);
+        const matched = storedId ? sessions.find(s => s.id === storedId) : null;
+        console.log("[mount] storedId:", storedId, "| matched:", matched?.id ?? "none");
+        if (matched) {
+          setActiveSession(matched);
+        } else if (sessionActive) {
+          // Fallback: use first session if stored ID doesn't match
+          console.log("[mount] sessionActive fallback — using sessions[0]:", sessions[0].id);
+          setActiveSession(sessions[0]);
+        }
       }
     }
   })
@@ -298,7 +366,7 @@ const DynamicExerciseCard = ({
         )}
       </div>
 
-      <h3 className="text-[9px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
+      <h3 className="text-[12px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
         {actualItem.exercise_name}
       </h3>
 
@@ -374,10 +442,13 @@ const DynamicExerciseCard = ({
         </div>
 
     <button
-  onClick={() => router.push("/workout/athenaWorkout")}
-  disabled={!activeSession && !sessionStarted}
+  onClick={() => {
+    localStorage.setItem("sessionActive", "true");
+    router.push("/workout/athenaWorkout");
+  }}
+  disabled={!activeSession}
   className={`mt-auto py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition
-    ${(activeSession || sessionStarted)
+    ${activeSession
       ? "bg-white text-[#7c3aed]"
       : "bg-white/20 text-white/40 cursor-not-allowed"
     }`}
@@ -477,7 +548,7 @@ const DynamicExerciseCard = ({
   }}
   className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
 >
-  {activeSession ? "Start a New Session" : incompleteSession ? "Start Session" : "Start a New Session"}
+  {activeSession || incompleteSession ? "Start a New Session" : "Start a Session"}
   <ChevronRight size={14} />
 </button>
                     ) : (
@@ -528,19 +599,7 @@ const DynamicExerciseCard = ({
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                <button
-  onClick={async () => {
-    setSessionStarted(true);
-    setActiveSession(incompleteSession);
-    // swaps already saved in localStorage from original session — just reload them
-    const programCode = localStorage.getItem("workoutProgramCode")?.toUpperCase();
-    const savedSwaps = programCode ? localStorage.getItem(`swappedExercises_${programCode}`) : null;
-    if (savedSwaps) {
-      try {
-        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
-        setSwappedExercises(new Map(entries));
-      } catch {}
-    }
-  }}
+  onClick={() => handleRejoin(incompleteSession!)}
   className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
 >
   Rejoin
@@ -597,7 +656,7 @@ const DynamicExerciseCard = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => { setShowRejoinModal(false); router.push("/workout/athenaWorkout"); }}
+                      onClick={() => { setShowRejoinModal(false); handleRejoin(session); }}
                       className="bg-white hover:bg-gray-100 transition text-[#ef4444] text-[11px] font-bold px-4 py-2 rounded-xl flex-shrink-0 shadow-sm"
                     >
                       Rejoin
@@ -826,7 +885,13 @@ const DynamicExerciseCard = ({
                 </div>
               ) : (
                 // OVERVIEW - Dynamic from API
-                <div className="space-y-10">
+                <div className="space-y-10 relative">
+                  {rejoinLoading && (
+                    <div className="absolute inset-0 z-10 bg-white/80 flex flex-col items-center justify-center gap-3 rounded-2xl">
+                      <Loader2 size={32} className="animate-spin text-purple-500" />
+                      <p className="text-[13px] font-bold text-gray-500">Loading your session...</p>
+                    </div>
+                  )}
                   {workoutGroups.map((group, groupIdx) => {
                     const isGroupLocked = isLocked && groupIdx > 0;
                     const previewItems = isGroupLocked ? group.workouts.slice(0, 3) : group.workouts;
@@ -903,10 +968,13 @@ const DynamicExerciseCard = ({
           </button>
         ))}
         <button
-          onClick={() => router.push("/workout/athenaWorkout")}
-          disabled={!activeSession && !sessionStarted}
+          onClick={() => {
+            localStorage.setItem("sessionActive", "true");
+            router.push("/workout/athenaWorkout");
+          }}
+          disabled={!activeSession}
           className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide transition
-            ${activeSession || sessionStarted ? "text-[#7c3aed]" : "text-gray-300 cursor-not-allowed"}`}
+            ${activeSession ? "text-[#7c3aed]" : "text-gray-300 cursor-not-allowed"}`}
         >
           <Play size={18} fill="currentColor" />
           Start

@@ -2,7 +2,7 @@
 import { Dumbbell, Activity, Zap, Heart } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { dashboardApi } from '@/api/dashboard/route'
+import { getWeeklyTarget, WeeklyTargetData } from '@/api/dashboard/route'
 
 interface WeeklyTargetsProps {
   targets?: {
@@ -13,38 +13,17 @@ interface WeeklyTargetsProps {
   };
 }
 
-interface ActivityLevel {
-  id: number;
-  name: string;
-  value: number;
-}
-
 export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
   const router = useRouter();
-  const [activityLevels, setActivityLevels] = useState<ActivityLevel[]>([]);
-  
-  const defaultTargets = {
-    workout: 3,
-    supplement: 2,
-    cardio: 3,
-    conditioning: 3
-  };
+  const [weeklyTarget, setWeeklyTarget] = useState<WeeklyTargetData | null>(null);
 
-  const data = targets || defaultTargets;
-
-  // Fetch activity levels on component mount
   useEffect(() => {
-    const fetchActivityLevels = async () => {
-      try {
-        const levels = await dashboardApi.getActivityLevels();
-        setActivityLevels(levels);
-      } catch (error) {
-        console.error("Failed to fetch activity levels:", error);
-      }
-    };
-    
-    fetchActivityLevels();
+    getWeeklyTarget()
+      .then(setWeeklyTarget)
+      .catch((err) => console.error("Failed to fetch weekly target:", err));
   }, []);
+
+  const data = weeklyTarget || targets || { workout: 0, supplement: 0, cardio: 0, conditioning: 0 };
 
   const targetItems = [
     { 
@@ -67,7 +46,7 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       bgColor: 'bg-[#e8f4fe]',
       iconBg: 'bg-[#0984e3]',
       textColor: 'text-[#0984e3]',
-      path: '/supplemental'
+      path: '/workout/main?tab=Supplemental'
     },
     { 
       label: 'Conditioning', 
@@ -78,7 +57,7 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       bgColor: 'bg-[#e4f9f4]',
       iconBg: 'bg-[#00b894]',
       textColor: 'text-[#00b894]',
-      path: '/conditioning'
+      path: '/workout/main?tab=Field%20Workout'
     },
     { 
       label: 'Cardio', 
@@ -89,7 +68,7 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
       bgColor: 'bg-[#feeae6]',
       iconBg: 'bg-[#e17055]',
       textColor: 'text-[#e17055]',
-      path: '/cardio'
+      path: '/todays-focus-cardio/scheduled-cardio'
     },
   ]
 
@@ -101,7 +80,7 @@ export default function WeeklyTargets({ targets }: WeeklyTargetsProps) {
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <h3 className="font-bold text-sm mb-3.5">Weekly Targets</h3>
       {targetItems.map((item) => {
-        const isClickable = item.label === 'Cardio' || item.label === 'Workout';
+        const isClickable = item.label === 'Cardio' || item.label === 'Workout' || item.label === 'Supplemental' || item.label === 'Conditioning';
         
         return (
           <div

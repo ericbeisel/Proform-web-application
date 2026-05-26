@@ -210,6 +210,40 @@ export function invalidateDashboardCache(): void {
   _cachePromise = null;
 }
 
+export interface WeeklyTargetData {
+  workout: number;
+  supplement: number;
+  cardio: number;
+  conditioning: number;
+}
+
+export interface TodayActivity {
+  id: string;
+  title: string;
+  type: string;
+  workout_title: string;
+  activity_time: string;
+  activity_day: string;
+  activity_status: number;
+  cover_photo?: string;
+  muscles_used?: string;
+  program_name?: string;
+}
+
+export const getTodayActivities = async (day: string): Promise<TodayActivity[]> => {
+  const { data } = await apiClient.get<{ day: string; activities: TodayActivity[] }>(
+    "/dashboard/today-activities",
+    { params: { day } }
+  );
+  return data.activities || [];
+};
+
+export const getWeeklyTarget = async (): Promise<WeeklyTargetData> => {
+  const response = await apiClient.get<{ message: string; data: WeeklyTargetData & { user_id: number } }>("/weekly-target");
+  console.log("[weekly target] API response:", response.data);
+  return response.data.data;
+};
+
 export const getActivityLevels = async (): Promise<ActivityLevel[]> => {
   try {
     const response = await apiClient.get("/activity_level");
