@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, RotateCcw, ChevronDown, ChevronUp, Loader2, Trash2, Pencil, MapPin, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import SearchExercisesModal from "./SearchExercisesModal";
+import { X, RotateCcw, Loader2, Trash2, Pencil, MapPin, Search } from "lucide-react";
 import {
   SectionExercise,
   SuggestedExercise,
@@ -42,6 +44,7 @@ export default function SwapExerciseModal({
   onClose,
   onSwapSaved,
 }: Props) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("suggest");
   const [suggestions, setSuggestions] = useState<SuggestedExercise[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
@@ -49,8 +52,9 @@ export default function SwapExerciseModal({
   const [customSets, setCustomSets] = useState("1");
   const [customReps, setCustomReps] = useState("10");
   const [customWeight, setCustomWeight] = useState("0");
-  const [scopeOpen, setScopeOpen] = useState(true);
+  const [selectedScope, setSelectedScope] = useState<"session" | "location" | "all">("session");
   const [saving, setSaving] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const exerciseId = exercise.exercise_uuid || exercise.exercise_id;
   const existingIds = sectionExercises.map((e) => e.exercise_uuid || e.exercise_id).filter(Boolean);
@@ -117,6 +121,7 @@ export default function SwapExerciseModal({
     : `${exercise.sets || "1"}x ${exercise.reps} ${exercise.weight ? `${exercise.weight}kg` : "0kg"}`;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
         className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto"
@@ -220,10 +225,16 @@ export default function SwapExerciseModal({
               <p className="text-[13px] text-gray-400 text-center py-6">No suggestions available</p>
             )}
 
-            <button className="w-full bg-purple-600 text-white font-bold py-3 rounded-2xl text-[13px] flex items-center justify-center gap-2 hover:bg-purple-700 transition">
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-full bg-purple-600 text-white font-bold py-3 rounded-2xl text-[13px] flex items-center justify-center gap-2 hover:bg-purple-700 transition"
+            >
               <Search size={15} /> Search Exercises
             </button>
-            <button className="w-full bg-purple-600 text-white font-bold py-3 rounded-2xl text-[13px] hover:bg-purple-700 transition">
+            <button
+              onClick={() => router.push("/location")}
+              className="w-full bg-purple-600 text-white font-bold py-3 rounded-2xl text-[13px] hover:bg-purple-700 transition"
+            >
               Edit Location
             </button>
           </div>
@@ -274,38 +285,53 @@ export default function SwapExerciseModal({
         {step === "review" && (
           <div className="px-5 pb-6 space-y-3">
             <p className="text-[15px] font-black text-gray-900">Review Swap:</p>
-            <div className="border border-gray-200 rounded-2xl overflow-hidden">
-              <button
-                onClick={() => setScopeOpen((v) => !v)}
-                className="w-full flex items-center justify-between px-4 py-3.5 text-[13px] text-gray-500 hover:bg-gray-50 transition"
-              >
-                <span>Select Option</span>
-                {scopeOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-              {scopeOpen && (
-                <>
-                  {[
-                    { label: "Swap for this workout", scope: "session" as const },
-                    { label: "Swap for this location", scope: "location" as const, disabled: !locationId },
-                    { label: "Swap for all Location", scope: "all" as const },
-                  ].map(({ label, scope, disabled }) => (
-                    <button
-                      key={scope}
-                      onClick={() => !disabled && handleSave(scope)}
-                      disabled={saving || disabled}
-                      className="w-full text-left px-4 py-3.5 text-[13px] text-gray-700 hover:bg-gray-50 transition border-t border-gray-100 disabled:opacity-40 flex items-center gap-2"
-                    >
-                      {saving ? <Loader2 size={12} className="animate-spin" /> : null}
-                      {label}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
+            <select
+              value={selectedScope}
+              onChange={(e) => setSelectedScope(e.target.value as "session" | "location" | "all")}
+              className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-[13px] text-gray-700 bg-white outline-none focus:border-purple-400 appearance-none"
+            >
+              <option value="session">Swap for this workout</option>
+              <option value="location" disabled={!locationId}>Swap for this location</option>
+              <option value="all">Swap for all locations</option>
+            </select>
+            <button
+              onClick={() => handleSave(selectedScope)}
+              disabled={saving}
+              className="w-full bg-purple-600 text-white font-black py-3.5 rounded-2xl text-[13px] hover:bg-purple-700 transition flex items-center justify-center gap-2"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+              Save
+            </button>
+            <button
+              onClick={() => router.push("/location")}
+              className="w-full bg-purple-600 text-white font-black py-3.5 rounded-2xl text-[13px] hover:bg-purple-700 transition"
+            >
+              Edit Location
+            </button>
           </div>
         )}
       </div>
     </div>
+
+    {showSearch && (
+      <SearchExercisesModal
+        onClose={() => setShowSearch(false)}
+        onSelect={(ex) => {
+          setShowSearch(false);
+          handleSelect({
+            id: typeof ex.id === "number" ? ex.id : 0,
+            exercise_uuid: ex.exercise_uuid || ex.exercise_id,
+            exercise_id: ex.exercise_id,
+            name: ex.name || ex.exercise_name || "",
+            demoGif: ex.demoGif || ex.demo_gif || "",
+            demo_gif: ex.demo_gif,
+            supplemental: "",
+            defaultReps: "",
+          });
+        }}
+      />
+    )}
+    </>
   );
 }
 

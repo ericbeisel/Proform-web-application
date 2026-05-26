@@ -441,3 +441,123 @@ export const saveExerciseSwap = async (
     throw new Error(getErrorMessage(error, "Failed to save exercise swap."));
   }
 };
+
+export interface SearchableExercise {
+  id: string | number;
+  exercise_id: string;
+  exercise_uuid?: string;
+  name: string;
+  exercise_name?: string;
+  demo_gif?: string;
+  demoGif?: string;
+  isFavorite?: boolean;
+}
+
+export const getAllExercises = async (params: {
+  page?: number;
+  limit?: number;
+}): Promise<{ exercises: SearchableExercise[]; total: number }> => {
+  try {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page ?? 1));
+    query.set("limit", String(params.limit ?? 20));
+    const { data } = await apiClient.get(`/workouts/exercises?${query.toString()}`);
+    if (Array.isArray(data)) return { exercises: data, total: data.length };
+    if (data.exercises) return { exercises: data.exercises, total: data.total ?? data.exercises.length };
+    if (data.data) return { exercises: data.data, total: data.total ?? data.data.length };
+    return { exercises: [], total: 0 };
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch exercises."));
+  }
+};
+
+export const searchExercises = async (params: {
+  q?: string;
+  page?: number;
+  supplemental?: string;
+  resistance?: string;
+  intensity?: string;
+  muscle?: string;
+  type?: string;
+  location?: string;
+  max?: string;
+  favoritesOnly?: boolean;
+}): Promise<{ exercises: SearchableExercise[]; total: number }> => {
+  try {
+    const query = new URLSearchParams();
+    if (params.q) query.set("q", params.q);
+    if (params.page) query.set("page", String(params.page));
+    if (params.supplemental) query.set("supplemental", params.supplemental);
+    if (params.resistance) query.set("resistanceType", params.resistance);
+    if (params.intensity) query.set("intensity", params.intensity);
+    if (params.muscle) query.set("muscleGroup", params.muscle);
+    if (params.type) query.set("type", params.type);
+    if (params.location) query.set("locationId", params.location);
+    if (params.max) query.set("opmRecord", params.max);
+    if (params.favoritesOnly) query.set("favoritesOnly", "true");
+    const { data } = await apiClient.get(`/workouts/search-exercises?${query.toString()}`);
+    if (Array.isArray(data)) return { exercises: data, total: data.length };
+    if (data.exercises) return { exercises: data.exercises, total: data.total ?? data.exercises.length };
+    return { exercises: [], total: 0 };
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to search exercises."));
+  }
+};
+
+export const getFavoriteExercises = async (): Promise<SearchableExercise[]> => {
+  try {
+    const { data } = await apiClient.get("/workouts/favorites");
+    console.log("[fav API] GET /workouts/favorites raw response:", JSON.stringify(data));
+    if (Array.isArray(data)) return data;
+    if (data.exercises) return data.exercises;
+    if (data.favorites) return data.favorites;
+    if (data.data) return data.data;
+    return [];
+  } catch (error: unknown) {
+    console.error("[fav API] GET favorites error:", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch favorites."));
+  }
+};
+
+export const addFavoriteExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    console.log("[fav API] POST /workouts/exercises/" + exerciseId + "/favorite");
+    const { data } = await apiClient.post(`/workouts/exercises/${exerciseId}/favorite`);
+    console.log("[fav API] add response:", data);
+  } catch (error: unknown) {
+    console.error("[fav API] add error:", error);
+    throw new Error(getErrorMessage(error, "Failed to add favorite."));
+  }
+};
+
+export const removeFavoriteExercise = async (exerciseId: string): Promise<void> => {
+  try {
+    console.log("[fav API] DELETE /workouts/exercises/" + exerciseId + "/favorite");
+    const { data } = await apiClient.delete(`/workouts/exercises/${exerciseId}/favorite`);
+    console.log("[fav API] remove response:", data);
+  } catch (error: unknown) {
+    console.error("[fav API] remove error:", error);
+    throw new Error(getErrorMessage(error, "Failed to remove favorite."));
+  }
+};
+
+export interface DropdownOptions {
+  supplemental: string[];
+  resistance: string[];
+  intensities: number[];
+  muscleGroups: string[];
+  type: string[];
+  exerciseLocation: { id?: string | number; title?: string; name?: string }[];
+  loadMeter: number[];
+  opmRecords: string[];
+}
+
+export const getDropdownOptions = async (): Promise<DropdownOptions> => {
+  try {
+    const { data } = await apiClient.get("/workouts/dropdown-options");
+    console.log("[dropdown] raw response:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch dropdown options."));
+  }
+};

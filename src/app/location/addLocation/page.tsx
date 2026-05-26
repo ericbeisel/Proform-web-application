@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { X, Check, MapPin, Dumbbell, Search, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { equipmentApi, Equipment } from "@/api/location/route";
 
 export default function AddLocationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/location";
 
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
@@ -55,7 +58,7 @@ const handleCreate = async () => {
       equipments: selected.join(","),
       default_location: 0,
     });
-    router.push("/location");
+    router.push(returnTo);
   } catch (err: any) {
     console.error("Debug Error:", err);
 
