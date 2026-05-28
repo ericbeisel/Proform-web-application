@@ -37,6 +37,7 @@ import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api
 import {
   getIncompleteSessions,
   getWorkoutSection,
+  swapExercise,
   getTrackingLogs,
   createTrackingLog,
   IncompleteSession,
@@ -72,6 +73,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [loading, setLoading] = useState(true);
   const [rejoinLoading, setRejoinLoading] = useState(false);
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
+  const [workoutName, setWorkoutName] = useState<string>("");
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -86,6 +88,9 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [savingLogs, setSavingLogs] = useState(false);
   const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
   const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
+  const [filterByLocation, setFilterByLocation] = useState(false);
+  const [locationFilteredGroups, setLocationFilteredGroups] = useState<WorkoutGroup[]>([]);
+  const [locationFilterLoading, setLocationFilterLoading] = useState(false);
 
   // Existing handlers
   const toggleCard = (i: number) => {
@@ -118,6 +123,55 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+  };
+
+  const handleLocationFilter = async (checked: boolean) => {
+    setFilterByLocation(checked);
+    if (!checked) return;
+
+    const code = localStorage.getItem("workoutProgramCode");
+    const sid = activeSession?.id ?? (code ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`) : null);
+    if (!workoutGroups.length || !sid) {
+      setFilterByLocation(false);
+      return;
+    }
+
+    setLocationFilterLoading(true);
+    try {
+      const filtered = await Promise.all(
+        workoutGroups.map(async (group) => {
+          const existingExercises = group.workouts.map((w) => w.exercise_id).filter(Boolean);
+          const swappedWorkouts = await Promise.all(
+            group.workouts.map(async (item): Promise<WorkoutGroupItem> => {
+              const result = await swapExercise({
+                exerciseId: item.exercise_id,
+                sessionId: sid,
+                section: group.label,
+                existingExercises,
+              });
+              if (result.swapped) {
+                return {
+                  ...item,
+                  exercise_id: result.exercise.exercise_id,
+                  exercise_name: result.exercise.name,
+                  demo_gif: result.exercise.demoGif,
+                  supplemental: result.exercise.supplemental,
+                  reps: result.exercise.defaultReps || item.reps,
+                };
+              }
+              return item;
+            })
+          );
+          return { ...group, workouts: swappedWorkouts };
+        })
+      );
+      setLocationFilteredGroups(filtered);
+    } catch (err) {
+      console.error("[location filter] Failed:", err);
+      setFilterByLocation(false);
+    } finally {
+      setLocationFilterLoading(false);
+    }
   };
 
   // New handlers from 1st code
@@ -246,6 +300,8 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
     const programCode = localStorage.getItem("workoutProgramCode");
     const title = localStorage.getItem("workoutTitle");
     if (title) setWorkoutTitle(title);
+    const name = localStorage.getItem("workoutName");
+    if (name) setWorkoutName(name);
 
     const isFree = localStorage.getItem("workoutIsFree");
     if (isFree === "true") setHasPurchased(true);
@@ -474,6 +530,11 @@ const DynamicExerciseCard = ({
                 <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase">
                   {workoutTitle || "Formula-1"}
                 </h1>
+                {workoutName && (
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#6c5ce7] mt-0.5">
+                    {workoutName}
+                  </p>
+                )}
                 <p className="text-[12px] font-black uppercase tracking-wide text-[#222] mt-1">
                   {totalExercises} Exercises
                 </p>
@@ -535,6 +596,19 @@ const DynamicExerciseCard = ({
                   <span className="text-[#7c3aed]">Location :</span>
                   <span>{location || "None"}</span>
                 </div>
+
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={filterByLocation}
+                    disabled={locationFilterLoading}
+                    onChange={(e) => handleLocationFilter(e.target.checked)}
+                    className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
+                  />
+                  <span className="text-[11px] font-semibold text-[#7c3aed]">
+                    {locationFilterLoading ? "Loading..." : "Show exercises based on default location"}
+                  </span>
+                </label>
 
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-center gap-2">
@@ -892,7 +966,7 @@ const DynamicExerciseCard = ({
                       <p className="text-[13px] font-bold text-gray-500">Loading your session...</p>
                     </div>
                   )}
-                  {workoutGroups.map((group, groupIdx) => {
+                  {(filterByLocation ? locationFilteredGroups : workoutGroups).map((group, groupIdx) => {
                     const isGroupLocked = isLocked && groupIdx > 0;
                     const previewItems = isGroupLocked ? group.workouts.slice(0, 3) : group.workouts;
                     

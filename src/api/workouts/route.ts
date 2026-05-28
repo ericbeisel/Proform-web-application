@@ -552,6 +552,66 @@ export interface DropdownOptions {
   opmRecords: string[];
 }
 
+export interface WorkoutLoadRecord {
+  load: number;
+  power: number;
+  kcal: number;
+  [key: string]: unknown;
+}
+
+export interface WorkoutLoadSummary {
+  load: number;
+  power: number;
+  kcal: number;
+}
+
+export interface CreateWorkoutLoadDto {
+  sessionId: string;
+  workoutId: string;
+  title?: string;
+  load?: number;
+  power?: number;
+  kcal?: number;
+  tableName?: string;
+  memberId?: string;
+  program?: string;
+  workoutComplete?: boolean;
+  completeWorkoutId?: string;
+  sss?: string;
+  muscleTracking?: string;
+}
+
+export const createWorkoutLoad = async (payload: CreateWorkoutLoadDto): Promise<WorkoutLoadRecord> => {
+  try {
+    const { data } = await apiClient.post<WorkoutLoadRecord>("/workouts/workout-load", payload);
+    console.log("[createWorkoutLoad] saved:", data);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to save workout load."));
+  }
+};
+
+export const getWorkoutLoads = async (sessionId: string): Promise<WorkoutLoadSummary> => {
+  try {
+    const { data } = await apiClient.get<WorkoutLoadRecord[] | WorkoutLoadRecord>(
+      "/workouts/workout-loads",
+      { params: { sessionId } }
+    );
+    const records = Array.isArray(data) ? data : [data];
+    console.log("[getWorkoutLoads] raw response:", data, "| records:", records);
+    return records.reduce(
+      (acc, r) => ({
+        load: acc.load + (Number(r.load) || 0),
+        power: acc.power + (Number(r.power) || 0),
+        kcal: acc.kcal + (Number(r.kcal) || 0),
+      }),
+      { load: 0, power: 0, kcal: 0 }
+    );
+  } catch {
+    return { load: 0, power: 0, kcal: 0 };
+  }
+};
+
 export interface CompletedUser {
   id: number;
   name: string;

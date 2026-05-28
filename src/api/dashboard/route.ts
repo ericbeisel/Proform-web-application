@@ -230,6 +230,70 @@ export interface TodayActivity {
   program_name?: string;
 }
 
+export interface LiveSession {
+  id: string;
+  shortId: string;
+  title: string;
+  programName: string;
+  workoutName: string;
+  programImage: string;
+  completedRounds: number;
+  totalRounds: number;
+  status: string;
+  startedAt: string;
+  locationName?: string;
+  createdAt: string;
+}
+
+export interface LiveSessionsResponse {
+  totalCount: number;
+  sessions: LiveSession[];
+}
+
+export const getLiveSessions = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  memberId?: string;
+  userId?: string;
+}): Promise<LiveSessionsResponse> => {
+  try {
+    console.log("📤 getLiveSessions params:", params);
+
+    const { data } = await apiClient.get<LiveSessionsResponse>(
+      "/dashboard/live-sessions",
+      { params }
+    );
+
+    console.log("📥 getLiveSessions response:", data);
+
+    return data;
+  } catch (error) {
+    console.error("❌ getLiveSessions error:", error);
+    throw error;
+  }
+};
+
+export interface AllSessionsResponse {
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  sessions: LiveSession[];
+}
+
+export const getAllSessions = async (params?: {
+  page?: number;
+  memberId?: string;
+  userId?: string;
+}): Promise<AllSessionsResponse> => {
+  const { data } = await apiClient.get<AllSessionsResponse>(
+    "/dashboard/all-sessions",
+    { params }
+  );
+  return data;
+};
+
 export const getTodayActivities = async (day: string): Promise<TodayActivity[]> => {
   const { data } = await apiClient.get<{ day: string; activities: TodayActivity[] }>(
     "/dashboard/today-activities",

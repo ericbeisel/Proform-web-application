@@ -164,7 +164,7 @@ export default function DashboardPage() {
 
         <Banner />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_280px] gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[260px_1fr_340px] gap-5">
 
           <ItineraryCard />
 

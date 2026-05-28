@@ -28,10 +28,79 @@ import {
   Dumbbell,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog } from "@/api/workouts/route";
+import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog, getWorkoutLoads, createWorkoutLoad, WorkoutLoadSummary } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import SwapExerciseModal from "./swapExerciseModal";
+
+function parseHeightInches(h: string | number | null | undefined): number {
+  if (!h) return 0;
+  const str = String(h).trim();
+  if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+  const match = str.match(/(\d+)\s*[''`'ft]*\s*(\d+)?/);
+  if (match) return (parseInt(match[1], 10) || 0) * 12 + (parseInt(match[2], 10) || 0);
+  return parseFloat(str) || 0;
+}
+
+function parseRepsVal(repsStr: string | number | null | undefined): number {
+  if (!repsStr) return 0;
+  const cleaned = String(repsStr).trim().split("-").pop()?.trim() || "";
+  const val = parseInt(cleaned.replace(/\D/g, ""), 10);
+  return isNaN(val) ? 0 : val;
+}
+
+function computeExerciseLoad(
+  exercise: SectionExercise & Record<string, unknown>,
+  userDetail: UserOtherDetail | null,
+  sectionRounds: string | undefined,
+): { load: number; power: number; kcal: number } {
+  if (!userDetail) return { load: 0, power: 0, kcal: 0 };
+
+  const isKg = (userDetail.measurementUnit || "lbs").toLowerCase().trim() === "kg";
+  const toLbs = (v: number) => isKg ? v * 2.2046 : v;
+
+  const userWeight = toLbs(parseFloat(String(userDetail.currentWeight || 0)) || 0);
+  const userHeight = parseHeightInches(userDetail.height);
+
+  const wMap: Record<string, number> = {
+    "of InputBarbellSquat": toLbs(parseFloat(String(userDetail.r_back_squat || 0)) || 0),
+    "of InputDeadlift":     toLbs(parseFloat(String(userDetail.r_deadlift || 0)) || 0),
+    "of InputBenchPress":   toLbs(parseFloat(String(userDetail.r_bench_press || 0)) || 0),
+    "of InputPowerClean":   toLbs(parseFloat(String(userDetail.r_power_clean || 0)) || 0),
+    "of BodyWeight":        userWeight,
+  };
+
+  const data1 = userWeight * userHeight;
+  const E = parseInt(String(exercise.loadMeter ?? exercise.load_meter ?? 3)) || 3;
+  const value = parseRepsVal(exercise.reps);
+  const e = parseFloat(String(exercise.repVariant ?? exercise.rep_variant ?? 1)) || 1;
+  const setsCount = parseInt(String(exercise.sets || sectionRounds || "1").replace(/\D/g, "")) || 1;
+
+  const weightAdj = (exercise.weight_adj || "").trim();
+  let baseWeight = userWeight;
+  if (weightAdj.includes("Squat") || weightAdj.includes("InputBarbellSquat"))      baseWeight = wMap["of InputBarbellSquat"];
+  else if (weightAdj.includes("Deadlift") || weightAdj.includes("InputDeadlift"))  baseWeight = wMap["of InputDeadlift"];
+  else if (weightAdj.includes("BenchPress") || weightAdj.includes("InputBenchPress")) baseWeight = wMap["of InputBenchPress"];
+  else if (weightAdj.includes("PowerClean") || weightAdj.includes("InputPowerClean")) baseWeight = wMap["of InputPowerClean"];
+  else if (weightAdj.includes("BodyWeight") || weightAdj.includes("currentWeight")) baseWeight = wMap["of BodyWeight"];
+
+  const exWt = parseFloat(String(exercise.weight || 0)) || 0;
+  const wt = exWt > 5 ? baseWeight * (exWt / 100) : exWt > 0 ? baseWeight * exWt : baseWeight * 0.20;
+
+  const data2 = E * (value * e) * setsCount * wt;
+  const load  = Math.ceil((data1 + data2) / 2600);
+  const power = Math.ceil((userWeight + data2) / 1300);
+  const kcal  = Math.ceil((66 + userWeight * 6.2 + userHeight * 12.7 * load) / 4000);
+
+  console.log("[load-calc] exercise:", exercise.exercise_name,
+    "| userWeight:", userWeight, "userHeight:", userHeight,
+    "| E:", E, "reps:", value, "e:", e, "sets:", setsCount,
+    "| weightAdj:", weightAdj, "baseWeight:", baseWeight, "exWt:", exWt, "wt:", wt,
+    "| data1:", data1, "data2:", data2,
+    "| → load:", load, "power:", power, "kcal:", kcal);
+
+  return { load, power, kcal };
+}
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -71,6 +140,16 @@ export default function AthenaWorkoutPage() {
   const [locationName, setLocationName] = useState<string>("Temporary Location");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [showSwapModal, setShowSwapModal] = useState(false);
+
+  // Workout loads
+  const [workoutLoads, setWorkoutLoads] = useState<WorkoutLoadSummary>({ load: 0, power: 0, kcal: 0 });
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
+
+  const refreshLoads = async (sid: string | null) => {
+    if (!sid) return;
+    const loads = await getWorkoutLoads(sid);
+    setWorkoutLoads(loads);
+  };
 
   // Exercise tracking
   const [trackingExercise, setTrackingExercise] = useState<SectionExercise | null>(null);
@@ -140,15 +219,13 @@ export default function AthenaWorkoutPage() {
 
         const sid = localStorage.getItem(`activeSessionId_${code?.toUpperCase()}`);
         setSessionId(sid);
+        refreshLoads(sid);
         const loc = localStorage.getItem("workoutLocationName");
         if (loc) setLocationName(loc);
         const locId = localStorage.getItem("workoutLocationId");
         if (locId) setLocationId(locId);
-        console.log("[athena] code:", code, "sessionId:", sid);
-
         const groups = await getProgramGroupedWorkouts(code);
         setSections(groups);
-        console.log("[athena] sections:", groups.length, groups.map((g) => g.label));
 
         if (groups.length > 0) {
           const exercises = await getWorkoutSection({
@@ -157,7 +234,6 @@ export default function AthenaWorkoutPage() {
             section: groups[0].label,
           });
           setSectionExercises(exercises);
-          console.log("[athena] exercises for section 0:", exercises.length);
         }
       } catch (err) {
         console.error("[athena] Failed to load workout data:", err);
@@ -181,7 +257,6 @@ export default function AthenaWorkoutPage() {
         });
         setSectionExercises(exercises);
         if (preserveIndex !== undefined) setCurrentExerciseIndex(preserveIndex);
-        console.log("[athena] loaded section", sectionIndex, ":", exercises.length, "exercises");
       } catch (err) {
         console.error("[athena] Failed to load section exercises:", err);
       } finally {
@@ -212,6 +287,17 @@ export default function AthenaWorkoutPage() {
     ]);
   };
 
+  // Restore completed exercise IDs from localStorage when sessionId is available
+  useEffect(() => {
+    if (!sessionId) return;
+    const stored = localStorage.getItem(`completedExercises_${sessionId}`);
+    if (stored) {
+      try {
+        setCompletedExerciseIds(new Set(JSON.parse(stored)));
+      } catch {}
+    }
+  }, [sessionId]);
+
   // Fetch user detail once on mount for weight calculations
   useEffect(() => {
     dashboardApi.getDashboardData()
@@ -224,42 +310,30 @@ export default function AthenaWorkoutPage() {
     setTrackingSets([{ weight: "", reps: "", saved: false }]);
     setLastRecord(null);
     setBestRecord(null);
-    console.log("[tracking] Opening exercise:", ex.exercise_name, "| exercise_id:", ex.exercise_id, "| sessionId:", sessionId);
-    if (!ex.exercise_id) { console.warn("[tracking] No exercise_id — skipping fetch"); return; }
+    if (!ex.exercise_id) return;
     setLogsLoading(true);
     try {
       const allLogs = await getTrackingLogs({ exercise_id: ex.exercise_id });
-      console.log("[tracking] All-time logs:", allLogs.length, allLogs);
       if (allLogs.length > 0) {
         setLastRecord({ weight: allLogs[0].weight, reps: allLogs[0].repetitions });
         const best = allLogs.reduce((b, r) => r.weight > b.weight ? r : b, allLogs[0]);
         setBestRecord({ weight: best.weight, reps: best.repetitions });
-        console.log("[tracking] Last:", allLogs[0].weight, "×", allLogs[0].repetitions, "| Best:", best.weight, "×", best.repetitions);
-      } else {
-        console.log("[tracking] No all-time logs found");
       }
       if (sessionId) {
         const sessionLogs = await getTrackingLogs({ sessionId, exercise_id: ex.exercise_id });
-        console.log("[tracking] Session logs:", sessionLogs.length, sessionLogs);
         if (sessionLogs.length > 0) {
           const sorted = [...sessionLogs].sort((a, b) => {
             const numA = parseInt(a.title?.replace(/\D/g, "") || "0");
             const numB = parseInt(b.title?.replace(/\D/g, "") || "0");
             return numA - numB;
           });
-          const populated = sorted.map((log) => ({
+          setTrackingSets(sorted.map((log) => ({
             weight: String(log.weight ?? ""),
             reps: String(log.repetitions ?? ""),
             saved: log.status === true,
             load: log.load,
-          }));
-          console.log("[tracking] Populating sets from session logs:", populated);
-          setTrackingSets(populated);
-        } else {
-          console.log("[tracking] No session logs — showing empty set");
+          })));
         }
-      } else {
-        console.log("[tracking] No sessionId — skipping session log fetch");
       }
     } catch (err) {
       console.error("[tracking] Failed to fetch logs:", err);
@@ -396,7 +470,8 @@ export default function AthenaWorkoutPage() {
             {currentExercise && (
               <button
                 onClick={() => setShowSwapModal(true)}
-                className="absolute top-2 right-2 w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center overflow-hidden border border-gray-100 hover:scale-105 transition-transform"
+                disabled={completedExerciseIds.has(String(currentExercise?.id ?? currentExercise?.exercise_id ?? ""))}
+                className="absolute top-2 right-2 w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center overflow-hidden border border-gray-100 hover:scale-105 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {(() => {
                   const thumbnailGif =
@@ -594,7 +669,6 @@ export default function AthenaWorkoutPage() {
                       {/* Save Button */}
                       <button
                         onClick={() => {
-                          console.log("Saved velocity data:", velocitySets);
                           setIsVelocityPopupOpen(false);
                         }}
                         className="w-full bg-[#6202AC] text-white font-bold py-3 rounded-xl hover:bg-[#4d0187] transition flex items-center justify-center gap-2"
@@ -664,10 +738,6 @@ export default function AthenaWorkoutPage() {
                     <div className="p-6">
                       <button
                         onClick={() => {
-                          console.log("Note saved:", {
-                            text: noteText,
-                            shareWithCoach,
-                          });
                           setIsNotePopupOpen(false);
                           setNoteText("");
                           setShareWithCoach(false);
@@ -691,7 +761,38 @@ export default function AthenaWorkoutPage() {
                   <div className="flex items-center gap-1.5">
                     <input
                       type="checkbox"
+                      checked={completedExerciseIds.has(String(currentExercise?.id ?? currentExercise?.exercise_id ?? ""))}
                       className="w-3.5 h-3.5 accent-[#6202AC] rounded"
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const exKey = String(currentExercise?.id ?? currentExercise?.exercise_id ?? "");
+                        setCompletedExerciseIds(prev => {
+                          const next = new Set(prev);
+                          if (checked) next.add(exKey);
+                          else next.delete(exKey);
+                          if (sessionId) {
+                            localStorage.setItem(`completedExercises_${sessionId}`, JSON.stringify([...next]));
+                          }
+                          return next;
+                        });
+                        if (checked && currentExercise && sessionId) {
+                          const { load, power, kcal } = computeExerciseLoad(
+                            currentExercise as SectionExercise & Record<string, unknown>,
+                            userOtherDetail,
+                            currentSection?.rounds,
+                          );
+                          createWorkoutLoad({
+                            sessionId,
+                            workoutId: currentExercise.id,
+                            title: currentExercise.title,
+                            workoutComplete: true,
+                            program: workoutCode?.toUpperCase(),
+                            load,
+                            power,
+                            kcal,
+                          }).then(() => refreshLoads(sessionId)).catch(console.error);
+                        }
+                      }}
                     />
                     <p className="text-[9px] font-bold text-gray-400">
                       Check when completed
@@ -752,6 +853,7 @@ export default function AthenaWorkoutPage() {
                 if (next < sections.length) {
                   setCurrentSectionIndex(next);
                   loadSectionExercises(next, workoutCode, sessionId, sections);
+                  refreshLoads(sessionId);
                 }
               }}
               disabled={currentSectionIndex >= sections.length - 1}
@@ -766,6 +868,23 @@ export default function AthenaWorkoutPage() {
         {/* Hidden on very small screens or shown as a bottom section */}
         <aside className="w-full lg:flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col overflow-hidden h-[300px] lg:h-full">
           <div className="flex flex-col h-full">
+            {/* This Workout stats */}
+            <div className="px-3 pt-3 pb-2 shrink-0">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">This Workout</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: "Load", value: workoutLoads.load },
+                  { label: "Power", value: workoutLoads.power },
+                  { label: "Kcal", value: workoutLoads.kcal },
+                ].map((stat) => (
+                  <div key={stat.label} className="bg-[#f8f5ff] rounded-xl p-2 text-center border border-[#ede9fe]">
+                    <p className="text-[18px] font-black text-[#6202AC] leading-none">{stat.value}</p>
+                    <p className="text-[8px] font-bold text-gray-400 mt-0.5 uppercase tracking-wide">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="p-3 pb-2 shrink-0">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-sm">Exercise Overview</h3>

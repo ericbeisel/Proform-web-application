@@ -149,6 +149,7 @@ export const profileApi = {
       throw new Error(
         extractErrorMessage(err, "Failed to fetch profile data."),
       );
+      
     }
   },
 

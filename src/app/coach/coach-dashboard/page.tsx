@@ -18,6 +18,7 @@ import {
   UserPlus,
   Copy,
   Check,
+  ChevronDown,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
@@ -43,7 +44,44 @@ export default function CoachDashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [inviteTeam, setInviteTeam] = useState<CoachTeam | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [activateCode, setActivateCode] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [teamPlanActivated, setTeamPlanActivated] = useState(false);
+
+  // dummy: flip to true to test the existing create-team flow instead of admin-details
+  const hasOrganization = false;
+
+  // Admin Details form
+  const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [orgType, setOrgType] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
+  const [adminAddress, setAdminAddress] = useState("");
+  const [orgCountry, setOrgCountry] = useState("");
+  const [orgState, setOrgState] = useState("");
+  const [orgCity, setOrgCity] = useState("");
+  const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null);
+  const [orgLogoPreview, setOrgLogoPreview] = useState<string | null>(null);
+  const orgLogoInputRef = useRef<HTMLInputElement>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleCloseAdminModal() {
+    setShowAdminDetailsModal(false);
+    setOrgName(""); setOrgType(""); setAdminEmail(""); setAdminPhone("");
+    setAdminAddress(""); setOrgCountry(""); setOrgState(""); setOrgCity("");
+    setOrgLogoFile(null); setOrgLogoPreview(null);
+  }
+
+  function handleNewTeamClick() {
+    if (hasOrganization) {
+      setShowCreateModal(true);
+    } else {
+      setShowAdminDetailsModal(true);
+    }
+  }
 
   function handleCopyUrl(url: string) {
     navigator.clipboard.writeText(url);
@@ -272,6 +310,335 @@ export default function CoachDashboardPage() {
         </div>
       )}
 
+      {/* ── Activate Team Plan Modal ── */}
+      {showActivateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => { setShowActivateModal(false); setActivateCode(""); }}
+        >
+          <div
+            className="relative bg-white w-full max-w-sm mx-4 rounded-3xl shadow-2xl p-8 flex flex-col items-center gap-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setShowActivateModal(false); setActivateCode(""); }}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-800 transition"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-[#1a1a1a]">Activate Team Plan:</h2>
+              <p className="mt-2 text-sm text-gray-400 leading-relaxed max-w-[260px] mx-auto">
+                Use the 6-10 digit code that we sent to your email address to activate your team plan.
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={activateCode}
+              onChange={(e) => setActivateCode(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
+              placeholder="--- - ---"
+              maxLength={12}
+              className="w-full h-14 rounded-2xl border border-gray-200 bg-white px-5 text-center text-lg font-semibold tracking-widest text-[#1a1a1a] placeholder:text-gray-300 outline-none focus:border-[#8B5CF6] transition"
+            />
+
+            <button
+              disabled={activateCode.trim().length < 6 || activating}
+              onClick={async () => {
+                setActivating(true);
+                try {
+                  // TODO: call activate API with activateCode
+                  setTeamPlanActivated(true);
+                  setShowActivateModal(false);
+                  setActivateCode("");
+                } finally {
+                  setActivating(false);
+                }
+              }}
+              className="w-full h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-bold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {activating ? "Activating…" : "Submit & Activate"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin Details Modal ── */}
+  {showAdminDetailsModal && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+    onClick={handleCloseAdminModal}
+  >
+    <div
+      className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl p-10 flex flex-col gap-5 max-h-[92vh] overflow-y-auto"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Close */}
+      <button
+        onClick={handleCloseAdminModal}
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-700 transition"
+      >
+        <X size={22} />
+      </button>
+
+      {/* Title */}
+      <div className="text-center pb-1">
+        <h2 className="text-3xl font-bold text-[#1a1a1a]">Admin. Details:</h2>
+        <p className="mt-1.5 text-sm text-gray-400 leading-relaxed">
+          Set up your organization profile to get started.
+        </p>
+      </div>
+
+      {/* Organization Name */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          Organization Name <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="text"
+          value={orgName}
+          onChange={(e) => setOrgName(e.target.value)}
+          placeholder="Enter organization name"
+          className="h-12 rounded-xl border border-gray-200 bg-white px-4 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] transition placeholder:text-gray-300"
+        />
+      </div>
+
+      {/* Logo / Mascot */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          Logo / Mascot <span className="text-red-400">*</span>
+        </label>
+        <input
+          ref={orgLogoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setOrgLogoFile(f);
+            setOrgLogoPreview(f ? URL.createObjectURL(f) : null);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => orgLogoInputRef.current?.click()}
+          className="h-12 rounded-xl border-2 border-dashed border-gray-200 bg-white hover:border-[#8B5CF6] hover:bg-[#faf5ff] transition flex items-center justify-center gap-2 text-gray-400 hover:text-[#8B5CF6] text-sm font-medium"
+        >
+          {orgLogoPreview ? (
+            <img src={orgLogoPreview} alt="logo" className="h-8 w-8 rounded-lg object-cover" />
+          ) : (
+            <>
+              <Upload size={16} />
+              <span>Upload +</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Organization Type */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          Organization Type <span className="text-red-400">*</span>
+        </label>
+        <div className="relative">
+          <select
+            value={orgType}
+            onChange={(e) => setOrgType(e.target.value)}
+            className="w-full h-12 rounded-xl border border-gray-200 bg-white px-4 pr-9 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
+          >
+            <option value="">Choose One</option>
+            <option>High School Gym</option>
+            <option>Commercial Gym</option>
+            <option>Private Boxing Gym</option>
+            <option>Group Fitness Studio</option>
+            <option>Apartment/Hotel Gym</option>
+            <option>College Athletic Center</option>
+            <option>College Rec Center</option>
+            <option>Public Rec Center</option>
+            <option>Home/Home Gym</option>
+          </select>
+          <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        </div>
+      </div>
+
+      {/* Admin Email + Phone */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            Email <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="email"
+            value={adminEmail}
+            onChange={(e) => setAdminEmail(e.target.value)}
+            placeholder="admin@org.com"
+            className="h-12 rounded-xl border border-gray-200 bg-white px-3 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] transition placeholder:text-gray-300"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            Phone <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="tel"
+            value={adminPhone}
+            onChange={(e) => setAdminPhone(e.target.value)}
+            placeholder="+1 000 0000"
+            className="h-12 rounded-xl border border-gray-200 bg-white px-3 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] transition placeholder:text-gray-300"
+          />
+        </div>
+      </div>
+
+      {/* Mailing Address */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          Mailing Address <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="text"
+          value={adminAddress}
+          onChange={(e) => setAdminAddress(e.target.value)}
+          placeholder="Street address"
+          className="h-12 rounded-xl border border-gray-200 bg-white px-4 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] transition placeholder:text-gray-300"
+        />
+      </div>
+
+      {/* Country */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          Country <span className="text-red-400">*</span>
+        </label>
+        <div className="relative">
+          <select
+            value={orgCountry}
+            onChange={(e) => { setOrgCountry(e.target.value); setOrgState(""); setOrgCity(""); }}
+            className="w-full h-12 rounded-xl border border-gray-200 bg-white px-4 pr-9 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
+          >
+            <option value="">Choose One</option>
+            <option value="IN">India</option>
+            <option value="US">United States</option>
+            <option value="UK">United Kingdom</option>
+            <option value="CA">Canada</option>
+            <option value="AU">Australia</option>
+          </select>
+          <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        </div>
+      </div>
+
+      {/* State + City */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            State <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <select
+              value={orgState}
+              onChange={(e) => { setOrgState(e.target.value); setOrgCity(""); }}
+              className="w-full h-12 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
+            >
+              <option value="">Select</option>
+              {orgCountry === "IN" && <>
+                <option>Maharashtra</option>
+                <option>Delhi</option>
+                <option>Karnataka</option>
+                <option>Tamil Nadu</option>
+                <option>Gujarat</option>
+              </>}
+              {orgCountry === "US" && <>
+                <option>California</option>
+                <option>Texas</option>
+                <option>New York</option>
+                <option>Florida</option>
+              </>}
+              {(orgCountry !== "IN" && orgCountry !== "US" && orgCountry !== "") && <option>N/A</option>}
+            </select>
+            <ChevronDown size={15} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            City <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <select
+              value={orgCity}
+              onChange={(e) => setOrgCity(e.target.value)}
+              className="w-full h-12 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
+            >
+              <option value="">Select</option>
+              {orgState === "Maharashtra" && <>
+                <option>Mumbai</option>
+                <option>Pune</option>
+                <option>Satara</option>
+                <option>Nashik</option>
+                <option>Nagpur</option>
+              </>}
+              {orgState === "Delhi" && <>
+                <option>New Delhi</option>
+                <option>Dwarka</option>
+              </>}
+              {orgState === "Karnataka" && <>
+                <option>Bengaluru</option>
+                <option>Mysuru</option>
+              </>}
+              {orgState === "California" && <>
+                <option>Los Angeles</option>
+                <option>San Francisco</option>
+                <option>San Diego</option>
+              </>}
+              {orgState === "Texas" && <>
+                <option>Houston</option>
+                <option>Dallas</option>
+                <option>Austin</option>
+              </>}
+              {orgState === "Tamil Nadu" && <>
+                <option>Chennai</option>
+                <option>Coimbatore</option>
+                <option>Madurai</option>
+              </>}
+              {orgState === "Gujarat" && <>
+                <option>Ahmedabad</option>
+                <option>Surat</option>
+                <option>Vadodara</option>
+              </>}
+              {orgState === "New York" && <>
+                <option>New York City</option>
+                <option>Buffalo</option>
+                <option>Albany</option>
+              </>}
+              {orgState === "Florida" && <>
+                <option>Miami</option>
+                <option>Orlando</option>
+                <option>Tampa</option>
+              </>}
+              {orgState === "N/A" && <>
+                <option>City 1</option>
+                <option>City 2</option>
+                <option>City 3</option>
+              </>}
+            </select>
+            <ChevronDown size={15} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Next */}
+      <button
+        disabled={!orgName.trim() || !orgType || !adminEmail.trim() || !adminPhone.trim() || !adminAddress.trim() || !orgCountry || !orgState || !orgCity}
+        onClick={() => {
+          handleCloseAdminModal();
+          setShowCreateModal(true);
+        }}
+        className="w-full h-14 rounded-2xl bg-[#8B5CF6] text-white text-base font-bold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
+
       {/* ── Header ── */}
       <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
@@ -356,8 +723,10 @@ export default function CoachDashboardPage() {
 
           <div className="flex items-center gap-3 flex-wrap">
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_4px_12px_rgba(139,92,246,0.3)] whitespace-nowrap"
+              onClick={handleNewTeamClick}
+              disabled={teams.length === 0 && !teamPlanActivated}
+              title={teams.length === 0 && !teamPlanActivated ? "Activate a plan first using Use Code" : undefined}
+              className="h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_4px_12px_rgba(139,92,246,0.3)] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
               + New Team
             </button>
@@ -381,8 +750,10 @@ export default function CoachDashboardPage() {
             </h3>
 
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="h-11 px-6 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)]"
+              onClick={handleNewTeamClick}
+              disabled={!teamPlanActivated}
+              title={!teamPlanActivated ? "Activate a plan first using Use Code" : undefined}
+              className="h-11 px-6 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create a New Team
             </button>
@@ -399,7 +770,10 @@ export default function CoachDashboardPage() {
               <button className="h-10 px-5 rounded-xl bg-[#f5f5f7] text-sm font-semibold text-[#222] hover:bg-gray-200 transition">
                 View Plans
               </button>
-              <button className="h-10 px-5 rounded-xl border border-[#8B5CF6] text-sm font-semibold text-[#8B5CF6] hover:bg-[#f5f0ff] transition">
+              <button
+                onClick={() => setShowActivateModal(true)}
+                className="h-10 px-5 rounded-xl border border-[#8B5CF6] text-sm font-semibold text-[#8B5CF6] hover:bg-[#f5f0ff] transition"
+              >
                 Use Code
               </button>
             </div>
