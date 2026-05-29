@@ -632,6 +632,56 @@ export const getCompletedUsers = async (workoutName: string): Promise<CompletedU
   }
 };
 
+export interface PowerSetDetailSet {
+  suggestedWeight: string;
+  suggestedReps: string;
+  weight: string;
+  reps: string;
+  maxV: string;
+  recorded: boolean;
+  unableToPerform: boolean;
+  unit: string;
+}
+
+export interface PowerSetDetailExercise {
+  id: number;
+  exercise_uuid: string;
+  name: string;
+  supplemental: string;
+  demoGif: string;
+}
+
+export interface PowerSetDetailWorkout {
+  id: string;
+  title: string;
+  reps: string;
+  weight: string;
+  weight_adj: string;
+}
+
+export interface PowerSetDetail {
+  workout: PowerSetDetailWorkout;
+  exercise: PowerSetDetailExercise;
+  sets: PowerSetDetailSet[];
+  unit: string;
+  suggestedReps: string;
+  suggestedWeight: string;
+}
+
+export const getPowerSetDetails = async (params: {
+  specializedWorkoutId: string;
+  sessionId?: string | null;
+}): Promise<PowerSetDetail> => {
+  const query = new URLSearchParams();
+  query.set("specializedWorkoutId", params.specializedWorkoutId);
+  if (params.sessionId) query.set("sessionId", params.sessionId);
+  const { data } = await apiClient.get<PowerSetDetail>(
+    `/workouts/power-set-details?${query.toString()}`,
+  );
+  console.log("[power set details] API response:", data);
+  return data;
+};
+
 export const getDropdownOptions = async (): Promise<DropdownOptions> => {
   try {
     const { data } = await apiClient.get("/workouts/dropdown-options");

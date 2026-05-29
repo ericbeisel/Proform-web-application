@@ -157,6 +157,28 @@ export const joinTeam = async (
   }
 };
 
+export interface TeamPreview {
+  id: string;
+  name: string;
+  logo?: string | null;
+  coach_name?: string | null;
+  owner_name?: string | null;
+}
+
+export const getTeamPreview = async (
+  team_id: number,
+  code: string,
+): Promise<TeamPreview> => {
+  try {
+    const { data } = await apiClient.get<TeamPreview>("/team-preview", {
+      params: { team_id, code },
+    });
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch team info."));
+  }
+};
+
 export const deleteCoachTeam = async (id: string): Promise<{ message: string }> => {
   try {
     const { data } = await apiClient.delete<{ message: string }>("/coach-team", {
@@ -173,6 +195,7 @@ export const coachApi = {
   createCoachTeam,
   joinTeam,
   deleteCoachTeam,
+  getTeamPreview,
 };
 
 export default coachApi;

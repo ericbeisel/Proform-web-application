@@ -489,7 +489,12 @@ export default function AthenaWorkoutPage() {
               <div className="absolute bottom-2 right-2">
                 <DollarSign
                   size={32}
-                  onClick={() => router.push("/workout/dollarSet")}
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (currentExercise?.id) params.set("specializedWorkoutId", String(currentExercise.id));
+                    if (sessionId) params.set("sessionId", sessionId);
+                    router.push(`/workout/dollarSet?${params.toString()}`);
+                  }}
                   className="text-white bg-gradient-to-br from-green-400 to-green-600 p-2 md:p-3 md:w-10 md:h-10 rounded-full shadow-xl hover:scale-110 transition-transform cursor-pointer"
                 />
               </div>

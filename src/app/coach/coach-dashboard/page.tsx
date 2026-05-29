@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
@@ -279,7 +280,7 @@ export default function CoachDashboardPage() {
             <div className="bg-[#f5f5f7] rounded-2xl p-4 sm:p-6 flex flex-col items-center gap-3">
               <div className="p-3 bg-white rounded-2xl border-2 border-[#8B5CF6]">
                 <QRCodeSVG
-                  value={`https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
+                  value={`${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
                   size={140}
                 />
               </div>
@@ -292,12 +293,12 @@ export default function CoachDashboardPage() {
             <div className="flex flex-col gap-2">
               <p className="text-sm font-bold text-[#222]">Share with URL:</p>
               <div className="h-11 rounded-xl bg-[#f5f5f7] px-4 flex items-center text-xs text-gray-500 truncate border border-transparent">
-                {`https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
+                {`${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
               </div>
               <button
                 onClick={() =>
                   handleCopyUrl(
-                    `https://proformapp-web.onrender.com/team/joiningCode?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`,
+                    `${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`,
                   )
                 }
                 className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)]"
@@ -842,14 +843,34 @@ export default function CoachDashboardPage() {
                 </div>
 
                 {/* Bottom */}
-                <div className="flex items-center mt-4">
+                <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center gap-2 text-gray-500">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center">
-                      <Users size={14} />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center">
+                      <Users size={14} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-[#222]">{team.tagged_players_count}</p>
+                      <p className="text-sm font-semibold text-[#222]">
+                        {team.tagged_players_count}
+                        <span className="text-[#222] font-semibold">/50</span>
+                      </p>
                       <p className="text-[11px]">players</p>
+                    </div>
+                  </div>
+
+                  {/* Message */}
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="relative w-9 h-9 rounded-full bg-[#f0f0ff] flex items-center justify-center text-[#8B5CF6] hover:bg-[#ede9fe] hover:text-[#7C3AED] transition"
+                      title="Messages"
+                    >
+                      <MessageCircle size={16} />
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                        3
+                      </span>
+                    </button>
+                    <div>
+                      <p className="text-sm font-semibold text-[#222]">3</p>
+                      <p className="text-[11px] text-gray-500">new</p>
                     </div>
                   </div>
                 </div>
