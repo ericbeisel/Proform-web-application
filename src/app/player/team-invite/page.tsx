@@ -1,15 +1,11 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { joinTeam, getTeamPreview, type TeamPreview } from "@/api/coach/route";
+import { coachApi } from "@/api/coach/route";
 
 function TeamInviteContent() {
-  const [code, setCode] = useState("");
-  const [teamId, setTeamId] = useState<number | null>(null);
-  const [teamInfo, setTeamInfo] = useState<TeamPreview | null>(null);
-  const [loadingInfo, setLoadingInfo] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [joined, setJoined] = useState(false);
@@ -17,59 +13,45 @@ function TeamInviteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    const codeParam = searchParams.get("code");
-    const teamIdParam = searchParams.get("team_id");
-    if (codeParam) setCode(codeParam);
-    if (teamIdParam) {
-      const id = Number(teamIdParam);
-      setTeamId(id);
-      if (codeParam) {
-        getTeamPreview(id, codeParam)
-          .then(setTeamInfo)
-          .catch(() => {
-            setTeamInfo({ id: teamIdParam, name: "Your Team", logo: null, coach_name: "Coach" });
-          })
-          .finally(() => setLoadingInfo(false));
-      } else {
-        setLoadingInfo(false);
-      }
-    } else {
-      setLoadingInfo(false);
-    }
-  }, [searchParams]);
+  const code = searchParams.get("code") ?? "";
+  const teamId = Number(searchParams.get("team_id") ?? "0");
+  const teamName = searchParams.get("team_name") ?? "Your Team";
+  const orgName = searchParams.get("org_name") ?? "";
+  const ownerName = searchParams.get("owner_name") ?? "";
+  const logo: string | null = null;
 
-
-  const handleAccept = () => {
+  const handleAccept = async () => {
+    if (!code || !teamId) return;
     setIsLoading(true);
     setError(null);
-    const steps = [20, 45, 70, 88, 100];
-    steps.forEach((val, i) => {
-      setTimeout(() => {
-        setProgress(val);
-        if (val === 100) {
-          setTimeout(() => {
-            setIsLoading(false);
-            setJoined(true);
-            setTimeout(() => router.push("/coach/coach-dashboard"), 800);
-          }, 300);
-        }
-      }, i * 400);
-    });
-  };
 
-  const displayName = teamInfo?.name ?? "Your Team";
-  const coachName = teamInfo?.coach_name ?? teamInfo?.owner_name ?? "Coach";
-  const logo = teamInfo?.logo;
+    // Start progress animation
+    const progressSteps = [20, 45, 70, 88];
+    progressSteps.forEach((val, i) => {
+      setTimeout(() => setProgress(val), i * 350);
+    });
+
+    try {
+      await coachApi.joinTeam({ team_id: teamId, unique_code: code });
+      setProgress(100);
+      setTimeout(() => {
+        setIsLoading(false);
+        setJoined(true);
+        setTimeout(() => router.push("/coach/coach-dashboard"), 800);
+      }, 400);
+    } catch (err: any) {
+      setProgress(0);
+      setIsLoading(false);
+      setError(err.message || "Failed to join team. Please try again.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] flex items-center justify-center px-4 relative overflow-hidden">
 
-      {/* Background decoration */}
       <div className="absolute top-0 left-0 w-72 h-72 bg-[#8B5CF6]/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#8B5CF6]/8 rounded-full translate-x-1/3 translate-y-1/3 blur-3xl pointer-events-none" />
 
-      {/* Close */}
       <button
         onClick={() => router.back()}
         className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-400 hover:text-gray-700 shadow-sm transition"
@@ -79,7 +61,6 @@ function TeamInviteContent() {
 
       <div className="relative w-full max-w-sm flex flex-col items-center gap-6">
 
-        {/* Logo + headline */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-[#8B5CF6]/20 flex items-center justify-center p-1.5 border border-white">
             <img src="/images/proform-logo.jpg" alt="Proform" className="w-full h-full object-contain rounded-xl" />
@@ -89,32 +70,30 @@ function TeamInviteContent() {
           </p>
         </div>
 
-        {/* Card */}
         <div className="w-full bg-white rounded-3xl shadow-xl shadow-[#8B5CF6]/10 border border-[#f0ebff] overflow-hidden">
-
-          {/* Purple top strip */}
           <div className="h-1.5 w-full bg-gradient-to-r from-[#8B5CF6] to-[#a78bfa]" />
 
           <div className="px-6 py-7 flex flex-col items-center gap-5">
 
             {/* Team avatar */}
-            {loadingInfo ? (
-              <div className="w-20 h-20 rounded-full bg-gray-100 animate-pulse" />
-            ) : logo ? (
-              <img src={logo} alt={displayName} className="w-20 h-20 rounded-full object-cover ring-4 ring-[#ede9fe]" />
+            {logo ? (
+              <img src={logo} alt={teamName} className="w-20 h-20 rounded-full object-cover ring-4 ring-[#ede9fe]" />
             ) : (
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] flex items-center justify-center text-white text-3xl font-extrabold ring-4 ring-[#ede9fe]">
-                {displayName.charAt(0).toUpperCase()}
+                {teamName.charAt(0).toUpperCase()}
               </div>
             )}
 
-            {/* Team name + coach */}
             <div className="text-center">
-              <p className="text-[18px] font-extrabold text-[#111] leading-tight">{displayName}</p>
-              <p className="text-[13px] font-semibold text-[#8B5CF6] mt-1">{coachName}</p>
+              {orgName && (
+                <p className="text-[11px] font-bold text-[#8B5CF6] uppercase tracking-wider mb-0.5">{orgName}</p>
+              )}
+              <p className="text-[18px] font-extrabold text-[#111] leading-tight">{teamName}</p>
+              {ownerName && (
+                <p className="text-[13px] font-semibold text-gray-500 mt-1">{ownerName}</p>
+              )}
             </div>
 
-            {/* Divider */}
             <div className="w-full h-px bg-gray-100" />
 
             <p className="text-[13px] text-gray-400 text-center">
@@ -155,11 +134,10 @@ function TeamInviteContent() {
               </div>
             )}
 
-            {/* Accept button */}
             {!joined && (
               <button
                 onClick={handleAccept}
-                disabled={isLoading || teamId === null}
+                disabled={isLoading || !code || !teamId}
                 className="w-full h-12 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-extrabold rounded-2xl shadow-lg shadow-[#8B5CF6]/40 hover:shadow-[#8B5CF6]/60 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (

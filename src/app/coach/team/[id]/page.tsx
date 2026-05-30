@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Plus,
@@ -17,21 +18,13 @@ import {
   Flame,
   Heart,
   Activity,
+  Search,
 } from "lucide-react";
+import { coachApi, type TeamPlayer } from "@/api/coach/route";
 
 const sessions = [
   { started: "10/18/2025", workout: "Day 1: Incline Bench", joined: 0, completed: 0, pct: 0 },
   { started: "10/27/2025", workout: "Day 1", joined: 1, completed: 0, pct: 0 },
-];
-
-const players = [
-  { name: "MiaTeshaellas101", score: "0/4", pct: "0%" },
-  { name: "JosiBaseneal", score: "0/4", pct: "0%" },
-  { name: "Anthony GustinGastin", score: "0/4", pct: "0%" },
-  { name: "Rob TernellBob1", score: "0/4", pct: "0%" },
-  { name: "HimshalRoders", score: "0/4", pct: "1%" },
-  { name: "Player Six", score: "0/4", pct: "0%" },
-  { name: "Player Seven", score: "0/4", pct: "0%" },
 ];
 
 const goals = [
@@ -57,6 +50,35 @@ const toolbox = [
 export default function TeamDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+
+  const teamName = searchParams.get("team_name") ?? "Team";
+  const orgName = searchParams.get("org_name") ?? "";
+  const ownerName = searchParams.get("owner_name") ?? "";
+  const teamLogo = searchParams.get("logo") ?? "";
+
+  const [players, setPlayers] = useState<TeamPlayer[]>([]);
+  const [playersLoading, setPlayersLoading] = useState(true);
+  const [playerSearch, setPlayerSearch] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+    setPlayersLoading(true);
+    coachApi.getTeamPlayers({ team_id: id, limit: 20 })
+      .then(({ players }) => setPlayers(players))
+      .catch(console.error)
+      .finally(() => setPlayersLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const timeout = setTimeout(() => {
+      coachApi.getTeamPlayers({ team_id: id, search: playerSearch, limit: 20 })
+        .then(({ players }) => setPlayers(players))
+        .catch(console.error);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [playerSearch, id]);
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
@@ -71,13 +93,23 @@ export default function TeamDetailPage() {
             <ArrowLeft size={16} className="text-gray-700" />
           </button>
 
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs font-semibold text-orange-500 uppercase leading-none truncate">
-              Principia School Athletics
-            </p>
-            <h1 className="text-base sm:text-xl font-black text-[#1f1f1f] truncate leading-tight">
-              Alpha Coaches
-            </h1>
+          <div className="flex items-center gap-2 min-w-0">
+            {teamLogo ? (
+              <img src={teamLogo} alt={teamName} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+            ) : null}
+            <div className="min-w-0">
+              {orgName && (
+                <p className="text-[10px] sm:text-xs font-semibold text-orange-500 uppercase leading-none truncate">
+                  {orgName}
+                </p>
+              )}
+              <h1 className="text-base sm:text-xl font-black text-[#1f1f1f] truncate leading-tight">
+                {teamName}
+              </h1>
+              {ownerName && (
+                <p className="text-[10px] text-gray-400 truncate leading-none">{ownerName}</p>
+              )}
+            </div>
           </div>
 
           <button className="hidden sm:flex h-8 px-3 rounded-xl bg-[#8B5CF6] text-white text-xs font-semibold items-center hover:bg-[#7C3AED] transition shrink-0">
@@ -238,7 +270,10 @@ export default function TeamDetailPage() {
             {/* Players */}
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-bold text-[#222]">Players:</h2>
+                <h2 className="text-base font-bold text-[#222]">
+                  Players:
+                  <span className="ml-1.5 text-sm font-normal text-gray-400">({players.length})</span>
+                </h2>
                 <div className="flex items-center gap-2">
                   <button className="h-7 px-3 rounded-full border border-gray-200 text-[10px] font-semibold text-gray-500 hover:bg-gray-50 transition">
                     FILTER GROUP
@@ -249,19 +284,52 @@ export default function TeamDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                {players.slice(0, 7).map((p, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white text-xs font-bold relative">
-                      {p.name.charAt(0)}
-                      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border border-white" />
-                    </div>
-                    <p className="text-[11px] text-[#222] text-center leading-tight line-clamp-2">{p.name}</p>
-                    <p className="text-[9px] font-semibold text-[#222]">{p.score}</p>
-                    <p className="text-[9px] text-gray-400">{p.pct}</p>
-                  </div>
-                ))}
+              {/* Search */}
+              <div className="relative mb-3">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search players..."
+                  value={playerSearch}
+                  onChange={(e) => setPlayerSearch(e.target.value)}
+                  className="w-full h-8 rounded-xl bg-[#f5f5f7] pl-8 pr-3 text-xs outline-none border border-transparent focus:border-[#8B5CF6] transition"
+                />
               </div>
+
+              {playersLoading ? (
+                <div className="grid grid-cols-4 gap-2 sm:gap-3">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gray-100 animate-pulse" />
+                      <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : players.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No players found.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 sm:gap-3">
+                  {players.slice(0, 8).map((p) => {
+                    const displayName = p.name ?? p.username ?? "Player";
+                    const pct = p.completion_pct != null ? `${p.completion_pct}%` : "0%";
+                    return (
+                      <div key={p.id} className="flex flex-col items-center gap-1">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white text-xs font-bold relative overflow-hidden">
+                          {p.profile_picture ? (
+                            <img src={p.profile_picture} alt={displayName} className="w-full h-full object-cover" />
+                          ) : (
+                            displayName.charAt(0).toUpperCase()
+                          )}
+                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border border-white" />
+                        </div>
+                        <p className="text-[11px] text-[#222] text-center leading-tight line-clamp-2">{displayName}</p>
+                        <p className="text-[9px] font-semibold text-[#222]">{p.score ?? "0/4"}</p>
+                        <p className="text-[9px] text-gray-400">{pct}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="flex items-center justify-between mt-4">
                 <button className="h-8 px-5 rounded-full bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition">

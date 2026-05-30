@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
+import { getAuthUser } from "@/lib/auth/session";
+import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 
 const quickActions = [
   { title: "Reminders", icon: Bell, color: "bg-[#7C4DFF]" },
@@ -42,16 +44,21 @@ export default function CoachDashboardPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [inviteTeam, setInviteTeam] = useState<CoachTeam | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string>("");
+  const [loadingInvite, setLoadingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [activateCode, setActivateCode] = useState("");
   const [activating, setActivating] = useState(false);
+  const [activateError, setActivateError] = useState<string | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
+  const [validPlanName, setValidPlanName] = useState<string | null>(null);
   const [teamPlanActivated, setTeamPlanActivated] = useState(false);
 
-  // dummy: flip to true to test the existing create-team flow instead of admin-details
-  const hasOrganization = false;
+  const [hasOrganization, setHasOrganization] = useState(false);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -65,8 +72,16 @@ export default function CoachDashboardPage() {
   const [orgCity, setOrgCity] = useState("");
   const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null);
   const [orgLogoPreview, setOrgLogoPreview] = useState<string | null>(null);
-  const orgLogoInputRef = useRef<HTMLInputElement>(null);
+  const [existingMascot, setExistingMascot] = useState<string | null>(null);
+  const [savingOrg, setSavingOrg] = useState(false);
+  const [orgSaveError, setOrgSaveError] = useState<string | null>(null);
 
+  // Location dropdowns
+  const [countries, setCountries] = useState<{ id: number; name: string }[]>([]);
+  const [states, setStates] = useState<{ id: number; name: string }[]>([]);
+  const [cities, setCities] = useState<{ id: number; name: string }[]>([]);
+
+  const orgLogoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleCloseAdminModal() {
@@ -74,6 +89,7 @@ export default function CoachDashboardPage() {
     setOrgName(""); setOrgType(""); setAdminEmail(""); setAdminPhone("");
     setAdminAddress(""); setOrgCountry(""); setOrgState(""); setOrgCity("");
     setOrgLogoFile(null); setOrgLogoPreview(null);
+    setOrgSaveError(null); setStates([]); setCities([]);
   }
 
   function handleNewTeamClick() {
@@ -91,12 +107,108 @@ export default function CoachDashboardPage() {
   }
 
   useEffect(() => {
-    coachApi
-      .getCoachTeams()
+    coachApi.getCoachTeams()
       .then(setTeams)
       .catch(console.error)
       .finally(() => setLoading(false));
+
+    coachApi.getInstitutionDetails()
+      .then((inst) => { if (inst) setHasOrganization(true); })
+      .catch(console.error);
+
+    coachApi.getRemainingTeamLimit()
+      .then((info) => {
+        setTeamsLeft(info.remaining);
+        setPlanName(info.planName ?? null);
+        if (info.hasActivePlan) setTeamPlanActivated(true);
+      })
+      .catch(console.error);
   }, []);
+
+  // Fetch real invite link when invite modal opens
+  useEffect(() => {
+    if (!inviteTeam) { setInviteUrl(""); return; }
+    setLoadingInvite(true);
+    coachApi.getTeamInvite(inviteTeam.id)
+      .then((info) => {
+        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
+        const extractCode = (link?: string | null) =>
+          link ? link.split("/").filter(Boolean).pop() ?? "" : "";
+        const code =
+          info.unique_code ||
+          extractCode(info.invite_link) ||
+          inviteTeam.unique_code ||
+          extractCode(inviteTeam.invite_link) ||
+          "";
+        const params = new URLSearchParams({
+          code,
+          team_id: inviteTeam.id,
+          team_name: info.name ?? inviteTeam.name,
+          org_name: info.institution?.title ?? inviteTeam.school ?? "",
+          owner_name: info.owner ?? inviteTeam.owner_name ?? "",
+        });
+        setInviteUrl(`${origin}/player/team-invite?${params.toString()}`);
+      })
+      .catch(() => {
+        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
+        const extractCode = (link?: string | null) =>
+          link ? link.split("/").filter(Boolean).pop() ?? "" : "";
+        const params = new URLSearchParams({
+          code: inviteTeam.unique_code || extractCode(inviteTeam.invite_link) || "",
+          team_id: inviteTeam.id,
+          team_name: inviteTeam.name,
+          org_name: inviteTeam.school ?? "",
+          owner_name: inviteTeam.owner_name ?? "",
+        });
+        setInviteUrl(`${origin}/player/team-invite?${params.toString()}`);
+      })
+      .finally(() => setLoadingInvite(false));
+  }, [inviteTeam]);
+
+  // Auto-validate activation code
+  useEffect(() => {
+    setValidPlanName(null);
+    setActivateError(null);
+    if (activateCode.trim().length < 6) return;
+    setValidatingCode(true);
+    const timer = setTimeout(() => {
+      coachApi.getPlanDetails(activateCode.trim())
+        .then((plan) => {
+          setValidPlanName((plan as any)?.name ?? (plan as any)?.code ?? activateCode.trim());
+          setActivateError(null);
+        })
+        .catch(() => {
+          setActivateError("Plan code not found. Please check and try again.");
+          setValidPlanName(null);
+        })
+        .finally(() => setValidatingCode(false));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [activateCode]);
+
+  // When admin modal opens: load countries and pre-fill existing data
+  useEffect(() => {
+    if (!showAdminDetailsModal) return;
+    fetchCountries().then(setCountries).catch(console.error);
+    coachApi.getInstitutionDetails().then((inst) => {
+      if (!inst) return;
+      setOrgName(inst.title ?? "");
+      setOrgType(inst.type ?? "");
+      setAdminEmail(inst.email ?? "");
+      setAdminPhone(inst.phone ?? "");
+      setAdminAddress(inst.address ?? "");
+      setExistingMascot(inst.mascot ?? null);
+      if (inst.country) {
+        setOrgCountry(inst.country);
+        fetchStates(inst.country).then(setStates).catch(console.error);
+      }
+      if (inst.state) {
+        setOrgState(inst.state);
+        fetchCities(inst.state).then(setCities).catch(console.error);
+      }
+      if (inst.city) setOrgCity(inst.city);
+    }).catch(console.error);
+  }, [showAdminDetailsModal]);
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -110,11 +222,13 @@ export default function CoachDashboardPage() {
     setTeamOwner("");
     setLogoFile(null);
     setLogoPreview(null);
+    setCreateError(null);
   }
 
   async function handleCreateTeam() {
     if (!teamName.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       const res = await coachApi.createCoachTeam({
         name: teamName.trim(),
@@ -132,8 +246,8 @@ export default function CoachDashboardPage() {
         },
       ]);
       handleCloseModal();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setCreateError(err.message || "Failed to create team. Please try again.");
     } finally {
       setCreating(false);
     }
@@ -151,7 +265,8 @@ export default function CoachDashboardPage() {
     }
   }
 
-  const teamsLeft: number = 3;
+  const [teamsLeft, setTeamsLeft] = useState<number | null>(null);
+  const [planName, setPlanName] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -178,8 +293,13 @@ export default function CoachDashboardPage() {
 
             <p className="text-sm text-gray-500">
               You have{" "}
-              <span className="font-semibold text-[#8B5CF6]">{teamsLeft}</span>{" "}
-              {teamsLeft === 1 ? "team" : "teams"} left on your package
+              {teamsLeft === null ? (
+                <span className="inline-block w-4 h-3 bg-gray-200 rounded animate-pulse align-middle" />
+              ) : (
+                <span className="font-semibold text-[#8B5CF6]">{teamsLeft}</span>
+              )}{" "}
+              {teamsLeft === 1 ? "team" : "teams"} left on your{" "}
+              {planName ? <span className="font-semibold text-[#8B5CF6]">{planName}</span> : "package"}
             </p>
 
             <div className="flex flex-col gap-1.5">
@@ -230,6 +350,12 @@ export default function CoachDashboardPage() {
               />
             </div>
 
+            {createError && (
+              <p className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-2.5 text-center leading-snug">
+                {createError}
+              </p>
+            )}
+
             <button
               onClick={handleCreateTeam}
               disabled={!teamName.trim() || creating}
@@ -279,10 +405,11 @@ export default function CoachDashboardPage() {
 
             <div className="bg-[#f5f5f7] rounded-2xl p-4 sm:p-6 flex flex-col items-center gap-3">
               <div className="p-3 bg-white rounded-2xl border-2 border-[#8B5CF6]">
-                <QRCodeSVG
-                  value={`${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
-                  size={140}
-                />
+                {loadingInvite ? (
+                  <div className="w-[140px] h-[140px] bg-gray-100 animate-pulse rounded-xl" />
+                ) : (
+                  <QRCodeSVG value={inviteUrl || " "} size={140} />
+                )}
               </div>
               <p className="text-xs text-gray-500 text-center leading-relaxed">
                 Invite up to 45 people to join your team. Share your custom QR
@@ -293,12 +420,12 @@ export default function CoachDashboardPage() {
             <div className="flex flex-col gap-2">
               <p className="text-sm font-bold text-[#222]">Share with URL:</p>
               <div className="h-11 rounded-xl bg-[#f5f5f7] px-4 flex items-center text-xs text-gray-500 truncate border border-transparent">
-                {`${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`}
+                {inviteUrl}
               </div>
               <button
                 onClick={() =>
                   handleCopyUrl(
-                    `${typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com"}/player/team-invite?code=${inviteTeam.unique_code ?? ""}&team_id=${inviteTeam.id}`,
+                    inviteUrl,
                   )
                 }
                 className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)]"
@@ -315,14 +442,14 @@ export default function CoachDashboardPage() {
       {showActivateModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => { setShowActivateModal(false); setActivateCode(""); }}
+          onClick={() => { setShowActivateModal(false); setActivateCode(""); setActivateError(null); setValidPlanName(null); }}
         >
           <div
             className="relative bg-white w-full max-w-sm mx-4 rounded-3xl shadow-2xl p-8 flex flex-col items-center gap-5"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => { setShowActivateModal(false); setActivateCode(""); }}
+              onClick={() => { setShowActivateModal(false); setActivateCode(""); setActivateError(null); setValidPlanName(null); }}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-800 transition"
             >
               <X size={20} />
@@ -335,24 +462,49 @@ export default function CoachDashboardPage() {
               </p>
             </div>
 
-            <input
-              type="text"
-              value={activateCode}
-              onChange={(e) => setActivateCode(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
-              placeholder="--- - ---"
-              maxLength={12}
-              className="w-full h-14 rounded-2xl border border-gray-200 bg-white px-5 text-center text-lg font-semibold tracking-widest text-[#1a1a1a] placeholder:text-gray-300 outline-none focus:border-[#8B5CF6] transition"
-            />
+            <div className="w-full relative">
+              <input
+                type="text"
+                value={activateCode}
+                onChange={(e) => setActivateCode(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
+                placeholder="--- - ---"
+                maxLength={12}
+                className={`w-full h-14 rounded-2xl border bg-white px-5 text-center text-lg font-semibold tracking-widest text-[#1a1a1a] placeholder:text-gray-300 outline-none transition ${
+                  validPlanName ? "border-green-400" : activateError ? "border-red-400" : "border-gray-200 focus:border-[#8B5CF6]"
+                }`}
+              />
+              {validatingCode && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+
+            {validPlanName && (
+              <div className="w-full bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-center">
+                <p className="text-xs text-green-600 font-semibold">✓ Valid code</p>
+                <p className="text-sm font-bold text-green-700 mt-0.5">{validPlanName}</p>
+              </div>
+            )}
+
+            {activateError && (
+              <p className="w-full text-sm text-red-500 text-center bg-red-50 rounded-xl px-3 py-2">
+                {activateError}
+              </p>
+            )}
 
             <button
-              disabled={activateCode.trim().length < 6 || activating}
+              disabled={activateCode.trim().length < 6 || activating || validatingCode || !!activateError}
               onClick={async () => {
                 setActivating(true);
+                setActivateError(null);
                 try {
-                  // TODO: call activate API with activateCode
+                  const user = getAuthUser();
+                  if (!user?.id) throw new Error("Not logged in.");
+                  await coachApi.activatePlan({ userId: user.id, code: activateCode.trim() });
                   setTeamPlanActivated(true);
                   setShowActivateModal(false);
                   setActivateCode("");
+                } catch (err: any) {
+                  setActivateError(err.message || "Invalid or expired code. Please try again.");
                 } finally {
                   setActivating(false);
                 }
@@ -513,15 +665,17 @@ export default function CoachDashboardPage() {
         <div className="relative">
           <select
             value={orgCountry}
-            onChange={(e) => { setOrgCountry(e.target.value); setOrgState(""); setOrgCity(""); }}
+            onChange={(e) => {
+              const id = e.target.value;
+              setOrgCountry(id); setOrgState(""); setOrgCity(""); setStates([]); setCities([]);
+              if (id) fetchStates(id).then(setStates).catch(console.error);
+            }}
             className="w-full h-12 rounded-xl border border-gray-200 bg-white px-4 pr-9 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
           >
             <option value="">Choose One</option>
-            <option value="IN">India</option>
-            <option value="US">United States</option>
-            <option value="UK">United Kingdom</option>
-            <option value="CA">Canada</option>
-            <option value="AU">Australia</option>
+            {countries.map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name}</option>
+            ))}
           </select>
           <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
@@ -536,24 +690,17 @@ export default function CoachDashboardPage() {
           <div className="relative">
             <select
               value={orgState}
-              onChange={(e) => { setOrgState(e.target.value); setOrgCity(""); }}
+              onChange={(e) => {
+                const id = e.target.value;
+                setOrgState(id); setOrgCity(""); setCities([]);
+                if (id) fetchCities(id).then(setCities).catch(console.error);
+              }}
               className="w-full h-12 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
             >
               <option value="">Select</option>
-              {orgCountry === "IN" && <>
-                <option>Maharashtra</option>
-                <option>Delhi</option>
-                <option>Karnataka</option>
-                <option>Tamil Nadu</option>
-                <option>Gujarat</option>
-              </>}
-              {orgCountry === "US" && <>
-                <option>California</option>
-                <option>Texas</option>
-                <option>New York</option>
-                <option>Florida</option>
-              </>}
-              {(orgCountry !== "IN" && orgCountry !== "US" && orgCountry !== "") && <option>N/A</option>}
+              {states.map((s) => (
+                <option key={s.id} value={String(s.id)}>{s.name}</option>
+              ))}
             </select>
             <ChevronDown size={15} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -569,72 +716,50 @@ export default function CoachDashboardPage() {
               className="w-full h-12 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-[#1a1a1a] outline-none focus:border-[#8B5CF6] appearance-none transition"
             >
               <option value="">Select</option>
-              {orgState === "Maharashtra" && <>
-                <option>Mumbai</option>
-                <option>Pune</option>
-                <option>Satara</option>
-                <option>Nashik</option>
-                <option>Nagpur</option>
-              </>}
-              {orgState === "Delhi" && <>
-                <option>New Delhi</option>
-                <option>Dwarka</option>
-              </>}
-              {orgState === "Karnataka" && <>
-                <option>Bengaluru</option>
-                <option>Mysuru</option>
-              </>}
-              {orgState === "California" && <>
-                <option>Los Angeles</option>
-                <option>San Francisco</option>
-                <option>San Diego</option>
-              </>}
-              {orgState === "Texas" && <>
-                <option>Houston</option>
-                <option>Dallas</option>
-                <option>Austin</option>
-              </>}
-              {orgState === "Tamil Nadu" && <>
-                <option>Chennai</option>
-                <option>Coimbatore</option>
-                <option>Madurai</option>
-              </>}
-              {orgState === "Gujarat" && <>
-                <option>Ahmedabad</option>
-                <option>Surat</option>
-                <option>Vadodara</option>
-              </>}
-              {orgState === "New York" && <>
-                <option>New York City</option>
-                <option>Buffalo</option>
-                <option>Albany</option>
-              </>}
-              {orgState === "Florida" && <>
-                <option>Miami</option>
-                <option>Orlando</option>
-                <option>Tampa</option>
-              </>}
-              {orgState === "N/A" && <>
-                <option>City 1</option>
-                <option>City 2</option>
-                <option>City 3</option>
-              </>}
+              {cities.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
             </select>
             <ChevronDown size={15} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
         </div>
       </div>
 
+      {orgSaveError && (
+        <p className="text-sm text-red-500 text-center bg-red-50 rounded-xl px-3 py-2">{orgSaveError}</p>
+      )}
+
       {/* Next */}
       <button
-        disabled={!orgName.trim() || !orgType || !adminEmail.trim() || !adminPhone.trim() || !adminAddress.trim() || !orgCountry || !orgState || !orgCity}
-        onClick={() => {
-          handleCloseAdminModal();
-          setShowCreateModal(true);
+        disabled={savingOrg || !orgName.trim() || !orgType || !adminEmail.trim() || !adminPhone.trim() || !adminAddress.trim() || !orgCountry || !orgState || !orgCity}
+        onClick={async () => {
+          setSavingOrg(true); setOrgSaveError(null);
+          try {
+            await coachApi.saveInstitutionDetails({
+              title: orgName.trim(),
+              mascot: existingMascot ?? "",
+              type: orgType,
+              email: adminEmail.trim(),
+              phone: adminPhone.trim(),
+              address: adminAddress.trim(),
+              country: orgCountry,
+              state: orgState,
+              city: orgCity,
+              maxCoaches: 3,
+              sponsored: false,
+            });
+            setHasOrganization(true);
+            handleCloseAdminModal();
+            setShowCreateModal(true);
+          } catch (err: any) {
+            setOrgSaveError(err.message || "Failed to save. Please try again.");
+          } finally {
+            setSavingOrg(false);
+          }
         }}
         className="w-full h-14 rounded-2xl bg-[#8B5CF6] text-white text-base font-bold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
       >
-        Next
+        {savingOrg ? "Saving…" : "Next"}
       </button>
     </div>
   </div>
@@ -723,14 +848,27 @@ export default function CoachDashboardPage() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={handleNewTeamClick}
-              disabled={teams.length === 0 && !teamPlanActivated}
-              title={teams.length === 0 && !teamPlanActivated ? "Activate a plan first using Use Code" : undefined}
-              className="h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_4px_12px_rgba(139,92,246,0.3)] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + New Team
-            </button>
+            <div className="flex flex-col items-start gap-1">
+              <button
+                onClick={handleNewTeamClick}
+                disabled={(teams.length === 0 && !teamPlanActivated) || teamsLeft === 0}
+                title={
+                  teamsLeft === 0
+                    ? "You have 0 teams left on your package"
+                    : teams.length === 0 && !teamPlanActivated
+                    ? "Activate a plan first using Use Code"
+                    : undefined
+                }
+                className="h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_4px_12px_rgba(139,92,246,0.3)] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                + New Team
+              </button>
+              {teamsLeft === 0 && (
+                <p className="text-xs text-red-500 font-medium">
+                  You have 0 teams left on your package
+                </p>
+              )}
+            </div>
 
             <button className="w-9 h-9 rounded-full bg-[#f5f5ff] flex items-center justify-center text-[#8B5CF6] border border-white/70 shadow-[0_8px_18px_rgba(139,92,246,0.18),inset_0_1px_1px_rgba(255,255,255,0.9)] hover:scale-105 active:scale-95 transition-all duration-200">
               <SlidersHorizontal size={18} />
@@ -752,12 +890,24 @@ export default function CoachDashboardPage() {
 
             <button
               onClick={handleNewTeamClick}
-              disabled={!teamPlanActivated}
-              title={!teamPlanActivated ? "Activate a plan first using Use Code" : undefined}
+              disabled={!teamPlanActivated || teamsLeft === 0}
+              title={
+                teamsLeft === 0
+                  ? "You have 0 teams left on your package"
+                  : !teamPlanActivated
+                  ? "Activate a plan first using Use Code"
+                  : undefined
+              }
               className="h-11 px-6 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create a New Team
             </button>
+
+            {teamsLeft === 0 && (
+              <p className="text-sm text-red-500 font-medium">
+                You have 0 teams left on your package
+              </p>
+            )}
 
             <div className="w-full border-t border-gray-100" />
 
@@ -798,7 +948,15 @@ export default function CoachDashboardPage() {
             {teams.map((team) => (
               <div
                 key={team.id}
-                onClick={() => router.push(`/coach/team/${team.id}`)}
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    team_name: team.name,
+                    org_name: team.school ?? "",
+                    owner_name: team.owner_name ?? "",
+                    logo: team.logo ?? "",
+                  });
+                  router.push(`/coach/team/${team.id}?${params.toString()}`);
+                }}
                 className="bg-white border border-gray-200 rounded-3xl p-4 sm:p-5 shadow-sm hover:shadow-md transition cursor-pointer"
               >
                 <div className="flex justify-between gap-3">
@@ -813,12 +971,21 @@ export default function CoachDashboardPage() {
                     )}
 
                     <div className="min-w-0">
+                      {team.school && (
+                        <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wide truncate leading-none mb-0.5">
+                          {team.school}
+                        </p>
+                      )}
                       <h3 className="text-base sm:text-lg font-bold text-[#222] truncate">
                         {team.name}
                       </h3>
-                      <span className="inline-flex mt-1.5 px-2.5 py-1 rounded-full bg-[#F3E8FF] text-[#8B5CF6] text-[10px] sm:text-[11px] font-semibold">
-                        Created {new Date(team.created_at).toLocaleDateString()}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        {team.organization_type && (
+                          <span className="inline-flex px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#D97706] text-[10px] font-semibold">
+                            {team.organization_type}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

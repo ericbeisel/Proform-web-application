@@ -63,6 +63,17 @@ export function setAuthUser(user: unknown) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
+export function getAuthUser(): { id: number; [key: string]: unknown } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function clearAuthSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
