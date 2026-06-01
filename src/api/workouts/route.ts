@@ -48,6 +48,20 @@ export interface WorkoutSession {
   workout_code: string;
   location_id: string | null;
   started_at: string;
+  shortId?: string;
+  title?: string;
+  subtitle?: string;
+  programName?: string;
+  program_id?: string;
+  workoutTitle?: string;
+  workoutImage?: string;
+  workoutCategory?: string;
+  week?: string;
+  day?: string;
+  createdAt?: string;
+  createdAtFormatted?: string;
+  joinedCount?: number;
+  participants?: { id?: number; name?: string; username?: string; image?: string }[];
 }
 
 export interface CreateSessionResponse {
@@ -223,6 +237,12 @@ export const deleteWorkoutSession = async (
       getErrorMessage(error, "Failed to delete workout session."),
     );
   }
+};
+
+export const getWorkoutSessionById = async (sessionId: string): Promise<WorkoutSession> => {
+  const { data } = await apiClient.get<WorkoutSession>(`/workouts/session/${sessionId}`);
+  console.log("[workout session] API response:", data);
+  return data;
 };
 
 export const swapExercise = async (

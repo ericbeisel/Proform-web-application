@@ -2,9 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CheckCircle } from "lucide-react";
+import { getAuthToken } from "@/lib/auth/session";
 
 export default function CoachOnBoardingPage() {
+  const router = useRouter();
+
+  function handleSignInClick() {
+    if (getAuthToken()) {
+      router.push("/coach/coach-dashboard");
+    } else {
+      router.push("/auth/login");
+    }
+  }
+
   const features = [
     "Save time on programming that you could spend coaching",
     "Increase participation within your teams",
@@ -54,12 +66,12 @@ export default function CoachOnBoardingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/auth/login"
+            <button
+              onClick={handleSignInClick}
               className="px-4 py-2 text-sm font-semibold text-[#2563eb] hover:text-[#1d4ed8]"
             >
-              Sign In
-            </Link>
+              Sign in
+            </button>
 
             <Link
               href="/coach/team-signup"

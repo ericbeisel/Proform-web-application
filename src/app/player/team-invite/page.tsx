@@ -1,20 +1,32 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { coachApi } from "@/api/coach/route";
+import { getAuthToken } from "@/lib/auth/session";
 
 function TeamInviteContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [joined, setJoined] = useState(false);
+  const [alreadyMember, setAlreadyMember] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const code = searchParams.get("code") ?? "";
   const teamId = Number(searchParams.get("team_id") ?? "0");
+
+  useEffect(() => {
+    setIsLoggedIn(!!getAuthToken());
+    // check if player already joined this team
+    if (teamId) {
+      const stored = localStorage.getItem(`joined_team_${teamId}`);
+      if (stored) setAlreadyMember(true);
+    }
+  }, [teamId]);
   const teamName = searchParams.get("team_name") ?? "Your Team";
   const orgName = searchParams.get("org_name") ?? "";
   const ownerName = searchParams.get("owner_name") ?? "";
@@ -33,16 +45,29 @@ function TeamInviteContent() {
 
     try {
       await coachApi.joinTeam({ team_id: teamId, unique_code: code });
+      localStorage.setItem(`joined_team_${teamId}`, "1");
       setProgress(100);
       setTimeout(() => {
         setIsLoading(false);
         setJoined(true);
-        setTimeout(() => router.push("/coach/coach-dashboard"), 800);
+        const params = new URLSearchParams({
+          team_name: teamName,
+          org_name: orgName,
+          owner_name: ownerName,
+          logo: searchParams.get("logo") ?? "",
+        });
+        setTimeout(() => router.push(`/coach/team/${teamId}?${params.toString()}`), 800);
       }, 400);
     } catch (err: any) {
       setProgress(0);
       setIsLoading(false);
-      setError(err.message || "Failed to join team. Please try again.");
+      const msg: string = err.message ?? "";
+      if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("member")) {
+        localStorage.setItem(`joined_team_${teamId}`, "1");
+        setAlreadyMember(true);
+      } else {
+        setError(msg || "Failed to join team. Please try again.");
+      }
     }
   };
 
@@ -106,9 +131,13 @@ function TeamInviteContent() {
               </p>
             </div>
 
-            <p className="text-[11px] text-gray-400 text-center">
-              Click &ldquo;Accept&rdquo; to join this team:
-            </p>
+            {!alreadyMember && (
+              <p className="text-[11px] text-gray-400 text-center">
+                {isLoggedIn
+                  ? <>Click &ldquo;Accept&rdquo; to join this team:</>
+                  : <>Log in to join this team:</>}
+              </p>
+            )}
 
             {error && (
               <p className="text-sm text-red-500 text-center w-full bg-red-50 rounded-xl px-3 py-2">{error}</p>
@@ -134,10 +163,26 @@ function TeamInviteContent() {
               </div>
             )}
 
-            {!joined && (
+            {alreadyMember && (
+              <div className="w-full flex flex-col items-center gap-2">
+                <div className="w-full bg-[#f0fdf4] border border-green-200 rounded-2xl px-4 py-3 flex items-center justify-center gap-2">
+                  <CheckCircle2 size={18} className="text-green-500 shrink-0" />
+                  <p className="text-sm font-bold text-green-700">You already belong to this team</p>
+                </div>
+              </div>
+            )}
+
+            {!joined && !alreadyMember && (
               <button
-                onClick={handleAccept}
-                disabled={isLoading || !code || !teamId}
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    const returnPath = window.location.pathname + window.location.search;
+                    router.push(`/auth/login?next=${encodeURIComponent(returnPath)}`);
+                    return;
+                  }
+                  handleAccept();
+                }}
+                disabled={isLoading}
                 className="w-full h-12 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-extrabold rounded-2xl shadow-lg shadow-[#8B5CF6]/40 hover:shadow-[#8B5CF6]/60 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (
@@ -148,7 +193,7 @@ function TeamInviteContent() {
                     </svg>
                     Joining…
                   </>
-                ) : "Accept"}
+                ) : !isLoggedIn ? "Log in to join team" : "Accept"}
               </button>
             )}
           </div>

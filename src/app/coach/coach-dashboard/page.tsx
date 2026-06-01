@@ -46,6 +46,7 @@ export default function CoachDashboardPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmTeam, setDeleteConfirmTeam] = useState<CoachTeam | null>(null);
   const [inviteTeam, setInviteTeam] = useState<CoachTeam | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string>("");
   const [loadingInvite, setLoadingInvite] = useState(false);
@@ -412,7 +413,7 @@ export default function CoachDashboardPage() {
                 )}
               </div>
               <p className="text-xs text-gray-500 text-center leading-relaxed">
-                Invite up to 45 people to join your team. Share your custom QR
+                Invite up to 50 people to join your team. Share your custom QR
                 Code or URL to send them an invite
               </p>
             </div>
@@ -765,13 +766,84 @@ export default function CoachDashboardPage() {
   </div>
 )}
 
+      {/* ── Delete Confirm Modal ── */}
+      {deleteConfirmTeam && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+          onClick={() => setDeleteConfirmTeam(null)}
+        >
+          <div
+            className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Red warning header */}
+            <div className="bg-red-500 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-white text-lg font-black">⚠ WARNING!!</span>
+              </div>
+              <button
+                onClick={() => setDeleteConfirmTeam(null)}
+                className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-6 flex flex-col gap-4">
+              <p className="text-base font-bold text-[#111]">
+                Deleting:{" "}
+                <span className="text-red-500">{deleteConfirmTeam.name}</span>
+              </p>
+
+              <p className="text-sm text-gray-600 leading-relaxed">
+                You would lose all data and the players will lose access to this team.
+              </p>
+
+              <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+                <p className="text-xs font-semibold text-red-500">
+                  Note: This process cannot be reversed
+                </p>
+              </div>
+
+              <p className="text-sm font-semibold text-[#111] text-center">
+                Do you wish to continue?
+              </p>
+
+              <div className="grid grid-cols-2 gap-3 mt-1">
+                <button
+                  onClick={() => setDeleteConfirmTeam(null)}
+                  className="h-11 rounded-2xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  No, Return
+                </button>
+                <button
+                  onClick={async () => {
+                    const id = deleteConfirmTeam.id;
+                    setDeleteConfirmTeam(null);
+                    await handleDeleteTeam(id);
+                  }}
+                  disabled={deletingId === deleteConfirmTeam.id}
+                  className="h-11 rounded-2xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <h1 className="text-base sm:text-2xl font-black text-[#1f1f1f] truncate">
             Coach Dashboard
           </h1>
-          <button className="hidden sm:flex h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold items-center justify-center hover:bg-[#7C3AED] transition shrink-0">
+          <button
+            onClick={() => router.push("/team/teams")}
+            className="hidden sm:flex h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold items-center justify-center hover:bg-[#7C3AED] transition shrink-0"
+          >
             Switch to Player
           </button>
         </div>
@@ -909,25 +981,29 @@ export default function CoachDashboardPage() {
               </p>
             )}
 
-            <div className="w-full border-t border-gray-100" />
+            {!teamPlanActivated && (
+              <>
+                <div className="w-full border-t border-gray-100" />
 
-            <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
-              You don&apos;t have any team plans yet. You can view/purchase team
-              plans or activate your plan using the code one of our reps has
-              given you below:
-            </p>
+                <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
+                  You don&apos;t have any team plans yet. You can view/purchase team
+                  plans or activate your plan using the code one of our reps has
+                  given you below:
+                </p>
 
-            <div className="flex items-center gap-3">
-              <button className="h-10 px-5 rounded-xl bg-[#f5f5f7] text-sm font-semibold text-[#222] hover:bg-gray-200 transition">
-                View Plans
-              </button>
-              <button
-                onClick={() => setShowActivateModal(true)}
-                className="h-10 px-5 rounded-xl border border-[#8B5CF6] text-sm font-semibold text-[#8B5CF6] hover:bg-[#f5f0ff] transition"
-              >
-                Use Code
-              </button>
-            </div>
+                <div className="flex items-center gap-3">
+                  <button disabled className="h-10 px-5 rounded-xl bg-[#f5f5f7] text-sm font-semibold text-gray-300 cursor-not-allowed">
+                    View Plans
+                  </button>
+                  <button
+                    onClick={() => setShowActivateModal(true)}
+                    className="h-10 px-5 rounded-xl border border-[#8B5CF6] text-sm font-semibold text-[#8B5CF6] hover:bg-[#f5f0ff] transition"
+                  >
+                    Use Code
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : loading ? (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -993,13 +1069,14 @@ export default function CoachDashboardPage() {
                   <div className="flex items-start gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setInviteTeam(team)}
-                      className="w-9 h-9 rounded-full bg-[#f0fdf4] flex items-center justify-center text-green-500 hover:bg-green-100 hover:text-green-600 transition"
-                      title="Invite player"
+                      disabled={team.tagged_players_count >= 50}
+                      title={team.tagged_players_count >= 50 ? "Team is full (50/50 players)" : "Invite player"}
+                      className="w-9 h-9 rounded-full bg-[#f0fdf4] flex items-center justify-center text-green-500 hover:bg-green-100 hover:text-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f0fdf4] disabled:hover:text-green-500"
                     >
                       <UserPlus size={15} />
                     </button>
                     <button
-                      onClick={() => handleDeleteTeam(team.id)}
+                      onClick={() => setDeleteConfirmTeam(team)}
                       disabled={deletingId === team.id}
                       className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 hover:text-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete team"
@@ -1018,9 +1095,14 @@ export default function CoachDashboardPage() {
                     <div>
                       <p className="text-sm font-semibold text-[#222]">
                         {team.tagged_players_count}
-                        <span className="text-[#222] font-semibold">/50</span>
+                        <span className={team.tagged_players_count >= 50 ? "text-red-500 font-semibold" : "text-[#222] font-semibold"}>/50</span>
                       </p>
-                      <p className="text-[11px]">players</p>
+                      <p className="text-[11px]">
+                        {team.tagged_players_count >= 50
+                          ? <span className="text-red-500 font-semibold">Team Full</span>
+                          : "players"
+                        }
+                      </p>
                     </div>
                   </div>
 

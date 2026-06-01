@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import {
   ArrowLeft,
   Plus,
@@ -47,7 +47,7 @@ const toolbox = [
   { label: "Send Group Reminders", icon: BellRing, color: "bg-[#E0F2FE]", iconColor: "text-[#0EA5E9]" },
 ];
 
-export default function TeamDetailPage() {
+function TeamDetailContent() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -112,13 +112,19 @@ export default function TeamDetailPage() {
             </div>
           </div>
 
-          <button className="hidden sm:flex h-8 px-3 rounded-xl bg-[#8B5CF6] text-white text-xs font-semibold items-center hover:bg-[#7C3AED] transition shrink-0">
+          <button
+            onClick={() => router.push("/team/teams")}
+            className="hidden sm:flex h-8 px-3 rounded-xl bg-[#8B5CF6] text-white text-xs font-semibold items-center hover:bg-[#7C3AED] transition shrink-0"
+          >
             Switch to Player
           </button>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button className="hidden sm:flex h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-700 items-center gap-1.5 hover:bg-gray-50 transition">
+          <button
+            onClick={() => router.push(`/coach/activity?team_id=${id}`)}
+            className="hidden sm:flex h-8 px-3 rounded-full border border-gray-200 text-xs font-semibold text-gray-700 items-center gap-1.5 hover:bg-gray-50 transition"
+          >
             All Activity
           </button>
           <button className="w-8 h-8 rounded-full bg-[#10B981] flex items-center justify-center shadow-md">
@@ -413,5 +419,17 @@ export default function TeamDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TeamDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <TeamDetailContent />
+    </Suspense>
   );
 }

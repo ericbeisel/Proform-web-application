@@ -799,6 +799,15 @@ export const getProgramIdByCode = async (
 //   return null;
 // };
 
+export const getProgramTags = async (code: string): Promise<string[]> => {
+  try {
+    const { data } = await apiClient.get<string[]>(`/programs/${code}/tags`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
 export const getProgramGroupedWorkouts = async (
   programCode: string,
 ): Promise<WorkoutGroup[]> => {

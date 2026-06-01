@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getRecoveryDashboard, getAllRecoveryZones, updateRecoveryGoal, RecoveryDashboardData, RecoveryZone } from "@/api/recovery/route";
+import { feedApi, Advertisement } from "@/api/feed/route";
 
 // Helper function to get image URL
 const getImageUrl = (imageUrl: string | null | undefined): string => {
@@ -65,6 +66,10 @@ export default function RecoveryDashboard() {
   const [recoveryZones, setRecoveryZones] = useState<RecoveryZone[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [goal, setGoal] = useState<number | string>(70);
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [adIndex, setAdIndex] = useState(0);
+  const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Fetch dashboard data and recovery zones
   useEffect(() => {
@@ -93,7 +98,16 @@ export default function RecoveryDashboard() {
       }
     };
     fetchData();
+    feedApi.getAdvertisements()
+      .then((all) => setAds([...all].sort(() => Math.random() - 0.5).slice(0, 4)))
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (ads.length === 0) return;
+    const timer = setInterval(() => setAdIndex((i) => (i + 1) % ads.length), 3500);
+    return () => clearInterval(timer);
+  }, [ads]);
 
   const increase = () => {
     setGoal((prev) => Number(prev || 0) + 5);
@@ -243,15 +257,23 @@ export default function RecoveryDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT SIDE */}
         <div className="space-y-6">
-          {/* AI Suggestion Card */}
-          {aiSuggestion && (
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl p-5 shadow">
-              <p className="text-sm opacity-90 mb-1">AI SUGGESTION</p>
-              <p className="text-2xl font-bold">{aiSuggestion.suggestedMin} minutes</p>
-              <p className="text-xs opacity-80 mt-2">
-                Based on {aiSuggestion.workoutMin} workout minutes • Body: {aiSuggestion.bodyMultiplier}x • Strength: {aiSuggestion.strengthMultiplier}x
-              </p>
-            </div>
+          {/* AD BANNER */}
+          {ads.length > 0 && (
+            <button
+              onClick={() => setSelectedAd(ads[adIndex])}
+              className="block w-full relative rounded-[20px] overflow-hidden shadow-sm border border-gray-200 bg-black text-left h-32"
+            >
+              <img src={ads[adIndex].image} alt="advertisement" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/20" />
+              <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
+                Sponsored
+              </span>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                {ads.map((_, i) => (
+                  <div key={i} className={`h-1.5 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1.5"}`} />
+                ))}
+              </div>
+            </button>
           )}
 
           {/* Progress Card */}
@@ -445,6 +467,58 @@ export default function RecoveryDashboard() {
           </div>
         </div>
       </div>
+
+      {/* AD DETAIL POPUP */}
+      {selectedAd && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+              className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} className="text-gray-600" />
+            </button>
+            <div className="p-5">
+              <p className="font-bold text-gray-800 text-sm mb-3">Ad Details:</p>
+              <div className="rounded-2xl overflow-hidden mb-4 bg-gray-100 h-44">
+                <img src={selectedAd.image} alt="ad" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded shrink-0">Link :</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedAd.link);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="text-blue-500 text-[12px] underline truncate max-w-[180px] text-left"
+                >
+                  {selectedAd.link}
+                </button>
+                {linkCopied && <span className="text-[10px] text-green-600 font-semibold shrink-0">Copied!</span>}
+              </div>
+              <button
+                onClick={() => window.open(selectedAd.link, "_blank", "noopener,noreferrer")}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-2xl text-[14px] transition mb-3"
+              >
+                Redirect
+              </button>
+              <p className="text-center text-[12px] font-semibold text-gray-700 mb-3">
+                Go Ad-Free and Get 2x Points
+              </p>
+              <button className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-3 rounded-2xl text-[13px] transition">
+                Only $8.95/mo →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ✅ MODAL */}
       {showModal && (

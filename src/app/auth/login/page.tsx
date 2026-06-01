@@ -80,10 +80,7 @@ export default function LoginPage() {
 
       console.log("🔀 Redirecting to:", safeNextPath || redirectTo);
 
-      // router.replace(
-      //   redirectTo === "/dashboard" && safeNextPath ? safeNextPath : redirectTo,
-      // );
-           window.location.href = redirectTo === '/dashboard' && safeNextPath ? safeNextPath : redirectTo
+      window.location.href = safeNextPath ?? redirectTo;
 
     } catch (err: any) {
       const errorMsg = err.message || "Unable to login. Please try again.";

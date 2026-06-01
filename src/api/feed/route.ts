@@ -10,6 +10,12 @@ console.log("🔧 API Base URL:", API_BASE);
 // TYPES
 // ===========================================
 
+export interface Advertisement {
+  id: string;
+  link: string;
+  image: string;
+}
+
 export interface Feed {
   id: string;
   user_id: number;
@@ -287,6 +293,16 @@ export const feedApi = {
    * ❌ KEEP (for backward compatibility if used somewhere)
    * but internally redirect to correct API
    */
+  getAdvertisements: async (adType?: string): Promise<Advertisement[]> => {
+    try {
+      const url = adType ? `/advertisements?adType=${adType}` : "/advertisements";
+      const res = await apiClient.get<Advertisement[]>(url);
+      return res.data || [];
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, "Failed to fetch advertisements."));
+    }
+  },
+
   toggleLike: async (feedId: number): Promise<void> => {
     console.log("🔄 Toggle like for feed ID:", feedId);
     try {

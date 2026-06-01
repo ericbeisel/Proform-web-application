@@ -6,7 +6,7 @@ import {
   Plus, Pencil, Trash2, Dumbbell, Check, X, BarChart2, Loader2,
   Calendar, CheckCircle, ArrowUp, ArrowDown
 } from "lucide-react";
-import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue } from "@/api/programs/route";
+import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue, getProgramTags } from "@/api/programs/route";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -92,6 +92,7 @@ export default function WorkoutDashboard() {
   const [newGoalValue, setNewGoalValue] = useState("");
   const [isReordering, setIsReordering] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,13 @@ export default function WorkoutDashboard() {
     });
 
     setSessions(mapped);
+
+    const uniqueCodes = [...new Set(mapped.map((s) => s.programCode).filter(Boolean))] as string[];
+    uniqueCodes.forEach((code) => {
+      getProgramTags(code).then((tags) => {
+        setTagsMap((prev) => ({ ...prev, [code]: tags }));
+      });
+    });
   }, [workouts, activities]);
 
   // ── Derived stats ──────────────────────────────────────────────────────────
@@ -429,16 +437,18 @@ export default function WorkoutDashboard() {
                   )}
 
                   {/* Stat pills — hidden on very small screens to save space */}
-                  <div className="hidden xs:flex sm:flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    {["$5-5s", "$5-15", "$3RY8"].map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] sm:text-xs font-medium"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                  {(tagsMap[session.programCode || ""] || []).length > 0 && (
+                    <div className="hidden xs:flex sm:flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {(tagsMap[session.programCode || ""] || []).map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] sm:text-xs font-medium"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* ── Right-side controls ── */}

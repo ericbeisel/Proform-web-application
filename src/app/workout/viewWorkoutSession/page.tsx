@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
-import { getProgramGroupedWorkouts, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
+import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
 import {
   getIncompleteSessions,
   getWorkoutSection,
@@ -43,6 +43,7 @@ import {
   IncompleteSession,
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
+import { feedApi, Advertisement } from "@/api/feed/route";
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -74,6 +75,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [rejoinLoading, setRejoinLoading] = useState(false);
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
   const [workoutName, setWorkoutName] = useState<string>("");
+  const [programTags, setProgramTags] = useState<string[]>([]);
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -88,6 +90,10 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [savingLogs, setSavingLogs] = useState(false);
   const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
   const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [adIndex, setAdIndex] = useState(0);
+  const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [filterByLocation, setFilterByLocation] = useState(false);
   const [locationFilteredGroups, setLocationFilteredGroups] = useState<WorkoutGroup[]>([]);
   const [locationFilterLoading, setLocationFilterLoading] = useState(false);
@@ -298,6 +304,7 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
     if (savedLocation) setLocation(savedLocation);
 
     const programCode = localStorage.getItem("workoutProgramCode");
+    if (programCode) getProgramTags(programCode.toLowerCase()).then(setProgramTags).catch(() => {});
     const title = localStorage.getItem("workoutTitle");
     if (title) setWorkoutTitle(title);
     const name = localStorage.getItem("workoutName");
@@ -375,23 +382,41 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
   dashboardApi.getDashboardData()
     .then((res) => setUserOtherDetail(res.user.OtherDetail))
     .catch(() => {/* non-critical */});
+
+  feedApi.getAdvertisements()
+    .then((all) => {
+      const shuffled = [...all].sort(() => Math.random() - 0.5).slice(0, 4);
+      setAds(shuffled);
+    })
+    .catch(() => {});
 }, []);
+
+useEffect(() => {
+  if (ads.length === 0) return;
+  const timer = setInterval(() => setAdIndex((i) => (i + 1) % ads.length), 3500);
+  return () => clearInterval(timer);
+}, [ads]);
 
   // Dynamic ExerciseCard that uses real data
 const DynamicExerciseCard = ({
   item,
   locked = false,
   sessionStarted = false,
+  onCardClick,
 }: {
   item: WorkoutGroupItem;
   locked?: boolean;
   sessionStarted?: boolean;
+  onCardClick?: () => void;
 }) => {
   const actualItem = getActualExercise(item);
   const isSwapped = swappedExercises.has(item.exercise_id);
-  
+
   return (
-    <div className={`bg-white rounded-[24px] border border-[#e8e8ef] relative transition-all p-4 min-h-[170px] ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"}`}>
+    <div
+      onClick={!locked && onCardClick ? onCardClick : undefined}
+      className={`bg-white rounded-[24px] border border-[#e8e8ef] relative transition-all p-4 min-h-[170px] ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"} ${!locked && onCardClick ? "cursor-pointer" : ""}`}
+    >
       <div className="absolute top-2 left-2 flex items-center gap-1">
         {actualItem.is_power_set && (
           <span className="text-[9px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">$</span>
@@ -431,6 +456,12 @@ const DynamicExerciseCard = ({
           {actualItem.reps || "—"}
         </p>
       </div>
+
+      {actualItem.weight !== undefined && (
+        <p className="text-[10px] font-bold text-red-500 text-center mt-0.5">
+          @ {actualItem.weight} kg
+        </p>
+      )}
 
       {actualItem.supplemental && (
         <div className="flex gap-2 justify-center mt-1 flex-wrap">
@@ -538,6 +569,15 @@ const DynamicExerciseCard = ({
                 <p className="text-[12px] font-black uppercase tracking-wide text-[#222] mt-1">
                   {totalExercises} Exercises
                 </p>
+                {programTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {programTags.map((tag) => (
+                      <span key={tag} className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -649,6 +689,25 @@ const DynamicExerciseCard = ({
               </div>
 
             </div>
+          )}
+
+          {/* COMPACT AD STRIP */}
+          {ads.length > 0 && (
+            <button
+              onClick={() => setSelectedAd(ads[adIndex])}
+              className="mt-3 w-full relative h-20 rounded-xl overflow-hidden flex items-center text-left"
+            >
+              <img src={ads[adIndex].image} alt="ad" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/30" />
+              <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
+                Sponsored
+              </span>
+              <div className="relative z-10 ml-auto mr-2 flex gap-1">
+                {ads.map((_, i) => (
+                  <div key={i} className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`} />
+                ))}
+              </div>
+            </button>
           )}
         </div>
 
@@ -977,7 +1036,21 @@ const DynamicExerciseCard = ({
                           <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">
                             {group.label} {group.rounds && `(${group.rounds})`}
                           </h2>
-                          {isGroupLocked && <Lock size={12} className="text-gray-300 ml-auto" />}
+                          {isGroupLocked
+                            ? <Lock size={12} className="text-gray-300 ml-auto" />
+                            : (
+                              <button
+                                disabled={!activeSession}
+                                onClick={() => {
+                                  localStorage.setItem("sessionActive", "true");
+                                  router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`);
+                                }}
+                                className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#7c3aed]"
+                              >
+                                <Play size={12} fill="white" className="text-white ml-0.5" />
+                              </button>
+                            )
+                          }
                         </div>
                         
                         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -987,6 +1060,10 @@ const DynamicExerciseCard = ({
                               item={item}
                               locked={isGroupLocked}
                               sessionStarted={sessionStarted}
+                              onCardClick={activeSession ? () => {
+                                localStorage.setItem("sessionActive", "true");
+                                router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`);
+                              } : undefined}
                             />
                           ))}
                         </div>
@@ -1321,6 +1398,58 @@ const DynamicExerciseCard = ({
                   <ChevronRight size={14} />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AD DETAIL POPUP */}
+      {selectedAd && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+              className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} className="text-gray-600" />
+            </button>
+            <div className="p-5">
+              <p className="font-bold text-gray-800 text-sm mb-3">Ad Details:</p>
+              <div className="rounded-2xl overflow-hidden mb-4 bg-gray-100 h-44">
+                <img src={selectedAd.image} alt="ad" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded shrink-0">Link :</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedAd.link);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="text-blue-500 text-[12px] underline truncate max-w-[180px] text-left"
+                >
+                  {selectedAd.link}
+                </button>
+                {linkCopied && <span className="text-[10px] text-green-600 font-semibold shrink-0">Copied!</span>}
+              </div>
+              <button
+                onClick={() => window.open(selectedAd.link, "_blank", "noopener,noreferrer")}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-2xl text-[14px] transition mb-3"
+              >
+                Redirect
+              </button>
+              <p className="text-center text-[12px] font-semibold text-gray-700 mb-3">
+                Go Ad-Free and Get 2x Points
+              </p>
+              <button className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-3 rounded-2xl text-[13px] transition">
+                Only $8.95/mo →
+              </button>
             </div>
           </div>
         </div>

@@ -224,16 +224,33 @@ export default function AthenaWorkoutPage() {
         if (loc) setLocationName(loc);
         const locId = localStorage.getItem("workoutLocationId");
         if (locId) setLocationId(locId);
-        const groups = await getProgramGroupedWorkouts(code);
+        const rawGroups = await getProgramGroupedWorkouts(code);
+        const getRoundNum = (label: string) => {
+          const m = label.match(/^ROUND\s+(\d+)/i);
+          return m ? parseInt(m[1], 10) : Infinity;
+        };
+        const groups = [...rawGroups].sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
         setSections(groups);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const startLabel = urlParams.get("section");
+        const startExerciseIdx = parseInt(urlParams.get("exercise") || "0", 10) || 0;
+        const startIdx = startLabel
+          ? Math.max(0, groups.findIndex((g) => g.label.trim() === startLabel.trim()))
+          : 0;
+
+        if (startIdx > 0) setCurrentSectionIndex(startIdx);
 
         if (groups.length > 0) {
           const exercises = await getWorkoutSection({
             sessionId: sid,
             programCode: code,
-            section: groups[0].label,
+            section: groups[startIdx]?.label || groups[0].label,
           });
           setSectionExercises(exercises);
+          if (startExerciseIdx > 0 && startExerciseIdx < exercises.length) {
+            setCurrentExerciseIndex(startExerciseIdx);
+          }
         }
       } catch (err) {
         console.error("[athena] Failed to load workout data:", err);
@@ -1016,13 +1033,15 @@ export default function AthenaWorkoutPage() {
                   {!isRunning ? "PAUSED" : timerPhase === "setup" ? "SETUP" : "ACTIVE"}
                 </span>
               </div>
-              <button
-                onClick={handleSkip}
-                disabled={sectionExercises.length === 0}
-                className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase disabled:opacity-30"
-              >
-                Skip
-              </button>
+              {timerPhase === "setup" && (
+                <button
+                  onClick={handleSkip}
+                  disabled={sectionExercises.length === 0}
+                  className="text-purple-600 font-black text-[9px] tracking-widest hover:underline uppercase disabled:opacity-30"
+                >
+                  Skip
+                </button>
+              )}
             </div>
           </div>
 

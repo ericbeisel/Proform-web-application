@@ -6,7 +6,7 @@ import {
   ArrowLeft, Share2, Bookmark, X,
   Dumbbell, Zap, Plus, ChevronRight, Loader2
 } from "lucide-react";
-import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
+import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, getProgramTags, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
 import { getCompletedUsers, CompletedUser } from "@/api/workouts/route";
 interface WorkoutDetailProps {
   workoutId?: number | string;
@@ -32,6 +32,7 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const [includeSupplemental, setIncludeSupplemental] = useState(false);
   const [addingToQueue, setAddingToQueue] = useState(false);
   const [completedUsers, setCompletedUsers] = useState<CompletedUser[]>([]);
+  const [programTags, setProgramTags] = useState<string[]>([]);
   // Add this line at the top of the component, before any hooks
 console.log("=== WorkoutDetail mount ===");
 console.log("localStorage workoutProgramId:", typeof window !== 'undefined' ? localStorage.getItem("workoutProgramId") : "SSR");
@@ -72,6 +73,7 @@ useEffect(() => {
       setPowerSets(Array.isArray(powerSetsData) ? powerSetsData : []);
       setWorkoutStats(statsData);
       setProgramCode(lowerCode);
+      getProgramTags(lowerCode).then(setProgramTags).catch(() => {});
 
       if (workoutKey) setWorkoutTitle(workoutKey);
 
@@ -260,13 +262,15 @@ const filteredExercises = exercises;
               {workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING')}
             </h1>
           
-            <div className="flex flex-wrap gap-1.5">
-              {['Long', 'Hard', 'Hard'].map((tag, i) => (
-                <span key={i} className="px-4 md:px-5 py-1.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase">
-                  {tag}
-                </span>
-              ))}
-            </div>
+            {programTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {programTags.map((tag) => (
+                  <span key={tag} className="px-4 md:px-5 py-1.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
    <button 
   onClick={() => {

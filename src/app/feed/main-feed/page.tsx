@@ -20,7 +20,8 @@ import {
   MessageCircle,
   Dumbbell,
 } from "lucide-react";
-import { feedApi, CurrentUser, Feed, HighlightGroup, HighlightItem } from "@/api/feed/route";
+import { feedApi, CurrentUser, Feed, HighlightGroup, HighlightItem, Advertisement } from "@/api/feed/route";
+import { getWorkoutSessionById } from "@/api/workouts/route";
 import { useRouter } from "next/navigation";
 
 interface ExtendedFeed extends Feed {
@@ -136,6 +137,10 @@ const [creatingHighlight, setCreatingHighlight] =
     useState<CurrentUser | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [adIndex, setAdIndex] = useState(0);
+  const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [likingFeedId, setLikingFeedId] =
     useState<string | null>(null);
@@ -145,6 +150,31 @@ const [creatingHighlight, setCreatingHighlight] =
 
   const [selectedSessionFeed, setSelectedSessionFeed] =
     useState<ExtendedFeed | null>(null);
+  const [sessionProgramImage, setSessionProgramImage] = useState<string | null>(null);
+  const [sessionWorkoutCategory, setSessionWorkoutCategory] = useState<string | null>(null);
+  const [sessionData, setSessionData] = useState<import("@/api/workouts/route").WorkoutSession | null>(null);
+
+  useEffect(() => {
+    if (!selectedSessionFeed) {
+      setSessionProgramImage(null);
+      setSessionWorkoutCategory(null);
+      setSessionData(null);
+      return;
+    }
+    const activityId = selectedSessionFeed.activity_id;
+    if (!activityId) return;
+    getWorkoutSessionById(activityId)
+      .then((session) => {
+        setSessionProgramImage(session.workoutImage || null);
+        setSessionWorkoutCategory(session.workoutCategory || null);
+        setSessionData(session);
+      })
+      .catch(() => {
+        setSessionProgramImage(null);
+        setSessionWorkoutCategory(null);
+        setSessionData(null);
+      });
+  }, [selectedSessionFeed]);
 
   const getSessionTypeLabel = (type: string): string => {
     switch (type) {
@@ -179,6 +209,14 @@ const [creatingHighlight, setCreatingHighlight] =
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (ads.length === 0) return;
+    const timer = setInterval(() => {
+      setAdIndex((i) => (i + 1) % ads.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [ads]);
+
  const mapFeeds = (rawFeeds: any[]): ExtendedFeed[] =>
   rawFeeds.map((feed) => {
     const raw = feed as any;
@@ -209,6 +247,9 @@ const [creatingHighlight, setCreatingHighlight] =
     setCurrentUser(user);
     const highlightsData = await feedApi.listHighlights(1);
     setHighlights(highlightsData);
+    const allAds = await feedApi.getAdvertisements();
+    const shuffled = [...allAds].sort(() => Math.random() - 0.5).slice(0, 4);
+    setAds(shuffled);
   } catch (err) {
     console.error("Failed to load feed:", err);
   } finally {
@@ -596,7 +637,7 @@ const [creatingHighlight, setCreatingHighlight] =
                 </div>
 
                 {/* CARDS */}
-                {group.feeds.map((feed) => {
+                {group.feeds.map((feed, feedIdx) => {
                   const displayUser = feed.user;
 
                   const activityLabel =
@@ -613,7 +654,7 @@ const [creatingHighlight, setCreatingHighlight] =
                     feed.type === "CompleteConditioning" ? "bg-yellow-400" :
                     "bg-blue-500";
 
-                  return (
+                  const card = (
                     <div
                       key={String(feed.id)}
                       className="relative bg-white rounded-[26px] border border-[#ececf3] px-5 py-5 mb-4 overflow-hidden shadow-sm"
@@ -727,6 +768,35 @@ const [creatingHighlight, setCreatingHighlight] =
                           </button>
                         </div>
                       </div>
+                    </div>
+                  );
+
+                  return (
+                    <div key={String(feed.id)}>
+                      {card}
+                      {feedIdx === 0 && ads.length > 0 && (
+                        <button
+                          onClick={() => setSelectedAd(ads[adIndex])}
+                          className="block w-full relative rounded-[26px] overflow-hidden mb-4 shadow-sm border border-[#ececf3] bg-black text-left"
+                        >
+                          <img
+                            src={ads[adIndex].image}
+                            alt="advertisement"
+                            className="w-full h-44 object-cover"
+                          />
+                          <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
+                            Sponsored
+                          </span>
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                            {ads.map((_, i) => (
+                              <div
+                                key={i}
+                                className={`h-1.5 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1.5"}`}
+                              />
+                            ))}
+                          </div>
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1274,6 +1344,71 @@ const [creatingHighlight, setCreatingHighlight] =
     </div>
   </div>
 )}
+      {/* AD DETAIL POPUP */}
+      {selectedAd && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close */}
+            <button
+              onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+              className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} className="text-gray-600" />
+            </button>
+
+            <div className="p-5">
+              <p className="font-bold text-gray-800 text-sm mb-3">Ad Details:</p>
+
+              {/* Image */}
+              <div className="rounded-2xl overflow-hidden mb-4 bg-gray-100 h-44">
+                <img src={selectedAd.image} alt="ad" className="w-full h-full object-cover" />
+              </div>
+
+              {/* Link row */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded">Link :</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedAd.link);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="text-blue-500 text-[12px] underline truncate max-w-[180px] text-left"
+                >
+                  {selectedAd.link}
+                </button>
+                {linkCopied && (
+                  <span className="text-[10px] text-green-600 font-semibold shrink-0">Copied!</span>
+                )}
+              </div>
+
+              {/* Redirect */}
+              <button
+                onClick={() => window.open(selectedAd.link, "_blank", "noopener,noreferrer")}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-2xl text-[14px] transition mb-3"
+              >
+                Redirect
+              </button>
+
+              {/* Go Ad-Free */}
+              <p className="text-center text-[12px] font-semibold text-gray-700 mb-3">
+                Go Ad-Free and Get 2x Points
+              </p>
+
+              <button className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-3 rounded-2xl text-[13px] transition flex items-center justify-center gap-1">
+                Only $8.95/mo →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SESSION DETAIL POPUP */}
       {selectedSessionFeed && (
         <div
@@ -1284,15 +1419,19 @@ const [creatingHighlight, setCreatingHighlight] =
             className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* TOP — blue banner */}
+            {/* TOP — image banner */}
             <div className="relative h-52 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center overflow-hidden">
-              {selectedSessionFeed.mediaUrl || selectedSessionFeed.media_url ? (
-                <img
-                  src={(selectedSessionFeed.mediaUrl || selectedSessionFeed.media_url)!}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover opacity-40"
-                />
-              ) : null}
+              {(() => {
+                const imgSrc = sessionProgramImage;
+                return imgSrc ? (
+                  <>
+                    <img src={imgSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-black/30" />
+                  </>
+                ) : (
+                  <Dumbbell size={96} className="text-white/20 rotate-[-20deg]" />
+                );
+              })()}
 
               {/* Category pill — top left */}
               <div className="absolute top-4 left-4">
@@ -1347,6 +1486,35 @@ const [creatingHighlight, setCreatingHighlight] =
                 {selectedSessionFeed.title || selectedSessionFeed.description || "Workout Session"}
               </h3>
 
+              {/* Participants */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center">
+                  {sessionData?.participants && sessionData.participants.length > 0 ? (
+                    sessionData.participants.slice(0, 4).map((p, i) => (
+                      <div
+                        key={i}
+                        className="w-7 h-7 rounded-full border-2 border-white overflow-hidden bg-purple-200 flex items-center justify-center -ml-2 first:ml-0 shadow-sm"
+                      >
+                        {p.image ? (
+                          <img src={p.image} alt={p.name || ""} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] font-bold text-purple-700">
+                            {(p.name || p.username || "?").charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center shadow-sm">
+                      <Users size={12} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <span className="text-[12px] font-semibold text-gray-500">
+                  {sessionData?.joinedCount ?? 0} joined
+                </span>
+              </div>
+
               {/* Stats row */}
               <div className="flex items-center gap-3 text-gray-500 text-[12px] mb-5 flex-wrap">
                 <div className="flex items-center gap-1">
@@ -1363,7 +1531,7 @@ const [creatingHighlight, setCreatingHighlight] =
                 </div>
                 <div className="flex items-center gap-1 text-purple-500">
                   <Dumbbell size={13} />
-                  <span>{selectedSessionFeed.title2 || "Full Body"}</span>
+                  <span>{sessionWorkoutCategory || selectedSessionFeed.title2 || "Full Body"}</span>
                 </div>
               </div>
 
@@ -1379,6 +1547,16 @@ const [creatingHighlight, setCreatingHighlight] =
                       date: selectedSessionFeed.date || selectedSessionFeed.created_at || "",
                     });
                     router.push(`/feed/cardio-session?${params.toString()}`);
+                  } else {
+                    const code = sessionData?.program_id || sessionData?.workout_code || "";
+                    const activeId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
+                    localStorage.setItem("workoutProgramCode", code);
+                    localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                    localStorage.setItem("workoutName", sessionData?.programName || "");
+                    localStorage.setItem("workoutIsFree", "true");
+                    if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, activeId);
+                    localStorage.setItem("sessionActive", "true");
+                    router.push("/workout/viewWorkoutSession");
                   }
                 }}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
@@ -1387,7 +1565,17 @@ const [creatingHighlight, setCreatingHighlight] =
               </button>
 
               {/* Workout Preview */}
-              <button className="w-full text-purple-600 font-semibold text-sm text-center hover:text-purple-700 transition">
+              <button
+                onClick={() => {
+                  const code = sessionData?.program_id || sessionData?.workout_code || "";
+                  localStorage.setItem("workoutProgramCode", code);
+                  localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                  localStorage.setItem("workoutName", sessionData?.programName || "");
+                  localStorage.setItem("workoutIsFree", "true");
+                  router.push("/workout/viewWorkoutSession");
+                }}
+                className="w-full text-purple-600 font-semibold text-sm text-center hover:text-purple-700 transition"
+              >
                 Workout Preview
               </button>
             </div>

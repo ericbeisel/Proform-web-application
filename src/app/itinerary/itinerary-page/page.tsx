@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, Calendar, X, ChevronRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
+import { getProgramTags } from "@/api/programs/route";
 
 type FilterTab =
   | "PRIMARY"
@@ -166,6 +167,7 @@ export default function ItineraryPage() {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [repeatType, setRepeatType] = useState<"week" | "repeat">("repeat");
   const [selectedWorkout, setSelectedWorkout] = useState<ItineraryWorkout | null>(null);
+  const [selectedWorkoutTags, setSelectedWorkoutTags] = useState<string[]>([]);
   const [itineraryData, setItineraryData] = useState<ItineraryWorkout[]>([]);
   const [scheduleType, setScheduleType] = useState<string>("All");
   const [loading, setLoading] = useState(true);
@@ -241,6 +243,16 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
   
 
 };
+
+  useEffect(() => {
+    if (!selectedWorkout?.title) { setSelectedWorkoutTags([]); return; }
+    getProgramTags(selectedWorkout.title.toLowerCase())
+      .then((tags) => {
+        console.log("[itinerary] tags for", selectedWorkout.title, ":", tags);
+        setSelectedWorkoutTags(tags);
+      })
+      .catch(() => setSelectedWorkoutTags([]));
+  }, [selectedWorkout]);
 
   const toggleDay = (day: string) => {
     setSelectedDays((prev) =>
@@ -657,6 +669,15 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                   <p className="text-[14px] font-medium opacity-80 mt-1">
                     {selectedWorkout.week} • {selectedWorkout.muscles_used}
                   </p>
+                  {selectedWorkoutTags.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                      {selectedWorkoutTags.map((tag) => (
+                        <span key={tag} className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black rounded-full uppercase">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => setSelectedWorkout(null)}
