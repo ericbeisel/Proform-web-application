@@ -7,6 +7,12 @@ import { getAllSessions, LiveSession } from "@/api/dashboard/route";
 
 const FILTER_OPTIONS = ["All Session", "Open Session", "Close Session"];
 
+const FILTER_STATUS: Record<string, boolean | undefined> = {
+  "All Session": undefined,
+  "Open Session": false,
+  "Close Session": true,
+};
+
 function openSession(session: LiveSession, router: ReturnType<typeof useRouter>) {
   localStorage.setItem("workoutProgramCode", session.title);
   localStorage.setItem("workoutTitle", session.programName);
@@ -25,8 +31,9 @@ export default function LiveSessionsPage() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   useEffect(() => {
+    console.log("[LiveSessions] fetching — page:", page, "filter:", filter, "status:", FILTER_STATUS[filter]);
     setLoading(true);
-    getAllSessions({ page })
+    getAllSessions({ page, status: FILTER_STATUS[filter] })
       .then((res) => {
         setSessions(res.sessions || []);
         setTotalPages(res.totalPages || 1);
@@ -34,7 +41,7 @@ export default function LiveSessionsPage() {
       })
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, filter]);
 
   return (
     <div className="min-h-screen bg-[#f0eff4] text-[#1a1825]">

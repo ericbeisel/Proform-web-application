@@ -286,6 +286,7 @@ export const getAllSessions = async (params?: {
   page?: number;
   memberId?: string;
   userId?: string;
+  status?: boolean;
 }): Promise<AllSessionsResponse> => {
   const { data } = await apiClient.get<AllSessionsResponse>(
     "/dashboard/all-sessions",

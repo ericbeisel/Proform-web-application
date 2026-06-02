@@ -295,6 +295,7 @@ export interface GetSectionResponse {
   section: string;
   exercises: SectionExercise[];
   workouts: SectionExercise[];
+  isCompleted?: boolean;
 }
 
 export const getWorkoutSection = async (params: {
@@ -302,6 +303,15 @@ export const getWorkoutSection = async (params: {
   programCode?: string | null;
   section: string;
 }): Promise<SectionExercise[]> => {
+  const full = await getWorkoutSectionFull(params);
+  return full.exercises || full.workouts || [];
+};
+
+export const getWorkoutSectionFull = async (params: {
+  sessionId?: string | null;
+  programCode?: string | null;
+  section: string;
+}): Promise<GetSectionResponse> => {
   try {
     const query = new URLSearchParams();
     if (params.sessionId) query.set("sessionId", params.sessionId);
@@ -311,9 +321,8 @@ export const getWorkoutSection = async (params: {
     const { data } = await apiClient.get<GetSectionResponse>(
       `/workouts/section?${query.toString()}`,
     );
-    const exercises = data.exercises || data.workouts || [];
     console.log("[section] API response:", data);
-    return exercises;
+    return data;
   } catch (error: unknown) {
     console.error("[section] API error:", error);
     throw new Error(getErrorMessage(error, "Failed to fetch workout section."));
@@ -573,6 +582,12 @@ export interface DropdownOptions {
 }
 
 export interface WorkoutLoadRecord {
+  id?: string;
+  session_id?: string;
+  workout_id?: string;
+  title?: string;
+  program?: string;
+  workout_complete?: boolean;
   load: number;
   power: number;
   kcal: number;
@@ -611,14 +626,21 @@ export const createWorkoutLoad = async (payload: CreateWorkoutLoadDto): Promise<
   }
 };
 
-export const getWorkoutLoads = async (sessionId: string): Promise<WorkoutLoadSummary> => {
+export const getWorkoutLoadRecords = async (sessionId: string): Promise<WorkoutLoadRecord[]> => {
   try {
     const { data } = await apiClient.get<WorkoutLoadRecord[] | WorkoutLoadRecord>(
       "/workouts/workout-loads",
       { params: { sessionId } }
     );
-    const records = Array.isArray(data) ? data : [data];
-    console.log("[getWorkoutLoads] raw response:", data, "| records:", records);
+    return Array.isArray(data) ? data : [data];
+  } catch {
+    return [];
+  }
+};
+
+export const getWorkoutLoads = async (sessionId: string): Promise<WorkoutLoadSummary> => {
+  try {
+    const records = await getWorkoutLoadRecords(sessionId);
     return records.reduce(
       (acc, r) => ({
         load: acc.load + (Number(r.load) || 0),
@@ -700,6 +722,62 @@ export const getPowerSetDetails = async (params: {
   );
   console.log("[power set details] API response:", data);
   return data;
+};
+
+export interface PowerSetLog {
+  id: string;
+  session_id: string;
+  title: string;
+  program: string;
+  exercise: string;
+  sets: string;
+  type: string;
+  weight?: number;
+  reps?: number;
+  opm?: string;
+}
+
+export const getPowerSetLogs = async (sessionId: string): Promise<PowerSetLog[]> => {
+  try {
+    const { data } = await apiClient.get<PowerSetLog[]>(`/workouts/power-set-logs?sessionId=${sessionId}`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+export interface PendingActivity {
+  id: number;
+  name: string;
+  type: string;
+  day: string;
+  time: string;
+  day_number: number;
+  workoutTitle: string;
+  completed_activity: boolean | null;
+}
+
+export const getPendingActivities = async (params: {
+  type: string;
+  workoutName?: string;
+}): Promise<PendingActivity[]> => {
+  try {
+    const query = new URLSearchParams({ type: params.type });
+    if (params.workoutName) query.set("workoutName", params.workoutName);
+    const { data } = await apiClient.get<PendingActivity[]>(`/workouts/pending-activities?${query.toString()}`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+export const completeActivity = async (payload: {
+  customActivityId?: number;
+  sessionId: string;
+  workoutLibraryId: string;
+  workoutName?: string;
+}): Promise<void> => {
+  await apiClient.post("/workouts/complete-activity", payload);
 };
 
 export const getDropdownOptions = async (): Promise<DropdownOptions> => {

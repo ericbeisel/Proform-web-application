@@ -869,20 +869,33 @@ export default function AthenaWorkoutPage() {
               )}
             </div>
 
-            <button
-              onClick={() => {
-                const next = currentSectionIndex + 1;
-                if (next < sections.length) {
-                  setCurrentSectionIndex(next);
-                  loadSectionExercises(next, workoutCode, sessionId, sections);
-                  refreshLoads(sessionId);
-                }
-              }}
-              disabled={currentSectionIndex >= sections.length - 1}
-              className="bg-[#6202AC] hover:bg-[#4d0187] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0 disabled:opacity-60"
-            >
-              {sections.length > 0 ? `ROUND ${currentSectionIndex + 1}/${sections.length}` : "ROUND 1"}
-            </button>
+            {currentSectionIndex >= sections.length - 1 && sections.length > 0 ? (
+              <button
+                onClick={() => {
+                  localStorage.setItem("summarySessionId", sessionId || "");
+                  localStorage.setItem("summaryWorkoutCode", workoutCode || "");
+                  localStorage.setItem("summaryWorkoutTitle", sections[0]?.label || "");
+                  router.push("/workout/workoutSummary");
+                }}
+                className="bg-[#0FCC91] hover:bg-[#0ab87e] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0"
+              >
+                Finalize Workout
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  const next = currentSectionIndex + 1;
+                  if (next < sections.length) {
+                    setCurrentSectionIndex(next);
+                    loadSectionExercises(next, workoutCode, sessionId, sections);
+                    refreshLoads(sessionId);
+                  }
+                }}
+                className="bg-[#6202AC] hover:bg-[#4d0187] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0"
+              >
+                {sections.length > 0 ? `ROUND ${currentSectionIndex + 1}/${sections.length}` : "ROUND 1"}
+              </button>
+            )}
           </div>
         </div>
 

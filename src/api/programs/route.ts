@@ -307,6 +307,7 @@ export interface WorkoutGroup {
   label: string;
   rounds: string;
   workouts: WorkoutGroupItem[];
+  isCompleted?: boolean;
 }
 
 export interface Exercise {
