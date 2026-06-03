@@ -89,7 +89,7 @@ export default function FeedMainPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchQuery = "";
   const [showCardioPopup, setShowCardioPopup] = useState(false);
   const [showHighlightPopup, setShowHighlightPopup] =
   useState(false);
@@ -435,24 +435,18 @@ const [creatingHighlight, setCreatingHighlight] =
           </span>
         </div>
 
-        {/* SEARCH */}
-        <div className="relative hidden sm:block w-full max-w-sm">
-          <Search
-            size={17}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search feed..."
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
-          />
-        </div>
       </div>
 
       {/* RIGHT */}
       <div className="flex items-center gap-2">
+
+        {/* SEARCH */}
+        <button
+          onClick={() => router.push("/profile/components/UserList")}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all group"
+        >
+          <Search size={18} className="text-gray-500 group-hover:scale-110 transition-transform" />
+        </button>
 
         {/* TRENDING */}
         <button
@@ -493,20 +487,6 @@ const [creatingHighlight, setCreatingHighlight] =
       </div>
     </div>
 
-    {/* MOBILE SEARCH */}
-    <div className="relative mt-4 sm:hidden">
-      <Search
-        size={17}
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-      />
-      <input
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Search feed..."
-        className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-11 pr-4 text-sm font-medium text-gray-700 placeholder:text-gray-400 outline-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all"
-      />
-    </div>
   </div>
 </div>
 {/* HIGHLIGHTS */}

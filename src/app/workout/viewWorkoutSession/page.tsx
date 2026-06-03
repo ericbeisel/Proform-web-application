@@ -22,6 +22,7 @@ import {
   Link,
   Zap,
   Flame,
+  BarChart2,
   ChevronUp,
   ChevronDown,
   Dumbbell,
@@ -37,6 +38,7 @@ import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup, WorkoutGroupIt
 import {
   getIncompleteSessions,
   getWorkoutSection,
+  getWorkoutSectionFull,
   swapExercise,
   getTrackingLogs,
   createTrackingLog,
@@ -94,6 +96,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [adIndex, setAdIndex] = useState(0);
   const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const [filterByLocation, setFilterByLocation] = useState(false);
   const [locationFilteredGroups, setLocationFilteredGroups] = useState<WorkoutGroup[]>([]);
   const [locationFilterLoading, setLocationFilterLoading] = useState(false);
@@ -392,6 +395,23 @@ const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
 }, []);
 
 useEffect(() => {
+  const sid = activeSession?.id;
+  const code = localStorage.getItem("workoutProgramCode");
+  if (!sid || !code || workoutGroups.length === 0) return;
+  let cancelled = false;
+  Promise.all(
+    workoutGroups.map((g) =>
+      getWorkoutSectionFull({ sessionId: sid, programCode: code, section: g.label })
+        .then((r) => r.isCompleted === true)
+        .catch(() => false)
+    )
+  ).then((results) => {
+    if (!cancelled) setCompletedSectionsCount(results.filter(Boolean).length);
+  });
+  return () => { cancelled = true; };
+}, [activeSession, workoutGroups]);
+
+useEffect(() => {
   if (ads.length === 0) return;
   const timer = setInterval(() => setAdIndex((i) => (i + 1) % ads.length), 3500);
   return () => clearInterval(timer);
@@ -403,11 +423,13 @@ const DynamicExerciseCard = ({
   locked = false,
   sessionStarted = false,
   onCardClick,
+  rounds,
 }: {
   item: WorkoutGroupItem;
   locked?: boolean;
   sessionStarted?: boolean;
   onCardClick?: () => void;
+  rounds?: string;
 }) => {
   const actualItem = getActualExercise(item);
   const isSwapped = swappedExercises.has(item.exercise_id);
@@ -455,6 +477,9 @@ const DynamicExerciseCard = ({
         <p className="text-[16px] leading-none font-black tracking-tight text-[#222]">
           {actualItem.reps || "—"}
         </p>
+        {rounds && (
+          <p className="text-[10px] font-bold text-[#7c3aed] mt-0.5">{rounds}</p>
+        )}
       </div>
 
       {actualItem.weight !== undefined && (
@@ -506,24 +531,35 @@ const DynamicExerciseCard = ({
           </h2>
           <p className="text-[10px] uppercase mt-1 opacity-70">Workout</p>
           <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
-            <div className="w-[35%] h-full bg-white rounded-full" />
+            <div
+              className="h-full bg-white rounded-full transition-all duration-500"
+              style={{ width: `${workoutGroups.length > 0 ? Math.round((completedSectionsCount / workoutGroups.length) * 100) : 0}%` }}
+            />
           </div>
-          <div className="text-right text-[10px] mt-2 font-bold">35%</div>
+          <div className="text-right text-[10px] mt-2 font-bold">
+            {workoutGroups.length > 0 ? Math.round((completedSectionsCount / workoutGroups.length) * 100) : 0}%
+          </div>
         </div>
 
         <div className="space-y-3">
-          {["Overview", "Session", "Results", "Powersets", "Map"].map((item, i) => (
+          {[
+            { label: "Overview",  Icon: Home },
+            { label: "Session",   Icon: Users },
+            { label: "Results",   Icon: BarChart2 },
+            { label: "Powersets", Icon: Zap },
+            { label: "Map",       Icon: MapPin },
+          ].map(({ label, Icon }) => (
             <button
-              key={i}
+              key={label}
               onClick={() => {
-                if (item === "Session") setShowSessionModal(true);
-                else setActiveView(item);
+                if (label === "Session") setShowSessionModal(true);
+                else setActiveView(label);
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
-              ${activeView === item ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"}`}
+              ${activeView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"}`}
             >
-              <Activity size={16} />
-              {item}
+              <Icon size={16} />
+              {label}
             </button>
           ))}
         </div>
@@ -582,6 +618,25 @@ const DynamicExerciseCard = ({
             </div>
 
             <div className="flex items-center gap-3">
+
+              {/* Ad banner beside session box */}
+              {ads.length > 0 && (
+                <button
+                  onClick={() => setSelectedAd(ads[adIndex])}
+                  className="hidden md:flex w-72 relative h-14 rounded-xl overflow-hidden items-center text-left flex-shrink-0"
+                >
+                  <img src={ads[adIndex].image} alt="ad" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/25" />
+                  <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
+                    Sponsored
+                  </span>
+                  <div className="relative z-10 ml-auto mr-2 flex gap-1">
+                    {ads.map((_, i) => (
+                      <div key={i} className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`} />
+                    ))}
+                  </div>
+                </button>
+              )}
 
               {/* Session info + Share in a box */}
              <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
@@ -691,24 +746,6 @@ const DynamicExerciseCard = ({
             </div>
           )}
 
-          {/* COMPACT AD STRIP */}
-          {ads.length > 0 && (
-            <button
-              onClick={() => setSelectedAd(ads[adIndex])}
-              className="mt-3 w-full relative h-20 rounded-xl overflow-hidden flex items-center text-left"
-            >
-              <img src={ads[adIndex].image} alt="ad" className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/30" />
-              <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
-                Sponsored
-              </span>
-              <div className="relative z-10 ml-auto mr-2 flex gap-1">
-                {ads.map((_, i) => (
-                  <div key={i} className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`} />
-                ))}
-              </div>
-            </button>
-          )}
         </div>
 
         {/* REJOIN BANNER */}
@@ -1060,6 +1097,7 @@ const DynamicExerciseCard = ({
                               item={item}
                               locked={isGroupLocked}
                               sessionStarted={sessionStarted}
+                              rounds={group.rounds}
                               onCardClick={activeSession ? () => {
                                 localStorage.setItem("sessionActive", "true");
                                 router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`);

@@ -30,9 +30,21 @@ export default function TeamsLayout({
       {/* --- Sticky Header --- */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          
+
           {/* Row 1: Title + Action Buttons + Hamburger */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 relative">
+            {/* Centered Proform logo */}
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="absolute left-1/2 -translate-x-1/2"
+            >
+              <img
+                src="/images/proform-logo.jpg"
+                alt="Proform"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain"
+              />
+            </button>
+
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">My Teams</h1>
               <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Manage all your teams in one place</p>

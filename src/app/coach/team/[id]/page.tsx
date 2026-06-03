@@ -113,7 +113,7 @@ function TeamDetailContent() {
           </div>
 
           <button
-            onClick={() => router.push("/team/teams")}
+            onClick={() => router.replace("/team/teams")}
             className="hidden sm:flex h-8 px-3 rounded-xl bg-[#8B5CF6] text-white text-xs font-semibold items-center hover:bg-[#7C3AED] transition shrink-0"
           >
             Switch to Player

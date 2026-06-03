@@ -47,6 +47,7 @@ export default function DailyTodoCard() {
       .finally(() => setLoading(false));
   }, [dayIdx]);
 
+  const PREVIEW_COUNT = 5;
   const dayLabel = DAYS[dayIdx].charAt(0).toUpperCase() + DAYS[dayIdx].slice(1);
 
   return (
@@ -69,7 +70,7 @@ export default function DailyTodoCard() {
         ) : activities.length === 0 ? (
           <div className="text-center text-[12px] text-gray-400 py-4">No activities for {dayLabel}</div>
         ) : (
-          activities.map((act) => (
+          activities.slice(0, PREVIEW_COUNT).map((act) => (
             <div
               key={act.id}
               onClick={() => router.push(getActivityPath(act))}

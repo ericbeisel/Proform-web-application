@@ -25,6 +25,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
 import { getAuthUser } from "@/lib/auth/session";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
+import { profileApi } from "@/api/profile/route";
 
 const quickActions = [
   { title: "Reminders", icon: Bell, color: "bg-[#7C4DFF]" },
@@ -60,6 +61,9 @@ export default function CoachDashboardPage() {
   const [teamPlanActivated, setTeamPlanActivated] = useState(false);
 
   const [hasOrganization, setHasOrganization] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [userInitial, setUserInitial] = useState<string>("N/A");
+  const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -114,8 +118,20 @@ export default function CoachDashboardPage() {
       .finally(() => setLoading(false));
 
     coachApi.getInstitutionDetails()
-      .then((inst) => { if (inst) setHasOrganization(true); })
+      .then((inst) => {
+        if (!inst) return;
+        setHasOrganization(true);
+        if (inst.title) setOrgDisplayName(inst.title);
+      })
       .catch(console.error);
+
+    const user = getAuthUser();
+    if (user?.name) setUserInitial((user.name as string)[0]?.toUpperCase() ?? "N/A");
+    if (user?.username) {
+      profileApi.getProfileByUsername(user.username as string)
+        .then((profile) => { if (profile?.image) setProfilePicture(profile.image); })
+        .catch(console.error);
+    }
 
     coachApi.getRemainingTeamLimit()
       .then((info) => {
@@ -835,13 +851,25 @@ export default function CoachDashboardPage() {
       )}
 
       {/* ── Header ── */}
-      <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
+      <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 relative">
+        {/* Centered logo */}
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="absolute left-1/2 -translate-x-1/2 cursor-pointer"
+        >
+          <img
+            src="/images/proform-logo.jpg"
+            alt="Proform"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain"
+          />
+        </button>
+
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <h1 className="text-base sm:text-2xl font-black text-[#1f1f1f] truncate">
             Coach Dashboard
           </h1>
           <button
-            onClick={() => router.push("/team/teams")}
+            onClick={() => router.replace("/team/teams")}
             className="hidden sm:flex h-9 px-4 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold items-center justify-center hover:bg-[#7C3AED] transition shrink-0"
           >
             Switch to Player
@@ -862,8 +890,12 @@ export default function CoachDashboardPage() {
             <Bell size={17} className="text-gray-700" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
           </button>
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm">
-            A
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+            {profilePicture ? (
+              <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
+            ) : (
+              userInitial
+            )}
           </div>
         </div>
       </header>
@@ -873,11 +905,13 @@ export default function CoachDashboardPage() {
 
         {/* Title */}
         <div className="mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold text-[#222]">My Team</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#222]">{orgDisplayName || "My Team"}</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage your teams and track their progress</p>
         </div>
 
         {/* Quick Actions */}
+        
+        <div className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 shadow-sm">
         <div className="grid grid-cols-5 gap-3 sm:gap-6">
           {quickActions.map((item) => {
             const Icon = item.icon;
@@ -907,6 +941,7 @@ export default function CoachDashboardPage() {
               </div>
             );
           })}
+        </div>
         </div>
 
         {/* Filter Bar */}
