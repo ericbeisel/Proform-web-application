@@ -74,6 +74,32 @@ export function getAuthUser(): { id: number; [key: string]: unknown } | null {
   }
 }
 
+export function getUserIdFromToken(): number | null {
+  try {
+    const token = getAuthToken();
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload?.sub ?? payload?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function getTokenPayload(): { id: number; email?: string; username?: string } | null {
+  try {
+    const token = getAuthToken();
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return {
+      id: payload?.sub ?? payload?.id,
+      email: payload?.email ?? undefined,
+      username: payload?.username ?? undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function clearAuthSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);

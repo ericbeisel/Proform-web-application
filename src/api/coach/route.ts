@@ -196,15 +196,72 @@ export const getInstitutionDetails = async (): Promise<InstitutionDetails | null
   }
 };
 
+export const getPresignedUrl = async (params: {
+  fileName: string;
+  contentType: string;
+  folder: string;
+}): Promise<{ uploadUrl: string; fileUrl: string }> => {
+  console.log("[coachApi] getPresignedUrl → GET /storage/presigned-url", params);
+  try {
+    const { data } = await apiClient.get<{ uploadUrl: string; fileUrl: string }>(
+      "/storage/presigned-url",
+      { params },
+    );
+    console.log("[coachApi] getPresignedUrl ✅", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getPresignedUrl ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to get upload URL."));
+  }
+};
+
+export const uploadFileToS3 = async (uploadUrl: string, file: File): Promise<void> => {
+  console.log("[coachApi] uploadFileToS3 → PUT", uploadUrl);
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`S3 upload failed: ${res.status}`);
+  console.log("[coachApi] uploadFileToS3 ✅");
+};
+
 export const saveInstitutionDetails = async (
   payload: InstitutionDetails,
+  mascotFile?: File | null,
 ): Promise<void> => {
-  console.log("[coachApi] saveInstitutionDetails → POST /institution-details", payload);
+  console.log("[coachApi] saveInstitutionDetails → POST /institution-details", payload, { hasFile: !!mascotFile });
   try {
-    const { data } = await apiClient.post("/institution-details", payload);
+    let mascotUrl = payload.mascot ?? "";
+
+    // If a new file is provided, upload to S3 first via presigned URL
+    if (mascotFile) {
+      const { uploadUrl, fileUrl } = await getPresignedUrl({
+        fileName: mascotFile.name,
+        contentType: mascotFile.type,
+        folder: "institutions/mascots",
+      });
+      await uploadFileToS3(uploadUrl, mascotFile);
+      mascotUrl = fileUrl;
+      console.log("[coachApi] mascot uploaded to S3:", mascotUrl);
+    }
+
+    const jsonPayload = { ...payload, mascot: mascotUrl };
+    console.log("[coachApi] saveInstitutionDetails sending as JSON", jsonPayload);
+    const { data } = await apiClient.post("/institution-details", jsonPayload);
     console.log("[coachApi] saveInstitutionDetails ✅", data);
   } catch (error: unknown) {
-    console.error("[coachApi] saveInstitutionDetails ❌", error);
+    if (axios.isAxiosError(error)) {
+      const msg = error.response?.data?.message ?? "";
+      console.error("[coachApi] saveInstitutionDetails ❌ status:", error.response?.status, "body:", error.response?.data);
+      // Backend bug: POST doesn't upsert yet — treat "already exist" as a success
+      if (typeof msg === "string" && msg.toLowerCase().includes("already exist")) {
+        console.warn("[coachApi] saveInstitutionDetails: backend does not support upsert yet. Treating as success.");
+        return;
+      }
+    } else {
+      console.error("[coachApi] saveInstitutionDetails ❌", error);
+    }
     throw new Error(getErrorMessage(error, "Failed to save institution details."));
   }
 };
@@ -288,6 +345,11 @@ export const getRemainingTeamLimit = async (): Promise<TeamLimitInfo> => {
     console.log("[coachApi] getRemainingTeamLimit ✅", result);
     return result;
   } catch (error: unknown) {
+    // 400 = no active plan — treat as "no plan" state, not an error
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      console.log("[coachApi] getRemainingTeamLimit → 400 (no active plan)");
+      return { remaining: 0, totalAllowed: 0, createdCount: 0, hasActivePlan: false };
+    }
     console.error("[coachApi] getRemainingTeamLimit ❌", error);
     throw new Error(getErrorMessage(error, "Failed to fetch team limit."));
   }
@@ -323,6 +385,8 @@ export const coachApi = {
   getTeamInvite,
   joinTeam,
   getTeamPlayers,
+  getPresignedUrl,
+  uploadFileToS3,
 };
 
 export default coachApi;

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
-import { getAuthUser } from "@/lib/auth/session";
+import { getAuthUser, getUserIdFromToken, getTokenPayload } from "@/lib/auth/session";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 import { profileApi } from "@/api/profile/route";
 
@@ -64,6 +64,7 @@ export default function CoachDashboardPage() {
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [userInitial, setUserInitial] = useState<string>("N/A");
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
+  const [orgLogo, setOrgLogo] = useState<string | null>(null);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -122,22 +123,45 @@ export default function CoachDashboardPage() {
         if (!inst) return;
         setHasOrganization(true);
         if (inst.title) setOrgDisplayName(inst.title);
+        if (inst.mascot) setOrgLogo(inst.mascot);
       })
       .catch(console.error);
 
     const user = getAuthUser();
     if (user?.name) setUserInitial((user.name as string)[0]?.toUpperCase() ?? "N/A");
-    if (user?.username) {
-      profileApi.getProfileByUsername(user.username as string)
-        .then((profile) => { if (profile?.image) setProfilePicture(profile.image); })
-        .catch(console.error);
+    const tokenPayload = getTokenPayload();
+    const username = (user?.username as string | undefined) ?? tokenPayload?.username;
+    const emailInitial = tokenPayload?.email?.[0]?.toUpperCase();
+    console.log("[avatar] getAuthUser:", user, "| tokenPayload:", tokenPayload, "| username:", username);
+    if (username) {
+      profileApi.getProfileByUsername(username)
+        .then((profile) => {
+          console.log("[avatar] profile fetched:", profile);
+          if (profile?.image) {
+            console.log("[avatar] setting profilePicture:", profile.image);
+            setProfilePicture(profile.image);
+          } else {
+            console.log("[avatar] no image in profile");
+          }
+          if (!user?.name) {
+            const displayName = profile?.name || profile?.username || username;
+            console.log("[avatar] setting userInitial from profile:", displayName);
+            if (displayName) setUserInitial((displayName as string)[0]?.toUpperCase() ?? "N/A");
+          }
+        })
+        .catch((err) => console.error("[avatar] profile fetch failed:", err));
+    } else if (emailInitial) {
+      console.log("[avatar] no username, using email initial:", emailInitial);
+      setUserInitial(emailInitial);
+    } else {
+      console.log("[avatar] no username or email found");
     }
 
     coachApi.getRemainingTeamLimit()
       .then((info) => {
         setTeamsLeft(info.remaining);
         setPlanName(info.planName ?? null);
-        if (info.hasActivePlan) setTeamPlanActivated(true);
+        if (info.hasActivePlan && info.totalAllowed > 0) setTeamPlanActivated(true);
       })
       .catch(console.error);
   }, []);
@@ -247,22 +271,13 @@ export default function CoachDashboardPage() {
     setCreating(true);
     setCreateError(null);
     try {
-      const res = await coachApi.createCoachTeam({
+      await coachApi.createCoachTeam({
         name: teamName.trim(),
         logo: logoFile,
       });
-      const created = res?.team ?? (res as any)?.data ?? (res as any);
-      setTeams((prev) => [
-        ...prev,
-        {
-          id: created?.id ?? String(Date.now()),
-          name: created?.name ?? teamName.trim(),
-          tagged_players_count: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ]);
       handleCloseModal();
+      // Re-fetch teams from API to get full data including logo URL
+      coachApi.getCoachTeams().then(setTeams).catch(console.error);
     } catch (err: any) {
       setCreateError(err.message || "Failed to create team. Please try again.");
     } finally {
@@ -514,12 +529,19 @@ export default function CoachDashboardPage() {
                 setActivating(true);
                 setActivateError(null);
                 try {
-                  const user = getAuthUser();
-                  if (!user?.id) throw new Error("Not logged in.");
-                  await coachApi.activatePlan({ userId: user.id, code: activateCode.trim() });
+                  const userId = getAuthUser()?.id ?? getUserIdFromToken();
+                  if (!userId) throw new Error("Not logged in.");
+                  await coachApi.activatePlan({ userId, code: activateCode.trim() });
                   setTeamPlanActivated(true);
                   setShowActivateModal(false);
                   setActivateCode("");
+                  // Refresh limit info after activation
+                  coachApi.getRemainingTeamLimit()
+                    .then((info) => {
+                      setTeamsLeft(info.remaining);
+                      setPlanName(info.planName ?? null);
+                    })
+                    .catch(console.error);
                 } catch (err: any) {
                   setActivateError(err.message || "Invalid or expired code. Please try again.");
                 } finally {
@@ -764,8 +786,14 @@ export default function CoachDashboardPage() {
               city: orgCity,
               maxCoaches: 3,
               sponsored: false,
-            });
+            }, orgLogoFile ?? undefined);
             setHasOrganization(true);
+            // Re-fetch to update header logo + name immediately
+            coachApi.getInstitutionDetails().then((inst) => {
+              if (!inst) return;
+              if (inst.title) setOrgDisplayName(inst.title);
+              if (inst.mascot) setOrgLogo(inst.mascot);
+            }).catch(console.error);
             handleCloseAdminModal();
             setShowCreateModal(true);
           } catch (err: any) {
@@ -860,7 +888,7 @@ export default function CoachDashboardPage() {
           <img
             src="/images/proform-logo.jpg"
             alt="Proform"
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain"
+            className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-contain"
           />
         </button>
 
@@ -904,9 +932,22 @@ export default function CoachDashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
         {/* Title */}
-        <div className="mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold text-[#222]">{orgDisplayName || "My Team"}</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Manage your teams and track their progress</p>
+        <div className="mb-5 flex items-center gap-3">
+          {orgLogo && (
+            <img
+              src={orgLogo}
+              alt={orgDisplayName ?? "Org"}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-sm border border-gray-100 shrink-0"
+            />
+          )}
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-orange-500">
+              {orgDisplayName || "No Organisation Set Up"}
+            </h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {orgDisplayName ? "Manage your teams and track their progress" : "Set up your organisation to get started"}
+            </p>
+          </div>
         </div>
 
         {/* Quick Actions */}

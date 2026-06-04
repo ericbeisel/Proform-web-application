@@ -771,6 +771,36 @@ export const getPendingActivities = async (params: {
   }
 };
 
+export interface MuscleTrackingItem {
+  [muscle: string]: number;
+}
+
+export interface WorkoutStats {
+  thisWorkout: {
+    load: number;
+    power: number;
+    cals: number;
+    muscleTracking: MuscleTrackingItem[];
+  };
+  userAverage: { load: number; power: number; cals: number };
+  overallAverage: { load: number; power: number; cals: number };
+  loadChart: number[];
+}
+
+export const getWorkoutStats = async (sessionId: string): Promise<WorkoutStats | null> => {
+  console.log("[getWorkoutStats] → GET /workouts/stats with params:", { sessionId });
+  try {
+    const { data } = await apiClient.get<WorkoutStats>("/workouts/stats", {
+      params: { sessionId },
+    });
+    console.log("[getWorkoutStats] ✅ raw response:", JSON.stringify(data, null, 2));
+    return data;
+  } catch (error) {
+    console.error("[getWorkoutStats] ❌", error);
+    return null;
+  }
+};
+
 export const completeActivity = async (payload: {
   customActivityId?: number;
   sessionId: string;

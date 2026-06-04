@@ -34,7 +34,12 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
-import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
+import {
+  getProgramGroupedWorkouts,
+  getProgramTags,
+  WorkoutGroup,
+  WorkoutGroupItem,
+} from "@/api/programs/route";
 import {
   getIncompleteSessions,
   getWorkoutSection,
@@ -42,7 +47,11 @@ import {
   swapExercise,
   getTrackingLogs,
   createTrackingLog,
+  getWorkoutStats,
+  getWorkoutLoadRecords,
   IncompleteSession,
+  WorkoutStats,
+  WorkoutLoadRecord,
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
@@ -50,7 +59,10 @@ import { feedApi, Advertisement } from "@/api/feed/route";
 function resolveWixImage(url?: string): string {
   if (!url) return "";
   if (url.startsWith("wix:image://v1/")) {
-    const mediaId = url.replace("wix:image://v1/", "").split("#")[0].split("/")[0];
+    const mediaId = url
+      .replace("wix:image://v1/", "")
+      .split("#")[0]
+      .split("/")[0];
     return `https://static.wixstatic.com/media/${mediaId}`;
   }
   return url;
@@ -67,11 +79,19 @@ export default function ViewWorkoutSessionPage() {
   const [activeView, setActiveView] = useState("Overview");
   const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<number>>(new Set());
-  const [selectedExercises, setSelectedExercises] = useState<Set<number>>(new Set());
-  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
-const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGroupItem>>(new Map());
+  const [selectedExercises, setSelectedExercises] = useState<Set<number>>(
+    new Set(),
+  );
+  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [swappedExercises, setSwappedExercises] = useState<
+    Map<string, WorkoutGroupItem>
+  >(new Map());
   // New state from 1st code
-  const [activeSession, setActiveSession] = useState<IncompleteSession | null>(null);
+  const [activeSession, setActiveSession] = useState<IncompleteSession | null>(
+    null,
+  );
   const [workoutGroups, setWorkoutGroups] = useState<WorkoutGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejoinLoading, setRejoinLoading] = useState(false);
@@ -81,29 +101,47 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
-  const [incompleteSessions, setIncompleteSessions] = useState<IncompleteSession[]>([]);
+  const [incompleteSessions, setIncompleteSessions] = useState<
+    IncompleteSession[]
+  >([]);
   const incompleteSession = incompleteSessions[0] ?? null;
   const [showRejoinModal, setShowRejoinModal] = useState(false);
-  const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(null);
-  const [sets, setSets] = useState<{ weight: string; reps: string; saved: boolean; load?: number }[]>([{ weight: "", reps: "", saved: false }]);
-  const [lastRecord, setLastRecord] = useState<{ weight: number; reps: number } | null>(null);
-  const [bestRecord, setBestRecord] = useState<{ weight: number; reps: number } | null>(null);
+  const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(
+    null,
+  );
+  const [sets, setSets] = useState<
+    { weight: string; reps: string; saved: boolean; load?: number }[]
+  >([{ weight: "", reps: "", saved: false }]);
+  const [lastRecord, setLastRecord] = useState<{
+    weight: number;
+    reps: number;
+  } | null>(null);
+  const [bestRecord, setBestRecord] = useState<{
+    weight: number;
+    reps: number;
+  } | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [savingLogs, setSavingLogs] = useState(false);
   const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
-  const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
+  const [userOtherDetail, setUserOtherDetail] =
+    useState<UserOtherDetail | null>(null);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [adIndex, setAdIndex] = useState(0);
   const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [workoutStats, setWorkoutStats] = useState<WorkoutStats | null>(null);
+  const [loadRecords, setLoadRecords] = useState<WorkoutLoadRecord[]>([]);
+  const [roundLoads, setRoundLoads] = useState<number[]>([]);
   const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const [filterByLocation, setFilterByLocation] = useState(false);
-  const [locationFilteredGroups, setLocationFilteredGroups] = useState<WorkoutGroup[]>([]);
+  const [locationFilteredGroups, setLocationFilteredGroups] = useState<
+    WorkoutGroup[]
+  >([]);
   const [locationFilterLoading, setLocationFilterLoading] = useState(false);
 
   // Existing handlers
   const toggleCard = (i: number) => {
-    setSelectedCards(prev => {
+    setSelectedCards((prev) => {
       const next = new Set(prev);
       next.has(i) ? next.delete(i) : next.add(i);
       return next;
@@ -111,7 +149,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   };
 
   const toggleExercise = (id: number) => {
-    setSelectedExercises(prev => {
+    setSelectedExercises((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -119,7 +157,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   };
 
   const toggleRound = (id: number) => {
-    setCollapsedRounds(prev => {
+    setCollapsedRounds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -127,7 +165,7 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   };
 
   const toggleSet = (key: string) => {
-    setSelectedSets(prev => {
+    setSelectedSets((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
@@ -139,7 +177,11 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
     if (!checked) return;
 
     const code = localStorage.getItem("workoutProgramCode");
-    const sid = activeSession?.id ?? (code ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`) : null);
+    const sid =
+      activeSession?.id ??
+      (code
+        ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`)
+        : null);
     if (!workoutGroups.length || !sid) {
       setFilterByLocation(false);
       return;
@@ -149,7 +191,9 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
     try {
       const filtered = await Promise.all(
         workoutGroups.map(async (group) => {
-          const existingExercises = group.workouts.map((w) => w.exercise_id).filter(Boolean);
+          const existingExercises = group.workouts
+            .map((w) => w.exercise_id)
+            .filter(Boolean);
           const swappedWorkouts = await Promise.all(
             group.workouts.map(async (item): Promise<WorkoutGroupItem> => {
               const result = await swapExercise({
@@ -169,10 +213,10 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
                 };
               }
               return item;
-            })
+            }),
           );
           return { ...group, workouts: swappedWorkouts };
-        })
+        }),
       );
       setLocationFilteredGroups(filtered);
     } catch (err) {
@@ -184,9 +228,15 @@ const [swappedExercises, setSwappedExercises] = useState<Map<string, WorkoutGrou
   };
 
   // New handlers from 1st code
-  const addSet = () => setSets((prev) => [...prev, { weight: prev[prev.length - 1]?.weight || "", reps: "", saved: false }]);
-const updateSet = (i: number, field: "weight" | "reps", val: string) =>
-    setSets((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)));
+  const addSet = () =>
+    setSets((prev) => [
+      ...prev,
+      { weight: prev[prev.length - 1]?.weight || "", reps: "", saved: false },
+    ]);
+  const updateSet = (i: number, field: "weight" | "reps", val: string) =>
+    setSets((prev) =>
+      prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)),
+    );
 
   const openTracking = async (item: WorkoutGroupItem) => {
     setTrackingItem(item);
@@ -195,10 +245,22 @@ const updateSet = (i: number, field: "weight" | "reps", val: string) =>
     setBestRecord(null);
 
     const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
-    const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
-    console.log("[tracking] openTracking — code:", code, "sessionId:", sessionId, "exerciseId:", item.exercise_id);
+    const sessionId = code
+      ? localStorage.getItem(`activeSessionId_${code}`)
+      : null;
+    console.log(
+      "[tracking] openTracking — code:",
+      code,
+      "sessionId:",
+      sessionId,
+      "exerciseId:",
+      item.exercise_id,
+    );
 
-    if (!item.exercise_id) { console.warn("[tracking] ✗ No exercise_id on item — skipping fetch"); return; }
+    if (!item.exercise_id) {
+      console.warn("[tracking] ✗ No exercise_id on item — skipping fetch");
+      return;
+    }
 
     setLogsLoading(true);
     try {
@@ -207,27 +269,42 @@ const updateSet = (i: number, field: "weight" | "reps", val: string) =>
       console.log("[tracking] All-time logs:", allLogs.length);
       if (allLogs.length > 0) {
         // API returns desc by date — index 0 is most recent
-        setLastRecord({ weight: allLogs[0].weight, reps: allLogs[0].repetitions });
-        const best = allLogs.reduce((b, r) => r.weight > b.weight ? r : b, allLogs[0]);
+        setLastRecord({
+          weight: allLogs[0].weight,
+          reps: allLogs[0].repetitions,
+        });
+        const best = allLogs.reduce(
+          (b, r) => (r.weight > b.weight ? r : b),
+          allLogs[0],
+        );
         setBestRecord({ weight: best.weight, reps: best.repetitions });
       }
 
       // 2. Session-specific records to pre-populate set inputs
       if (sessionId) {
-        const sessionLogs = await getTrackingLogs({ sessionId, exercise_id: item.exercise_id });
-        console.log("[tracking] Session logs:", sessionLogs.length, sessionLogs);
+        const sessionLogs = await getTrackingLogs({
+          sessionId,
+          exercise_id: item.exercise_id,
+        });
+        console.log(
+          "[tracking] Session logs:",
+          sessionLogs.length,
+          sessionLogs,
+        );
         if (sessionLogs.length > 0) {
           const sorted = [...sessionLogs].sort((a, b) => {
             const numA = parseInt(a.title?.replace(/\D/g, "") || "0");
             const numB = parseInt(b.title?.replace(/\D/g, "") || "0");
             return numA - numB;
           });
-          setSets(sorted.map((log) => ({
-            weight: String(log.weight ?? ""),
-            reps: String(log.repetitions ?? ""),
-            saved: log.status === true,
-            load: log.load,
-          })));
+          setSets(
+            sorted.map((log) => ({
+              weight: String(log.weight ?? ""),
+              reps: String(log.repetitions ?? ""),
+              saved: log.status === true,
+              load: log.load,
+            })),
+          );
         }
       }
     } catch (err) {
@@ -237,15 +314,19 @@ const updateSet = (i: number, field: "weight" | "reps", val: string) =>
     }
   };
 
-
-  const totalExercises = workoutGroups.reduce((sum, g) => sum + g.workouts.length, 0);
+  const totalExercises = workoutGroups.reduce(
+    (sum, g) => sum + g.workouts.length,
+    0,
+  );
   const isLocked = !hasPurchased;
 
-const handleRejoin = async (session: IncompleteSession) => {
+  const handleRejoin = async (session: IncompleteSession) => {
     setSessionStarted(true);
     setActiveSession(session);
     setRejoinLoading(true);
-    const programCode = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+    const programCode = localStorage
+      .getItem("workoutProgramCode")
+      ?.toUpperCase();
     localStorage.setItem(`activeSessionId_${programCode}`, session.id);
 
     try {
@@ -257,7 +338,9 @@ const handleRejoin = async (session: IncompleteSession) => {
         });
         sectionExercises.forEach((sectionEx, i) => {
           const originalEx = group.workouts[i];
-          const isSwapped = !!sectionEx.original_exercise_name && sectionEx.original_exercise_name !== "null";
+          const isSwapped =
+            !!sectionEx.original_exercise_name &&
+            sectionEx.original_exercise_name !== "null";
           if (isSwapped && originalEx) {
             const swappedItem: WorkoutGroupItem = {
               ...originalEx,
@@ -276,11 +359,16 @@ const handleRejoin = async (session: IncompleteSession) => {
       }
       setSwappedExercises(new Map(newSwapsMap));
       if (programCode) {
-        localStorage.setItem(`swappedExercises_${programCode}`, JSON.stringify(newSwapsMap));
+        localStorage.setItem(
+          `swappedExercises_${programCode}`,
+          JSON.stringify(newSwapsMap),
+        );
       }
     } catch (err) {
       console.error("[rejoin] Failed to fetch swaps:", err);
-      const savedSwaps = programCode ? localStorage.getItem(`swappedExercises_${programCode}`) : null;
+      const savedSwaps = programCode
+        ? localStorage.getItem(`swappedExercises_${programCode}`)
+        : null;
       if (savedSwaps) {
         try {
           const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
@@ -292,212 +380,318 @@ const handleRejoin = async (session: IncompleteSession) => {
     }
   };
 
-const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
-  const swapped = swappedExercises.get(original.exercise_id);
-  if (swapped) {
-    return swapped;
-  }
-  return original;
-};
-
-  // Fetch real data (from 1st code)
- useEffect(() => {
-  const initializeWorkout = async () => {
-    const savedLocation = localStorage.getItem("workoutLocationName");
-    if (savedLocation) setLocation(savedLocation);
-
-    const programCode = localStorage.getItem("workoutProgramCode");
-    if (programCode) getProgramTags(programCode.toLowerCase()).then(setProgramTags).catch(() => {});
-    const title = localStorage.getItem("workoutTitle");
-    if (title) setWorkoutTitle(title);
-    const name = localStorage.getItem("workoutName");
-    if (name) setWorkoutName(name);
-
-    const isFree = localStorage.getItem("workoutIsFree");
-    if (isFree === "true") setHasPurchased(true);
-
-    const storedSessionId = localStorage.getItem(`activeSessionId_${programCode?.toUpperCase()}`);
-    if (storedSessionId) {
-      setSessionStarted(true);
+  const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
+    const swapped = swappedExercises.get(original.exercise_id);
+    if (swapped) {
+      return swapped;
     }
-
-    if (!programCode) {
-      setLoading(false);
-      return;
-    }
-
-    getProgramGroupedWorkouts(programCode)
-      .then((res) => {
-        const groups = Array.isArray(res) ? res : [];
-        const getRoundNum = (label: string) => {
-          const m = label.match(/^ROUND\s+(\d+)/i);
-          return m ? parseInt(m[1], 10) : Infinity;
-        };
-        groups.sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
-        setWorkoutGroups(groups);
-      })
-      .catch((err) => console.error("Failed to fetch grouped workouts:", err))
-      .finally(() => setLoading(false));
-
-    const normalizedCode = programCode.toUpperCase();
-  const justCreated = localStorage.getItem("sessionJustCreated") === "true";
-  if (justCreated) localStorage.removeItem("sessionJustCreated");
-  const sessionActive = localStorage.getItem("sessionActive") === "true";
-
-  console.log("[mount] justCreated:", justCreated, "| sessionActive:", sessionActive, "| normalizedCode:", normalizedCode);
-
-  // Load saved swaps on first visit after session creation OR when returning from athenaWorkout
-  if (justCreated || sessionActive) {
-    const savedSwaps = localStorage.getItem(`swappedExercises_${normalizedCode}`);
-    console.log("[mount] loading swaps from localStorage (justCreated:", justCreated, "| sessionActive:", sessionActive, "):", savedSwaps ? "found" : "not found");
-    if (savedSwaps) {
-      try {
-        const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
-        setSwappedExercises(new Map(entries));
-      } catch {}
-    }
-  }
-
-  getIncompleteSessions(normalizedCode)
-  .then((sessions) => {
-    console.log("[mount] incompleteSessions returned:", sessions.length, sessions.map(s => s.id));
-    if (sessions.length > 0) {
-      setIncompleteSessions(sessions);
-      if (justCreated || sessionActive) {
-        const storedId = localStorage.getItem(`activeSessionId_${normalizedCode}`);
-        const matched = storedId ? sessions.find(s => s.id === storedId) : null;
-        console.log("[mount] storedId:", storedId, "| matched:", matched?.id ?? "none");
-        if (matched) {
-          setActiveSession(matched);
-        } else if (sessionActive) {
-          // Fallback: use first session if stored ID doesn't match
-          console.log("[mount] sessionActive fallback — using sessions[0]:", sessions[0].id);
-          setActiveSession(sessions[0]);
-        }
-      }
-    }
-  })
-  .catch((err) => console.error("[rejoin] API error:", err));
+    return original;
   };
 
-  initializeWorkout();
+  // Fetch real data (from 1st code)
+  useEffect(() => {
+    const initializeWorkout = async () => {
+      const savedLocation = localStorage.getItem("workoutLocationName");
+      if (savedLocation) setLocation(savedLocation);
 
-  dashboardApi.getDashboardData()
-    .then((res) => setUserOtherDetail(res.user.OtherDetail))
-    .catch(() => {/* non-critical */});
+      const programCode = localStorage.getItem("workoutProgramCode");
+      if (programCode)
+        getProgramTags(programCode.toLowerCase())
+          .then(setProgramTags)
+          .catch(() => {});
+      const title = localStorage.getItem("workoutTitle");
+      if (title) setWorkoutTitle(title);
+      const name = localStorage.getItem("workoutName");
+      if (name) setWorkoutName(name);
 
-  feedApi.getAdvertisements()
-    .then((all) => {
-      const shuffled = [...all].sort(() => Math.random() - 0.5).slice(0, 4);
-      setAds(shuffled);
-    })
-    .catch(() => {});
-}, []);
+      const isFree = localStorage.getItem("workoutIsFree");
+      if (isFree === "true") setHasPurchased(true);
 
-useEffect(() => {
-  const sid = activeSession?.id;
-  const code = localStorage.getItem("workoutProgramCode");
-  if (!sid || !code || workoutGroups.length === 0) return;
-  let cancelled = false;
-  Promise.all(
-    workoutGroups.map((g) =>
-      getWorkoutSectionFull({ sessionId: sid, programCode: code, section: g.label })
-        .then((r) => r.isCompleted === true)
-        .catch(() => false)
-    )
-  ).then((results) => {
-    if (!cancelled) setCompletedSectionsCount(results.filter(Boolean).length);
-  });
-  return () => { cancelled = true; };
-}, [activeSession, workoutGroups]);
+      const storedSessionId =
+        localStorage.getItem(`activeSessionId_${programCode?.toUpperCase()}`) ??
+        localStorage.getItem("summarySessionId");
+      console.log(
+        "[viewWorkout] programCode:",
+        programCode,
+        "| storedSessionId:",
+        storedSessionId,
+      );
+      if (storedSessionId) {
+        setSessionStarted(true);
+        getWorkoutStats(storedSessionId)
+          .then(setWorkoutStats)
+          .catch(console.error);
 
-useEffect(() => {
-  if (ads.length === 0) return;
-  const timer = setInterval(() => setAdIndex((i) => (i + 1) % ads.length), 3500);
-  return () => clearInterval(timer);
-}, [ads]);
+        // Fetch load records and compute per-round totals
+        getWorkoutLoadRecords(storedSessionId)
+          .then((records) => {
+            setLoadRecords(records);
+            console.log("[viewWorkout] load records:", records);
+          })
+          .catch(console.error);
+      } else {
+        console.warn("[viewWorkout] no sessionId found — stats will not load");
+      }
+
+      if (!programCode) {
+        setLoading(false);
+        return;
+      }
+
+      getProgramGroupedWorkouts(programCode)
+        .then((res) => {
+          const groups = Array.isArray(res) ? res : [];
+          const getRoundNum = (label: string) => {
+            const m = label.match(/^ROUND\s+(\d+)/i);
+            return m ? parseInt(m[1], 10) : Infinity;
+          };
+          groups.sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
+          setWorkoutGroups(groups);
+        })
+        .catch((err) => console.error("Failed to fetch grouped workouts:", err))
+        .finally(() => setLoading(false));
+
+      const normalizedCode = programCode.toUpperCase();
+      const justCreated = localStorage.getItem("sessionJustCreated") === "true";
+      if (justCreated) localStorage.removeItem("sessionJustCreated");
+      const sessionActive = localStorage.getItem("sessionActive") === "true";
+
+      console.log(
+        "[mount] justCreated:",
+        justCreated,
+        "| sessionActive:",
+        sessionActive,
+        "| normalizedCode:",
+        normalizedCode,
+      );
+
+      // Load saved swaps on first visit after session creation OR when returning from athenaWorkout
+      if (justCreated || sessionActive) {
+        const savedSwaps = localStorage.getItem(
+          `swappedExercises_${normalizedCode}`,
+        );
+        console.log(
+          "[mount] loading swaps from localStorage (justCreated:",
+          justCreated,
+          "| sessionActive:",
+          sessionActive,
+          "):",
+          savedSwaps ? "found" : "not found",
+        );
+        if (savedSwaps) {
+          try {
+            const entries: [string, WorkoutGroupItem][] =
+              JSON.parse(savedSwaps);
+            setSwappedExercises(new Map(entries));
+          } catch {}
+        }
+      }
+
+      getIncompleteSessions(normalizedCode)
+        .then((sessions) => {
+          console.log(
+            "[mount] incompleteSessions returned:",
+            sessions.length,
+            sessions.map((s) => s.id),
+          );
+          if (sessions.length > 0) {
+            setIncompleteSessions(sessions);
+            if (justCreated || sessionActive) {
+              const storedId = localStorage.getItem(
+                `activeSessionId_${normalizedCode}`,
+              );
+              const matched = storedId
+                ? sessions.find((s) => s.id === storedId)
+                : null;
+              console.log(
+                "[mount] storedId:",
+                storedId,
+                "| matched:",
+                matched?.id ?? "none",
+              );
+              if (matched) {
+                setActiveSession(matched);
+              } else if (sessionActive) {
+                // Fallback: use first session if stored ID doesn't match
+                console.log(
+                  "[mount] sessionActive fallback — using sessions[0]:",
+                  sessions[0].id,
+                );
+                setActiveSession(sessions[0]);
+              }
+            }
+          }
+        })
+        .catch((err) => console.error("[rejoin] API error:", err));
+    };
+
+    initializeWorkout();
+
+    dashboardApi
+      .getDashboardData()
+      .then((res) => setUserOtherDetail(res.user.OtherDetail))
+      .catch(() => {
+        /* non-critical */
+      });
+
+    feedApi
+      .getAdvertisements()
+      .then((all) => {
+        const shuffled = [...all].sort(() => Math.random() - 0.5).slice(0, 4);
+        setAds(shuffled);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Compute per-round load from load records + workout groups
+  useEffect(() => {
+    if (!loadRecords.length || !workoutGroups.length) return;
+    // Build sorted records (one per round) by matching workoutId → exercise id
+    const roundRecords = workoutGroups.map((group) => {
+      const exerciseIds = new Set(
+        group.workouts.map((w: any) => w.id).filter(Boolean),
+      );
+      const match = loadRecords.find(
+        (r) => r.workoutId && exerciseIds.has(r.workoutId),
+      );
+      return match ? Number(match.load) : 0;
+    });
+
+    // Records store cumulative session totals — compute individual round loads as differences
+    const computed = roundRecords.map((cumulative, i) => {
+      const prev = i === 0 ? 0 : roundRecords[i - 1];
+      return Math.max(0, cumulative - prev);
+    });
+
+    console.log("[viewWorkout] cumulative roundRecords:", roundRecords);
+    console.log("[viewWorkout] individual roundLoads:", computed);
+    setRoundLoads(computed);
+  }, [loadRecords, workoutGroups]);
+
+  useEffect(() => {
+    const sid = activeSession?.id;
+    const code = localStorage.getItem("workoutProgramCode");
+    if (!sid || !code || workoutGroups.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      workoutGroups.map((g) =>
+        getWorkoutSectionFull({
+          sessionId: sid,
+          programCode: code,
+          section: g.label,
+        })
+          .then((r) => r.isCompleted === true)
+          .catch(() => false),
+      ),
+    ).then((results) => {
+      if (!cancelled) setCompletedSectionsCount(results.filter(Boolean).length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSession, workoutGroups]);
+
+  useEffect(() => {
+    if (ads.length === 0) return;
+    const timer = setInterval(
+      () => setAdIndex((i) => (i + 1) % ads.length),
+      3500,
+    );
+    return () => clearInterval(timer);
+  }, [ads]);
 
   // Dynamic ExerciseCard that uses real data
-const DynamicExerciseCard = ({
-  item,
-  locked = false,
-  sessionStarted = false,
-  onCardClick,
-  rounds,
-}: {
-  item: WorkoutGroupItem;
-  locked?: boolean;
-  sessionStarted?: boolean;
-  onCardClick?: () => void;
-  rounds?: string;
-}) => {
-  const actualItem = getActualExercise(item);
-  const isSwapped = swappedExercises.has(item.exercise_id);
+  const DynamicExerciseCard = ({
+    item,
+    locked = false,
+    sessionStarted = false,
+    onCardClick,
+    rounds,
+  }: {
+    item: WorkoutGroupItem;
+    locked?: boolean;
+    sessionStarted?: boolean;
+    onCardClick?: () => void;
+    rounds?: string;
+  }) => {
+    const actualItem = getActualExercise(item);
+    const isSwapped = swappedExercises.has(item.exercise_id);
 
-  return (
-    <div
-      onClick={!locked && onCardClick ? onCardClick : undefined}
-      className={`bg-white rounded-[24px] border border-[#e8e8ef] relative transition-all p-4 min-h-[170px] ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"} ${!locked && onCardClick ? "cursor-pointer" : ""}`}
-    >
-      <div className="absolute top-2 left-2 flex items-center gap-1">
-        {actualItem.is_power_set && (
-          <span className="text-[9px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">$</span>
-        )}
-        {isSwapped && <Home size={12} className="text-emerald-500" />}
-      </div>
-
-      {!locked && sessionStarted && (
-        <button
-          onClick={(e) => { e.stopPropagation(); openTracking(actualItem); }}
-          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center hover:bg-purple-50 transition z-10"
-        >
-          <Edit size={11} className="text-[#7c3aed]" />
-        </button>
-      )}
-
-      {locked && (
-        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 shadow flex items-center justify-center">
-          <Lock size={11} className="text-[#7c3aed]" />
+    return (
+      <div
+        onClick={!locked && onCardClick ? onCardClick : undefined}
+        className={`bg-white rounded-[24px] border border-[#e8e8ef] relative transition-all p-4 min-h-[170px] ${locked ? "opacity-60 blur-[1px] pointer-events-none" : "hover:shadow-md"} ${!locked && onCardClick ? "cursor-pointer" : ""}`}
+      >
+        <div className="absolute top-2 left-2 flex items-center gap-1">
+          {actualItem.is_power_set && (
+            <span className="text-[9px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">
+              $
+            </span>
+          )}
+          {isSwapped && <Home size={12} className="text-emerald-500" />}
         </div>
-      )}
 
-      <div className="w-full h-36 rounded-2xl mx-auto mb-2 mt-4 flex items-center justify-center overflow-hidden">
-        {actualItem.demo_gif ? (
-          <img src={resolveWixImage(actualItem.demo_gif)} alt={actualItem.exercise_name} className="w-full h-full object-contain" />
-        ) : (
-          <div className="w-7 h-7 rounded-full bg-[#1e1e22]" />
+        {!locked && sessionStarted && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openTracking(actualItem);
+            }}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center hover:bg-purple-50 transition z-10"
+          >
+            <Edit size={11} className="text-[#7c3aed]" />
+          </button>
         )}
-      </div>
 
-      <h3 className="text-[12px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
-        {actualItem.exercise_name}
-      </h3>
-
-      <div className="mt-1 text-center">
-        <p className="text-[16px] leading-none font-black tracking-tight text-[#222]">
-          {actualItem.reps || "—"}
-        </p>
-        {rounds && (
-          <p className="text-[10px] font-bold text-[#7c3aed] mt-0.5">{rounds}</p>
-        )}
-      </div>
-
-      {actualItem.weight !== undefined && (
-        <p className="text-[10px] font-bold text-red-500 text-center mt-0.5">
-          @ {actualItem.weight} kg
-        </p>
-      )}
-
-      {actualItem.supplemental && (
-        <div className="flex gap-2 justify-center mt-1 flex-wrap">
-          <div className="px-2 py-0.5 rounded-md bg-[#f4f4f5] text-[7px] font-bold text-gray-500 uppercase">
-            {actualItem.supplemental}
+        {locked && (
+          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 shadow flex items-center justify-center">
+            <Lock size={11} className="text-[#7c3aed]" />
           </div>
+        )}
+
+        <div className="w-full h-36 rounded-2xl mx-auto mb-2 mt-4 flex items-center justify-center overflow-hidden">
+          {actualItem.demo_gif ? (
+            <img
+              src={resolveWixImage(actualItem.demo_gif)}
+              alt={actualItem.exercise_name}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-[#1e1e22]" />
+          )}
         </div>
-      )}
-    </div>
-  );
-};
+
+        <h3 className="text-[12px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
+          {actualItem.exercise_name}
+        </h3>
+
+        <div className="mt-1 text-center">
+          <p className="text-[16px] leading-none font-black tracking-tight text-[#222]">
+            {actualItem.reps || "—"}
+          </p>
+          {rounds && (
+            <p className="text-[10px] font-bold text-[#7c3aed] mt-0.5">
+              {rounds}
+            </p>
+          )}
+        </div>
+
+        {actualItem.weight !== undefined && (
+          <p className="text-[10px] font-bold text-red-500 text-center mt-0.5">
+            @ {actualItem.weight} kg
+          </p>
+        )}
+
+        {actualItem.supplemental && (
+          <div className="flex gap-2 justify-center mt-1 flex-wrap">
+            <div className="px-2 py-0.5 rounded-md bg-[#f4f4f5] text-[7px] font-bold text-gray-500 uppercase">
+              {actualItem.supplemental}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Transform workoutGroups to rounds format for the existing UI
   const transformToRounds = () => {
@@ -521,74 +715,79 @@ const DynamicExerciseCard = ({
 
   return (
     <div className="h-screen overflow-hidden bg-[#f7f7fa] flex">
-
       {/* SIDEBAR — only visible once session is started */}
-      {sessionStarted && <div className="hidden lg:flex w-[220px] bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white flex-col p-6 flex-shrink-0">
-
-        <div className="bg-white/10 rounded-[24px] p-4 mb-8">
-          <h2 className="text-[11px] font-black leading-tight break-words uppercase tracking-wide">
-            {workoutTitle || "RECONDITIONING"}
-          </h2>
-          <p className="text-[10px] uppercase mt-1 opacity-70">Workout</p>
-          <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
-            <div
-              className="h-full bg-white rounded-full transition-all duration-500"
-              style={{ width: `${workoutGroups.length > 0 ? Math.round((completedSectionsCount / workoutGroups.length) * 100) : 0}%` }}
-            />
+      {sessionStarted && (
+        <div className="hidden lg:flex w-[220px] bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white flex-col p-6 flex-shrink-0">
+          <div className="bg-white/10 rounded-[24px] p-4 mb-8">
+            <h2 className="text-[11px] font-black leading-tight break-words uppercase tracking-wide">
+              {workoutTitle || "RECONDITIONING"}
+            </h2>
+            <p className="text-[10px] uppercase mt-1 opacity-70">Workout</p>
+            <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full transition-all duration-500"
+                style={{
+                  width: `${workoutGroups.length > 0 ? Math.round((completedSectionsCount / workoutGroups.length) * 100) : 0}%`,
+                }}
+              />
+            </div>
+            <div className="text-right text-[10px] mt-2 font-bold">
+              {workoutGroups.length > 0
+                ? Math.round(
+                    (completedSectionsCount / workoutGroups.length) * 100,
+                  )
+                : 0}
+              %
+            </div>
           </div>
-          <div className="text-right text-[10px] mt-2 font-bold">
-            {workoutGroups.length > 0 ? Math.round((completedSectionsCount / workoutGroups.length) * 100) : 0}%
-          </div>
-        </div>
 
-        <div className="space-y-3">
-          {[
-            { label: "Overview",  Icon: Home },
-            { label: "Session",   Icon: Users },
-            { label: "Results",   Icon: BarChart2 },
-            { label: "Powersets", Icon: Zap },
-            { label: "Map",       Icon: MapPin },
-          ].map(({ label, Icon }) => (
-            <button
-              key={label}
-              onClick={() => {
-                if (label === "Session") setShowSessionModal(true);
-                else setActiveView(label);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+          <div className="space-y-3">
+            {[
+              { label: "Overview", Icon: Home },
+              { label: "Session", Icon: Users },
+              { label: "Results", Icon: BarChart2 },
+              { label: "Powersets", Icon: Zap },
+              { label: "Map", Icon: MapPin },
+            ].map(({ label, Icon }) => (
+              <button
+                key={label}
+                onClick={() => {
+                  if (label === "Session") setShowSessionModal(true);
+                  else setActiveView(label);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
               ${activeView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"}`}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </div>
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
 
-    <button
-  onClick={() => {
-    localStorage.setItem("sessionActive", "true");
-    router.push("/workout/athenaWorkout");
-  }}
-  disabled={!activeSession}
-  className={`mt-auto py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition
-    ${activeSession
-      ? "bg-white text-[#7c3aed]"
-      : "bg-white/20 text-white/40 cursor-not-allowed"
+          <button
+            onClick={() => {
+              localStorage.setItem("sessionActive", "true");
+              router.push("/workout/athenaWorkout");
+            }}
+            disabled={!activeSession}
+            className={`mt-auto py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition
+    ${
+      activeSession
+        ? "bg-white text-[#7c3aed]"
+        : "bg-white/20 text-white/40 cursor-not-allowed"
     }`}
->
-  <Play size={16} fill="currentColor" />
-  Start Workout
-</button>
-      </div>}
+          >
+            <Play size={16} fill="currentColor" />
+            Start Workout
+          </button>
+        </div>
+      )}
 
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col overflow-hidden pb-16 lg:pb-0">
-
         {/* HEADER */}
         <div className="bg-white border-b border-[#ececf2] px-4 sm:px-6 lg:px-10 py-4 flex-shrink-0 z-20">
-
           <div className="flex items-center justify-between">
-
             <div className="flex items-center gap-5">
               <button onClick={() => router.back()} className="text-gray-500">
                 <ArrowLeft size={20} />
@@ -608,7 +807,10 @@ const DynamicExerciseCard = ({
                 {programTags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {programTags.map((tag) => (
-                      <span key={tag} className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase">
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase"
+                      >
                         {tag}
                       </span>
                     ))}
@@ -618,55 +820,67 @@ const DynamicExerciseCard = ({
             </div>
 
             <div className="flex items-center gap-3">
-
               {/* Ad banner beside session box */}
               {ads.length > 0 && (
                 <button
                   onClick={() => setSelectedAd(ads[adIndex])}
                   className="hidden md:flex w-72 relative h-14 rounded-xl overflow-hidden items-center text-left flex-shrink-0"
                 >
-                  <img src={ads[adIndex].image} alt="ad" className="absolute inset-0 w-full h-full object-cover" />
+                  <img
+                    src={ads[adIndex].image}
+                    alt="ad"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-black/25" />
                   <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
                     Sponsored
                   </span>
                   <div className="relative z-10 ml-auto mr-2 flex gap-1">
                     {ads.map((_, i) => (
-                      <div key={i} className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`} />
+                      <div
+                        key={i}
+                        className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`}
+                      />
                     ))}
                   </div>
                 </button>
               )}
 
               {/* Session info + Share in a box */}
-             <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
-  <div className="text-right">
-    <p className="text-[10px] font-bold text-gray-400">Session</p>
-    {activeSession ? (
-      <>
-        <p className="text-[12px] font-black text-[#222]">
-          {activeSession.id.slice(0, 8)}
-        </p>
-        <p className="text-[9px] text-gray-400">
-          {new Date(activeSession.created_at).toLocaleString('en-US', {
-            month: 'numeric', day: 'numeric', year: 'numeric',
-            hour: 'numeric', minute: '2-digit', hour12: true,
-          }).replace(',', '')}
-        </p>
-      </>
-    ) : (
-      <p className="text-[12px] font-black text-[#222]">
-        {incompleteSession ? `In Progress` : "Not Started"}
-      </p>
-    )}
-  </div>
-  <button
-    onClick={() => setShowInviteModal(true)}
-    className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
-  >
-    <Share2 size={15} />
-  </button>
-</div>
+              <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-gray-400">Session</p>
+                  {activeSession ? (
+                    <>
+                      <p className="text-[12px] font-black text-[#222]">
+                        {activeSession.id.slice(0, 8)}
+                      </p>
+                      <p className="text-[9px] text-gray-400">
+                        {new Date(activeSession.created_at)
+                          .toLocaleString("en-US", {
+                            month: "numeric",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          })
+                          .replace(",", "")}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[12px] font-black text-[#222]">
+                      {incompleteSession ? `In Progress` : "Not Started"}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+                >
+                  <Share2 size={15} />
+                </button>
+              </div>
 
               <button className="w-9 h-9 rounded-full bg-[#f3f3f6] text-gray-500 flex items-center justify-center">
                 <ClipboardList size={16} />
@@ -681,75 +895,87 @@ const DynamicExerciseCard = ({
             </div>
           </div>
 
-          {activeView !== "Results" && activeView !== "Powersets" && activeView !== "Map" && (
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
-
-                <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-500">
-                  <MapPin size={14} className="text-[#7c3aed]" />
-                  <span className="text-[#7c3aed]">Location :</span>
-                  <span>{location || "None"}</span>
-                </div>
-
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={filterByLocation}
-                    disabled={locationFilterLoading}
-                    onChange={(e) => handleLocationFilter(e.target.checked)}
-                    className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
-                  />
-                  <span className="text-[11px] font-semibold text-[#7c3aed]">
-                    {locationFilterLoading ? "Loading..." : "Show exercises based on default location"}
-                  </span>
-                </label>
-
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2">
-                    {!isLocked ? (
-                 <button
-  onClick={() => {
-    const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
-    localStorage.setItem("pendingSessionCode", code);
-    localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
-    router.push("/workout/equipmentNeeded");
-  }}
-  className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
->
-  {activeSession || incompleteSession ? "Start a New Session" : "Start a Session"}
-  <ChevronRight size={14} />
-</button>
-                    ) : (
-                      <button
-                        onClick={() => setShowPurchaseModal(true)}
-                        className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                      >
-                        Buy Session <Lock size={12} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowInviteModal(true)}
-                      className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                    >
-                      <UserPlus size={14} />
-                      Invite User
-                    </button>
+          {activeView !== "Results" &&
+            activeView !== "Powersets" &&
+            activeView !== "Map" && (
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-500">
+                    <MapPin size={14} className="text-[#7c3aed]" />
+                    <span className="text-[#7c3aed]">Location :</span>
+                    <span>{location || "None"}</span>
                   </div>
 
-                  <p className={`text-[11px] font-semibold ${isLocked ? 'text-red-500' : 'text-emerald-500'}`}>
-                    {isLocked ? "• This workout requires purchase" : "• This workout is free"}
-                  </p>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={filterByLocation}
+                      disabled={locationFilterLoading}
+                      onChange={(e) => handleLocationFilter(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
+                    />
+                    <span className="text-[11px] font-semibold text-[#7c3aed]">
+                      {locationFilterLoading
+                        ? "Loading..."
+                        : "Show exercises based on default location"}
+                    </span>
+                  </label>
+
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                      {!isLocked ? (
+                        <button
+                          onClick={() => {
+                            const code = (
+                              localStorage.getItem("workoutProgramCode") ||
+                              "unknown"
+                            ).toUpperCase();
+                            localStorage.setItem("pendingSessionCode", code);
+                            localStorage.setItem(
+                              "pendingWorkoutGroups",
+                              JSON.stringify(workoutGroups),
+                            );
+                            router.push("/workout/equipmentNeeded");
+                          }}
+                          className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        >
+                          {activeSession || incompleteSession
+                            ? "Start a New Session"
+                            : "Start a Session"}
+                          <ChevronRight size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowPurchaseModal(true)}
+                          className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        >
+                          Buy Session <Lock size={12} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowInviteModal(true)}
+                        className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                      >
+                        <UserPlus size={14} />
+                        Invite User
+                      </button>
+                    </div>
+
+                    <p
+                      className={`text-[11px] font-semibold ${isLocked ? "text-red-500" : "text-emerald-500"}`}
+                    >
+                      {isLocked
+                        ? "• This workout requires purchase"
+                        : "• This workout is free"}
+                    </p>
+                  </div>
                 </div>
               </div>
-
-            </div>
-          )}
-
+            )}
         </div>
 
         {/* REJOIN BANNER */}
-        {!activeSession && incompleteSessions.length > 0 &&  (
+        {!activeSession && incompleteSessions.length > 0 && (
           <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
             <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
               <div className="flex items-center gap-3 min-w-0">
@@ -768,12 +994,12 @@ const DynamicExerciseCard = ({
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-               <button
-  onClick={() => handleRejoin(incompleteSession!)}
-  className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
->
-  Rejoin
-</button>
+                <button
+                  onClick={() => handleRejoin(incompleteSession!)}
+                  className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
+                >
+                  Rejoin
+                </button>
                 <button
                   onClick={() => setShowRejoinModal(true)}
                   className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
@@ -797,8 +1023,13 @@ const DynamicExerciseCard = ({
             >
               <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h2 className="text-[16px] font-black text-gray-900">Incomplete Sessions</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{incompleteSessions.length} session{incompleteSessions.length > 1 ? "s" : ""} waiting</p>
+                  <h2 className="text-[16px] font-black text-gray-900">
+                    Incomplete Sessions
+                  </h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {incompleteSessions.length} session
+                    {incompleteSessions.length > 1 ? "s" : ""} waiting
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowRejoinModal(false)}
@@ -821,12 +1052,16 @@ const DynamicExerciseCard = ({
                           Rejoin Live Session: {session.id.slice(0, 6)}
                         </h3>
                         <p className="text-white/80 text-[10px] mt-1 font-medium">
-                          Started {new Date(session.created_at).toLocaleString()}
+                          Started{" "}
+                          {new Date(session.created_at).toLocaleString()}
                         </p>
                       </div>
                     </div>
                     <button
-                      onClick={() => { setShowRejoinModal(false); handleRejoin(session); }}
+                      onClick={() => {
+                        setShowRejoinModal(false);
+                        handleRejoin(session);
+                      }}
                       className="bg-white hover:bg-gray-100 transition text-[#ef4444] text-[11px] font-bold px-4 py-2 rounded-xl flex-shrink-0 shadow-sm"
                     >
                       Rejoin
@@ -840,7 +1075,6 @@ const DynamicExerciseCard = ({
 
         {/* SCROLLABLE CONTENT AREA */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 py-6">
-
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
@@ -849,81 +1083,301 @@ const DynamicExerciseCard = ({
             <>
               {activeView === "Results" ? (
                 <div className="space-y-8">
-
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
                       <Activity size={18} />
                     </div>
                     <div>
-                      <h2 className="text-[20px] font-black text-[#222]">Live Results</h2>
-                      <p className="text-[11px] text-gray-400">Real-time performance data</p>
+                      <h2 className="text-[20px] font-black text-[#222]">
+                        Live Results
+                      </h2>
+                      <p className="text-[11px] text-gray-400">
+                        Real-time performance data
+                      </p>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-[13px] font-black text-[#222] mb-4 flex items-center gap-2">
-                      <Users size={14} className="text-gray-400" /> This Workout:
-                    </p>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                      <div className="rounded-[20px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                          <Activity size={16} />
-                        </div>
-                        <p className="text-[32px] sm:text-[44px] font-black leading-none">{totalExercises}</p>
-                        <p className="text-[11px] opacity-80 mt-1">Exercises</p>
+                  {/* Workout Stats from API */}
+                  {workoutStats && (
+                    <div className="space-y-5">
+                      {/* This Workout — 3 colored cards */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          {
+                            label: "Load",
+                            value: workoutStats.thisWorkout.load,
+                            from: "from-[#60a5fa]",
+                            to: "to-[#3b82f6]",
+                            icon: <Activity size={18} />,
+                          },
+                          {
+                            label: "Power",
+                            value: workoutStats.thisWorkout.power,
+                            from: "from-[#a78bfa]",
+                            to: "to-[#7c3aed]",
+                            icon: <Zap size={18} />,
+                          },
+                          {
+                            label: "Cals",
+                            value: workoutStats.thisWorkout.cals,
+                            from: "from-[#fb923c]",
+                            to: "to-[#f97316]",
+                            icon: <Flame size={18} />,
+                          },
+                        ].map(({ label, value, from, to, icon }) => (
+                          <div
+                            key={label}
+                            className={`bg-gradient-to-br ${from} ${to} rounded-[20px] p-4 flex flex-col items-center justify-center text-white min-h-[110px]`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-2">
+                              {icon}
+                            </div>
+                            <p className="text-[32px] font-black leading-none">
+                              {value}
+                            </p>
+                            <p className="text-[11px] opacity-80 mt-1">
+                              {label}
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                      <div className="rounded-[20px] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                          <Zap size={16} />
-                        </div>
-                        <p className="text-[32px] sm:text-[44px] font-black leading-none">{workoutGroups.length}</p>
-                        <p className="text-[11px] opacity-80 mt-1">Rounds</p>
-                      </div>
-                      <div className="rounded-[20px] bg-gradient-to-br from-[#f97316] to-[#ea580c] p-5 text-white flex flex-col items-center justify-center min-h-[100px] sm:min-h-[130px]">
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-3">
-                          <Flame size={16} />
-                        </div>
-                        <p className="text-[32px] sm:text-[44px] font-black leading-none">0</p>
-                        <p className="text-[11px] opacity-80 mt-1">Cals</p>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="bg-white rounded-[20px] border border-gray-100 overflow-hidden">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-gray-100">
-                      <div className="p-5">
-                        <p className="text-[11px] font-black text-[#222] mb-4">Your Progress:</p>
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                          <div>
-                            <p className="text-[10px] text-gray-400 mb-1">Completed</p>
-                            <p className="text-[22px] font-black text-[#3b82f6]">0</p>
+                      {/* This Workout Avg */}
+                      <div>
+                        {/* This Workout Avg */}
+                        <div className="bg-white rounded-[20px] border border-gray-100 p-4">
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Users
+                              size={12}
+                              className="text-[#7c3aed] shrink-0"
+                            />
+                            <p className="text-[12px] font-black text-[#222] leading-tight">
+                              This Workout Avg. (all other users)
+                            </p>
                           </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 mb-1">Remaining</p>
-                            <p className="text-[22px] font-black text-[#7c3aed]">{totalExercises}</p>
+                          <p className="text-[10px] text-gray-400 mb-3"></p>
+                          <div className="grid grid-cols-3 gap-1 text-center">
+                            {[
+                              {
+                                label: "LOAD",
+                                value: workoutStats.overallAverage.load,
+                                color: "text-[#7c3aed]",
+                              },
+                              {
+                                label: "POWER",
+                                value: workoutStats.overallAverage.power,
+                                color: "text-[#7c3aed]",
+                              },
+                              {
+                                label: "CALS",
+                                value: workoutStats.overallAverage.cals,
+                                color: "text-[#f97316]",
+                              },
+                            ].map(({ label, value, color }) => (
+                              <div key={label}>
+                                <p className="text-[8px] font-black text-gray-400 tracking-widest mb-0.5">
+                                  {label}
+                                </p>
+                                <p
+                                  className={`text-[20px] font-black ${color}`}
+                                >
+                                  {value}
+                                </p>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
-                      <div className="p-5 border-t sm:border-t-0 border-gray-100">
-                        <p className="text-[11px] font-black text-[#222] mb-4 flex items-center gap-1">
-                          <Users size={11} className="text-[#7c3aed]" /> Session Status:
-                        </p>
-                        <div className="text-center">
-                          <p className="text-[13px] font-black text-gray-600">
-                            {sessionStarted ? "Active Session" : "No Active Session"}
+
+                      {/* Load Chart */}
+                      {(roundLoads.some((v) => v > 0) ||
+                        workoutStats.loadChart.length > 0) && (
+                        <div className="bg-white rounded-[20px] border border-gray-100 p-5">
+                          <p className="text-[15px] font-black text-[#222] mb-4">
+                            Load Chart:
                           </p>
-                          {incompleteSession && (
-                            <button
-                              onClick={() => router.push("/workout/viewWorkoutSession")}
-                              className="mt-3 bg-[#7c3aed] text-white px-4 py-2 rounded-xl text-xs font-bold"
-                            >
-                              Rejoin Session
-                            </button>
-                          )}
+                          <div className="relative">
+                            {(() => {
+                              const chartData = roundLoads.length
+                                ? roundLoads
+                                : workoutStats.loadChart;
+                              const max = Math.max(...chartData, 1);
+                              const steps = [
+                                max,
+                                Math.round(max * 0.75),
+                                Math.round(max * 0.5),
+                                Math.round(max * 0.25),
+                                0,
+                              ];
+                              return (
+                                <div className="flex gap-2">
+                                  <div
+                                    className="flex flex-col justify-between text-[9px] text-gray-400 text-right pr-1"
+                                    style={{ height: 140 }}
+                                  >
+                                    {steps.map((s) => (
+                                      <span key={s}>{s}</span>
+                                    ))}
+                                  </div>
+                                  <div
+                                    className="flex-1 flex items-end gap-2"
+                                    style={{ height: 140 }}
+                                  >
+                                    {chartData.map((val, i) => {
+                                      const pct =
+                                        max > 0 ? (val / max) * 100 : 0;
+                                      const roundLabel =
+                                        workoutGroups[i]?.label ??
+                                        `ROUND ${i + 1}`;
+                                      return (
+                                        <div
+                                          key={i}
+                                          className="flex-1 flex flex-col items-center justify-end gap-1"
+                                          style={{ height: "100%" }}
+                                        >
+                                          <div
+                                            className="bg-[#7c3aed] rounded-t-md"
+                                            style={{
+                                              height: `${Math.max(pct, 2)}%`,
+                                              width: "clamp(16px, 40%, 40px)",
+                                            }}
+                                          />
+                                          <span className="text-[8px] text-gray-400 text-center leading-tight whitespace-pre-line">
+                                            {roundLabel.replace(
+                                              /\s+(\d+|GEN)$/i,
+                                              "\n$1",
+                                            )}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            <div className="flex items-center justify-center gap-2 mt-3">
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" />
+                              <span className="text-[11px] text-gray-500">
+                                Your Progress
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Muscles Used */}
+                      {workoutStats.thisWorkout.muscleTracking.length > 0 && (
+                        <div className="bg-white rounded-[20px] border border-gray-100 p-5">
+                          <p className="text-[15px] font-black text-[#222] mb-4">
+                            Muscles Used:
+                          </p>
+                          <div className="grid grid-cols-3 gap-x-2 gap-y-3">
+                            {[...workoutStats.thisWorkout.muscleTracking]
+                              .sort(
+                                (a, b) =>
+                                  Object.values(b)[0] - Object.values(a)[0],
+                              )
+                              .map((item, i) => {
+                                const [muscle, value] = Object.entries(item)[0];
+                                const label = muscle
+                                  .replace(/([A-Z])/g, " $1")
+                                  .trim()
+                                  .toUpperCase();
+                                return (
+                                  <div
+                                    key={i}
+                                    className="flex items-center justify-between border-b border-gray-100 pb-2"
+                                  >
+                                    <span className="text-[9px] font-bold text-gray-600 truncate pr-1">
+                                      {label}
+                                    </span>
+                                    <span className="text-[11px] font-black text-[#222] shrink-0">
+                                      {value.toFixed(2)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+
+                          {/* Muscle Chart — bar chart */}
+                          <div className="mt-6">
+                            <p className="text-[15px] font-black text-[#222] mb-4">
+                              Muscle Chart:
+                            </p>
+                            {(() => {
+                              const sorted = [
+                                ...workoutStats.thisWorkout.muscleTracking,
+                              ]
+                                .sort(
+                                  (a, b) =>
+                                    Object.values(b)[0] - Object.values(a)[0],
+                                )
+                                .slice(0, 5);
+                              const max = Math.max(
+                                ...sorted.map((m) => Object.values(m)[0]),
+                                1,
+                              );
+                              const steps = [
+                                max,
+                                Math.round(max * 0.6),
+                                Math.round(max * 0.3),
+                                0,
+                              ];
+                              return (
+                                <div className="flex gap-2">
+                                  {/* Y-axis */}
+                                  <div
+                                    className="flex flex-col justify-between text-[9px] text-gray-400 text-right pr-1 shrink-0"
+                                    style={{ height: 120 }}
+                                  >
+                                    {steps.map((s) => (
+                                      <span key={s}>{s}</span>
+                                    ))}
+                                  </div>
+                                  {/* Bars */}
+                                  <div className="flex-1">
+                                    <div
+                                      className="flex items-end gap-2"
+                                      style={{ height: 120 }}
+                                    >
+                                      {sorted.map((item, i) => {
+                                        const [muscle, value] =
+                                          Object.entries(item)[0];
+                                        const pct = (value / max) * 100;
+                                        const label = muscle
+                                          .replace(/([A-Z])/g, " $1")
+                                          .trim()
+                                          .toUpperCase()
+                                          .slice(0, 8);
+                                        return (
+                                          <div
+                                            key={i}
+                                            className="flex-1 flex flex-col items-center justify-end gap-1"
+                                            style={{ height: "100%" }}
+                                          >
+                                            <div
+                                              className="rounded-t-lg bg-[#2dd4bf]"
+                                              style={{
+                                                height: `${Math.max(pct, 2)}%`,
+                                                width: "clamp(16px, 40%, 40px)",
+                                              }}
+                                            />
+                                            <span className="text-[7px] text-gray-400 text-center leading-tight">
+                                              {label}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               ) : activeView === "Powersets" ? (
                 <div className="space-y-6 pb-20">
@@ -932,8 +1386,12 @@ const DynamicExerciseCard = ({
                       <Zap size={18} />
                     </div>
                     <div>
-                      <h2 className="text-[20px] font-black text-[#222]">Power Sets</h2>
-                      <p className="text-[11px] text-gray-400">Your strength movements</p>
+                      <h2 className="text-[20px] font-black text-[#222]">
+                        Power Sets
+                      </h2>
+                      <p className="text-[11px] text-gray-400">
+                        Your strength movements
+                      </p>
                     </div>
                   </div>
 
@@ -948,7 +1406,10 @@ const DynamicExerciseCard = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {workoutGroups.slice(0, 4).map((group, gi) => (
-                      <div key={gi} className="bg-white rounded-[20px] border-2 border-[#ede9fe] p-5">
+                      <div
+                        key={gi}
+                        className="bg-white rounded-[20px] border-2 border-[#ede9fe] p-5"
+                      >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <span className="bg-[#7c3aed] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
@@ -963,9 +1424,16 @@ const DynamicExerciseCard = ({
                         </div>
                         <div className="space-y-2">
                           {group.workouts.slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-50">
-                              <span className="text-[11px] font-semibold text-gray-700">{item.exercise_name}</span>
-                              <span className="text-[10px] text-gray-400">{item.reps || "—"}</span>
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between py-2 border-b border-gray-50"
+                            >
+                              <span className="text-[11px] font-semibold text-gray-700">
+                                {item.exercise_name}
+                              </span>
+                              <span className="text-[10px] text-gray-400">
+                                {item.reps || "—"}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -981,19 +1449,29 @@ const DynamicExerciseCard = ({
                         <MapPin size={20} />
                       </div>
                       <div>
-                        <h2 className="text-[22px] font-black text-[#222]">Workout Map</h2>
-                        <p className="text-[11px] text-gray-400">Exercise breakdown by rounds</p>
+                        <h2 className="text-[22px] font-black text-[#222]">
+                          Workout Map
+                        </h2>
+                        <p className="text-[11px] text-gray-400">
+                          Exercise breakdown by rounds
+                        </p>
                       </div>
                     </div>
                     <button
                       onClick={() => {
-                        const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+                        const code = (
+                          localStorage.getItem("workoutProgramCode") ||
+                          "unknown"
+                        ).toUpperCase();
                         localStorage.setItem("pendingSessionCode", code);
-                        localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+                        localStorage.setItem(
+                          "pendingWorkoutGroups",
+                          JSON.stringify(workoutGroups),
+                        );
                         router.push("/workout/equipmentNeeded");
                       }}
                       disabled={isLocked}
-                      className={`${isLocked ? 'bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'} transition text-white font-black text-[13px] px-6 py-3 rounded-2xl disabled:opacity-60`}
+                      className={`${isLocked ? "bg-gray-400" : "bg-emerald-500 hover:bg-emerald-600"} transition text-white font-black text-[13px] px-6 py-3 rounded-2xl disabled:opacity-60`}
                     >
                       Complete Workout
                     </button>
@@ -1001,10 +1479,15 @@ const DynamicExerciseCard = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {rounds.map((round) => {
-                      const done = round.exercises.filter(e => selectedExercises.has(e.id)).length;
+                      const done = round.exercises.filter((e) =>
+                        selectedExercises.has(e.id),
+                      ).length;
                       const collapsed = collapsedRounds.has(round.id);
                       return (
-                        <div key={round.id} className="bg-white rounded-[20px] border border-gray-100 overflow-hidden shadow-sm">
+                        <div
+                          key={round.id}
+                          className="bg-white rounded-[20px] border border-gray-100 overflow-hidden shadow-sm"
+                        >
                           <button
                             onClick={() => toggleRound(round.id)}
                             className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition"
@@ -1013,10 +1496,22 @@ const DynamicExerciseCard = ({
                               {round.id}
                             </div>
                             <div className="flex-1 text-left">
-                              <p className="text-[13px] font-black text-[#222]">{round.label}</p>
-                              <p className="text-[10px] text-gray-400">{round.rounds} · {done}/{round.exercises.length} exercises</p>
+                              <p className="text-[13px] font-black text-[#222]">
+                                {round.label}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {round.rounds} · {done}/{round.exercises.length}{" "}
+                                exercises
+                              </p>
                             </div>
-                            {collapsed ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronUp size={16} className="text-gray-400" />}
+                            {collapsed ? (
+                              <ChevronDown
+                                size={16}
+                                className="text-gray-400"
+                              />
+                            ) : (
+                              <ChevronUp size={16} className="text-gray-400" />
+                            )}
                           </button>
 
                           {!collapsed && (
@@ -1026,23 +1521,36 @@ const DynamicExerciseCard = ({
                                 return (
                                   <button
                                     key={ex.id}
-                                    onClick={() => !isLocked && toggleExercise(ex.id)}
+                                    onClick={() =>
+                                      !isLocked && toggleExercise(ex.id)
+                                    }
                                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${sel ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-transparent hover:border-gray-200"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                                     disabled={isLocked}
                                   >
-                                    <span className={`text-[11px] font-bold w-5 text-center flex-shrink-0 ${sel ? "text-emerald-500" : "text-gray-400"}`}>
+                                    <span
+                                      className={`text-[11px] font-bold w-5 text-center flex-shrink-0 ${sel ? "text-emerald-500" : "text-gray-400"}`}
+                                    >
                                       {ex.order || ex.id}
                                     </span>
-                                    <span className={`flex-1 text-left text-[12px] font-semibold ${sel ? "text-emerald-600" : "text-[#222]"}`}>
+                                    <span
+                                      className={`flex-1 text-left text-[12px] font-semibold ${sel ? "text-emerald-600" : "text-[#222]"}`}
+                                    >
                                       {ex.name}
                                     </span>
-                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full ${ex.loc === "HOME" ? "bg-gray-100 text-gray-500" : "bg-red-50 text-red-400"}`}>
+                                    <span
+                                      className={`text-[9px] font-black px-2 py-1 rounded-full ${ex.loc === "HOME" ? "bg-gray-100 text-gray-500" : "bg-red-50 text-red-400"}`}
+                                    >
                                       {ex.loc}
                                     </span>
-                                    {sel
-                                      ? <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" fill="white" />
-                                      : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
-                                    }
+                                    {sel ? (
+                                      <CheckCircle2
+                                        size={18}
+                                        className="text-emerald-500 flex-shrink-0"
+                                        fill="white"
+                                      />
+                                    ) : (
+                                      <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
+                                    )}
                                   </button>
                                 );
                               })}
@@ -1058,38 +1566,55 @@ const DynamicExerciseCard = ({
                 <div className="space-y-10 relative">
                   {rejoinLoading && (
                     <div className="absolute inset-0 z-10 bg-white/80 flex flex-col items-center justify-center gap-3 rounded-2xl">
-                      <Loader2 size={32} className="animate-spin text-purple-500" />
-                      <p className="text-[13px] font-bold text-gray-500">Loading your session...</p>
+                      <Loader2
+                        size={32}
+                        className="animate-spin text-purple-500"
+                      />
+                      <p className="text-[13px] font-bold text-gray-500">
+                        Loading your session...
+                      </p>
                     </div>
                   )}
-                  {(filterByLocation ? locationFilteredGroups : workoutGroups).map((group, groupIdx) => {
+                  {(filterByLocation
+                    ? locationFilteredGroups
+                    : workoutGroups
+                  ).map((group, groupIdx) => {
                     const isGroupLocked = isLocked && groupIdx > 0;
-                    const previewItems = isGroupLocked ? group.workouts.slice(0, 3) : group.workouts;
-                    
+                    const previewItems = isGroupLocked
+                      ? group.workouts.slice(0, 3)
+                      : group.workouts;
+
                     return (
                       <section key={`${group.label}-${groupIdx}`}>
                         <div className="flex items-center gap-3 mb-6">
-                          <div className={`w-8 h-1 rounded-full ${groupIdx === 0 ? 'bg-orange-400' : groupIdx === 1 ? 'bg-[#7c3aed]' : 'bg-emerald-500'}`} />
+                          <div
+                            className={`w-8 h-1 rounded-full ${groupIdx === 0 ? "bg-orange-400" : groupIdx === 1 ? "bg-[#7c3aed]" : "bg-emerald-500"}`}
+                          />
                           <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">
                             {group.label} {group.rounds && `(${group.rounds})`}
                           </h2>
-                          {isGroupLocked
-                            ? <Lock size={12} className="text-gray-300 ml-auto" />
-                            : (
-                              <button
-                                disabled={!activeSession}
-                                onClick={() => {
-                                  localStorage.setItem("sessionActive", "true");
-                                  router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`);
-                                }}
-                                className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#7c3aed]"
-                              >
-                                <Play size={12} fill="white" className="text-white ml-0.5" />
-                              </button>
-                            )
-                          }
+                          {isGroupLocked ? (
+                            <Lock size={12} className="text-gray-300 ml-auto" />
+                          ) : (
+                            <button
+                              disabled={!activeSession}
+                              onClick={() => {
+                                localStorage.setItem("sessionActive", "true");
+                                router.push(
+                                  `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`,
+                                );
+                              }}
+                              className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#7c3aed]"
+                            >
+                              <Play
+                                size={12}
+                                fill="white"
+                                className="text-white ml-0.5"
+                              />
+                            </button>
+                          )}
                         </div>
-                        
+
                         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                           {previewItems.map((item, i) => (
                             <DynamicExerciseCard
@@ -1098,10 +1623,19 @@ const DynamicExerciseCard = ({
                               locked={isGroupLocked}
                               sessionStarted={sessionStarted}
                               rounds={group.rounds}
-                              onCardClick={activeSession ? () => {
-                                localStorage.setItem("sessionActive", "true");
-                                router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`);
-                              } : undefined}
+                              onCardClick={
+                                activeSession
+                                  ? () => {
+                                      localStorage.setItem(
+                                        "sessionActive",
+                                        "true",
+                                      );
+                                      router.push(
+                                        `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`,
+                                      );
+                                    }
+                                  : undefined
+                              }
                             />
                           ))}
                         </div>
@@ -1116,8 +1650,9 @@ const DynamicExerciseCard = ({
                                 Unlock Full Program
                               </h2>
                               <p className="text-sm text-gray-500 leading-relaxed mb-5">
-                                Get access to all exercises, detailed form videos,
-                                progression systems, and advanced athlete coaching tools.
+                                Get access to all exercises, detailed form
+                                videos, progression systems, and advanced
+                                athlete coaching tools.
                               </p>
                               <button
                                 onClick={() => setShowPurchaseModal(true)}
@@ -1186,7 +1721,9 @@ const DynamicExerciseCard = ({
                   <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                     <Users size={15} />
                   </div>
-                  <span className="text-[14px] font-black">Session Details</span>
+                  <span className="text-[14px] font-black">
+                    Session Details
+                  </span>
                 </div>
                 <button
                   onClick={() => setShowSessionModal(false)}
@@ -1224,16 +1761,16 @@ const DynamicExerciseCard = ({
                     <Users size={8} />
                     Location
                   </div>
-                  <p className="text-[10px] font-black">
-                    {location || "None"}
-                  </p>
+                  <p className="text-[10px] font-black">{location || "None"}</p>
                 </div>
               </div>
             </div>
 
             <div className="bg-white px-5 py-5">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] font-black text-[#222]">Participants</span>
+                <span className="text-[13px] font-black text-[#222]">
+                  Participants
+                </span>
                 <button className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center">
                   <Share2 size={12} />
                 </button>
@@ -1273,8 +1810,13 @@ const DynamicExerciseCard = ({
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-[18px] font-black text-[#7c3aed]">Share This Session:</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Session ID: {incompleteSession?.id?.slice(0, 6) || "pending"}</p>
+                  <h2 className="text-[18px] font-black text-[#7c3aed]">
+                    Share This Session:
+                  </h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Session ID:{" "}
+                    {incompleteSession?.id?.slice(0, 6) || "pending"}
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowInviteModal(false)}
@@ -1288,36 +1830,183 @@ const DynamicExerciseCard = ({
             <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
               <div className="bg-[#f5f5f7] rounded-2xl p-5 flex flex-col items-center">
                 <div className="border-2 border-[#7c3aed] rounded-xl p-3 bg-white mb-3">
-                  <svg width="100" height="100" viewBox="0 0 100 100" className="text-[#1e1e22]">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="60" y="0" width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="0" y="60" width="40" height="40" rx="4" fill="currentColor"/>
-                    <rect x="8" y="8" width="24" height="24" rx="2" fill="white"/>
-                    <rect x="68" y="8" width="24" height="24" rx="2" fill="white"/>
-                    <rect x="8" y="68" width="24" height="24" rx="2" fill="white"/>
-                    <rect x="16" y="16" width="8" height="8" fill="currentColor"/>
-                    <rect x="76" y="16" width="8" height="8" fill="currentColor"/>
-                    <rect x="16" y="76" width="8" height="8" fill="currentColor"/>
-                    <rect x="52" y="4" width="6" height="6" fill="currentColor"/>
-                    <rect x="62" y="4" width="6" height="6" fill="currentColor"/>
-                    <rect x="52" y="14" width="6" height="6" fill="currentColor"/>
-                    <rect x="4" y="52" width="6" height="6" fill="currentColor"/>
-                    <rect x="14" y="52" width="6" height="6" fill="currentColor"/>
-                    <rect x="24" y="52" width="6" height="6" fill="currentColor"/>
-                    <rect x="52" y="52" width="6" height="6" fill="currentColor"/>
-                    <rect x="62" y="62" width="6" height="6" fill="currentColor"/>
-                    <rect x="74" y="52" width="6" height="6" fill="currentColor"/>
-                    <rect x="84" y="62" width="6" height="6" fill="currentColor"/>
-                    <rect x="52" y="74" width="6" height="6" fill="currentColor"/>
-                    <rect x="64" y="84" width="6" height="6" fill="currentColor"/>
-                    <rect x="84" y="84" width="6" height="6" fill="currentColor"/>
+                  <svg
+                    width="100"
+                    height="100"
+                    viewBox="0 0 100 100"
+                    className="text-[#1e1e22]"
+                  >
+                    <rect
+                      x="0"
+                      y="0"
+                      width="40"
+                      height="40"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="60"
+                      y="0"
+                      width="40"
+                      height="40"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="0"
+                      y="60"
+                      width="40"
+                      height="40"
+                      rx="4"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="8"
+                      y="8"
+                      width="24"
+                      height="24"
+                      rx="2"
+                      fill="white"
+                    />
+                    <rect
+                      x="68"
+                      y="8"
+                      width="24"
+                      height="24"
+                      rx="2"
+                      fill="white"
+                    />
+                    <rect
+                      x="8"
+                      y="68"
+                      width="24"
+                      height="24"
+                      rx="2"
+                      fill="white"
+                    />
+                    <rect
+                      x="16"
+                      y="16"
+                      width="8"
+                      height="8"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="76"
+                      y="16"
+                      width="8"
+                      height="8"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="16"
+                      y="76"
+                      width="8"
+                      height="8"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="52"
+                      y="4"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="62"
+                      y="4"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="52"
+                      y="14"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="4"
+                      y="52"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="14"
+                      y="52"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="24"
+                      y="52"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="52"
+                      y="52"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="62"
+                      y="62"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="74"
+                      y="52"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="84"
+                      y="62"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="52"
+                      y="74"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="64"
+                      y="84"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="84"
+                      y="84"
+                      width="6"
+                      height="6"
+                      fill="currentColor"
+                    />
                   </svg>
                 </div>
-                <p className="text-[11px] text-gray-400 font-medium">Scan this code to join the session</p>
+                <p className="text-[11px] text-gray-400 font-medium">
+                  Scan this code to join the session
+                </p>
               </div>
 
               <div>
-                <p className="text-[13px] font-black text-[#222] mb-3">Share with Followers:</p>
+                <p className="text-[13px] font-black text-[#222] mb-3">
+                  Share with Followers:
+                </p>
                 <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-4 py-2.5 mb-3">
                   <Search size={14} className="text-gray-400 flex-shrink-0" />
                   <input
@@ -1338,22 +2027,34 @@ const DynamicExerciseCard = ({
                     { initials: "TP", name: "tompark", color: "bg-yellow-400" },
                     { initials: "MK", name: "marykay", color: "bg-red-400" },
                   ].map((u) => (
-                    <div key={u.initials} className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <div className={`w-10 h-10 rounded-full ${u.color} flex items-center justify-center text-white text-[11px] font-black`}>
+                    <div
+                      key={u.initials}
+                      className="flex flex-col items-center gap-1 flex-shrink-0"
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full ${u.color} flex items-center justify-center text-white text-[11px] font-black`}
+                      >
                         {u.initials}
                       </div>
-                      <span className="text-[9px] text-gray-400 font-medium">{u.name}</span>
+                      <span className="text-[9px] text-gray-400 font-medium">
+                        {u.name}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <p className="text-[13px] font-black text-[#222] mb-3">Invite via Link</p>
+                <p className="text-[13px] font-black text-[#222] mb-3">
+                  Invite via Link
+                </p>
                 <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Link size={12} className="text-gray-400 flex-shrink-0" />
-                    <p className="text-[11px] text-gray-400 truncate">https://www.proformapp.com/session/{incompleteSession?.id?.slice(0, 6) || "pending"}</p>
+                    <p className="text-[11px] text-gray-400 truncate">
+                      https://www.proformapp.com/session/
+                      {incompleteSession?.id?.slice(0, 6) || "pending"}
+                    </p>
                   </div>
                 </div>
                 <button className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2">
@@ -1418,8 +2119,8 @@ const DynamicExerciseCard = ({
                   OPM
                 </div>
                 <p className="text-gray-500 leading-relaxed text-[12px]">
-                  You can access this program and all other workouts/programs
-                  in this package by purchasing a Franchise License.
+                  You can access this program and all other workouts/programs in
+                  this package by purchasing a Franchise License.
                 </p>
                 <p className="text-gray-400 text-[11px] mt-5">
                   View details and options below:
@@ -1445,25 +2146,39 @@ const DynamicExerciseCard = ({
       {selectedAd && (
         <div
           className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+          onClick={() => {
+            setSelectedAd(null);
+            setLinkCopied(false);
+          }}
         >
           <div
             className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+              onClick={() => {
+                setSelectedAd(null);
+                setLinkCopied(false);
+              }}
               className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
             >
               <X size={14} className="text-gray-600" />
             </button>
             <div className="p-5">
-              <p className="font-bold text-gray-800 text-sm mb-3">Ad Details:</p>
+              <p className="font-bold text-gray-800 text-sm mb-3">
+                Ad Details:
+              </p>
               <div className="rounded-2xl overflow-hidden mb-4 bg-gray-100 h-44">
-                <img src={selectedAd.image} alt="ad" className="w-full h-full object-cover" />
+                <img
+                  src={selectedAd.image}
+                  alt="ad"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="flex items-center gap-2 mb-4">
-                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded shrink-0">Link :</span>
+                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded shrink-0">
+                  Link :
+                </span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(selectedAd.link);
@@ -1474,10 +2189,16 @@ const DynamicExerciseCard = ({
                 >
                   {selectedAd.link}
                 </button>
-                {linkCopied && <span className="text-[10px] text-green-600 font-semibold shrink-0">Copied!</span>}
+                {linkCopied && (
+                  <span className="text-[10px] text-green-600 font-semibold shrink-0">
+                    Copied!
+                  </span>
+                )}
               </div>
               <button
-                onClick={() => window.open(selectedAd.link, "_blank", "noopener,noreferrer")}
+                onClick={() =>
+                  window.open(selectedAd.link, "_blank", "noopener,noreferrer")
+                }
                 className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-2xl text-[14px] transition mb-3"
               >
                 Redirect
@@ -1498,7 +2219,9 @@ const DynamicExerciseCard = ({
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[3px] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-[480px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
-              <h2 className="text-[15px] font-black text-gray-900">Exercise Tracking</h2>
+              <h2 className="text-[15px] font-black text-gray-900">
+                Exercise Tracking
+              </h2>
               <button
                 onClick={() => setTrackingItem(null)}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
@@ -1511,7 +2234,11 @@ const DynamicExerciseCard = ({
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-[#efefef] rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center">
                   {trackingItem.demo_gif ? (
-                    <img src={resolveWixImage(trackingItem.demo_gif)} alt={trackingItem.exercise_name} className="w-full h-full object-cover" />
+                    <img
+                      src={resolveWixImage(trackingItem.demo_gif)}
+                      alt={trackingItem.exercise_name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <Dumbbell className="w-7 h-7 text-gray-300" />
                   )}
@@ -1522,18 +2249,28 @@ const DynamicExerciseCard = ({
               </div>
 
               {(() => {
-                const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                const userUnit = (
+                  userOtherDetail?.measurementUnit || "lbs"
+                ).toLowerCase();
                 const toUnit = (val: string) => {
                   const n = parseFloat(val) || 0;
                   return userUnit === "kg" ? n / 2.20462 : n;
                 };
-                const wMap: Record<string, number> = userOtherDetail ? {
-                  "of InputBarbellSquat": toUnit(userOtherDetail.r_back_squat),
-                  "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
-                  "of InputBenchPress": toUnit(userOtherDetail.r_bench_press),
-                  "of InputPowerClean": toUnit(userOtherDetail.r_power_clean),
-                  "of BodyWeight": toUnit(userOtherDetail.currentWeight),
-                } : {};
+                const wMap: Record<string, number> = userOtherDetail
+                  ? {
+                      "of InputBarbellSquat": toUnit(
+                        userOtherDetail.r_back_squat,
+                      ),
+                      "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
+                      "of InputBenchPress": toUnit(
+                        userOtherDetail.r_bench_press,
+                      ),
+                      "of InputPowerClean": toUnit(
+                        userOtherDetail.r_power_clean,
+                      ),
+                      "of BodyWeight": toUnit(userOtherDetail.currentWeight),
+                    }
+                  : {};
                 const weightAdj = (trackingItem.weight_adj || "").trim();
                 const weightVal = trackingItem.weight || "0";
                 let displayWeight = "";
@@ -1556,42 +2293,74 @@ const DynamicExerciseCard = ({
                   <>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                          Last
+                        </p>
                         {logsLoading ? (
-                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                          <Loader2
+                            size={14}
+                            className="animate-spin text-gray-300 mx-auto"
+                          />
                         ) : lastRecord ? (
                           <>
-                            <p className="text-[13px] font-black text-gray-700">{lastRecord.weight}</p>
-                            <p className="text-[10px] text-gray-400">{userUnit}</p>
-                            <p className="text-[11px] font-bold text-gray-500">×{lastRecord.reps} reps</p>
+                            <p className="text-[13px] font-black text-gray-700">
+                              {lastRecord.weight}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {userUnit}
+                            </p>
+                            <p className="text-[11px] font-bold text-gray-500">
+                              ×{lastRecord.reps} reps
+                            </p>
                           </>
                         ) : (
-                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                          <p className="text-[12px] font-bold text-gray-400">
+                            No records yet
+                          </p>
                         )}
                       </div>
                       <div className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Best</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                          Best
+                        </p>
                         {logsLoading ? (
-                          <Loader2 size={14} className="animate-spin text-gray-300 mx-auto" />
+                          <Loader2
+                            size={14}
+                            className="animate-spin text-gray-300 mx-auto"
+                          />
                         ) : bestRecord ? (
                           <>
-                            <p className="text-[13px] font-black text-gray-700">{bestRecord.weight}</p>
-                            <p className="text-[10px] text-gray-400">{userUnit}</p>
-                            <p className="text-[11px] font-bold text-gray-500">×{bestRecord.reps} reps</p>
+                            <p className="text-[13px] font-black text-gray-700">
+                              {bestRecord.weight}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {userUnit}
+                            </p>
+                            <p className="text-[11px] font-bold text-gray-500">
+                              ×{bestRecord.reps} reps
+                            </p>
                           </>
                         ) : (
-                          <p className="text-[12px] font-bold text-gray-400">No records yet</p>
+                          <p className="text-[12px] font-bold text-gray-400">
+                            No records yet
+                          </p>
                         )}
                       </div>
                     </div>
 
                     <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
                       <div>
-                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Suggested</p>
-                        <p className="text-[13px] font-black text-purple-700">{suggestedSets}x {suggestedReps}</p>
+                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">
+                          Suggested
+                        </p>
+                        <p className="text-[13px] font-black text-purple-700">
+                          {suggestedSets}x {suggestedReps}
+                        </p>
                       </div>
                       {displayWeight && (
-                        <p className="text-[13px] font-black text-purple-700">{displayWeight}</p>
+                        <p className="text-[13px] font-black text-purple-700">
+                          {displayWeight}
+                        </p>
                       )}
                     </div>
                   </>
@@ -1608,28 +2377,44 @@ const DynamicExerciseCard = ({
 
               <div className="space-y-3">
                 {sets.map((set, i) => (
-                  <div key={i} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                  <div
+                    key={i}
+                    className="bg-gray-50 rounded-2xl p-4 border border-gray-100"
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Set {i + 1}</span>
+                      <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">
+                        Set {i + 1}
+                      </span>
                       {set.saved && set.load != null && (
-                        <span className="text-[10px] font-bold text-gray-400">Load: {set.load}</span>
+                        <span className="text-[10px] font-bold text-gray-400">
+                          Load: {set.load}
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Weight (lbs)</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">
+                          Weight (lbs)
+                        </p>
                         <input
                           type="number"
                           value={set.weight}
-                          onChange={(e) => updateSet(i, "weight", e.target.value)}
+                          onChange={(e) =>
+                            updateSet(i, "weight", e.target.value)
+                          }
                           placeholder="0"
                           disabled={set.saved}
                           className={`w-full rounded-xl border px-3 py-2.5 text-[15px] font-bold outline-none transition placeholder:text-gray-300 ${set.saved ? "bg-gray-100 border-gray-200 cursor-not-allowed text-gray-400" : "bg-white border-gray-200 text-gray-800 focus:border-purple-400 focus:ring-2 focus:ring-purple-100"}`}
                         />
                       </div>
-                      <X size={12} className="text-gray-300 flex-shrink-0 mt-5" />
+                      <X
+                        size={12}
+                        className="text-gray-300 flex-shrink-0 mt-5"
+                      />
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Reps /e</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">
+                          Reps /e
+                        </p>
                         <input
                           type="number"
                           value={set.reps}
@@ -1645,15 +2430,25 @@ const DynamicExerciseCard = ({
                         disabled={savingSetIndex === i}
                         onClick={async () => {
                           if (!trackingItem) return;
-                          const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
-                          const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
+                          const code = localStorage
+                            .getItem("workoutProgramCode")
+                            ?.toUpperCase();
+                          const sessionId = code
+                            ? localStorage.getItem(`activeSessionId_${code}`)
+                            : null;
                           if (!sessionId || !code) return;
                           const setNumber = i + 1;
                           const weightNum = parseFloat(set.weight) || 0;
                           const repsNum = parseInt(set.reps) || 0;
-                          const userWeight = parseFloat(userOtherDetail?.currentWeight || "0") || 0;
-                          const userHeight = parseFloat(userOtherDetail?.height || "0") || 0;
-                          const computedLoad = Math.ceil(((userWeight * userHeight) + repsNum * weightNum) / 2600);
+                          const userWeight =
+                            parseFloat(userOtherDetail?.currentWeight || "0") ||
+                            0;
+                          const userHeight =
+                            parseFloat(userOtherDetail?.height || "0") || 0;
+                          const computedLoad = Math.ceil(
+                            (userWeight * userHeight + repsNum * weightNum) /
+                              2600,
+                          );
                           const payload = {
                             title: `Set ${setNumber}`,
                             exerciseId: trackingItem.exercise_id,
@@ -1665,21 +2460,51 @@ const DynamicExerciseCard = ({
                             tag: "/e",
                             load: computedLoad,
                           };
-                          console.log("[tracking] Saving set", setNumber, payload);
+                          console.log(
+                            "[tracking] Saving set",
+                            setNumber,
+                            payload,
+                          );
                           setSavingSetIndex(i);
                           try {
                             const result = await createTrackingLog(payload);
-                            console.log("[tracking] Set", setNumber, "saved:", result);
-                            setSets((prev) => prev.map((s, idx) => idx === i ? { ...s, saved: true, load: result.load ?? computedLoad } : s));
+                            console.log(
+                              "[tracking] Set",
+                              setNumber,
+                              "saved:",
+                              result,
+                            );
+                            setSets((prev) =>
+                              prev.map((s, idx) =>
+                                idx === i
+                                  ? {
+                                      ...s,
+                                      saved: true,
+                                      load: result.load ?? computedLoad,
+                                    }
+                                  : s,
+                              ),
+                            );
                           } catch (err) {
-                            console.error("[tracking] Failed to save set", setNumber, err);
+                            console.error(
+                              "[tracking] Failed to save set",
+                              setNumber,
+                              err,
+                            );
                           } finally {
                             setSavingSetIndex(null);
                           }
                         }}
                         className="mt-3 w-full bg-white border border-gray-200 rounded-xl py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition disabled:opacity-60 flex items-center justify-center gap-1"
                       >
-                        {savingSetIndex === i ? <><Loader2 size={11} className="animate-spin" /> Saving...</> : "Save"}
+                        {savingSetIndex === i ? (
+                          <>
+                            <Loader2 size={11} className="animate-spin" />{" "}
+                            Saving...
+                          </>
+                        ) : (
+                          "Save"
+                        )}
                       </button>
                     )}
                   </div>
@@ -1700,9 +2525,16 @@ const DynamicExerciseCard = ({
                 disabled={savingLogs}
                 onClick={async () => {
                   if (!trackingItem) return;
-                  const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
-                  const sessionId = code ? localStorage.getItem(`activeSessionId_${code}`) : null;
-                  if (!sessionId || !code) { setTrackingItem(null); return; }
+                  const code = localStorage
+                    .getItem("workoutProgramCode")
+                    ?.toUpperCase();
+                  const sessionId = code
+                    ? localStorage.getItem(`activeSessionId_${code}`)
+                    : null;
+                  if (!sessionId || !code) {
+                    setTrackingItem(null);
+                    return;
+                  }
                   setSavingLogs(true);
                   try {
                     const payloads = sets
@@ -1716,9 +2548,16 @@ const DynamicExerciseCard = ({
                         weight: parseFloat(set.weight) || 0,
                         repetitions: parseInt(set.reps) || 0,
                       }));
-                    console.log("[tracking] Saving", payloads.length, "unsaved set(s):", payloads);
+                    console.log(
+                      "[tracking] Saving",
+                      payloads.length,
+                      "unsaved set(s):",
+                      payloads,
+                    );
                     if (payloads.length > 0) {
-                      const results = await Promise.all(payloads.map((p) => createTrackingLog(p)));
+                      const results = await Promise.all(
+                        payloads.map((p) => createTrackingLog(p)),
+                      );
                       console.log("[tracking] Saved successfully:", results);
                     }
                   } catch (err) {
@@ -1730,7 +2569,13 @@ const DynamicExerciseCard = ({
                 }}
                 className="w-full bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black py-3 rounded-xl text-[13px] hover:opacity-90 transition disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {savingLogs ? <><Loader2 size={15} className="animate-spin" /> Saving...</> : "Save"}
+                {savingLogs ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" /> Saving...
+                  </>
+                ) : (
+                  "Save"
+                )}
               </button>
               <button
                 onClick={() => setTrackingItem(null)}
