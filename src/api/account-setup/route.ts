@@ -98,11 +98,13 @@ export interface ActivityLevelOption {
 // ─── Training Goals API types ────────────────────────────────────────────────
 
 export interface TrainingGoalOption {
-  id: string | number; // API returns id as string e.g. "4", "6", "8", etc.
-  name: string; // e.g. "Understand Mechanics", "Power/Explosiveness", etc.
-  Hide?: string; // "0" for visible, "1" for hidden (optional)
-  created_at?: string;
-  updated_at?: string;
+  id: string | number;
+  title: string;        // API field name
+  hide?: boolean;       // boolean false = visible, true = hidden
+  owner?: string;
+  myprograms?: string;
+  created_date?: string;
+  updated_date?: string;
 }
 
 // ─── Training Goals fetch function ───────────────────────────────────────────

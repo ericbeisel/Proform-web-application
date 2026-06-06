@@ -3,6 +3,7 @@
 import { BarChart2, User, LogOut, Menu, X , ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -27,7 +28,8 @@ export default function DashboardHeader({
     try {
       setIsLoggingOut(true);
 
-      // Clear auth session
+      // Clear auth session and stale dashboard cache
+      invalidateDashboardCache();
       clearAuthSession();
 
       // Also clear user data from localStorage (important!)

@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
-import { getAuthUser, getUserIdFromToken, getTokenPayload } from "@/lib/auth/session";
+import { getAuthUser, getUserIdFromToken, getTokenPayload, clearAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 import { profileApi } from "@/api/profile/route";
 
@@ -65,6 +66,8 @@ export default function CoachDashboardPage() {
   const [userInitial, setUserInitial] = useState<string>("N/A");
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [orgLogo, setOrgLogo] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -165,6 +168,17 @@ export default function CoachDashboardPage() {
       })
       .catch(console.error);
   }, []);
+
+  // Close profile menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    }
+    if (profileMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileMenuOpen]);
 
   // Fetch real invite link when invite modal opens
   useEffect(() => {
@@ -918,11 +932,127 @@ export default function CoachDashboardPage() {
             <Bell size={17} className="text-gray-700" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
           </button>
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-            {profilePicture ? (
-              <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
-            ) : (
-              userInitial
+          {/* Avatar with profile menu */}
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden hover:opacity-90 transition"
+            >
+              {profilePicture ? (
+                <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
+              ) : (
+                userInitial
+              )}
+            </button>
+
+            {profileMenuOpen && (
+              <div className="fixed left-2 right-2 sm:left-auto sm:right-4 top-16 sm:w-[400px] bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] border border-[#e8e6f0] z-[999] overflow-y-auto max-h-[calc(100vh-80px)]">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
+                      {profilePicture ? (
+                        <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
+                      ) : (
+                        userInitial
+                      )}
+                    </div>
+                    <span className="font-semibold text-[#1a1825] text-sm">{userInitial}</span>
+                  </div>
+                  <button
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f7f6fb] text-[#8b879e] transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="h-px bg-[#f0eef8] mx-5" />
+
+                {/* Menu — two columns on sm+, single column stacked on mobile */}
+                <div className="flex flex-col sm:flex-row px-5 py-4 gap-4 sm:gap-8">
+                  {/* Left column */}
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    {[
+                      { label: "Teams", href: "/coach/coach-dashboard" },
+                      { label: "Reports", href: "/coach/coach-dashboard" },
+                      { label: "Queue", href: "/coach/coach-dashboard" },
+                      { label: "Challenges (New)", href: "/coach/coach-dashboard", highlight: true },
+                      { label: "Settings", href: "/account" },
+                      { label: "Leaderboard", href: "/coach/coach-dashboard" },
+                      { label: "Player Logs", href: "/coach/activity" },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => { setProfileMenuOpen(false); router.push(item.href); }}
+                        className={`text-[13px] py-2 sm:py-1.5 text-left hover:text-[#8B5CF6] transition-colors ${item.highlight ? "text-[#e17055] font-medium" : "text-[#3d3a4a]"}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+
+                    <div className="h-px bg-[#f0eef8] my-2" />
+
+                    {[
+                      { label: "My Exercises", href: "/coach/coach-dashboard" },
+                      { label: "Connect TVs", href: "/coach/coach-dashboard" },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => { setProfileMenuOpen(false); router.push(item.href); }}
+                        className="text-[13px] py-2 sm:py-1.5 text-left text-[#3d3a4a] hover:text-[#8B5CF6] transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="h-px bg-[#f0eef8] sm:hidden" />
+
+                  {/* Right column - Tools */}
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-[11px] font-semibold text-[#b0adc0] uppercase tracking-wide mb-1">Tools</span>
+                    {[
+                      { label: "Players", href: "/coach/coach-dashboard" },
+                      { label: "Announcements", href: "/coach/coach-dashboard" },
+                      { label: "Exercise Locations", href: "/coach/coach-dashboard" },
+                      { label: "Sessions", href: "/coach/coach-dashboard" },
+                      { label: "Team Licenses", href: "/coach/coach-dashboard" },
+                      { label: "Reminders", href: "/coach/coach-dashboard" },
+                      { label: "Player Submissions", href: "/coach/coach-dashboard" },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => { setProfileMenuOpen(false); router.push(item.href); }}
+                        className="text-[13px] py-2 sm:py-1.5 text-left text-[#3d3a4a] hover:text-[#8B5CF6] transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+
+                    <div className="h-px bg-[#f0eef8] my-2" />
+
+                    <button
+                      onClick={() => { setProfileMenuOpen(false); router.replace("/team/teams"); }}
+                      className="text-[13px] py-2 sm:py-1.5 text-left text-[#8B5CF6] font-medium hover:opacity-80 transition-opacity"
+                    >
+                      Switch to Player
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        invalidateDashboardCache();
+                        clearAuthSession();
+                        localStorage.removeItem("user");
+                        router.replace("/auth/login");
+                      }}
+                      className="text-[13px] py-2 sm:py-1.5 text-left text-[#e17055] font-medium hover:opacity-80 transition-opacity"
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
