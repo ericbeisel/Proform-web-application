@@ -971,7 +971,7 @@ export default function CoachDashboardPage() {
 
                 {/* Menu — two columns on sm+, single column stacked on mobile */}
                 <div className="flex flex-col sm:flex-row px-5 py-4 gap-4 sm:gap-8">
-                  {/* Left column */}
+                
                   <div className="flex-1 flex flex-col gap-0.5">
                     {[
                       { label: "Teams", href: "/coach/coach-dashboard" },
