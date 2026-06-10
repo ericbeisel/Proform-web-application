@@ -314,6 +314,51 @@ export default function CoachDashboardPage() {
   const [teamsLeft, setTeamsLeft] = useState<number | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
 
+  const [floatingOpen, setFloatingOpen] = useState(true);
+  const [fabPos, setFabPos] = useState({ x: 0, y: 0 });
+  const fabInitialized = useRef(false);
+  const dragging = useRef(false);
+  const wasDragged = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const fabRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!fabInitialized.current && typeof window !== "undefined") {
+      // 56px bubble + 16px margin from edges
+      setFabPos({ x: window.innerWidth - 72, y: window.innerHeight - 72 });
+      fabInitialized.current = true;
+    }
+  }, []);
+
+  function onFabMouseDown(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest("button[data-action='nav']")) return;
+    dragging.current = true;
+    wasDragged.current = false;
+    dragOffset.current = {
+      x: e.clientX - fabPos.x,
+      y: e.clientY - fabPos.y,
+    };
+    e.preventDefault();
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      wasDragged.current = true;
+      setFabPos({
+        x: Math.min(Math.max(0, e.clientX - dragOffset.current.x), window.innerWidth - 60),
+        y: Math.min(Math.max(0, e.clientY - dragOffset.current.y), window.innerHeight - 60),
+      });
+    }
+    function onMouseUp() { dragging.current = false; }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
 
@@ -1333,6 +1378,60 @@ export default function CoachDashboardPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* ── Floating Action Menu ── */}
+      <div
+        ref={fabRef}
+        onMouseDown={onFabMouseDown}
+        style={{
+          position: "fixed",
+          left: fabPos.x > 0 ? fabPos.x : "auto",
+          right: fabPos.x > 0 ? "auto" : 16,
+          top: fabPos.y > 0 ? fabPos.y : "auto",
+          bottom: fabPos.y > 0 ? "auto" : 16,
+          zIndex: 9999,
+          userSelect: "none",
+          width: 56,
+          height: 56,
+        }}
+      >
+        {/* Menu panel — absolutely above the bubble, right-aligned so it opens leftward */}
+        {floatingOpen && (
+          <div
+            style={{ position: "absolute", bottom: "calc(100% + 10px)", right: 0 }}
+            className="bg-[#2d1b69] rounded-2xl shadow-[0_8px_32px_rgba(45,27,105,0.4)] border border-purple-800/30 p-2 flex flex-col gap-0.5 w-[185px]"
+          >
+            {[
+              { label: "All Teams", icon: Users, href: "/coach/coach-dashboard" },
+              { label: "All Players", icon: UserPlus, href: "/coach/activity" },
+              { label: "All Activities", icon: Target, href: "/coach/activity" },
+            ].map(({ label, icon: Icon, href }) => (
+              <button
+                key={label}
+                data-action="nav"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => { setFloatingOpen(false); router.push(href); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 text-white/90 hover:text-white transition-colors text-sm font-medium w-full text-left"
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Purple bubble */}
+        <button
+          data-action="toggle"
+          onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } setFloatingOpen((v) => !v); }}
+          className="w-14 h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center shadow-[0_8px_24px_rgba(139,92,246,0.5)] hover:bg-[#7C3AED] active:scale-95 transition-all"
+        >
+          {floatingOpen
+            ? <X size={22} className="text-white" />
+            : <SlidersHorizontal size={20} className="text-white" />
+          }
+        </button>
       </div>
     </div>
   );
