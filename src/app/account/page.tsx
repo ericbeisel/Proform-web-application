@@ -45,7 +45,7 @@ const MAIN_MENU: MenuItem[] = [
   // ✅ NEW OPTION
   { label: "Admin Itinerary", icon: Calendar, href: "/admin-itinerary" },
 
-  { label: "My Metrics", icon: Activity, href: "/itinerary/all-activity" },
+  { label: "My Metrics", icon: Activity, href: "/metrics" },
   { label: "My Teams", icon: Users, href: "/team/teams" },
   { label: "My Preferences", icon: Settings, href: "/preferences" },
   { label: "Payments", icon: CreditCard },
