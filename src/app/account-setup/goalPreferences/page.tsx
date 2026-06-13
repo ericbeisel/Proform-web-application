@@ -39,8 +39,7 @@ export default function GoalsPreferencesPage() {
           fetchSports(),
         ]);
 
-        // Filter out any goals that are hidden (if Hide property is used)
-        const visibleGoals = goals.filter((goal) => goal.Hide !== "1");
+        const visibleGoals = goals.filter((goal) => !goal.hide && goal.title);
         setTrainingGoalsOptions(visibleGoals);
 
         // Sort sports by order field
@@ -108,7 +107,7 @@ export default function GoalsPreferencesPage() {
   // Helper function to get goal name from ID for display
   const getGoalName = (id: string) => {
     const goal = trainingGoalsOptions.find((g) => String(g.id) === id);
-    return goal?.name.trim() || id;
+    return (goal?.title ?? "").trim() || id;
   };
 
   // Helper function to get sport name from ID for display
@@ -240,7 +239,7 @@ export default function GoalsPreferencesPage() {
           <div className="flex flex-wrap gap-2">
             {trainingGoalsOptions.map((goal) => {
               const goalId = String(goal.id);
-              const goalName = goal.name.trim();
+              const goalName = (goal.title ?? "").trim();
               const isSelected = formData.trainingGoals.includes(goalId);
 
               return (

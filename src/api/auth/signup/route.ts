@@ -1,6 +1,7 @@
 // src/lib/api/auth.ts
 import axios from "axios";
 import { setAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
@@ -65,6 +66,7 @@ export const signup = async ({
     // Auto-save token if present
     const token = data?.token ?? data?.access_token ?? data?.accessToken;
     if (token) {
+      invalidateDashboardCache();
       setAuthSession(String(token));
     }
 

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { setAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 
 export const login = async (email: string, password: string) => {
   try {
@@ -11,6 +12,7 @@ export const login = async (email: string, password: string) => {
     // Save token immediately (common pattern)
     const token = data?.token ?? data?.access_token ?? data?.accessToken;
     if (token) {
+      invalidateDashboardCache();
       setAuthSession(String(token));
     }
 

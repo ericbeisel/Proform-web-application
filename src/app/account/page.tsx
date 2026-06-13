@@ -19,6 +19,7 @@ import {
   Rss,
 } from "lucide-react";
 import { clearAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 
 // Type for the user data we expect from localStorage or API
 interface StoredUser {
@@ -44,7 +45,7 @@ const MAIN_MENU: MenuItem[] = [
   // ✅ NEW OPTION
   { label: "Admin Itinerary", icon: Calendar, href: "/admin-itinerary" },
 
-  { label: "My Metrics", icon: Activity, href: "/itinerary/all-activity" },
+  { label: "My Metrics", icon: Activity, href: "/metrics" },
   { label: "My Teams", icon: Users, href: "/team/teams" },
   { label: "My Preferences", icon: Settings, href: "/preferences" },
   { label: "Payments", icon: CreditCard },
@@ -152,6 +153,7 @@ export default function AccountPage() {
       // await logoutApi();   // ← uncomment if you create this
 
       // Clear everything locally
+      invalidateDashboardCache();
       clearAuthSession();
 
       // Also clear user data from localStorage
@@ -338,6 +340,7 @@ export default function AccountPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <button
               type="button"
+              onClick={() => router.push("/coach/coach-onboarding")}
               className="h-14 rounded-xl bg-cyan-600 text-base md:text-lg font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
             >
               Coach Login

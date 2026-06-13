@@ -20,10 +20,12 @@ import {
   Check,
   ChevronDown,
   MessageCircle,
+  Menu,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
-import { getAuthUser, getUserIdFromToken, getTokenPayload } from "@/lib/auth/session";
+import { getAuthUser, getUserIdFromToken, getTokenPayload, clearAuthSession } from "@/lib/auth/session";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 import { profileApi } from "@/api/profile/route";
 
@@ -65,6 +67,8 @@ export default function CoachDashboardPage() {
   const [userInitial, setUserInitial] = useState<string>("N/A");
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [orgLogo, setOrgLogo] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(true);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -165,6 +169,8 @@ export default function CoachDashboardPage() {
       })
       .catch(console.error);
   }, []);
+
+  // sidebar — no outside-click close
 
   // Fetch real invite link when invite modal opens
   useEffect(() => {
@@ -299,6 +305,51 @@ export default function CoachDashboardPage() {
 
   const [teamsLeft, setTeamsLeft] = useState<number | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
+
+  const [floatingOpen, setFloatingOpen] = useState(true);
+  const [fabPos, setFabPos] = useState({ x: 0, y: 0 });
+  const fabInitialized = useRef(false);
+  const dragging = useRef(false);
+  const wasDragged = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const fabRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!fabInitialized.current && typeof window !== "undefined") {
+      // 56px bubble + 16px margin from edges
+      setFabPos({ x: window.innerWidth - 72, y: window.innerHeight - 72 });
+      fabInitialized.current = true;
+    }
+  }, []);
+
+  function onFabMouseDown(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest("button[data-action='nav']")) return;
+    dragging.current = true;
+    wasDragged.current = false;
+    dragOffset.current = {
+      x: e.clientX - fabPos.x,
+      y: e.clientY - fabPos.y,
+    };
+    e.preventDefault();
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      wasDragged.current = true;
+      setFabPos({
+        x: Math.min(Math.max(0, e.clientX - dragOffset.current.x), window.innerWidth - 60),
+        y: Math.min(Math.max(0, e.clientY - dragOffset.current.y), window.innerHeight - 60),
+      });
+    }
+    function onMouseUp() { dragging.current = false; }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -878,6 +929,89 @@ export default function CoachDashboardPage() {
         </div>
       )}
 
+      {/* ── Left Sidebar ── */}
+      <div
+        ref={profileMenuRef}
+        className={`fixed left-0 top-0 h-full w-[270px] bg-white shadow-[4px_0_24px_rgba(0,0,0,0.10)] z-[998] flex flex-col transition-transform duration-300 ${profileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        {/* Sidebar header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[#f0eef8]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
+              {profilePicture
+                ? <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
+                : userInitial}
+            </div>
+            <span className="font-semibold text-[#1a1825] text-sm">{userInitial}</span>
+          </div>
+          <button
+            onClick={() => setProfileMenuOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f7f6fb] text-[#8b879e] transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Sidebar content */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5">
+          {[
+            { label: "Teams", highlight: false },
+            { label: "Reports", highlight: false },
+            { label: "Queue", highlight: false },
+            { label: "Challenges (New)", highlight: true },
+            { label: "Settings", highlight: false },
+            { label: "Leaderboard", highlight: false },
+            { label: "Player Logs", highlight: false },
+          ].map((item) => (
+            <button
+              key={item.label}
+              className={`text-sm py-2.5 px-3 rounded-xl text-left transition-colors hover:bg-[#f5f0ff] hover:text-[#8B5CF6] ${item.highlight ? "text-[#e17055] font-medium" : "text-[#3d3a4a]"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+
+          <div className="h-px bg-[#f0eef8] my-2" />
+          <span className="text-[11px] font-semibold text-[#b0adc0] uppercase tracking-wide px-3 mb-1">Tools</span>
+
+          {[
+            "My Exercises", "Connect TVs", "Players", "Announcements",
+            "Exercise Locations", "Sessions", "Team Licenses", "Reminders", "Player Submissions",
+          ].map((label) => (
+            <button
+              key={label}
+              className="text-sm py-2.5 px-3 rounded-xl text-left text-[#3d3a4a] hover:bg-[#f5f0ff] hover:text-[#8B5CF6] transition-colors"
+            >
+              {label}
+            </button>
+          ))}
+
+          <div className="h-px bg-[#f0eef8] my-2" />
+
+          <button
+            onClick={() => { setProfileMenuOpen(false); router.replace("/team/teams"); }}
+            className="text-sm py-2.5 px-3 rounded-xl text-left text-[#8B5CF6] font-medium hover:bg-[#f5f0ff] transition-colors"
+          >
+            Switch to Player
+          </button>
+          <button
+            onClick={() => {
+              setProfileMenuOpen(false);
+              invalidateDashboardCache();
+              clearAuthSession();
+              localStorage.removeItem("user");
+              router.replace("/auth/login");
+            }}
+            className="text-sm py-2.5 px-3 rounded-xl text-left text-[#e17055] font-medium hover:bg-red-50 transition-colors"
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main content shifts right when sidebar open ── */}
+      <div className={`transition-all duration-300 ${profileMenuOpen ? "ml-[270px]" : "ml-0"}`}>
+
       {/* ── Header ── */}
       <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 relative">
         {/* Centered logo */}
@@ -893,6 +1027,12 @@ export default function CoachDashboardPage() {
         </button>
 
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <button
+            onClick={() => setProfileMenuOpen((v) => !v)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#f5f5f7] transition shrink-0"
+          >
+            <Menu size={20} className="text-[#1f1f1f]" />
+          </button>
           <h1 className="text-base sm:text-2xl font-black text-[#1f1f1f] truncate">
             Coach Dashboard
           </h1>
@@ -918,13 +1058,15 @@ export default function CoachDashboardPage() {
             <Bell size={17} className="text-gray-700" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
           </button>
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-            {profilePicture ? (
-              <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
-            ) : (
-              userInitial
-            )}
-          </div>
+          {/* Avatar */}
+          <button
+            onClick={() => setProfileMenuOpen((v) => !v)}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden hover:opacity-90 transition"
+          >
+            {profilePicture
+              ? <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
+              : userInitial}
+          </button>
         </div>
       </header>
 
@@ -1204,6 +1346,62 @@ export default function CoachDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── Floating Action Menu ── */}
+      <div
+        ref={fabRef}
+        onMouseDown={onFabMouseDown}
+        style={{
+          position: "fixed",
+          left: fabPos.x > 0 ? fabPos.x : "auto",
+          right: fabPos.x > 0 ? "auto" : 16,
+          top: fabPos.y > 0 ? fabPos.y : "auto",
+          bottom: fabPos.y > 0 ? "auto" : 16,
+          zIndex: 9999,
+          userSelect: "none",
+          width: 56,
+          height: 56,
+        }}
+      >
+        {/* Menu panel — absolutely above the bubble, right-aligned so it opens leftward */}
+        {floatingOpen && (
+          <div
+            style={{ position: "absolute", bottom: "calc(100% + 10px)", right: 0 }}
+            className="bg-[#2d1b69] rounded-2xl shadow-[0_8px_32px_rgba(45,27,105,0.4)] border border-purple-800/30 p-2 flex flex-col gap-0.5 w-[185px]"
+          >
+            {[
+              { label: "All Teams", icon: Users, href: "/coach/coach-dashboard" },
+              { label: "All Players", icon: UserPlus, href: "/coach/activity" },
+              { label: "All Activities", icon: Target, href: "/coach/activity" },
+            ].map(({ label, icon: Icon, href }) => (
+              <button
+                key={label}
+                data-action="nav"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => { setFloatingOpen(false); router.push(href); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 text-white/90 hover:text-white transition-colors text-sm font-medium w-full text-left"
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Purple bubble */}
+        <button
+          data-action="toggle"
+          onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } setFloatingOpen((v) => !v); }}
+          className="w-14 h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center shadow-[0_8px_24px_rgba(139,92,246,0.5)] hover:bg-[#7C3AED] active:scale-95 transition-all"
+        >
+          {floatingOpen
+            ? <X size={22} className="text-white" />
+            : <SlidersHorizontal size={20} className="text-white" />
+          }
+        </button>
+      </div>
+
+      </div>{/* end shifting wrapper */}
     </div>
   );
 }
