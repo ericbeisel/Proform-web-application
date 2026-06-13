@@ -81,6 +81,22 @@ export default function RecoveryDetailPage() {
     fetchRecoveryZone();
   }, [id]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && id) {
+      try {
+        const stored = sessionStorage.getItem("recoveryDetails");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.uploadImage && (parsed.recovery === id || !parsed.recovery)) {
+            setUploadedImage(parsed.uploadImage);
+          }
+        }
+      } catch (e) {
+        console.error("Error reading recoveryDetails:", e);
+      }
+    }
+  }, [id]);
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;

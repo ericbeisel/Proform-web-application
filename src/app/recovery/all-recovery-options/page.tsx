@@ -48,8 +48,25 @@ export default function RecoveryOptions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recoveryZones, setRecoveryZones] = useState<RecoveryZone[]>([]);
+  const [hasPrefilledImage, setHasPrefilledImage] = useState(false);
 
   // Fetch all recovery zones
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = sessionStorage.getItem("recoveryDetails");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.uploadImage) {
+            setHasPrefilledImage(true);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const fetchRecoveryZones = async () => {
       try {
@@ -119,6 +136,28 @@ export default function RecoveryOptions() {
           </p>
         </div>
       </div>
+      {/* Prefilled Image Banner */}
+      {hasPrefilledImage && (
+        <div className="mb-6 p-4 bg-purple-50 border border-purple-100 rounded-2xl flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-full uppercase tracking-wider">
+              Prefilled Image
+            </span>
+            <span className="text-sm text-purple-600">
+              Select a recovery option to log it with your uploaded highlight image.
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("recoveryDetails");
+              setHasPrefilledImage(false);
+            }}
+            className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline transition-all"
+          >
+            Clear Prefilled Image
+          </button>
+        </div>
+      )}
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">

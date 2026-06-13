@@ -224,6 +224,39 @@ export default function PlayerCardUploadPage() {
     void fetchAllData(true);
   }, [fetchAllData]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = sessionStorage.getItem("CardDetails");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.uploadImage) {
+            // Fetch the image and convert to File so it can be submitted
+            fetch(parsed.uploadImage)
+              .then((res) => res.blob())
+              .then((blob) => {
+                const file = new File([blob], "progress-photo.jpg", { type: blob.type });
+                setAccountabilityTools((prev) =>
+                  prev.map((tool) => {
+                    if (tool.id === "progress-photo") {
+                      return { ...tool, file, preview: parsed.uploadImage, isExpanded: true };
+                    }
+                    return tool;
+                  })
+                );
+                toast.success("Loaded prefilled progress photo!");
+                // Clear so we don't reload it again next time
+                sessionStorage.removeItem("CardDetails");
+              })
+              .catch((err) => console.error("Error loading prefilled progress image:", err));
+          }
+        }
+      } catch (e) {
+        console.error("Error reading CardDetails from sessionStorage:", e);
+      }
+    }
+  }, [toast]);
+
   // Handle card type selection from dropdown
 const handleCardTypeSelect = (typeId: string) => {
   setSelectedCardType(typeId);
