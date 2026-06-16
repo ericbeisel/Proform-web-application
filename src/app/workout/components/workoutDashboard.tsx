@@ -412,9 +412,14 @@ export default function WorkoutDashboard() {
 
                 {/* ── Main content ── */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <p className="font-bold text-sm sm:text-base text-white truncate">
-                    {session.title}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {session.group && (
+                      <span className="text-[10px] text-gray-400">{session.group}</span>
+                    )}
+                    {session.day && (
+                      <span className="text-[10px] text-gray-400">{session.day}</span>
+                    )}
+                  </div>
 
                   {session.activityTime && (
                     <p className="text-xs text-blue-400 mt-0.5">
@@ -422,33 +427,40 @@ export default function WorkoutDashboard() {
                     </p>
                   )}
 
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                       {session.group && (
-                      <span className="text-xs text-gray-400">{session.group}</span>
-                    )}
-                    {session.day && (
-                      <span className="text-xs text-gray-400">{session.day}</span>
-                    )}
-                 
-                  </div>
+                  {session.programName && (
+                    <p className="text-[11px] text-purple-400 font-medium mt-0.5 truncate uppercase tracking-wide">
+                      {session.programName}
+                    </p>
+                  )}
+
+                  <p className="font-bold text-sm sm:text-base text-white truncate">
+                    {session.title}
+                  </p>
 
                   {session.muscles_used && (
-                    <p className="text-xs text-purple-400 mt-0.5 truncate">{session.muscles_used}</p>
+                    <p className="text-xs text-white mt-0.5 truncate">{session.muscles_used}</p>
                   )}
 
-                  {/* Stat pills — hidden on very small screens to save space */}
-                  {(tagsMap[session.programCode || ""] || []).length > 0 && (
-                    <div className="hidden xs:flex sm:flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      {(tagsMap[session.programCode || ""] || []).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] sm:text-xs font-medium"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* Power set tags */}
+                  {(() => {
+                    const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
+                    const badges = (tagsMap[session.programCode || ""] || [])
+                      .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
+                      .filter(Boolean) as string[];
+                    if (!badges.length) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        {badges.map((name) => (
+                          <span
+                            key={name}
+                            className="px-2 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-semibold"
+                          >
+                            ${name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* ── Right-side controls ── */}

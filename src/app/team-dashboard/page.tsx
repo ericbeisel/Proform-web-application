@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Bell,
   Calendar,
@@ -20,8 +19,6 @@ import {
 } from "lucide-react";
 
 export default function TeamDashboard() {
-  const [activeTab, setActiveTab] = useState(null);
-
   return (
     <div className="min-h-screen w-full bg-gray-50 font-sans">
       

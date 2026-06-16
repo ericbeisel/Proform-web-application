@@ -13,6 +13,7 @@ import {
   Megaphone,
   Search,
   X,
+  Menu,
   Upload,
   Trash2,
   UserPlus,
@@ -20,7 +21,6 @@ import {
   Check,
   ChevronDown,
   MessageCircle,
-  Menu,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
@@ -28,6 +28,7 @@ import { getAuthUser, getUserIdFromToken, getTokenPayload, clearAuthSession } fr
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 import { profileApi } from "@/api/profile/route";
+import { CoachSidebar } from "./components/CoachSidebar";
 
 const quickActions = [
   { title: "Reminders", icon: Bell, color: "bg-[#7C4DFF]" },
@@ -67,8 +68,6 @@ export default function CoachDashboardPage() {
   const [userInitial, setUserInitial] = useState<string>("N/A");
   const [orgDisplayName, setOrgDisplayName] = useState<string | null>(null);
   const [orgLogo, setOrgLogo] = useState<string | null>(null);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(true);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Admin Details form
   const [showAdminDetailsModal, setShowAdminDetailsModal] = useState(false);
@@ -306,6 +305,7 @@ export default function CoachDashboardPage() {
   const [teamsLeft, setTeamsLeft] = useState<number | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [floatingOpen, setFloatingOpen] = useState(true);
   const [fabPos, setFabPos] = useState({ x: 0, y: 0 });
   const fabInitialized = useRef(false);
@@ -352,7 +352,7 @@ export default function CoachDashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
+    <div className="min-h-screen bg-[#f5f5f7] overflow-x-hidden">
 
       {/* ── Create Team Modal ── */}
       {showCreateModal && (
@@ -930,110 +930,56 @@ export default function CoachDashboardPage() {
       )}
 
       {/* ── Left Sidebar ── */}
-      <div
-        ref={profileMenuRef}
-        className={`fixed left-0 top-0 h-full w-[270px] bg-white shadow-[4px_0_24px_rgba(0,0,0,0.10)] z-[998] flex flex-col transition-transform duration-300 ${profileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
-      >
-        {/* Sidebar header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[#f0eef8]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
-              {profilePicture
-                ? <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
-                : userInitial}
-            </div>
-            <span className="font-semibold text-[#1a1825] text-sm">{userInitial}</span>
-          </div>
-          <button
-            onClick={() => setProfileMenuOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f7f6fb] text-[#8b879e] transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
+      <CoachSidebar
+        profilePicture={profilePicture}
+        userInitial={userInitial}
+        onSwitchToPlayer={() => router.replace("/team/teams")}
+        onLogOut={() => {
+          invalidateDashboardCache();
+          clearAuthSession();
+          localStorage.removeItem("user");
+          router.replace("/auth/login");
+        }}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-        {/* Sidebar content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5">
-          {[
-            { label: "Teams", highlight: false },
-            { label: "Reports", highlight: false },
-            { label: "Queue", highlight: false },
-            { label: "Challenges (New)", highlight: true },
-            { label: "Settings", highlight: false },
-            { label: "Leaderboard", highlight: false },
-            { label: "Player Logs", highlight: false },
-          ].map((item) => (
-            <button
-              key={item.label}
-              className={`text-sm py-2.5 px-3 rounded-xl text-left transition-colors hover:bg-[#f5f0ff] hover:text-[#8B5CF6] ${item.highlight ? "text-[#e17055] font-medium" : "text-[#3d3a4a]"}`}
-            >
-              {item.label}
-            </button>
-          ))}
-
-          <div className="h-px bg-[#f0eef8] my-2" />
-          <span className="text-[11px] font-semibold text-[#b0adc0] uppercase tracking-wide px-3 mb-1">Tools</span>
-
-          {[
-            "My Exercises", "Connect TVs", "Players", "Announcements",
-            "Exercise Locations", "Sessions", "Team Licenses", "Reminders", "Player Submissions",
-          ].map((label) => (
-            <button
-              key={label}
-              className="text-sm py-2.5 px-3 rounded-xl text-left text-[#3d3a4a] hover:bg-[#f5f0ff] hover:text-[#8B5CF6] transition-colors"
-            >
-              {label}
-            </button>
-          ))}
-
-          <div className="h-px bg-[#f0eef8] my-2" />
-
-          <button
-            onClick={() => { setProfileMenuOpen(false); router.replace("/team/teams"); }}
-            className="text-sm py-2.5 px-3 rounded-xl text-left text-[#8B5CF6] font-medium hover:bg-[#f5f0ff] transition-colors"
-          >
-            Switch to Player
-          </button>
-          <button
-            onClick={() => {
-              setProfileMenuOpen(false);
-              invalidateDashboardCache();
-              clearAuthSession();
-              localStorage.removeItem("user");
-              router.replace("/auth/login");
-            }}
-            className="text-sm py-2.5 px-3 rounded-xl text-left text-[#e17055] font-medium hover:bg-red-50 transition-colors"
-          >
-            Log Out
-          </button>
-        </div>
-      </div>
-
-      {/* ── Main content shifts right when sidebar open ── */}
-      <div className={`transition-all duration-300 ${profileMenuOpen ? "ml-[270px]" : "ml-0"}`}>
+      {/* ── Main content — offset only on desktop ── */}
+      <div className="md:ml-[220px]">
 
       {/* ── Header ── */}
       <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 relative">
-        {/* Centered logo */}
+        {/* Centered logo — desktop only (avoids collision with title on mobile) */}
         <button
           onClick={() => router.push("/dashboard")}
-          className="absolute left-1/2 -translate-x-1/2 cursor-pointer"
+          className="hidden md:block absolute left-1/2 -translate-x-1/2 cursor-pointer"
         >
           <img
             src="/images/proform-logo.jpg"
             alt="Proform"
-            className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-contain"
+            className="w-7 h-7 rounded-lg object-contain"
           />
         </button>
 
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          {/* Mobile: hamburger + inline logo */}
           <button
-            onClick={() => setProfileMenuOpen((v) => !v)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#f5f5f7] transition shrink-0"
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden w-9 h-9 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
           >
-            <Menu size={20} className="text-[#1f1f1f]" />
+            <Menu size={18} className="text-gray-700" />
           </button>
-          <h1 className="text-base sm:text-2xl font-black text-[#1f1f1f] truncate">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="md:hidden shrink-0"
+          >
+            <img
+              src="/images/proform-logo.jpg"
+              alt="Proform"
+              className="w-7 h-7 rounded-lg object-contain"
+            />
+          </button>
+          <h1 className="hidden md:block text-2xl font-black text-[#1f1f1f] truncate">
             Coach Dashboard
           </h1>
           <button
@@ -1059,14 +1005,11 @@ export default function CoachDashboardPage() {
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
           </button>
           {/* Avatar */}
-          <button
-            onClick={() => setProfileMenuOpen((v) => !v)}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden hover:opacity-90 transition"
-          >
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm overflow-hidden">
             {profilePicture
               ? <img src={profilePicture} alt="profile" className="w-full h-full object-cover" />
               : userInitial}
-          </button>
+          </div>
         </div>
       </header>
 
@@ -1359,8 +1302,8 @@ export default function CoachDashboardPage() {
           bottom: fabPos.y > 0 ? "auto" : 16,
           zIndex: 9999,
           userSelect: "none",
-          width: 56,
-          height: 56,
+          width: 44,
+          height: 44,
         }}
       >
         {/* Menu panel — absolutely above the bubble, right-aligned so it opens leftward */}
@@ -1392,7 +1335,7 @@ export default function CoachDashboardPage() {
         <button
           data-action="toggle"
           onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } setFloatingOpen((v) => !v); }}
-          className="w-14 h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center shadow-[0_8px_24px_rgba(139,92,246,0.5)] hover:bg-[#7C3AED] active:scale-95 transition-all"
+          className="w-11 h-11 rounded-full bg-[#8B5CF6] flex items-center justify-center shadow-[0_8px_24px_rgba(139,92,246,0.5)] hover:bg-[#7C3AED] active:scale-95 transition-all"
         >
           {floatingOpen
             ? <X size={22} className="text-white" />
