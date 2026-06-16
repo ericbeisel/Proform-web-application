@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Calendar, X, ChevronRight, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Plus, Calendar, X, Loader2 } from "lucide-react";
 import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
 import { getProgramTags } from "@/api/programs/route";
 
@@ -161,7 +160,6 @@ const DAY_ORDER = [
 ];
 
 export default function ItineraryPage() {
-  const router = useRouter();
   const [showAddWorkout, setShowAddWorkout] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab | null>(null);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
@@ -169,6 +167,7 @@ export default function ItineraryPage() {
   const [selectedWorkout, setSelectedWorkout] = useState<ItineraryWorkout | null>(null);
   const [selectedWorkoutTags, setSelectedWorkoutTags] = useState<string[]>([]);
   const [itineraryData, setItineraryData] = useState<ItineraryWorkout[]>([]);
+  const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
   const [scheduleType, setScheduleType] = useState<string>("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +244,16 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
 };
 
   useEffect(() => {
+    if (!itineraryData.length) return;
+    const uniqueCodes = [...new Set(itineraryData.map((w) => w.title).filter(Boolean))];
+    uniqueCodes.forEach((code) => {
+      getProgramTags(code.toLowerCase())
+        .then((tags) => setTagsMap((prev) => ({ ...prev, [code]: tags })))
+        .catch(() => {});
+    });
+  }, [itineraryData]);
+
+  useEffect(() => {
     if (!selectedWorkout?.title) { setSelectedWorkoutTags([]); return; }
     getProgramTags(selectedWorkout.title.toLowerCase())
       .then((tags) => {
@@ -305,15 +314,6 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
       className="flex flex-col min-h-screen bg-white"
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
-      {/* ── Header ── */}
-      <div className="flex justify-end px-4 sm:px-6 py-4 border-b border-gray-100">
-        <button
-          onClick={() => router.push("/workout")}
-          className="bg-purple-700 hover:bg-purple-800 text-white text-[13px] sm:text-[14px] font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-        >
-          Go to Queue <ChevronRight size={14} className="inline ml-1" />
-        </button>
-      </div>
 
       {/* ── Filter Pills ── */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-4 overflow-x-auto scrollbar-hide flex-shrink-0">
@@ -521,6 +521,11 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                 </div>
 
                 <div className="absolute bottom-3 left-3 right-3">
+                  {w.program_name && (
+                    <p className="text-purple-300 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide mb-0.5 truncate">
+                      {w.program_name}
+                    </p>
+                  )}
                   <p className="text-white text-[15px] sm:text-[17px] font-black leading-tight uppercase tracking-tight line-clamp-2 pr-6">
                     {w.workout_title}
                   </p>
@@ -534,13 +539,32 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                       {w.type.toUpperCase()}
                     </span>
                   </div>
-                  
-                  {/* Muscles Used */}
+
                   {w.muscles_used && (
-                    <p className="text-white/70 text-[10px] sm:text-[11px] mt-2 line-clamp-2">
-                      🎯 {w.muscles_used}
+                    <p className="text-white text-[10px] sm:text-[11px] mt-1 line-clamp-1">
+                      {w.muscles_used}
                     </p>
                   )}
+
+                  {(() => {
+                    const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
+                    const badges = (tagsMap[w.title] || [])
+                      .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
+                      .filter(Boolean) as string[];
+                    if (!badges.length) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {badges.map((name) => (
+                          <span
+                            key={name}
+                            className="px-1.5 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[9px] font-semibold"
+                          >
+                            ${name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}

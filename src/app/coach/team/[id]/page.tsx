@@ -19,8 +19,12 @@ import {
   Heart,
   Activity,
   Search,
+  Menu,
 } from "lucide-react";
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
+import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
+import { clearAuthSession } from "@/lib/auth/session";
 
 const sessions = [
   { started: "10/18/2025", workout: "Day 1: Incline Bench", joined: 0, completed: 0, pct: 0 },
@@ -57,6 +61,14 @@ function TeamDetailContent() {
   const ownerName = searchParams.get("owner_name") ?? "";
   const teamLogo = searchParams.get("logo") ?? "";
 
+  const handleLogOut = () => {
+    invalidateDashboardCache();
+    clearAuthSession();
+    localStorage.removeItem("user");
+    router.replace("/auth/login");
+  };
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
   const [playerSearch, setPlayerSearch] = useState("");
@@ -81,11 +93,26 @@ function TeamDetailContent() {
   }, [playerSearch, id]);
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
+    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+      <CoachSidebar
+        profilePicture={null}
+        userInitial=""
+        onSwitchToPlayer={() => router.replace("/team/teams")}
+        onLogOut={handleLogOut}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div className="md:ml-[220px] flex-1 min-w-0 flex flex-col">
 
       {/* ── Header ── */}
       <header className="bg-white border-b border-gray-200 px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
+          >
+            <Menu size={16} className="text-gray-700" />
+          </button>
           <button
             onClick={() => router.back()}
             className="w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
@@ -155,8 +182,14 @@ function TeamDetailContent() {
             <div className="grid grid-cols-2 gap-3">
               {quickActions.map((a) => {
                 const Icon = a.icon;
+                const handleClick = () => {
+                  if (a.label === "Leaderboard") {
+                    const params = new URLSearchParams({ team_id: id, team_name: teamName });
+                    router.push(`/coach/leaderboard?${params.toString()}`);
+                  }
+                };
                 return (
-                  <button key={a.label} className="flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl bg-[#f5f5f7] hover:bg-[#ede9fe] transition group">
+                  <button key={a.label} onClick={handleClick} className="flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-2xl bg-[#f5f5f7] hover:bg-[#ede9fe] transition group">
                     <div className={`w-9 h-9 rounded-xl ${a.bgColor} flex items-center justify-center`}>
                       <Icon size={18} className={a.iconColor} />
                     </div>
@@ -417,6 +450,7 @@ function TeamDetailContent() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

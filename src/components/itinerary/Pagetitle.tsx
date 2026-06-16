@@ -18,7 +18,7 @@ export default function PageTitle() {
   const title = match ? TAB_NAMES[match] : "Itinerary";
 
   return (
-    <h1 className="text-[22px] font-bold text-gray-900 absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
+    <h1 className="text-[16px] sm:text-[18px] font-extrabold text-gray-900">
       {title}
     </h1>
   );

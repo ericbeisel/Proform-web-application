@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Check, Calendar, Loader2, RefreshCw, Settings } from "lucide-react";
-import { getActivityWorkoutQueue } from "@/api/programs/route";
+import { getActivityWorkoutQueue, getProgramTags } from "@/api/programs/route";
 
 interface ActivityWorkoutQueueItem {
   id: string;
@@ -63,6 +63,7 @@ export default function WorkoutDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workoutType, setWorkoutType] = useState(searchParams.get("tab") || "Workout");
+  const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
 
   // Fetch workouts
   useEffect(() => {
@@ -105,6 +106,19 @@ export default function WorkoutDashboard() {
     }));
 
     setSessions(mappedSessions);
+
+    const uniqueCodes = [...new Set(mappedSessions.map((s) => s.programCode).filter(Boolean))] as string[];
+    Promise.all(
+      uniqueCodes.map((code) =>
+        getProgramTags(code)
+          .then((tags) => ({ code, tags }))
+          .catch(() => ({ code, tags: [] as string[] }))
+      )
+    ).then((results) => {
+      const map: Record<string, string[]> = {};
+      results.forEach(({ code, tags }) => { map[code] = tags; });
+      setTagsMap(map);
+    });
   }, [workouts]);
 
   const completedSessions = sessions.filter((s) => s.completed).length;
@@ -327,15 +341,41 @@ export default function WorkoutDashboard() {
                       </span>
                     </p>
 
+                    {session.programName && (
+                      <p className="text-[11px] text-purple-400 font-medium mb-0.5 line-clamp-1 uppercase tracking-wide">
+                        {session.programName}
+                      </p>
+                    )}
+
                     <p className="font-bold text-base sm:text-lg text-white m-0 mb-1 line-clamp-2">
                       {session.title}
                     </p>
-
+    {session.programCode && tagsMap[session.programCode]?.length > 0 && (() => {
+                      const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
+                      const badges = tagsMap[session.programCode]
+                        .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
+                        .filter(Boolean) as string[];
+                      if (!badges.length) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {badges.map((name) => (
+                            <span
+                              key={name}
+                              className="px-2 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-semibold backdrop-blur-sm"
+                            >
+                              ${name}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {session.muscles_used && (
-                      <p className="text-xs text-purple-300 flex items-center gap-1.5 mt-1 line-clamp-1">
+                      <p className="text-xs text-white flex items-center gap-1.5 mt-1 line-clamp-1">
                         {session.muscles_used}
                       </p>
                     )}
+
+                
                   </div>
                   
                   {/* Bottom Row - Checkbox */}

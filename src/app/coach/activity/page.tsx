@@ -2,7 +2,10 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, ChevronDown, Search, X, User } from "lucide-react";
+import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
+import { invalidateDashboardCache } from "@/api/dashboard/route";
+import { clearAuthSession } from "@/lib/auth/session";
+import { ChevronLeft, ChevronRight, ChevronDown, Search, X, User, Menu } from "lucide-react";
 
 const TIME_FILTERS = ["All Time", "Today", "This Week", "Last 30 Days"];
 
@@ -59,6 +62,7 @@ function ActivityContent() {
   const searchParams = useSearchParams();
   const teamId = searchParams.get("team_id") ?? "";
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logType, setLogType] = useState("Other Logs");
   const [timeFilter, setTimeFilter] = useState("All Time");
   const [search, setSearch] = useState("");
@@ -72,22 +76,46 @@ function ActivityContent() {
     );
   });
 
+  const handleLogOut = () => {
+    invalidateDashboardCache();
+    clearAuthSession();
+    localStorage.removeItem("user");
+    router.replace("/auth/login");
+  };
+
   return (
-    <div className="min-h-screen bg-[#f0f0f0]">
+    <div className="min-h-screen bg-[#f0f0f0] flex overflow-x-hidden">
+      <CoachSidebar
+        profilePicture={null}
+        userInitial=""
+        onSwitchToPlayer={() => router.replace("/team/teams")}
+        onLogOut={handleLogOut}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div className="md:ml-[220px] flex-1 min-w-0">
 
       {/* Top bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between sticky top-0 z-40">
-        <div className="relative">
-          <select
-            value={logType}
-            onChange={(e) => setLogType(e.target.value)}
-            className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 text-sm font-semibold text-[#222] bg-white appearance-none outline-none"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-800 transition"
           >
-            {LOG_TYPES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Menu size={20} />
+          </button>
+          <div className="relative">
+            <select
+              value={logType}
+              onChange={(e) => setLogType(e.target.value)}
+              className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 text-sm font-semibold text-[#222] bg-white appearance-none outline-none"
+            >
+              {LOG_TYPES.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+          </div>
         </div>
 
         <button
@@ -111,7 +139,7 @@ function ActivityContent() {
 
       {/* Filters */}
       <div className="px-4 py-3 flex flex-col sm:flex-row gap-2">
-        {/* Search */}
+        {/* Search — full width */}
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -123,31 +151,32 @@ function ActivityContent() {
           />
         </div>
 
-        {/* Team filter */}
-        <div className="relative">
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-[#222] appearance-none outline-none min-w-[140px]"
-          >
-            <option>All Team</option>
-            <option>SP</option>
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
-        </div>
+        {/* Team + Time filters — side by side on mobile, inline on desktop */}
+        <div className="flex gap-2">
+          <div className="relative flex-1 sm:flex-none">
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className="w-full sm:w-auto h-9 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-[#222] appearance-none outline-none sm:min-w-[140px]"
+            >
+              <option>All Team</option>
+              <option>SP</option>
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+          </div>
 
-        {/* Time filter */}
-        <div className="relative">
-          <select
-            value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value)}
-            className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-[#222] appearance-none outline-none min-w-[130px]"
-          >
-            {TIME_FILTERS.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+          <div className="relative flex-1 sm:flex-none">
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="w-full sm:w-auto h-9 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-[#222] appearance-none outline-none sm:min-w-[130px]"
+            >
+              {TIME_FILTERS.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
+          </div>
         </div>
       </div>
 
@@ -161,13 +190,13 @@ function ActivityContent() {
           filtered.map((log) => (
             <div key={log.id} className="bg-white rounded-2xl p-4 shadow-sm">
               {/* Top row */}
-              <div className="flex items-start justify-between mb-3">
-                <p className="text-xs text-gray-400">{log.date}</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs font-semibold text-gray-600">
-                    {log.player}({log.username})
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <p className="text-xs text-gray-400 shrink-0">{log.date}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-xs font-semibold text-gray-600 truncate">
+                    {log.player} ({log.username})
                   </p>
-                  <div className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center shrink-0">
                     <User size={14} className="text-white" />
                   </div>
                 </div>
@@ -193,6 +222,7 @@ function ActivityContent() {
             </div>
           ))
         )}
+      </div>
       </div>
     </div>
   );
