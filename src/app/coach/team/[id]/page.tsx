@@ -24,7 +24,8 @@ import {
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
-import { clearAuthSession } from "@/lib/auth/session";
+import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
+import { profileApi } from "@/api/profile/route";
 
 const sessions = [
   { started: "10/18/2025", workout: "Day 1: Incline Bench", joined: 0, completed: 0, pct: 0 },
@@ -72,6 +73,26 @@ function TeamDetailContent() {
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
   const [playerSearch, setPlayerSearch] = useState("");
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [userInitial, setUserInitial] = useState("");
+
+  useEffect(() => {
+    const user = getAuthUser();
+    if (user?.name) setUserInitial((user.name as string)[0]?.toUpperCase() ?? "");
+    const tokenPayload = getTokenPayload();
+    const username = (user?.username as string | undefined) ?? tokenPayload?.username;
+    if (username) {
+      profileApi.getProfileByUsername(username).then((profile) => {
+        if (profile?.image) setProfilePicture(profile.image);
+        if (!user?.name) {
+          const display = profile?.name || profile?.username || username;
+          if (display) setUserInitial((display as string)[0]?.toUpperCase() ?? "");
+        }
+      }).catch(() => {});
+    } else if (tokenPayload?.email) {
+      setUserInitial(tokenPayload.email[0]?.toUpperCase() ?? "");
+    }
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -95,8 +116,8 @@ function TeamDetailContent() {
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
       <CoachSidebar
-        profilePicture={null}
-        userInitial=""
+        profilePicture={profilePicture}
+        userInitial={userInitial}
         onSwitchToPlayer={() => router.replace("/team/teams")}
         onLogOut={handleLogOut}
         isOpen={sidebarOpen}

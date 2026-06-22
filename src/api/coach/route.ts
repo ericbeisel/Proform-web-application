@@ -373,6 +373,63 @@ export const getTeamPlayers = async (
   }
 };
 
+// ─── Activity Logs ────────────────────────────────────────────────────────────
+
+export interface ActivityLog {
+  id: string;
+  type: string;
+  title: string;
+  date: string;
+  user?: {
+    id: number;
+    name: string;
+    username: string;
+    image?: string | null;
+  } | null;
+  activity_id?: string | null;
+  mediaUrl?: string | null;
+  media_url?: string | null;
+  team?: string | null;
+  [key: string]: any;
+}
+
+export interface ActivityLogsParams {
+  team_id: string;
+  search?: string;
+  time_range?: string;
+  page?: number;
+}
+
+export interface ActivityLogsResponse {
+  logs: ActivityLog[];
+  total?: number;
+  hasMore?: boolean;
+}
+
+const getActivityLogs = async (
+  params: ActivityLogsParams
+): Promise<ActivityLogsResponse> => {
+  const token = getAuthToken();
+  const { data } = await axios.get(`${API_BASE}/coach/activity-logs`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: {
+      team_id: params.team_id,
+      search: params.search ?? "",
+      time_range: params.time_range ?? "all",
+      page: String(params.page ?? 1),
+    },
+  });
+  console.log("[coachApi] getActivityLogs response:", data);
+  const logs: ActivityLog[] = Array.isArray(data?.data) ? data.data : [];
+  const total: number = data?.total ?? logs.length;
+  const currentPage = params.page ?? 1;
+  return {
+    logs,
+    total,
+    hasMore: currentPage * 20 < total,
+  };
+};
+
 export const coachApi = {
   getCoachTeams,
   createCoachTeam,
@@ -387,6 +444,7 @@ export const coachApi = {
   getTeamPlayers,
   getPresignedUrl,
   uploadFileToS3,
+  getActivityLogs,
 };
 
 export default coachApi;

@@ -60,16 +60,9 @@ export default function DashboardHeader({
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e8e6f0]">
-      <div className="h-16 flex items-center px-4 sm:px-6 lg:px-8 gap-4">
-        {/* Logo */}
-        <img
-          src="/images/proform-logo.jpg"
-          alt="Proform"
-          onClick={() => router.push("/feed/main-feed")}
-          className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
-        />
+      <div className="h-16 relative flex items-center px-4 sm:px-6 lg:px-8">
 
-        {/* Desktop Navigation */}
+        {/* Left: Desktop Navigation */}
         <div className="hidden md:flex gap-1 bg-[#f7f6fb] rounded-[10px] p-1">
           {navItems.map(({ label, icon: Icon, href }) => (
             <button
@@ -89,6 +82,16 @@ export default function DashboardHeader({
               {label}
             </button>
           ))}
+        </div>
+
+        {/* Center: Logo — absolutely centered */}
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <img
+            src="/images/proform-logo.jpg"
+            alt="Proform"
+            onClick={() => router.push("/feed/main-feed")}
+            className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity"
+          />
         </div>
 
         {/* Right side */}

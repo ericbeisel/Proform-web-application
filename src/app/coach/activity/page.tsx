@@ -4,8 +4,10 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
-import { clearAuthSession } from "@/lib/auth/session";
-import { feedApi } from "@/api/feed/route";
+import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
+import { coachApi } from "@/api/coach/route";
+import { profileApi } from "@/api/profile/route";
+import { getWorkoutSessionById } from "@/api/workouts/route";
 import {
   ChevronLeft,
   ChevronRight,
@@ -69,6 +71,7 @@ interface FeedItem {
   username: string;
   avatarUrl?: string | null;
   imageUrl?: string | null;
+  activityId?: string | null;
   workoutTitle: string;
   isCompleted: boolean;
   dateIso: string;
@@ -97,18 +100,19 @@ function isFeed(a: ActivityItem): a is FeedItem {
 // ─── Feed type → filter kind ──────────────────────────────────────────────────
 
 function feedTypeToKind(type: string): WorkoutKind {
-  if (type.includes("Cardio"))       return "Cardio";
-  if (type.includes("Hydration"))    return "Hydration";
-  if (type.includes("Recovery"))     return "Recovery";
-  if (type.includes("Supplemental")) return "Supplemental";
-  if (type.includes("Conditioning")) return "Conditioning";
+  const t = type.toUpperCase();
+  if (t.includes("CARDIO"))       return "Cardio";
+  if (t.includes("HYDRATION"))    return "Hydration";
+  if (t.includes("RECOVERY"))     return "Recovery";
+  if (t.includes("SUPPLEMENTAL")) return "Supplemental";
+  if (t.includes("CONDITIONING")) return "Conditioning";
   return "Primary Workout";
 }
 
 function shouldShowFeedItem(type: string): boolean {
-  // Skip bare session markers and start events (not completions)
-  if (type === "Session") return false;
-  if (type.startsWith("Start")) return false;
+  const t = type.toUpperCase();
+  if (t === "SESSION") return false;
+  if (t.startsWith("START")) return false;
   return true;
 }
 
@@ -273,6 +277,15 @@ function Avatar({ name, url }: { name: string; url?: string | null }) {
 
 function WorkoutCard({ item }: { item: FeedItem }) {
   const cfg = WORKOUT_CONFIG[item.kind];
+  const [thumbUrl, setThumbUrl] = useState<string | null>(item.imageUrl ?? null);
+
+  useEffect(() => {
+    if (thumbUrl || !item.activityId) return;
+    getWorkoutSessionById(item.activityId)
+      .then((session) => { if (session?.workoutImage) setThumbUrl(session.workoutImage); })
+      .catch(() => {});
+  }, [item.activityId]);
+
   return (
     <div className="bg-white rounded-[20px] border border-[#ececf3] px-4 pt-3 pb-4 mb-3 shadow-sm">
       {/* Header row */}
@@ -311,8 +324,8 @@ function WorkoutCard({ item }: { item: FeedItem }) {
       {/* Inner card */}
       <div className="bg-[#f5f5f7] rounded-2xl flex items-center gap-3 px-3 py-3">
         <div className="w-14 h-14 rounded-xl bg-gray-200 shrink-0 flex items-center justify-center overflow-hidden">
-          {item.imageUrl ? (
-            <img src={item.imageUrl} alt={item.workoutTitle} className="w-full h-full object-cover" />
+          {thumbUrl ? (
+            <img src={thumbUrl} alt={item.workoutTitle} className="w-full h-full object-cover" />
           ) : (
             <Dumbbell size={22} className="text-gray-400" />
           )}
@@ -381,16 +394,25 @@ function SubmissionCard({ item }: { item: SubmissionItem }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const TIME_RANGE_MAP: Record<string, string> = {
+  "All Time":    "all",
+  "Today":       "today",
+  "This Week":   "week",
+  "Last 30 Days":"month",
+};
+
 function ActivityContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  void searchParams; // team_id available for future use
+  const teamIdFromUrl = searchParams.get("team_id") ?? "";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logType, setLogType] = useState("All Activity");
   const [timeFilter, setTimeFilter] = useState("All Time");
   const [search, setSearch] = useState("");
-  const [teamFilter, setTeamFilter] = useState("All Team");
+  const [teamFilter, setTeamFilter] = useState(teamIdFromUrl || "All Team");
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [userInitial, setUserInitial] = useState("");
   // Real feed state
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -405,50 +427,77 @@ function ActivityContent() {
     router.replace("/auth/login");
   };
 
-  // Map raw feed API response → FeedItem
+  // Map raw activity-logs API response → FeedItem
   const mapRawFeeds = (rawFeeds: any[]): FeedItem[] =>
     rawFeeds.filter((raw) => shouldShowFeedItem(raw.type || "")).map((raw) => ({
       _source: "feed" as const,
       id: String(raw.id),
       kind: feedTypeToKind(raw.type || ""),
       rawType: raw.type || "",
-      player: raw.user?.name || raw.username || "Player",
-      username: raw.user?.username || raw.username || "user",
-      avatarUrl: raw.user?.image || null,
+      player: raw.player?.name || raw.user?.name || raw.username || "Player",
+      username: raw.player?.username || raw.user?.username || raw.username || "user",
+      avatarUrl: raw.player?.image || raw.user?.image || null,
       imageUrl: raw.mediaUrl || raw.media_url || null,
-      workoutTitle: raw.title || "Workout",
-      isCompleted: (raw.type || "").startsWith("Complete"),
-      dateIso: raw.date || raw.created_at || new Date().toISOString(),
-      team: raw.team || undefined,
+      activityId: raw.activity_id || null,
+      workoutTitle: raw.title || raw.subtitle || "Workout",
+      isCompleted: (raw.title || "").toLowerCase().startsWith("completed"),
+      dateIso: raw.timestamp || raw.date || raw.created_at || new Date().toISOString(),
+      team: raw.team || raw.sport || undefined,
     }));
+
+  useEffect(() => {
+    const user = getAuthUser();
+    if (user?.name) setUserInitial((user.name as string)[0]?.toUpperCase() ?? "");
+    const tokenPayload = getTokenPayload();
+    const username = (user?.username as string | undefined) ?? tokenPayload?.username;
+    if (username) {
+      profileApi.getProfileByUsername(username).then((profile) => {
+        if (profile?.image) setProfilePicture(profile.image);
+        if (!user?.name) {
+          const display = profile?.name || profile?.username || username;
+          if (display) setUserInitial((display as string)[0]?.toUpperCase() ?? "");
+        }
+      }).catch(() => {});
+    } else if (tokenPayload?.email) {
+      setUserInitial(tokenPayload.email[0]?.toUpperCase() ?? "");
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const res = await feedApi.getFeed(1);
-        const rawFeeds = (res.feeds || []) as any[];
-        setFeedItems(mapRawFeeds(rawFeeds));
-        setHasMore(rawFeeds.length === 20);
+        const res = await coachApi.getActivityLogs({
+          team_id: teamIdFromUrl,
+          search,
+          time_range: TIME_RANGE_MAP[timeFilter] ?? "all",
+          page: 1,
+        });
+        setFeedItems(mapRawFeeds(res.logs));
+        setHasMore(res.hasMore ?? false);
         setPage(1);
       } catch (err) {
-        console.error("Failed to load feed:", err);
+        console.error("Failed to load activity logs:", err);
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [search, timeFilter, teamIdFromUrl]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const next = page + 1;
-      const res = await feedApi.getFeed(next);
-      const rawFeeds = (res.feeds || []) as any[];
-      setFeedItems((prev) => [...prev, ...mapRawFeeds(rawFeeds)]);
-      setHasMore(rawFeeds.length === 20);
+      const res = await coachApi.getActivityLogs({
+        team_id: teamIdFromUrl,
+        search,
+        time_range: TIME_RANGE_MAP[timeFilter] ?? "all",
+        page: next,
+      });
+      setFeedItems((prev) => [...prev, ...mapRawFeeds(res.logs)]);
+      setHasMore(res.hasMore ?? false);
       setPage(next);
     } catch (err) {
       console.error("Failed to load more:", err);
@@ -498,8 +547,8 @@ function ActivityContent() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex overflow-x-hidden">
       <CoachSidebar
-        profilePicture={null}
-        userInitial=""
+        profilePicture={profilePicture}
+        userInitial={userInitial}
         onSwitchToPlayer={() => router.replace("/team/teams")}
         onLogOut={handleLogOut}
         isOpen={sidebarOpen}
