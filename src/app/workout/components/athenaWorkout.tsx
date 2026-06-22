@@ -10,10 +10,12 @@ import {
   Pause,
   SkipForward,
   User,
+  Users,
   NotepadText,
   Settings,
   Share2,
   MapPin,
+  BarChart2,
   BarChart3,
   Info,
   Pen,
@@ -26,11 +28,17 @@ import {
   Home,
   Pencil,
   Dumbbell,
+  Zap,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  CheckCircle2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog, getWorkoutLoads, createWorkoutLoad, WorkoutLoadSummary } from "@/api/workouts/route";
+import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog, getWorkoutLoads, createWorkoutLoad, WorkoutLoadSummary, swapExercise } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
+import { equipmentApi, LocationItem, Equipment } from "@/api/location/route";
 import SwapExerciseModal from "./swapExerciseModal";
 
 function parseHeightInches(h: string | number | null | undefined): number {
@@ -140,6 +148,24 @@ export default function AthenaWorkoutPage() {
   const [locationName, setLocationName] = useState<string>("Temporary Location");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarActiveView, setSidebarActiveView] = useState("Overview");
+
+  // Location popup
+  const [showLocationPopup, setShowLocationPopup] = useState(false);
+  const [locations, setLocations] = useState<LocationItem[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [swappingLocation, setSwappingLocation] = useState(false);
+  const [locationEquipments, setLocationEquipments] = useState<Map<number, string[]>>(new Map());
+
+  // Create location popup
+  const [showCreateLocationPopup, setShowCreateLocationPopup] = useState(false);
+  const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
+  const [allEquipLoading, setAllEquipLoading] = useState(false);
+  const [createSearch, setCreateSearch] = useState("");
+  const [createSelectedIds, setCreateSelectedIds] = useState<Set<number>>(new Set());
+  const [createTitle, setCreateTitle] = useState("");
+  const [createSubmitting, setCreateSubmitting] = useState(false);
 
   // Workout loads
   const [workoutLoads, setWorkoutLoads] = useState<WorkoutLoadSummary>({ load: 0, power: 0, kcal: 0 });
@@ -365,9 +391,204 @@ export default function AthenaWorkoutPage() {
   const updateTrackingSet = (i: number, field: "weight" | "reps", val: string) =>
     setTrackingSets((prev) => prev.map((s, idx) => idx === i ? { ...s, [field]: val } : s));
 
+  const openLocationPopup = async () => {
+    setShowLocationPopup(true);
+    if (locations.length === 0) {
+      setLocationsLoading(true);
+      try {
+        const locs = await equipmentApi.getLocationList();
+        setLocations(locs);
+        // Fetch equipment details for all locations in parallel
+        const details = await Promise.allSettled(
+          locs.map((loc) => equipmentApi.getLocationDetail(loc.id))
+        );
+        const eqMap = new Map<number, string[]>();
+        details.forEach((result, i) => {
+          if (result.status === "fulfilled") {
+            eqMap.set(locs[i].id, (result.value.equipmentList || []).map((e) => e.name));
+          } else {
+            eqMap.set(locs[i].id, (locs[i].equipmentList || []).map((e) => e.name));
+          }
+        });
+        setLocationEquipments(eqMap);
+      } catch (err) {
+        console.error("[location] Failed to load locations:", err);
+      } finally {
+        setLocationsLoading(false);
+      }
+    }
+  };
+
+  const openCreateLocationPopup = async () => {
+    setShowLocationPopup(false);
+    setShowCreateLocationPopup(true);
+    setCreateTitle("");
+    setCreateSelectedIds(new Set());
+    setCreateSearch("");
+    if (allEquipment.length === 0) {
+      setAllEquipLoading(true);
+      try {
+        const eq = await equipmentApi.getAllEquipment();
+        setAllEquipment(eq);
+      } catch (err) {
+        console.error("[create-location] Failed to load equipment:", err);
+      } finally {
+        setAllEquipLoading(false);
+      }
+    }
+  };
+
+  const handleCreateLocation = async () => {
+    if (!createTitle.trim()) return;
+    setCreateSubmitting(true);
+    try {
+      const data = await equipmentApi.createLocation({
+        location_name: createTitle.trim(),
+        equipments: Array.from(createSelectedIds).join(","),
+      });
+      // Auto-select newly created location
+      setLocationName(createTitle.trim());
+      setLocationId(String(data.id));
+      localStorage.setItem("workoutLocationName", createTitle.trim());
+      localStorage.setItem("workoutLocationId", String(data.id));
+      // Reset location list cache so it refreshes next time
+      setLocations([]);
+      setLocationEquipments(new Map());
+      setShowCreateLocationPopup(false);
+    } catch (err) {
+      console.error("[create-location] Failed:", err);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
+  const handleLocationSelect = async (loc: LocationItem) => {
+    setShowLocationPopup(false);
+    setLocationName(loc.name);
+    setLocationId(String(loc.id));
+    localStorage.setItem("workoutLocationName", loc.name);
+    localStorage.setItem("workoutLocationId", String(loc.id));
+
+    if (!sessionId || !workoutCode || !currentSection) return;
+    setSwappingLocation(true);
+    try {
+      const existingIds = sectionExercises.map((e) => e.exercise_id).filter(Boolean);
+      const updated = await Promise.all(
+        sectionExercises.map(async (ex) => {
+          if (!ex.exercise_id || ex.is_power_set) return ex;
+          try {
+            const result = await swapExercise({
+              exerciseId: ex.exercise_id,
+              sessionId,
+              section: currentSection.label,
+              existingExercises: existingIds,
+            });
+            if (result.swapped && result.exercise) {
+              return {
+                ...ex,
+                exercise_id: result.exercise.exercise_uuid || ex.exercise_id,
+                exercise_name: result.exercise.name || ex.exercise_name,
+                demo_gif: result.exercise.demoGif || ex.demo_gif,
+                reps: result.exercise.defaultReps || ex.reps,
+                supplemental: result.exercise.supplemental || ex.supplemental,
+              } as SectionExercise;
+            }
+          } catch {}
+          return ex;
+        }),
+      );
+      setSectionExercises(updated);
+    } catch (err) {
+      console.error("[location] Failed to swap exercises:", err);
+    } finally {
+      setSwappingLocation(false);
+    }
+  };
+
   return (
     // Changed h-screen to min-h-screen for mobile safety, but kept h-screen for desktop
-    <div className="h-screen bg-[#fcfdfe] flex flex-col font-sans overflow-hidden">
+    <div className="h-screen bg-[#fcfdfe] flex flex-row font-sans overflow-hidden">
+
+      {/* COLLAPSIBLE SIDEBAR — full height, flush far-left */}
+      <div className={`hidden lg:flex flex-col flex-shrink-0 transition-all duration-300 bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white ${sidebarOpen ? "w-[220px]" : "w-12"} overflow-hidden`}>
+        {/* Toggle button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="flex items-center justify-center w-full py-3 hover:bg-white/10 transition flex-shrink-0"
+        >
+          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
+
+        {sidebarOpen && (
+          <>
+            {/* Workout card */}
+            <div className="px-4 pb-4">
+              <div className="bg-white/10 rounded-[20px] p-4 mb-6">
+                <h2 className="text-[11px] font-black leading-tight uppercase tracking-wide truncate">
+                  {workoutCode || "WORKOUT"}
+                </h2>
+                <p className="text-[10px] uppercase mt-1 opacity-70">Active Session</p>
+                <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
+                  <div
+                    className="h-full bg-white rounded-full transition-all duration-500"
+                    style={{ width: `${sections.length > 0 ? Math.round((currentSectionIndex / sections.length) * 100) : 0}%` }}
+                  />
+                </div>
+                <div className="text-right text-[10px] mt-2 font-bold">
+                  {sections.length > 0 ? Math.round((currentSectionIndex / sections.length) * 100) : 0}%
+                </div>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { label: "Overview",  Icon: Home },
+                  { label: "Session",   Icon: Users },
+                  { label: "Results",   Icon: BarChart2 },
+                  { label: "Powersets", Icon: Zap },
+                  { label: "Map",       Icon: MapPin },
+                ].map(({ label, Icon }) => (
+                  <button
+                    key={label}
+                    onClick={() => setSidebarActiveView(label)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                      sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!sidebarOpen && (
+          <div className="flex flex-col items-center gap-2 pt-2 px-1">
+            {[
+              { label: "Overview",  Icon: Home },
+              { label: "Session",   Icon: Users },
+              { label: "Results",   Icon: BarChart2 },
+              { label: "Powersets", Icon: Zap },
+              { label: "Map",       Icon: MapPin },
+            ].map(({ label, Icon }) => (
+              <button
+                key={label}
+                title={label}
+                onClick={() => { setSidebarActiveView(label); setSidebarOpen(true); }}
+                className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${
+                  sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MAIN COLUMN — headers + content + footer */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
       {/* SECTION 1: Fixed Headers */}
       <div className="flex flex-col shrink-0">
         <header className="bg-[#6202AC] text-white py-2 px-4 flex items-center justify-between">
@@ -413,17 +634,20 @@ export default function AthenaWorkoutPage() {
           </p>
         </div>
 
-        <div className="bg-[#0FCC91] text-white text-[9px] md:text-[10px] font-bold py-1.5 px-4 flex items-center justify-center gap-1.5 text-center">
-          <Award size={14} className="shrink-0" />
-          <span className="truncate">
-            Exercises customized to your location: {locationName}
-          </span>
-        </div>
+        <button
+          onClick={openLocationPopup}
+          className="w-full bg-[#0FCC91] hover:bg-[#0ab87e] text-white text-[9px] md:text-[10px] font-bold py-1.5 px-4 flex items-center justify-center gap-1.5 text-center transition"
+        >
+          {swappingLocation ? (
+            <><Loader2 size={12} className="animate-spin shrink-0" /><span>Updating exercises for new location...</span></>
+          ) : (
+            <><Award size={14} className="shrink-0" /><span className="truncate">Exercises customized to your location: {locationName}</span></>
+          )}
+        </button>
       </div>
 
       {/* SECTION 2: Main Content Area */}
-      {/* flex-col on mobile, flex-row on desktop */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-[1440px] mx-auto w-full">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: Main Exercise */}
         <div className="w-full lg:w-[58%] overflow-hidden p-3 md:p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -1009,7 +1233,7 @@ export default function AthenaWorkoutPage() {
             </div>
           </div>
         </aside>
-      </div>
+      </div>{/* end SECTION 2 */}
 
       {/* SECTION 3: Sticky Timer Bar */}
       <footer className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-1px_6px_rgba(0,0,0,0.04)] z-50">
@@ -1084,6 +1308,216 @@ export default function AthenaWorkoutPage() {
           background: #9ca3af;
         }
       `}</style>
+
+      {/* LOCATION PICKER POPUP */}
+      {showLocationPopup && (
+        <div
+          className="fixed inset-0 z-[400] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowLocationPopup(false)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-[400px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[70vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-[#7c3aed]" />
+                <h2 className="text-[15px] font-black text-gray-900">Choose Location</h2>
+              </div>
+              <button
+                onClick={() => setShowLocationPopup(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="px-5 pt-4 pb-2 flex-shrink-0">
+              <button
+                onClick={openCreateLocationPopup}
+                className="w-full flex items-center justify-center gap-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-sm py-3 rounded-2xl transition-all"
+              >
+                <Plus size={16} />
+                Create Location
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {locationsLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="animate-spin text-[#7c3aed]" size={24} />
+                </div>
+              ) : locations.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-10">No locations found</p>
+              ) : (
+                <div className="space-y-2">
+                  {locations.map((loc) => {
+                    const isActive = String(loc.id) === locationId;
+                    const eqNames = locationEquipments.get(loc.id) ?? [];
+                    return (
+                      <button
+                        key={loc.id}
+                        onClick={() => handleLocationSelect(loc)}
+                        className={`w-full flex items-start gap-3 px-4 py-3.5 rounded-2xl border transition-all text-left ${
+                          isActive
+                            ? "bg-purple-50 border-[#7c3aed]"
+                            : "bg-gray-50 border-gray-100 hover:border-[#7c3aed]/40 hover:bg-purple-50/40"
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isActive ? "bg-[#7c3aed] text-white" : "bg-gray-200 text-gray-500"}`}>
+                          <MapPin size={14} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-semibold text-sm ${isActive ? "text-[#7c3aed]" : "text-gray-800"}`}>{loc.name}</span>
+                            {isActive && (
+                              <span className="text-[10px] font-bold text-[#7c3aed] bg-purple-100 px-2 py-0.5 rounded-full flex-shrink-0">Active</span>
+                            )}
+                          </div>
+                          {eqNames.length > 0 ? (
+                            <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${isActive ? "text-purple-400" : "text-gray-400"}`}>
+                              {eqNames.join(" · ")}
+                            </p>
+                          ) : locationEquipments.size === 0 ? (
+                            <p className="text-[10px] text-gray-300 mt-0.5">Loading equipment...</p>
+                          ) : (
+                            <p className="text-[10px] text-gray-300 mt-0.5">No equipment listed</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE LOCATION POPUP */}
+      {showCreateLocationPopup && (
+        <div
+          className="fixed inset-0 z-[450] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => { setShowCreateLocationPopup(false); setShowLocationPopup(true); }}
+        >
+          <div
+            className="bg-white w-full sm:max-w-[480px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col"
+            style={{ maxHeight: "90vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 flex items-start justify-between border-b border-gray-100 flex-shrink-0">
+              <div>
+                <h2 className="text-[16px] font-black text-gray-900">Create Location</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">Select equipment and give it a title</p>
+              </div>
+              <button
+                onClick={() => { setShowCreateLocationPopup(false); setShowLocationPopup(true); }}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Selected count pill */}
+            <div className="px-5 py-3 flex-shrink-0">
+              <div className="inline-flex items-center gap-2 bg-[#7c3aed] text-white text-sm font-semibold px-4 py-2 rounded-full">
+                <CheckCircle2 size={14} className="fill-white/30" />
+                {createSelectedIds.size} equipment selected
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="px-5 pb-3 flex-shrink-0">
+              <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2.5">
+                <Search size={14} className="text-gray-400 flex-shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search equipment..."
+                  value={createSearch}
+                  onChange={(e) => setCreateSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Equipment grid */}
+            <div className="flex-1 overflow-y-auto px-5 pb-3 min-h-0">
+              {allEquipLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="animate-spin text-[#7c3aed]" size={28} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2.5">
+                  {allEquipment
+                    .filter((eq) => !createSearch || eq.name?.toLowerCase().includes(createSearch.toLowerCase()))
+                    .map((eq) => {
+                      const isSelected = createSelectedIds.has(eq.id);
+                      return (
+                        <button
+                          key={eq.id}
+                          type="button"
+                          onClick={() =>
+                            setCreateSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              next.has(eq.id) ? next.delete(eq.id) : next.add(eq.id);
+                              return next;
+                            })
+                          }
+                          className={`relative flex flex-col items-center rounded-2xl p-2.5 border transition-all ${
+                            isSelected
+                              ? "border-[#7c3aed] bg-purple-50 ring-2 ring-[#7c3aed]/10"
+                              : "border-gray-200 bg-white"
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 text-[#7c3aed]">
+                              <CheckCircle2 size={13} fill="white" />
+                            </div>
+                          )}
+                          <div className="h-9 w-9 mb-1.5 flex items-center justify-center bg-gray-50 rounded-xl p-1">
+                            {eq.icon ? (
+                              <img src={eq.icon} alt={eq.name} className="max-h-full max-w-full object-contain" />
+                            ) : (
+                              <Dumbbell size={16} className={isSelected ? "text-[#7c3aed]" : "text-gray-400"} />
+                            )}
+                          </div>
+                          <p className={`text-[8px] font-bold uppercase tracking-wide text-center leading-tight ${isSelected ? "text-[#7c3aed]" : "text-gray-500"}`}>
+                            {eq.name}
+                          </p>
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Title + submit */}
+            <div className="px-5 pt-3 pb-7 flex-shrink-0 border-t border-gray-100">
+              <input
+                type="text"
+                placeholder="Give this location a title (e.g., Home Gym)"
+                value={createTitle}
+                onChange={(e) => setCreateTitle(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] mb-3 mt-3"
+              />
+              <button
+                onClick={handleCreateLocation}
+                disabled={createSubmitting || !createTitle.trim()}
+                className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-sm py-3.5 rounded-full flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createSubmitting ? (
+                  <><Loader2 size={15} className="animate-spin" /> Creating...</>
+                ) : createTitle.trim() ? (
+                  "Create Location"
+                ) : (
+                  "Select Equipment & Add Title"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSwapModal && currentExercise && (
         <SwapExerciseModal
@@ -1345,6 +1779,7 @@ export default function AthenaWorkoutPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

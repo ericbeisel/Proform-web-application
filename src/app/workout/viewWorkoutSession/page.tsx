@@ -900,11 +900,19 @@ export default function ViewWorkoutSessionPage() {
             activeView !== "Map" && (
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-500">
+                  <button
+                    onClick={() => {
+                      const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+                      localStorage.setItem("pendingSessionCode", code);
+                      localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+                      router.push("/workout/equipmentNeeded");
+                    }}
+                    className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
+                  >
                     <MapPin size={14} className="text-[#7c3aed]" />
                     <span className="text-[#7c3aed]">Location :</span>
                     <span>{location || "None"}</span>
-                  </div>
+                  </button>
 
                   <label className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input
@@ -1468,7 +1476,6 @@ export default function ViewWorkoutSessionPage() {
                           "pendingWorkoutGroups",
                           JSON.stringify(workoutGroups),
                         );
-                        router.push("/workout/equipmentNeeded");
                       }}
                       disabled={isLocked}
                       className={`${isLocked ? "bg-gray-400" : "bg-emerald-500 hover:bg-emerald-600"} transition text-white font-black text-[13px] px-6 py-3 rounded-2xl disabled:opacity-60`}

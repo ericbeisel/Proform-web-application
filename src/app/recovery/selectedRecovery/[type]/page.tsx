@@ -83,6 +83,14 @@ export default function RecoveryDetailPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && id) {
+      // Check image passed from UploadHighlightModal first
+      const highlight = sessionStorage.getItem("uploadHighlightImage");
+      if (highlight) {
+        setUploadedImage(highlight);
+        sessionStorage.removeItem("uploadHighlightImage");
+        return;
+      }
+      // Fallback: legacy recoveryDetails key
       try {
         const stored = sessionStorage.getItem("recoveryDetails");
         if (stored) {

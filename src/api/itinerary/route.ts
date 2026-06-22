@@ -114,9 +114,41 @@ export const getCustomActivities = async (): Promise<CustomActivity[]> => {
   }
 };
 
+export interface MissedActivity {
+  id: number;
+  name: string;
+  type: string;
+  day: number;
+  time: string;
+  colour: string;
+  completed: boolean;
+  recurring: string;
+  SetItineraryTime: number;
+}
+
+interface MissedActivitiesResponse {
+  AllActivity: Record<number, MissedActivity[]>;
+  missedActivity: MissedActivity[];
+}
+
+export const getMissedActivities = async (): Promise<MissedActivity[]> => {
+  try {
+    const { data } = await apiClient.get<MissedActivitiesResponse>(
+      "/itinerary-setup/missed-activities",
+    );
+    console.log("📋 Missed activities response:", data);
+    return data.missedActivity ?? [];
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch missed activities."),
+    );
+  }
+};
+
 export const itineraryApi = {
   getItinerary,
   getCustomActivities,
+  getMissedActivities,
 };
 
 export default itineraryApi;

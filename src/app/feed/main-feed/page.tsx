@@ -19,10 +19,13 @@ import {
   Home,
   MessageCircle,
   Dumbbell,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { feedApi, CurrentUser, Feed, HighlightGroup, HighlightItem, Advertisement } from "@/api/feed/route";
-import { getWorkoutSessionById } from "@/api/workouts/route";
+import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, WorkoutStats, PowerSetLog } from "@/api/workouts/route";
 import { useRouter } from "next/navigation";
+import UploadHighlightModal from "./UploadHighlightModal";
 
 interface ExtendedFeed extends Feed {
   date?: string;
@@ -153,12 +156,17 @@ const [creatingHighlight, setCreatingHighlight] =
   const [sessionProgramImage, setSessionProgramImage] = useState<string | null>(null);
   const [sessionWorkoutCategory, setSessionWorkoutCategory] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<import("@/api/workouts/route").WorkoutSession | null>(null);
+  const [popupWorkoutStats, setPopupWorkoutStats] = useState<WorkoutStats | null>(null);
+  const [popupPowerSetLogs, setPopupPowerSetLogs] = useState<PowerSetLog[]>([]);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
     if (!selectedSessionFeed) {
       setSessionProgramImage(null);
       setSessionWorkoutCategory(null);
       setSessionData(null);
+      setPopupWorkoutStats(null);
+      setPopupPowerSetLogs([]);
       return;
     }
     const activityId = selectedSessionFeed.activity_id;
@@ -174,6 +182,12 @@ const [creatingHighlight, setCreatingHighlight] =
         setSessionWorkoutCategory(null);
         setSessionData(null);
       });
+
+    const isCompleted = selectedSessionFeed.type?.includes("Complete");
+    if (isCompleted) {
+      getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
+      getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
+    }
   }, [selectedSessionFeed]);
 
   const getSessionTypeLabel = (type: string): string => {
@@ -238,6 +252,7 @@ const [creatingHighlight, setCreatingHighlight] =
   try {
     const res = await feedApi.getFeed(1);
     const rawFeeds = res.feeds || [];
+    console.log("[Feed] raw types:", rawFeeds.map((f: any) => f.type));
     const mapped = mapFeeds(rawFeeds);
     const user = res.currectUser || (res as any).currentUser || null;
 
@@ -440,6 +455,15 @@ const [creatingHighlight, setCreatingHighlight] =
       {/* RIGHT */}
       <div className="flex items-center gap-2">
 
+        {/* CALENDAR / TODAY'S CHECKLIST */}
+        <button
+          onClick={() => router.push("/checklist")}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-green-50 hover:border-green-200 transition-all group"
+          title="Today's Checklist"
+        >
+          <CalendarDays size={18} className="text-green-600 group-hover:scale-110 transition-transform" />
+        </button>
+
         {/* SEARCH */}
         <button
           onClick={() => router.push("/profile/components/UserList")}
@@ -481,7 +505,10 @@ const [creatingHighlight, setCreatingHighlight] =
         </button>
 
         {/* CREATE */}
-        <button className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all">
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
+        >
           <Plus size={16} />
         </button>
       </div>
@@ -1433,134 +1460,217 @@ const [creatingHighlight, setCreatingHighlight] =
             </div>
 
             {/* BOTTOM — white content */}
-            <div className="p-5">
-              {/* User row */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-pink-500 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
-                  {selectedSessionFeed.user?.image ? (
-                    <img
-                      src={selectedSessionFeed.user.image}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-white font-bold text-base">
-                      {(selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "U")
-                        .charAt(0)
-                        .toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900 text-sm leading-tight">
-                    {selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "User"}
-                  </p>
-                  <p className="text-purple-500 text-xs">
-                    @{selectedSessionFeed.user?.username || "user"}
-                  </p>
-                </div>
-              </div>
+            {(() => {
+              const isCompleted = selectedSessionFeed.type?.includes("Complete");
+              const weekDay = sessionData?.week && sessionData?.day
+                ? `Week ${sessionData.week} / Day ${sessionData.day}`
+                : "Single Session";
+              return (
+                <div className="p-5 overflow-y-auto max-h-[55vh]">
+                  {/* Session Details header */}
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Session Details</p>
 
-              {/* Title */}
-              <h3 className="font-bold text-gray-900 text-lg mb-3 leading-tight">
-                {selectedSessionFeed.title || selectedSessionFeed.description || "Workout Session"}
-              </h3>
-
-              {/* Participants */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center">
-                  {sessionData?.participants && sessionData.participants.length > 0 ? (
-                    sessionData.participants.slice(0, 4).map((p, i) => (
-                      <div
-                        key={i}
-                        className="w-7 h-7 rounded-full border-2 border-white overflow-hidden bg-purple-200 flex items-center justify-center -ml-2 first:ml-0 shadow-sm"
-                      >
-                        {p.image ? (
-                          <img src={p.image} alt={p.name || ""} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-[9px] font-bold text-purple-700">
-                            {(p.name || p.username || "?").charAt(0).toUpperCase()}
-                          </span>
-                        )}
+                  {/* User row */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-pink-500 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                      {selectedSessionFeed.user?.image ? (
+                        <img src={selectedSessionFeed.user.image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white font-bold text-base">
+                          {(selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "U").charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm leading-tight">
+                        {selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "User"}
+                      </p>
+                      <p className="text-purple-500 text-xs">@{selectedSessionFeed.user?.username || "user"}</p>
+                    </div>
+                    {isCompleted && (
+                      <div className="ml-auto flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-2.5 py-1 rounded-full">
+                        <CheckCircle2 size={13} />
+                        Completed
                       </div>
-                    ))
-                  ) : (
-                    <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center shadow-sm">
-                      <Users size={12} className="text-gray-400" />
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="font-bold text-gray-900 text-lg mb-3 leading-tight">
+                    {selectedSessionFeed.title || selectedSessionFeed.description || "Workout Session"}
+                  </h3>
+
+                  {/* Participants */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center">
+                      {sessionData?.participants && sessionData.participants.length > 0 ? (
+                        sessionData.participants.slice(0, 4).map((p, i) => (
+                          <div key={i} className="w-7 h-7 rounded-full border-2 border-white overflow-hidden bg-purple-200 flex items-center justify-center -ml-2 first:ml-0 shadow-sm">
+                            {p.image ? (
+                              <img src={p.image} alt={p.name || ""} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[9px] font-bold text-purple-700">{(p.name || p.username || "?").charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center shadow-sm">
+                          <Users size={12} className="text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[12px] font-semibold text-gray-500">{sessionData?.joinedCount ?? 0} joined</span>
+                  </div>
+
+                  {/* Info row: week/day pill + people count */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="bg-blue-50 text-blue-600 text-[11px] font-bold px-3 py-1.5 rounded-full border border-blue-100">
+                      {weekDay}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-gray-500">
+                      <Users size={14} />
+                      <span className="text-[12px] font-semibold">{sessionData?.joinedCount ?? 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Date box */}
+                  <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 mb-3 border border-gray-100">
+                    <CalendarDays size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-[12px] text-gray-500 font-medium">
+                      {formatSessionDate(selectedSessionFeed.date || selectedSessionFeed.created_at)}
+                    </span>
+                  </div>
+
+                  {/* Category + type tags */}
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <span className="flex items-center gap-1 text-purple-500 text-[11px] font-semibold bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
+                      <Dumbbell size={11} />
+                      {sessionWorkoutCategory || selectedSessionFeed.title2 || "Full Body"}
+                    </span>
+                    <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
+                      <Heart size={11} />
+                      0 likes
+                    </span>
+                    <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
+                      <MessageCircle size={11} />
+                      0 comments
+                    </span>
+                  </div>
+
+                  {/* Results section */}
+                  {isCompleted && popupWorkoutStats?.thisWorkout && (
+                    <div className="mb-4">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: "Load", value: popupWorkoutStats.thisWorkout.load },
+                          { label: "Power", value: popupWorkoutStats.thisWorkout.power },
+                          { label: "Kcal", value: popupWorkoutStats.thisWorkout.cals },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
+                            <p className="text-[20px] font-extrabold text-gray-900">{value ?? "—"}</p>
+                            <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
-                <span className="text-[12px] font-semibold text-gray-500">
-                  {sessionData?.joinedCount ?? 0} joined
-                </span>
-              </div>
 
-              {/* Stats row */}
-              <div className="flex items-center gap-3 text-gray-500 text-[12px] mb-5 flex-wrap">
-                <div className="flex items-center gap-1">
-                  <Heart size={13} className="text-gray-400" />
-                  <span>0 likes</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <MessageCircle size={13} className="text-gray-400" />
-                  <span>0 comments</span>
-                </div>
-                <div className="flex items-center gap-1 text-blue-500">
-                  <CalendarDays size={13} />
-                  <span>Week 1/ Day 1</span>
-                </div>
-                <div className="flex items-center gap-1 text-purple-500">
-                  <Dumbbell size={13} />
-                  <span>{sessionWorkoutCategory || selectedSessionFeed.title2 || "Full Body"}</span>
-                </div>
-              </div>
+                  {/* Load chart (simple CSS bars) */}
+                  {isCompleted && popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Load Chart</p>
+                      <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                        <div className="flex items-end gap-1.5 h-20">
+                          {(() => {
+                            const max = Math.max(...popupWorkoutStats.loadChart, 1);
+                            return popupWorkoutStats.loadChart.map((val, i) => (
+                              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                <div
+                                  className="w-full rounded-t-md bg-cyan-400"
+                                  style={{ height: `${Math.max(4, (val / max) * 72)}px` }}
+                                />
+                                <span className="text-[8px] text-gray-400">R{i + 1}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              {/* View/Join button */}
-              <button
-                onClick={() => {
-                  if (selectedSessionFeed.type === "CompleteCardio") {
-                    const params = new URLSearchParams({
-                      feedId: selectedSessionFeed.activity_id || String(selectedSessionFeed.id),
-                      userName: selectedSessionFeed.user?.name || "",
-                      userUsername: selectedSessionFeed.user?.username || "",
-                      title: selectedSessionFeed.title || "",
-                      date: selectedSessionFeed.date || selectedSessionFeed.created_at || "",
-                    });
-                    router.push(`/feed/cardio-session?${params.toString()}`);
-                  } else {
-                    const code = sessionData?.program_id || sessionData?.workout_code || "";
-                    const activeId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
-                    localStorage.setItem("workoutProgramCode", code);
-                    localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
-                    localStorage.setItem("workoutName", sessionData?.programName || "");
-                    localStorage.setItem("workoutIsFree", "true");
-                    if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, activeId);
-                    localStorage.setItem("sessionActive", "true");
-                    router.push("/workout/viewWorkoutSession");
-                  }
-                }}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
-              >
-                View/ Join session
-              </button>
+                  {/* Power Set Logs */}
+                  {isCompleted && popupPowerSetLogs.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">$ Sets</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {popupPowerSetLogs.map((log, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                            <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center mb-1.5">
+                              <span className="text-[11px] font-extrabold text-purple-700">$</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-gray-800 leading-tight mb-1 uppercase">{log.exercise || log.title}</p>
+                            {log.weight != null && <p className="text-[12px] font-extrabold text-gray-900">{log.weight} kg</p>}
+                            {log.reps != null && <p className="text-[10px] text-gray-400">{log.reps} reps</p>}
+                            {log.opm && <p className="text-[10px] text-gray-400 mt-0.5">{log.opm}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Workout Preview */}
-              <button
-                onClick={() => {
-                  const code = sessionData?.program_id || sessionData?.workout_code || "";
-                  localStorage.setItem("workoutProgramCode", code);
-                  localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
-                  localStorage.setItem("workoutName", sessionData?.programName || "");
-                  localStorage.setItem("workoutIsFree", "true");
-                  router.push("/workout/viewWorkoutSession");
-                }}
-                className="w-full text-purple-600 font-semibold text-sm text-center hover:text-purple-700 transition"
-              >
-                Workout Preview
-              </button>
-            </div>
+                  {/* View/Join button */}
+                  <button
+                    onClick={() => {
+                      if (selectedSessionFeed.type === "CompleteCardio") {
+                        const params = new URLSearchParams({
+                          feedId: selectedSessionFeed.activity_id || String(selectedSessionFeed.id),
+                          userName: selectedSessionFeed.user?.name || "",
+                          userUsername: selectedSessionFeed.user?.username || "",
+                          title: selectedSessionFeed.title || "",
+                          date: selectedSessionFeed.date || selectedSessionFeed.created_at || "",
+                        });
+                        router.push(`/feed/cardio-session?${params.toString()}`);
+                      } else {
+                        const code = sessionData?.program_id || sessionData?.workout_code || "";
+                        const activeId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
+                        localStorage.setItem("workoutProgramCode", code);
+                        localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                        localStorage.setItem("workoutName", sessionData?.programName || "");
+                        localStorage.setItem("workoutIsFree", "true");
+                        if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, activeId);
+                        localStorage.setItem("sessionActive", "true");
+                        router.push("/workout/viewWorkoutSession");
+                      }
+                    }}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
+                  >
+                    View / Join session
+                  </button>
+
+                  {/* Workout Preview */}
+                  <button
+                    onClick={() => {
+                      const code = sessionData?.program_id || sessionData?.workout_code || "";
+                      localStorage.setItem("workoutProgramCode", code);
+                      localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                      localStorage.setItem("workoutName", sessionData?.programName || "");
+                      localStorage.setItem("workoutIsFree", "true");
+                      router.push("/workout/viewWorkoutSession");
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 text-gray-500 font-semibold text-sm hover:text-gray-700 transition"
+                  >
+                    Workout Preview <ArrowRight size={15} />
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
+      )}
+
+      {showUploadModal && (
+        <UploadHighlightModal onClose={() => setShowUploadModal(false)} />
       )}
     </div>
   );

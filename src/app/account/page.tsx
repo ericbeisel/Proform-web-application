@@ -8,6 +8,7 @@ import {
   Activity,
   Calendar,
   ChevronRight,
+  Coins,
   CreditCard,
   LayoutGrid,
   LogOut,
@@ -67,7 +68,7 @@ type ToolItem = {
 
 const TOOL_ITEMS: ToolItem[] = [
   { label: "Create Workout", href: "/itinerary/schedule" },
-  { label: "Log an Exercise", href: "/itinerary/queue" },
+  { label: "Log an Exercise", href: "/exercise-log" },
   { label: "Cardio", href: "#" },
   { label: "Feed", href: "/feed/main-feed" },
   { label: "Macros", href: "#" },
@@ -99,6 +100,7 @@ export default function AccountPage() {
   const [roleId, setRoleId] = useState(1);
   const [accountName, setAccountName] = useState("Account");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [totalPoints, setTotalPoints] = useState<number | null>(null);
 
   useEffect(() => {
     // Hydrate from localStorage
@@ -145,6 +147,18 @@ export default function AccountPage() {
     }
 
     void fetchProfile();
+
+    async function fetchPoints() {
+      try {
+        const { getPointsTotal } = await import("@/api/points/route");
+        const pts = await getPointsTotal();
+        setTotalPoints(pts);
+      } catch {
+        // keep null — UI falls back to "—"
+      }
+    }
+
+    void fetchPoints();
   }, []);
 
   const handleLogout = async () => {
@@ -201,19 +215,19 @@ export default function AccountPage() {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900">
                 {accountName}
               </h1>
-              <div className="mt-1.5 flex items-center gap-2.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 text-sm font-medium shadow-sm">
-                  🪙
+              <Link href="/points" className="mt-1.5 flex items-center gap-2.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 shadow-sm">
+                  <Coins size={14} className="text-amber-600" />
                 </div>
                 <span className="text-base font-semibold text-gray-700">
-                  25 Points
+                  {totalPoints === null ? "—" : `${totalPoints} Points`}
                 </span>
-                {isAdmin && (
-                  <span className="ml-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
-                    Admin
-                  </span>
-                )}
-              </div>
+              </Link>
+              {isAdmin && (
+                <span className="mt-1 ml-0.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                  Admin
+                </span>
+              )}
             </div>
           </div>
         </header>

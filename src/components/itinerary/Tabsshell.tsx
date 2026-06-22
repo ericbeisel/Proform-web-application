@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import PageTitle from "@/components/itinerary/Pagetitle";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, AlertCircle } from "lucide-react";
 
 // Routes inside (tabs) that should hide the shared shell
 const HIDDEN_SHELL_ROUTES = ["/itinerary/missed-activity", "/itinerary/all-activity", "/itinerary/queue"];
@@ -41,13 +41,22 @@ export default function TabsShell({
           />
         </div>
 
-        {/* Right — Go to Queue */}
-        <button
-          onClick={() => router.push("/workout")}
-          className="bg-purple-700 hover:bg-purple-800 text-white text-[12px] sm:text-[13px] font-bold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap"
-        >
-          Go to Queue <ChevronRight size={13} className="inline ml-0.5" />
-        </button>
+        {/* Right — Missed Activity + Go to Queue */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push("/checklist/missed-activity")}
+            className="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 text-[11px] sm:text-[12px] font-semibold px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors whitespace-nowrap"
+          >
+            <AlertCircle size={12} />
+            Missed Activity
+          </button>
+          <button
+            onClick={() => router.push("/workout")}
+            className="bg-purple-700 hover:bg-purple-800 text-white text-[12px] sm:text-[13px] font-bold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap"
+          >
+            Go to Queue <ChevronRight size={13} className="inline ml-0.5" />
+          </button>
+        </div>
       </header>
 
       {/* ── Page Content ── */}

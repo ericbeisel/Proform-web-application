@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Info, Target, PenLine, TrendingUp, Dumbbell, Zap, X, BarChart2, Activity, Percent, Award } from "lucide-react";
+import { Info, X, BarChart2, Activity, Percent, Award, Dumbbell, Star, Pen, Shirt, Scale, UserRound, Ruler } from "lucide-react";
 import {
   getMetrics,
   updateMetrics,
@@ -214,11 +214,11 @@ export default function MetricsPage() {
   };
 
   const iconTabs = [
-    { icon: TrendingUp, title: "CMP", onClick: () => cmpRef.current?.scrollIntoView({ behavior: "smooth" }) },
-    { icon: Dumbbell, title: "RMP", onClick: () => rmpRef.current?.scrollIntoView({ behavior: "smooth" }) },
-    { icon: PenLine, title: "Edit CMP", onClick: () => { setBulkEditType("CMP"); setBulkError(""); setBulkEditVisible(true); } },
-    { icon: Zap, title: "Edit RMP", onClick: () => { setBulkEditType("RMP"); setBulkError(""); setBulkEditVisible(true); } },
-    { icon: Target, title: "Goals", onClick: () => {} },
+    { icon: Dumbbell, title: "CMP",      onClick: () => cmpRef.current?.scrollIntoView({ behavior: "smooth" }) },
+    { icon: UserRound,     title: "RMP",      onClick: () => rmpRef.current?.scrollIntoView({ behavior: "smooth" }) },
+    { icon: Pen,      title: "Edit CMP", onClick: () => { setBulkEditType("CMP"); setBulkError(""); setBulkEditVisible(true); } },
+    { icon: Shirt,    title: "Edit RMP", onClick: () => { setBulkEditType("RMP"); setBulkError(""); setBulkEditVisible(true); } },
+    { icon: Ruler,    title: "Goals",    onClick: () => {} },
   ];
 
   const statCards = [

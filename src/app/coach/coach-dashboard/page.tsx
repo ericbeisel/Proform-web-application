@@ -31,11 +31,11 @@ import { profileApi } from "@/api/profile/route";
 import { CoachSidebar } from "./components/CoachSidebar";
 
 const quickActions = [
-  { title: "Reminders", icon: Bell, color: "bg-[#7C4DFF]" },
-  { title: "Standards", icon: Award, color: "bg-[#EF4444]" },
-  { title: "Reports", icon: FileText, color: "bg-[#10B981]" },
-  { title: "Challenges", icon: Trophy, color: "bg-[#F59E0B]" },
-  { title: "Accountability", icon: Target, color: "bg-[#FB923C]" },
+  { title: "Reminders",      icon: Bell,     color: "bg-[#7C4DFF]", href: null },
+  { title: "Standards",      icon: Award,    color: "bg-[#EF4444]", href: null },
+  { title: "Reports",        icon: FileText, color: "bg-[#10B981]", href: null },
+  { title: "Challenges",     icon: Trophy,   color: "bg-[#F59E0B]", href: null },
+  { title: "Accountability", icon: Target,   color: "bg-[#FB923C]", href: "/admin-player-card-status" },
 ];
 
 export default function CoachDashboardPage() {
@@ -1044,6 +1044,7 @@ export default function CoachDashboardPage() {
             return (
               <div key={item.title} className="flex flex-col items-center group">
                 <button
+                  onClick={() => item.href && router.push(item.href)}
                   className={`
                     relative w-12 h-12 sm:w-16 sm:h-16 rounded-[18px] sm:rounded-[22px]
                     ${item.color}
@@ -1055,6 +1056,7 @@ export default function CoachDashboardPage() {
                     group-hover:shadow-[0_14px_24px_rgba(0,0,0,0.2)]
                     active:translate-y-[2px]
                     overflow-hidden
+                    ${item.href ? "cursor-pointer" : "cursor-default"}
                   `}
                 >
                   <div className="absolute inset-[2px] rounded-[16px] sm:rounded-[20px] bg-white/5" />

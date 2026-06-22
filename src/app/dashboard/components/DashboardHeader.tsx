@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, User, LogOut, Menu, X , ArrowRightLeft } from "lucide-react";
+import { BarChart2, User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
@@ -50,33 +50,43 @@ export default function DashboardHeader({
     }
   };
 
-  const navItems = ["Home", "Teams", "Search Workouts", "Programs"];
+  const navItems = [
+    { label: "Feed",      icon: Rss,          href: "/feed/main-feed" },
+    { label: "Next",      icon: ChevronRight, href: null },
+    { label: "Itinerary", icon: Calendar,     href: "/itinerary/itinerary-page" },
+    { label: "Metrics",   icon: Activity,     href: "/metrics" },
+    { label: "Teams",     icon: Users,        href: "/team-dashboard" },
+  ];
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e8e6f0]">
       <div className="h-16 flex items-center px-4 sm:px-6 lg:px-8 gap-4">
         {/* Logo */}
-        <span className="font-black text-lg sm:text-xl whitespace-nowrap">
-          My Dashboard
-        </span>
+        <img
+          src="/images/proform-logo.jpg"
+          alt="Proform"
+          onClick={() => router.push("/feed/main-feed")}
+          className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
+        />
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex gap-1 bg-[#f7f6fb] rounded-[10px] p-1">
-          {navItems.map((item) => (
+          {navItems.map(({ label, icon: Icon, href }) => (
             <button
-              key={item}
-              onClick={() => setActiveNav(item)}
+              key={label}
+              onClick={() => { setActiveNav(label); if (href) router.push(href); }}
               className={`
-                px-3 lg:px-4 py-1.5 text-[12px] lg:text-[13px] font-medium rounded-[7px]
+                flex items-center gap-1.5 px-3 lg:px-4 py-1.5 text-[12px] lg:text-[13px] font-medium rounded-[7px]
                 transition-all duration-150
                 ${
-                  activeNav === item
-                    ? "bg-white text-[#1a1825] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
+                  activeNav === label
+                    ? "bg-white text-[#6c5ce7] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
                     : "text-[#8b879e] hover:text-[#6c5ce7]"
                 }
               `}
             >
-              {item}
+              <Icon size={13} />
+              {label}
             </button>
           ))}
         </div>
@@ -140,22 +150,24 @@ export default function DashboardHeader({
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#e8e6f0] bg-white px-4 py-3 space-y-2">
-          {navItems.map((item) => (
+          {navItems.map(({ label, icon: Icon, href }) => (
             <button
-              key={item}
+              key={label}
               onClick={() => {
-                setActiveNav(item);
+                setActiveNav(label);
                 setMobileMenuOpen(false);
+                if (href) router.push(href);
               }}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm
                 ${
-                  activeNav === item
+                  activeNav === label
                     ? "bg-purple-50 text-[#6c5ce7]"
                     : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
-              {item}
+              <Icon size={15} />
+              {label}
             </button>
           ))}
 

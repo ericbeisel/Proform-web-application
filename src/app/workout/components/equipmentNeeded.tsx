@@ -19,6 +19,11 @@ export default function EquipmentNeededPage() {
   const [programEquipment, setProgramEquipment] = useState<Equipment[]>([]);
   const [programEquipmentLoading, setProgramEquipmentLoading] = useState(true);
   const [selectedEquipIds, setSelectedEquipIds] = useState<Set<number>>(new Set());
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [isNewlyCreated, setIsNewlyCreated] = useState(false);
+  const [newLocationName, setNewLocationName] = useState("");
+  const [displayLocationName, setDisplayLocationName] = useState("Selected Location");
+
 
   useEffect(() => {
     const initializeData = async () => {
@@ -33,6 +38,27 @@ export default function EquipmentNeededPage() {
         setLocations(locData);
         if (programEquip && Array.isArray(programEquip)) {
           setProgramEquipment(programEquip);
+          // Auto-select all program equipment when no location is chosen yet
+          setSelectedEquipIds(new Set(programEquip.map((eq: Equipment) => eq.id)));
+        }
+
+        // Auto-select newly created location if navigated from createLocation page
+        const newId = localStorage.getItem("newLocationId");
+        const savedName = localStorage.getItem("newLocationName");
+        if (newId) {
+          localStorage.removeItem("newLocationId");
+          localStorage.removeItem("newLocationName");
+          setSelectedLocation(newId);
+          setIsNewlyCreated(true);
+          setDisplayLocationName(savedName || "New Location");
+          try {
+            const detail = await equipmentApi.getLocationDetail(newId);
+            const fetchedList = detail.equipmentList || [];
+            setEquipments(fetchedList);
+            setSelectedEquipIds(new Set(fetchedList.map((eq: EquipmentItem) => eq.id)));
+          } catch (e) {
+            console.error("Failed to fetch new location detail:", e);
+          }
         }
       } catch (err) {
         console.error("Initialization failed:", err);
@@ -67,11 +93,15 @@ export default function EquipmentNeededPage() {
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedLocation(id);
+    setIsNewlyCreated(false);
     if (id) {
+      const locName = locations.find((l) => String(l.id) === id)?.name || "Selected Location";
+      setDisplayLocationName(locName);
       fetchLocationDetail(id);
     } else {
       setEquipments([]);
       setSelectedEquipIds(new Set());
+      setDisplayLocationName("Selected Location");
     }
   };
 
@@ -115,7 +145,7 @@ const handleBack = async () => {
   router.back();
 };
 
-const handleStartSession = async () => {
+const handleStartSession = async (locationNameOverride?: string, equipmentIdsOverride?: number[]) => {
   const pendingSessionCode = localStorage.getItem("pendingSessionCode");
   console.log("[session] ▶ handleStartSession fired — pendingSessionCode:", pendingSessionCode);
   if (!pendingSessionCode) {
@@ -123,18 +153,20 @@ const handleStartSession = async () => {
     return;
   }
 
-  setIsDeleting(true);
+  if (locationNameOverride) setIsCreatingNew(true); else setIsDeleting(true);
   try {
     // 1. ALWAYS create a location — mirrors mobile exactly
-    // Uses selected location name OR 'Temporary Location' as fallback
-    const selectedLocationName = selectedLocation
-      ? locations.find((l) => String(l.id) === String(selectedLocation))?.name || "Temporary Location"
-      : "Temporary Location"; // ← exact same fallback as mobile
+    // Uses override name, selected location name, OR 'Temporary Location' as fallback
+    const selectedLocationName = locationNameOverride
+      || (selectedLocation
+        ? locations.find((l) => String(l.id) === String(selectedLocation))?.name || "Temporary Location"
+        : "Temporary Location"); // ← exact same fallback as mobile
 
-    console.log("[session] 📍 Creating location:", selectedLocationName, "equipIds:", Array.from(selectedEquipIds));
+    const resolvedEquipIds = equipmentIdsOverride ?? Array.from(selectedEquipIds);
+    console.log("[session] 📍 Creating location:", selectedLocationName, "equipIds:", resolvedEquipIds);
     const locationResult = await createWorkoutLocation({
       locationTitle: selectedLocationName,
-      equipmentIds: Array.from(selectedEquipIds).map(String),
+      equipmentIds: resolvedEquipIds.map(String),
     });
     const locationId = locationResult?.locationId;
     console.log("[session] 📍 locationId:", locationId);
@@ -243,8 +275,14 @@ const handleStartSession = async () => {
     console.error("[session] ✗ handleStartSession failed:", err);
   } finally {
     setIsDeleting(false);
+    setIsCreatingNew(false);
   }
 };
+
+  const allProgramEquipSelected =
+    programEquipment.length === 0 ||
+    programEquipment.every((eq) => selectedEquipIds.has(eq.id));
+
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -283,7 +321,7 @@ const handleStartSession = async () => {
                 </select>
                 {selectedLocation ? (
                   <button
-                    onClick={() => { setSelectedLocation(""); setEquipments([]); setSelectedEquipIds(new Set()); }}
+                    onClick={() => { setSelectedLocation(""); setEquipments([]); setSelectedEquipIds(new Set()); setIsNewlyCreated(false); setDisplayLocationName("Selected Location"); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
                     <X size={14} />
@@ -436,27 +474,89 @@ const handleStartSession = async () => {
           )}
         </div>
 
-        {/* COMPACT START SESSION BUTTON */}
-        <div className="mt-12 flex flex-col items-center gap-3">
-          <button
-            onClick={handleStartSession}
-            disabled={isDeleting}
-            className="w-full max-w-sm bg-[#7c3aed] text-white py-3.5 rounded-full font-bold text-sm shadow-lg shadow-purple-100 flex items-center justify-center gap-2 uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-80 disabled:cursor-not-allowed disabled:scale-100"
-          >
-            {isDeleting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Setting up...
-              </>
-            ) : (
-              <>
-                Start Session
-                <ChevronRight size={16} />
-              </>
-            )}
-          </button>
+        {/* ACTION BUTTONS */}
+        <div className="mt-12 flex flex-col items-center gap-4">
+          {selectedLocation && isNewlyCreated ? (
+            /* ── Newly created location: only Start Workout ── */
+            <button
+              onClick={() => handleStartSession()}
+              disabled={isDeleting || isCreatingNew}
+              className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <><Loader2 size={16} className="animate-spin" /> Setting up...</>
+              ) : (
+                <>Start Workout <ChevronRight size={16} /></>
+              )}
+            </button>
+          ) : selectedLocation && !isNewlyCreated ? (
+            /* ── Dropdown-selected location: full flow ── */
+            <>
+              <button
+                onClick={() => handleStartSession()}
+                disabled={isDeleting || isCreatingNew}
+                className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <><Loader2 size={16} className="animate-spin" /> Setting up...</>
+                ) : (
+                  <>Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} /></>
+                )}
+              </button>
+
+              <p className="text-sm text-[#7c3aed] font-medium">+ Create a new location and proceed</p>
+
+              <input
+                type="text"
+                placeholder="New location name..."
+                value={newLocationName}
+                onChange={(e) => setNewLocationName(e.target.value)}
+                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed]"
+              />
+
+              <button
+                onClick={() => newLocationName.trim() && handleStartSession(newLocationName.trim())}
+                disabled={isCreatingNew || isDeleting || !newLocationName.trim()}
+                className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isCreatingNew ? (
+                  <><Loader2 size={16} className="animate-spin" /> Creating...</>
+                ) : (
+                  <>Proceed <ChevronRight size={16} /></>
+                )}
+              </button>
+            </>
+          ) : (
+            /* ── No location selected ── */
+            <>
+              <button
+                onClick={() => router.push("/workout/createLocation")}
+                disabled={isDeleting || isCreatingNew}
+                className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <MapPin size={16} />
+                Create Location
+              </button>
+
+              <button
+                onClick={() => handleStartSession("Temporary Location")}
+                disabled={isDeleting || isCreatingNew || !allProgramEquipSelected}
+                className="text-[#7c3aed] text-sm font-medium hover:text-[#6d28d9] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  "Start Workout Without Location"
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
+
     </div>
   );
 }
