@@ -277,6 +277,8 @@ export interface PowerSetChild {
   calculated_weight: number;
   reps: string;
   msrmt: string;
+  min_reps?: number | null;
+  isCompleted?: boolean;
 }
 
 export interface PowerSet {
@@ -285,6 +287,10 @@ export interface PowerSet {
   title_secondary: string;
   demo_gif?: string;
   child_sets: PowerSetChild[];
+  round?: number | string;
+  is_money_set?: boolean;
+  is_gray?: boolean;
+  emoji?: string;
 }
 
 export interface WorkoutGroupItem {
@@ -720,13 +726,18 @@ export const getProgramWorkoutStats = async (
 
 export const getProgramPowerSets = async (
   programCode: string,
+  sessionId?: string | null,
 ): Promise<PowerSet[]> => {
   try {
     const { data } = await apiClient.get<PowerSet[]>(
       `/programs/${programCode}/power-sets`,
+      sessionId ? { params: { session_id: sessionId } } : undefined,
     );
     console.log("📋 Program power sets response:", data);
-    return data;
+    if (Array.isArray(data) && data.length > 0) {
+      console.log("📋 First power set detail:", JSON.stringify(data[0], null, 2));
+    }
+    return Array.isArray(data) ? data : [];
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch power sets."));
   }

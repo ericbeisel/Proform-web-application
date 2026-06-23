@@ -596,7 +596,7 @@ function ActivityContent() {
                 <ChevronLeft size={20} />
               </button>
               <h1 className="text-lg font-black text-[#8B5CF6] min-w-[160px] text-center">
-                {logType === "All Activity" ? "Player Activity" : logType}
+                {logType === "All Activity" ? "All Activity" : logType}
               </h1>
               <button
                 onClick={() => canNext && setLogType(LOG_TYPES[idx + 1])}

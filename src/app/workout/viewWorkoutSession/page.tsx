@@ -33,12 +33,15 @@ import {
   FileText,
 } from "lucide-react";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import PowerSetTrackingModal, { type VelocitySet } from "./PowerSetTrackingModal";
 import {
   getProgramGroupedWorkouts,
   getProgramTags,
+  getProgramPowerSets,
   WorkoutGroup,
   WorkoutGroupItem,
+  PowerSet,
 } from "@/api/programs/route";
 import {
   getIncompleteSessions,
@@ -49,12 +52,23 @@ import {
   createTrackingLog,
   getWorkoutStats,
   getWorkoutLoadRecords,
+  getPowerSetLogs,
   IncompleteSession,
   WorkoutStats,
   WorkoutLoadRecord,
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
+
+function getSectionColor(label: string, index: number): string {
+  const l = (label || "").toLowerCase();
+  if (l.includes("warm") || l.includes("pre")) return "#F97316";
+  if (l.includes("round 1")) return "#8B5CF6";
+  if (l.includes("round 2")) return "#3B82F6";
+  if (l.includes("round 3")) return "#10B981";
+  const colors = ["#F97316", "#8B5CF6", "#3B82F6", "#10B981", "#EC4899"];
+  return colors[index % colors.length];
+}
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -138,6 +152,95 @@ export default function ViewWorkoutSessionPage() {
     WorkoutGroup[]
   >([]);
   const [locationFilterLoading, setLocationFilterLoading] = useState(false);
+  const [powerSets, setPowerSets] = useState<PowerSet[]>([]);
+  const [powerSetsLoading, setPowerSetsLoading] = useState(false);
+  const [velocityExercise, setVelocityExercise] = useState<PowerSet | null>(null);
+  const [velocitySets, setVelocitySets] = useState<VelocitySet[]>([]);
+  const velocitySetsCache = useRef<Record<string, VelocitySet[]>>({});
+  const [mapSessionLogs, setMapSessionLogs] = useState<any[]>([]);
+  const [mapLoadRecords, setMapLoadRecords] = useState<WorkoutLoadRecord[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
+
+  const openVelocityModal = useCallback((ps: PowerSet) => {
+    setVelocityExercise(ps);
+    const cached = velocitySetsCache.current[ps.id];
+    if (cached) {
+      setVelocitySets(cached);
+    } else {
+      setVelocitySets(
+        (ps.child_sets ?? []).map((s) => ({
+          weight: "",
+          reps: s.reps ? String(s.reps).replace(/\D/g, "") : "",
+          unit: s.msrmt || "lbs",
+          recorded: s.isCompleted || false,
+          suggestedWeight: s.calculated_weight ? String(s.calculated_weight) : undefined,
+          suggestedReps: s.reps ? String(s.reps) : undefined,
+          pwrst_wt: s.multiplier,
+          weight_adjust: (ps as any).weight_adj,
+          min_reps: s.min_reps ?? undefined,
+          power_id: s.id,
+        }))
+      );
+    }
+  }, []);
+
+  const addVelocitySet = useCallback(() => {
+    setVelocitySets((prev) => [
+      ...prev,
+      { weight: "", reps: "", unit: "lbs", recorded: false, isCustom: true },
+    ]);
+  }, []);
+
+  const updateVelocitySet = useCallback((index: number, field: string, value: any) => {
+    setVelocitySets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }, []);
+
+  const toggleRecordVelocitySet = useCallback((index: number) => {
+    setVelocitySets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], recorded: !next[index].recorded };
+      return next;
+    });
+  }, []);
+
+  const refreshPowerSets = useCallback(async () => {
+    const code = localStorage.getItem("workoutProgramCode");
+    const sid = activeSession?.id ?? activeSession?.session_id;
+    if (!code) return;
+    setPowerSetsLoading(true);
+    getProgramPowerSets(code, sid)
+      .then(setPowerSets)
+      .catch(() => {})
+      .finally(() => setPowerSetsLoading(false));
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (activeView !== "Map") return;
+    const sid = activeSession?.id ?? (activeSession as any)?.session_id;
+    if (!sid) return;
+    setMapLoading(true);
+    Promise.all([
+      getTrackingLogs({ sessionId: sid }).catch(() => [] as any[]),
+      getPowerSetLogs(sid).catch(() => [] as any[]),
+      getWorkoutLoadRecords(sid).catch(() => [] as WorkoutLoadRecord[]),
+    ]).then(([stdLogs, psLogs, loads]) => {
+      const mappedPsLogs = (psLogs as any[]).map((l: any) => ({
+        ...l,
+        exerciseId: l.individual_exercise_id || l.exerciseId,
+        specializedWorkoutId: l.specialized_workout_id || l.specializedWorkoutId,
+        weight: l.new_weight ?? l.member_weight_rmp ?? 0,
+        repetitions: l.reps,
+        title: l.title || "Power Set",
+        isPowerSetLog: true,
+      }));
+      setMapSessionLogs([...(stdLogs as any[]), ...mappedPsLogs]);
+      setMapLoadRecords(loads as WorkoutLoadRecord[]);
+    }).finally(() => setMapLoading(false));
+  }, [activeView, activeSession]);
 
   // Existing handlers
   const toggleCard = (i: number) => {
@@ -320,6 +423,14 @@ export default function ViewWorkoutSessionPage() {
   );
   const isLocked = !hasPurchased;
 
+  const getRoundLabel = (roundValue: number | string | undefined): string => {
+    if (!workoutGroups || workoutGroups.length === 0) return `ROUND ${roundValue ?? 1}`;
+    const alphaSorted = [...workoutGroups].sort((a, b) =>
+      (a.label || "").localeCompare(b.label || "")
+    );
+    return alphaSorted[Number(roundValue ?? 1) - 1]?.label || `ROUND ${roundValue ?? 1}`;
+  };
+
   const handleRejoin = async (session: IncompleteSession) => {
     setSessionStarted(true);
     setActiveSession(session);
@@ -437,6 +548,12 @@ export default function ViewWorkoutSessionPage() {
         setLoading(false);
         return;
       }
+
+      setPowerSetsLoading(true);
+      getProgramPowerSets(programCode, storedSessionId)
+        .then(setPowerSets)
+        .catch(() => {})
+        .finally(() => setPowerSetsLoading(false));
 
       getProgramGroupedWorkouts(programCode)
         .then((res) => {
@@ -624,7 +741,7 @@ export default function ViewWorkoutSessionPage() {
       >
         <div className="absolute top-2 left-2 flex items-center gap-1">
           {actualItem.is_power_set && (
-            <span className="text-[9px] font-black text-[#7c3aed] bg-purple-50 border border-[#7c3aed]/20 rounded-full px-1.5 py-0.5 leading-none">
+            <span className="text-[9px] font-black text-white bg-emerald-500 rounded-full px-1.5 py-0.5 leading-none">
               $
             </span>
           )}
@@ -1389,17 +1506,14 @@ export default function ViewWorkoutSessionPage() {
                 </div>
               ) : activeView === "Powersets" ? (
                 <div className="space-y-6 pb-20">
+                  {/* Header */}
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
                       <Zap size={18} />
                     </div>
                     <div>
-                      <h2 className="text-[20px] font-black text-[#222]">
-                        Power Sets
-                      </h2>
-                      <p className="text-[11px] text-gray-400">
-                        Your strength movements
-                      </p>
+                      <h2 className="text-[20px] font-black text-[#222]">Power Sets</h2>
+                      <p className="text-[11px] text-gray-400">Your strength movements</p>
                     </div>
                   </div>
 
@@ -1408,165 +1522,352 @@ export default function ViewWorkoutSessionPage() {
                       {workoutTitle || "WORKOUT"}
                     </p>
                     <p className="text-[18px] font-black text-[#222]">
-                      {totalExercises} total exercises
+                      {powerSets.length} power set{powerSets.length !== 1 ? "s" : ""}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {workoutGroups.slice(0, 4).map((group, gi) => (
-                      <div
-                        key={gi}
-                        className="bg-white rounded-[20px] border-2 border-[#ede9fe] p-5"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="bg-[#7c3aed] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
-                              {group.label}
-                            </span>
-                            {group.rounds && (
-                              <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full">
-                                {group.rounds}
-                              </span>
+                  {powerSetsLoading ? (
+                    <div className="flex justify-center py-16">
+                      <Loader2 size={28} className="animate-spin text-[#7c3aed]" />
+                    </div>
+                  ) : powerSets.length === 0 ? (
+                    <div className="bg-white rounded-[20px] border border-[#ede9fe] p-10 text-center">
+                      <Dumbbell size={36} className="mx-auto mb-3 text-gray-200" />
+                      <p className="text-sm text-gray-400">No power sets found for this program.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {powerSets.map((ps, gi) => {
+                        const isCollapsed = collapsedRounds.has(gi);
+                        const thumb = resolveWixImage(ps.demo_gif);
+                        const roundLabel = getRoundLabel(ps.round);
+                        const isGray = ps.is_gray;
+                        return (
+                          <div
+                            key={ps.id || gi}
+                            onClick={() => openVelocityModal(ps)}
+                            className={`rounded-[20px] border-2 overflow-hidden cursor-pointer ${
+                              isGray
+                                ? "bg-[#f5f5f7] border-gray-200"
+                                : "bg-white border-[#ede9fe]"
+                            }`}
+                          >
+                            {/* Card header — click collapses, outer div click opens modal */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleRound(gi); }}
+                              className="w-full flex items-center gap-3 p-4 text-left transition hover:brightness-95"
+                            >
+                              {/* Thumbnail / emoji */}
+                              <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200">
+                                {thumb ? (
+                                  <img src={thumb} alt={ps.title_secondary} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-2xl">{ps.emoji || "🏋️‍♂️"}</span>
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                {/* Tags row */}
+                                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                  <span className="bg-[#7c3aed] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                    {roundLabel}
+                                  </span>
+                                  {ps.is_money_set && (
+                                    <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                      $ MONEY SET
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[13px] font-black text-[#222] leading-tight truncate">
+                                  {ps.title_secondary || ps.title_primary}
+                                </p>
+                                {ps.child_sets?.length > 0 && (
+                                  <p className="text-[11px] text-gray-400 mt-0.5">
+                                    {ps.child_sets.length} sets
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="shrink-0 text-gray-400">
+                                {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                              </div>
+                            </button>
+
+                            {/* Sets list — shown when expanded */}
+                            {!isCollapsed && ps.child_sets?.length > 0 && (
+                              <div className="px-4 pb-4">
+                                <div className="h-px bg-gray-200 mb-3" />
+                                <div className="space-y-1">
+                                  {ps.child_sets.map((s, si) => {
+                                    const isMainPowerSet = s.min_reps != null;
+                                    const repsText = s.reps
+                                      ? String(s.reps).toLowerCase().includes("rep") ? s.reps : `${s.reps} reps`
+                                      : "—";
+                                    return (
+                                      <div
+                                        key={s.id || si}
+                                        className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0"
+                                      >
+                                        {/* Set number circle */}
+                                        <div className="w-7 h-7 rounded-full bg-[#ede9fe] flex items-center justify-center shrink-0">
+                                          <span className="text-[11px] font-black text-[#7c3aed]">{si + 1}</span>
+                                        </div>
+
+                                        {/* Weight */}
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-[13px] font-bold text-[#222]">
+                                            {s.calculated_weight
+                                              ? `${s.calculated_weight} ${s.msrmt || "lbs"}`
+                                              : s.label || "—"}
+                                          </span>
+                                          {isMainPowerSet && (
+                                            <span className="ml-2 text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
+                                              $
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Reps */}
+                                        <span className="text-[12px] text-gray-500 font-semibold shrink-0">
+                                          {repsText}
+                                        </span>
+
+                                        {/* Multiplier */}
+                                        {s.multiplier != null && (
+                                          <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
+                                            ×{s.multiplier}
+                                          </span>
+                                        )}
+
+                                        {/* Completed check */}
+                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                          s.isCompleted
+                                            ? "bg-emerald-500 border-emerald-500"
+                                            : "border-gray-300"
+                                        }`}>
+                                          {s.isCompleted && (
+                                            <CheckCircle2 size={12} className="text-white" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          {group.workouts.slice(0, 3).map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between py-2 border-b border-gray-50"
-                            >
-                              <span className="text-[11px] font-semibold text-gray-700">
-                                {item.exercise_name}
-                              </span>
-                              <span className="text-[10px] text-gray-400">
-                                {item.reps || "—"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : activeView === "Map" ? (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                        <MapPin size={20} />
-                      </div>
-                      <div>
-                        <h2 className="text-[22px] font-black text-[#222]">
-                          Workout Map
-                        </h2>
-                        <p className="text-[11px] text-gray-400">
-                          Exercise breakdown by rounds
-                        </p>
-                      </div>
+                <div className="space-y-4 pb-4">
+                  {/* Banner */}
+                  <div className="rounded-[24px] overflow-hidden bg-gradient-to-r from-[#8B5CF6] to-[#6D28D9] px-5 py-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                      <MapPin size={20} className="text-white" fill="white" />
                     </div>
-                    <button
-                      onClick={() => {
-                        const code = (
-                          localStorage.getItem("workoutProgramCode") ||
-                          "unknown"
-                        ).toUpperCase();
-                        localStorage.setItem("pendingSessionCode", code);
-                        localStorage.setItem(
-                          "pendingWorkoutGroups",
-                          JSON.stringify(workoutGroups),
+                    <div>
+                      <p className="text-[17px] font-black text-white">Workout Map</p>
+                      <p className="text-[12px] text-white/70">Complete overview</p>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div className="px-1">
+                    <p className="text-[20px] font-black text-[#111]">{workoutTitle || "WORKOUT"}</p>
+                    <p className="text-[12px] text-gray-400">{workoutGroups.length} Rounds • Full Workout</p>
+                  </div>
+
+                  {/* Rounds */}
+                  {mapLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 size={28} className="animate-spin text-[#7c3aed]" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...workoutGroups].sort((a, b) => {
+                        const aL = (a.label || "").toUpperCase();
+                        const bL = (b.label || "").toUpperCase();
+                        if (aL.includes("WARM") && !bL.includes("WARM")) return -1;
+                        if (!aL.includes("WARM") && bL.includes("WARM")) return 1;
+                        if (aL.includes("ROUND") && !bL.includes("ROUND")) return -1;
+                        if (!aL.includes("ROUND") && bL.includes("ROUND")) return 1;
+                        const aNum = parseInt(aL.replace(/\D/g, ""), 10) || 0;
+                        const bNum = parseInt(bL.replace(/\D/g, ""), 10) || 0;
+                        return aNum !== bNum ? aNum - bNum : aL.localeCompare(bL);
+                      }).map((group, gi) => {
+                        const roundColor = getSectionColor(group.label, gi);
+                        const isExpanded = !collapsedRounds.has(gi);
+                        const roundLoad = mapLoadRecords.find((l) =>
+                          l.title === group.label ||
+                          (l as any).workoutId === (group.workouts?.[0] as any)?.id ||
+                          l.title === (group.workouts?.[0] as any)?.title
                         );
-                      }}
-                      disabled={isLocked}
-                      className={`${isLocked ? "bg-gray-400" : "bg-emerald-500 hover:bg-emerald-600"} transition text-white font-black text-[13px] px-6 py-3 rounded-2xl disabled:opacity-60`}
-                    >
-                      Complete Workout
-                    </button>
-                  </div>
+                        const isRoundComplete = group.isCompleted ||
+                          mapLoadRecords.some((l) =>
+                            (l.workout_complete === true || (l as any).workoutComplete === true) &&
+                            (l.title === group.label ||
+                              (l as any).workoutId === (group.workouts?.[0] as any)?.id ||
+                              l.workout_id === (group.workouts?.[0] as any)?.id)
+                          );
+                        const hasPowerSets = group.workouts.some((w) => w.is_power_set);
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {rounds.map((round) => {
-                      const done = round.exercises.filter((e) =>
-                        selectedExercises.has(e.id),
-                      ).length;
-                      const collapsed = collapsedRounds.has(round.id);
-                      return (
-                        <div
-                          key={round.id}
-                          className="bg-white rounded-[20px] border border-gray-100 overflow-hidden shadow-sm"
-                        >
-                          <button
-                            onClick={() => toggleRound(round.id)}
-                            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition"
+                        return (
+                          <div
+                            key={gi}
+                            className="bg-white rounded-[20px] overflow-hidden"
+                            style={{ border: `1.5px solid ${isRoundComplete ? "#10B981" : isExpanded ? roundColor : "#E5E7EB"}` }}
                           >
-                            <div className="w-8 h-8 rounded-full bg-[#7c3aed] flex items-center justify-center text-white text-[13px] font-black flex-shrink-0">
-                              {round.id}
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="text-[13px] font-black text-[#222]">
-                                {round.label}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                {round.rounds} · {done}/{round.exercises.length}{" "}
-                                exercises
-                              </p>
-                            </div>
-                            {collapsed ? (
-                              <ChevronDown
-                                size={16}
-                                className="text-gray-400"
-                              />
-                            ) : (
-                              <ChevronUp size={16} className="text-gray-400" />
+                            {/* Stats row — only shown when API returned a load record for this round */}
+                            {roundLoad && (
+                              <div className="flex items-center gap-4 px-4 pt-3 pb-1">
+                                {[
+                                  { label: "Load",  value: roundLoad.load  ?? (roundLoad as any).total_load  ?? "-" },
+                                  { label: "Power", value: roundLoad.power ?? (roundLoad as any).total_power ?? "-" },
+                                  { label: "Cal",   value: roundLoad.kcal  ?? (roundLoad as any).cal ?? (roundLoad as any).calories ?? "-" },
+                                ].map(({ label, value }) => (
+                                  <div key={label} className="flex items-center gap-1">
+                                    <span className="text-[10px] text-gray-400 font-semibold">{label}:</span>
+                                    <span className="text-[10px] font-black text-[#111]">{value}</span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
-                          </button>
 
-                          {!collapsed && (
-                            <div className="px-4 pb-4 space-y-2">
-                              {round.exercises.map((ex) => {
-                                const sel = selectedExercises.has(ex.id);
-                                return (
-                                  <button
-                                    key={ex.id}
-                                    onClick={() =>
-                                      !isLocked && toggleExercise(ex.id)
-                                    }
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${sel ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-transparent hover:border-gray-200"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
-                                    disabled={isLocked}
-                                  >
-                                    <span
-                                      className={`text-[11px] font-bold w-5 text-center flex-shrink-0 ${sel ? "text-emerald-500" : "text-gray-400"}`}
-                                    >
-                                      {ex.order || ex.id}
-                                    </span>
-                                    <span
-                                      className={`flex-1 text-left text-[12px] font-semibold ${sel ? "text-emerald-600" : "text-[#222]"}`}
-                                    >
-                                      {ex.name}
-                                    </span>
-                                    <span
-                                      className={`text-[9px] font-black px-2 py-1 rounded-full ${ex.loc === "HOME" ? "bg-gray-100 text-gray-500" : "bg-red-50 text-red-400"}`}
-                                    >
-                                      {ex.loc}
-                                    </span>
-                                    {sel ? (
-                                      <CheckCircle2
-                                        size={18}
-                                        className="text-emerald-500 flex-shrink-0"
-                                        fill="white"
-                                      />
-                                    ) : (
-                                      <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300 flex-shrink-0" />
+                            {/* Round header */}
+                            <div className="flex items-center px-4 py-3 gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: isExpanded ? roundColor : "#F3F4F6" }}>
+                                  <Dumbbell size={18} color={isExpanded ? "white" : "#9CA3AF"} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-[13px] font-black text-[#111] truncate">{group.label}</p>
+                                    {hasPowerSets && (
+                                      <span className="text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">$</span>
                                     )}
-                                  </button>
-                                );
-                              })}
+                                  </div>
+                                  <p className="text-[11px] text-gray-400">{group.rounds} • {group.workouts.length} exercises</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isRoundComplete
+                                  ? <CheckCircle2 size={16} className="text-emerald-500" />
+                                  : <div className="w-4 h-4 rounded-full border-2 border-gray-300" />}
+                                <button onClick={() => toggleRound(gi)} className="p-1">
+                                  {isExpanded
+                                    ? <ChevronUp size={18} style={{ color: roundColor }} />
+                                    : <ChevronDown size={18} className="text-gray-400" />}
+                                </button>
+                              </div>
                             </div>
-                          )}
+
+                            {/* Exercise list */}
+                            {isExpanded && (
+                              <div className="border-t border-gray-100 px-4 pb-3">
+                                {group.workouts.map((ex, exIdx) => {
+                                  const exId = ex.exercise_id || "";
+                                  const matchingLogs = mapSessionLogs.filter((log: any) => {
+                                    const logExId = String(log.exerciseId || "");
+                                    const logSpecId = String(log.specializedWorkoutId || "");
+                                    return logExId === exId || logSpecId === exId;
+                                  });
+                                  const sortedLogs = [...matchingLogs].sort((a: any, b: any) => {
+                                    const aNum = parseInt((a.title || "").replace(/\D/g, "") || "0", 10);
+                                    const bNum = parseInt((b.title || "").replace(/\D/g, "") || "0", 10);
+                                    return aNum - bNum;
+                                  });
+                                  const imgUrl = resolveWixImage(ex.demo_gif);
+
+                                  return (
+                                    <div key={exIdx} className="flex flex-col py-3 border-b border-gray-50 last:border-0">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-[#ede9fe] flex items-center justify-center shrink-0">
+                                          <span className="text-[10px] font-black text-[#7c3aed]">{exIdx + 1}</span>
+                                        </div>
+                                        <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                          {imgUrl ? (
+                                            <img src={imgUrl} alt={ex.exercise_name} className="w-full h-full object-cover" />
+                                          ) : (
+                                            <span className="text-base">🏋️</span>
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[12px] font-black text-[#111] truncate">{ex.exercise_name}</p>
+                                          {sortedLogs.length === 0 && (
+                                            <p className="text-[10px] text-gray-400">
+                                              {ex.sets ? `${ex.sets} × ` : ""}{ex.reps || "8–12"}{ex.weight ? ` @ ${ex.weight}` : ""}
+                                            </p>
+                                          )}
+                                        </div>
+                                        {ex.is_power_set && (
+                                          <span className="text-[9px] font-black bg-emerald-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0">$</span>
+                                        )}
+                                      </div>
+                                      {sortedLogs.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2 ml-9">
+                                          {sortedLogs.map((log: any, sIdx: number) => (
+                                            <div
+                                              key={log.id || sIdx}
+                                              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                                log.isPowerSetLog
+                                                  ? "bg-emerald-50 border border-emerald-300 text-emerald-700"
+                                                  : "bg-gray-900 text-white"
+                                              }`}
+                                            >
+                                              <span>{log.title || `Set ${sIdx + 1}`}: {log.repetitions ?? log.reps ?? 0} @ {log.weight ?? 0}</span>
+                                              {log.isPowerSetLog && <span className="text-emerald-500 font-black ml-0.5">$</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Progress card */}
+                  {(() => {
+                    const completedCount = workoutGroups.filter((g) =>
+                      g.isCompleted || mapLoadRecords.some((l) =>
+                        (l.workout_complete === true || (l as any).workoutComplete === true) &&
+                        (l.title === g.label || (l as any).workoutId === (g.workouts?.[0] as any)?.id || l.workout_id === (g.workouts?.[0] as any)?.id)
+                      )
+                    ).length;
+                    const pct = workoutGroups.length > 0 ? Math.round((completedCount / workoutGroups.length) * 100) : 0;
+                    return (
+                      <div className="bg-white rounded-[20px] border border-gray-100 px-5 py-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] text-gray-400 font-semibold">Workout Progress</p>
+                          <p className="text-[15px] font-black text-[#111]">{completedCount} / {workoutGroups.length} Rounds</p>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="w-12 h-12 rounded-full bg-[#ede9fe] flex items-center justify-center">
+                          <span className="text-[14px] font-black text-[#7c3aed]">{pct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Complete Workout button */}
+                  <button
+                    disabled={isLocked}
+                    className={`w-full h-12 rounded-2xl font-black text-[14px] text-white transition ${isLocked ? "bg-gray-400 cursor-not-allowed" : "bg-[#7c3aed] hover:bg-[#6d28d9]"}`}
+                    onClick={() => {
+                      const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+                      localStorage.setItem("pendingSessionCode", code);
+                      localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+                    }}
+                  >
+                    Complete Workout
+                  </button>
                 </div>
               ) : (
                 // OVERVIEW - Dynamic from API
@@ -2593,6 +2894,45 @@ export default function ViewWorkoutSessionPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Power Set Tracking Modal ── */}
+      {velocityExercise && (
+        <PowerSetTrackingModal
+          exercise={velocityExercise}
+          sets={velocitySets}
+          sessionId={activeSession?.id ?? activeSession?.session_id}
+          workoutLibraryId={localStorage.getItem("workoutProgramCode") ?? undefined}
+          userOtherDetail={userOtherDetail}
+          onClose={() => {
+            if (velocityExercise?.id) {
+              velocitySetsCache.current[velocityExercise.id] = velocitySets;
+            }
+            setVelocityExercise(null);
+          }}
+          onAddSet={addVelocitySet}
+          onUpdateSet={updateVelocitySet}
+          onToggleRecordSet={toggleRecordVelocitySet}
+          onSetSets={setVelocitySets}
+          onSave={async (savedSets) => {
+            const savedExercise = velocityExercise;
+            await refreshPowerSets();
+            if (savedExercise) {
+              setPowerSets((prev) =>
+                prev.map((ps) => {
+                  if (ps.id !== savedExercise.id) return ps;
+                  return {
+                    ...ps,
+                    child_sets: ps.child_sets?.map((cs, i) => ({
+                      ...cs,
+                      isCompleted: savedSets[i]?.recorded ? true : cs.isCompleted,
+                    })) ?? [],
+                  };
+                })
+              );
+            }
+          }}
+        />
       )}
     </div>
   );

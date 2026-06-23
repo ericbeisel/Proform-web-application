@@ -117,35 +117,43 @@ export default function PlayerAccountabilityPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#f8f9fb] px-5 py-6 md:p-10 font-sans">
+      <main className="min-h-screen bg-[#f8f9fb] font-sans">
 
-      {/* ── Header ── */}
-      <div className="flex items-center gap-4 mb-8">
-        <button
-          onClick={() => router.back()}
-          className="p-2.5 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors"
+        {/* ── Header ── */}
+        <div
+          className="relative overflow-hidden px-6 pt-5 pb-6 mb-6"
+          style={{ background: "linear-gradient(135deg, #9B59D4 0%, #7C3AED 100%)" }}
         >
-          <ArrowLeft size={18} className="text-gray-700" strokeWidth={2.5} />
-        </button>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#6d28d9] text-white flex items-center justify-center shadow-md shadow-purple-500/20">
-            <Users size={20} strokeWidth={2.5} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[#1a1c1e] tracking-tight">
-              Player Accountability
-            </h1>
-            <p className="text-gray-400 text-xs font-medium">
-              Review player submissions
-            </p>
+          {/* Decorative circles */}
+          <div className="absolute rounded-full pointer-events-none" style={{ width: 260, height: 260, backgroundColor: "rgba(255,255,255,0.08)", top: -80, left: -60 }} />
+          <div className="absolute rounded-full pointer-events-none" style={{ width: 180, height: 180, backgroundColor: "rgba(255,255,255,0.07)", bottom: -80, right: 40 }} />
+
+          <div className="relative flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-opacity hover:opacity-70"
+              style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+            >
+              <ArrowLeft size={18} color="white" strokeWidth={2.5} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-white tracking-tight truncate">Player Accountability</h1>
+              <p className="text-white/60 text-xs font-medium truncate mt-0.5">Review player submissions</p>
+            </div>
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+            >
+              <Users size={20} color="white" strokeWidth={2.5} />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Filters + tabs ── */}
-      <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm px-4 py-3 mb-4">
+        {/* ── Filters + tabs ── */}
+        <div className="px-5 md:px-10">
+        <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm px-4 py-3 mb-4">
 
-        {/* Label + dropdowns */}
+          {/* Label + dropdowns */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
           <h2 className="text-sm font-bold text-[#1a1c1e] tracking-tight">Reports</h2>
 
@@ -192,7 +200,10 @@ export default function PlayerAccountabilityPage() {
                   : "bg-white text-gray-500 border-gray-200 hover:border-[#6d28d9] hover:text-[#6d28d9]"
               }`}
             >
-              {type}
+              <span className="flex items-center gap-1.5">
+                {TYPE_ICON[type]}
+                {type}
+              </span>
             </button>
           ))}
         </div>
@@ -418,6 +429,7 @@ export default function PlayerAccountabilityPage() {
           </div>
         </div>
       )}
+        </div>{/* end px-5 md:px-10 */}
     </main>
   );
 }

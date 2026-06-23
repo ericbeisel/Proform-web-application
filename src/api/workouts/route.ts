@@ -393,6 +393,35 @@ export const createTrackingLog = async (
   }
 };
 
+// ===========================================
+// POWER SET LOGS
+// ===========================================
+
+export interface PowerSetLogPayload {
+  new_weight: number;
+  reps: number;
+  unable_to_perform?: boolean;
+  power_id?: string;
+  specialized_workout_id?: string;
+  individual_exercise_id?: string;
+  session_id?: string;
+  weight_adj?: string;
+  tracking_log?: string;
+  old_weight?: number;
+  old_reps?: number;
+}
+
+export const createPowerSetLog = async (
+  payload: PowerSetLogPayload,
+): Promise<{ powerSetLog: any }> => {
+  try {
+    const { data } = await apiClient.post("/workouts/power-set-log", payload);
+    return data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to save power set log."));
+  }
+};
+
 export const workoutsApi = {
   getIncompleteSessions,
   createWorkoutLocation,
@@ -401,6 +430,8 @@ export const workoutsApi = {
   deleteWorkoutSession,
   getTrackingLogs,
   createTrackingLog,
+  createPowerSetLog,
+  // getPowerSetLogs and getPowerSetDetails are declared later in this file
 };
 
 export default workoutsApi;
