@@ -13,6 +13,11 @@ import {
   ImageIcon,
   MoreHorizontal,
   X,
+  Weight,
+  Ruler,
+  Dumbbell,
+  Percent,
+  Target,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +31,15 @@ type ReportType =
 
 type Status = "Active" | "Reject" | "Pending";
 
+interface PlayerStats {
+  weight: string;
+  height: string;
+  smm: string;
+  bodyFat: string;
+  bodyScore: number;
+  avatarUrl?: string | null;
+}
+
 interface Submission {
   id: number;
   player: string;
@@ -36,21 +50,22 @@ interface Submission {
   date: string;
   note?: string;
   imageUrl: string | null;
+  stats: PlayerStats;
 }
 
 // ─── Dummy data ───────────────────────────────────────────────────────────────
 
 const DUMMY: Submission[] = [
-  { id: 1,  player: "Sneha Gharge",  username: "sneha09",  team: "SP",    type: "Blood Pressure",  status: "Active",  date: "Jun 22, 2026", note: "120/80 mmHg — Normal", imageUrl: null },
-  { id: 2,  player: "Komal Rajpure", username: "komal123", team: "SP",    type: "Progress Photo",  status: "Active",  date: "Jun 22, 2026", imageUrl: null },
-  { id: 3,  player: "Rohan Desai",   username: "rohan_d",  team: "SP",    type: "Breathing Test",  status: "Reject",  date: "Jun 21, 2026", note: "Incomplete data", imageUrl: null },
-  { id: 4,  player: "Anita Sharma",  username: "anita_s",  team: "Alpha", type: "Hydration Test",  status: "Active",  date: "Jun 21, 2026", note: "Urine SG: 1.015", imageUrl: null },
-  { id: 5,  player: "Vijay Patil",   username: "vijay_p",  team: "Alpha", type: "Progress Photo",  status: "Pending", date: "Jun 20, 2026", imageUrl: null },
-  { id: 6,  player: "Sneha Gharge",  username: "sneha09",  team: "SP",    type: "Breathing Test",  status: "Active",  date: "Jun 20, 2026", imageUrl: null },
-  { id: 7,  player: "Komal Rajpure", username: "komal123", team: "SP",    type: "Other",           status: "Pending", date: "Jun 19, 2026", note: "Sleep journal", imageUrl: null },
-  { id: 8,  player: "Vijay Patil",   username: "vijay_p",  team: "Alpha", type: "Blood Pressure",  status: "Reject",  date: "Jun 19, 2026", note: "Reading out of range", imageUrl: null },
-  { id: 9,  player: "Rohan Desai",   username: "rohan_d",  team: "SP",    type: "Hydration Test",  status: "Active",  date: "Jun 18, 2026", imageUrl: null },
-  { id: 10, player: "Anita Sharma",  username: "anita_s",  team: "Alpha", type: "Progress Photo",  status: "Active",  date: "Jun 18, 2026", imageUrl: null },
+  { id: 1,  player: "Sneha Gharge",  username: "sneha09",  team: "SP",    type: "Blood Pressure",  status: "Active",  date: "Jun 22, 2026", note: "120/80 mmHg — Normal",    imageUrl: null, stats: { weight: "58 kg",  height: "5'4\"", smm: "24.1 kg", bodyFat: "22%", bodyScore: 78 } },
+  { id: 2,  player: "Komal Rajpure", username: "komal123", team: "SP",    type: "Progress Photo",  status: "Active",  date: "Jun 22, 2026",                                    imageUrl: null, stats: { weight: "62 kg",  height: "5'6\"", smm: "26.3 kg", bodyFat: "24%", bodyScore: 82 } },
+  { id: 3,  player: "Rohan Desai",   username: "rohan_d",  team: "SP",    type: "Breathing Test",  status: "Reject",  date: "Jun 21, 2026", note: "Incomplete data",          imageUrl: null, stats: { weight: "75 kg",  height: "5'9\"", smm: "34.7 kg", bodyFat: "18%", bodyScore: 85 } },
+  { id: 4,  player: "Anita Sharma",  username: "anita_s",  team: "Alpha", type: "Hydration Test",  status: "Active",  date: "Jun 21, 2026", note: "Urine SG: 1.015",         imageUrl: null, stats: { weight: "55 kg",  height: "5'3\"", smm: "22.4 kg", bodyFat: "26%", bodyScore: 74 } },
+  { id: 5,  player: "Vijay Patil",   username: "vijay_p",  team: "Alpha", type: "Progress Photo",  status: "Pending", date: "Jun 20, 2026",                                    imageUrl: null, stats: { weight: "82 kg",  height: "5'11\"",smm: "38.2 kg", bodyFat: "16%", bodyScore: 90 } },
+  { id: 6,  player: "Sneha Gharge",  username: "sneha09",  team: "SP",    type: "Breathing Test",  status: "Active",  date: "Jun 20, 2026",                                    imageUrl: null, stats: { weight: "58 kg",  height: "5'4\"", smm: "24.1 kg", bodyFat: "22%", bodyScore: 78 } },
+  { id: 7,  player: "Komal Rajpure", username: "komal123", team: "SP",    type: "Other",           status: "Pending", date: "Jun 19, 2026", note: "Sleep journal",            imageUrl: null, stats: { weight: "62 kg",  height: "5'6\"", smm: "26.3 kg", bodyFat: "24%", bodyScore: 82 } },
+  { id: 8,  player: "Vijay Patil",   username: "vijay_p",  team: "Alpha", type: "Blood Pressure",  status: "Reject",  date: "Jun 19, 2026", note: "Reading out of range",     imageUrl: null, stats: { weight: "82 kg",  height: "5'11\"",smm: "38.2 kg", bodyFat: "16%", bodyScore: 90 } },
+  { id: 9,  player: "Rohan Desai",   username: "rohan_d",  team: "SP",    type: "Hydration Test",  status: "Active",  date: "Jun 18, 2026",                                    imageUrl: null, stats: { weight: "75 kg",  height: "5'9\"", smm: "34.7 kg", bodyFat: "18%", bodyScore: 85 } },
+  { id: 10, player: "Anita Sharma",  username: "anita_s",  team: "Alpha", type: "Progress Photo",  status: "Active",  date: "Jun 18, 2026",                                    imageUrl: null, stats: { weight: "55 kg",  height: "5'3\"", smm: "22.4 kg", bodyFat: "26%", bodyScore: 74 } },
 ];
 
 const REPORT_TYPES: ReportType[] = [
@@ -267,11 +282,11 @@ export default function PlayerAccountabilityPage() {
           onClick={() => setSelected(null)}
         >
           <div
-            className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden"
+            className="relative bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top bar */}
-            <div className="bg-[#6d28d9] px-6 py-4 flex items-center justify-between">
+            <div className="bg-[#6d28d9] px-6 py-4 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2 text-white">
                 {TYPE_ICON[selected.type]}
                 <span className="text-sm font-bold uppercase tracking-wide">
@@ -287,37 +302,93 @@ export default function PlayerAccountabilityPage() {
             </div>
 
             <div className="p-6 flex flex-col gap-4">
-              {/* Player info */}
+              {/* Player header */}
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#6d28d9] to-[#7c3aed] flex items-center justify-center text-white font-bold shadow shrink-0">
-                  {initials(selected.player)}
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6d28d9] to-[#7c3aed] flex items-center justify-center text-white font-bold text-lg shadow-md shadow-purple-300/40 shrink-0 overflow-hidden">
+                  {selected.stats.avatarUrl ? (
+                    <img src={selected.stats.avatarUrl} alt={selected.player} className="w-full h-full object-cover" />
+                  ) : (
+                    initials(selected.player)
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#1a1c1e] text-sm">{selected.player}</p>
-                  <p className="text-xs text-purple-500">@{selected.username}</p>
+                  <p className="font-bold text-[#1a1c1e] text-base leading-tight">{selected.player}</p>
+                  <p className="text-xs text-purple-500 mt-0.5">@{selected.username} · {selected.team}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{selected.date}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${getStatusClass(selected.status)}`}>
-                    {selected.status}
-                  </span>
-                  <span className="text-[11px] text-gray-400">{selected.team}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${getStatusClass(selected.status)}`}>
+                  {selected.status}
+                </span>
+              </div>
+
+              {/* Player card stats */}
+              <div className="bg-[#faf8ff] rounded-2xl border border-purple-100 p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Player Card</p>
+
+                {/* Basic metrics */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                      <Weight size={13} className="text-[#6d28d9]" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Weight</p>
+                      <p className="text-sm font-black text-[#6d28d9] leading-tight">{selected.stats.weight}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                      <Ruler size={13} className="text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Height</p>
+                      <p className="text-sm font-black text-blue-600 leading-tight">{selected.stats.height}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body composition */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
+                      <Dumbbell size={13} className="text-cyan-500" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">SMM</p>
+                      <p className="text-sm font-black text-cyan-600 leading-tight">{selected.stats.smm}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                      <Percent size={13} className="text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Body Fat</p>
+                      <p className="text-sm font-black text-orange-500 leading-tight">{selected.stats.bodyFat}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body score */}
+                <div className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                      <Target size={13} className="text-[#6d28d9]" />
+                    </div>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Body Camp Score</p>
+                  </div>
+                  <span className="text-xl font-black text-[#6d28d9]">{selected.stats.bodyScore}</span>
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400">{selected.date}</p>
-
-              {/* Image area */}
-              <div className="rounded-2xl bg-gray-50 border border-gray-100 h-40 flex items-center justify-center overflow-hidden">
+              {/* Submission image */}
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 h-36 flex items-center justify-center overflow-hidden">
                 {selected.imageUrl ? (
-                  <img
-                    src={selected.imageUrl}
-                    alt={selected.type}
-                    className="w-full h-full object-contain"
-                  />
+                  <img src={selected.imageUrl} alt={selected.type} className="w-full h-full object-contain" />
                 ) : (
-                  <div className="flex flex-col items-center gap-3 text-gray-300">
-                    <div className="scale-[2]">{TYPE_ICON[selected.type]}</div>
-                    <p className="text-xs mt-2">No image attached</p>
+                  <div className="flex flex-col items-center gap-2 text-gray-300">
+                    <div className="scale-[1.8]">{TYPE_ICON[selected.type]}</div>
+                    <p className="text-xs mt-1">No image attached</p>
                   </div>
                 )}
               </div>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
-import { coachApi } from "@/api/coach/route";
+import { coachApi, type CoachTeam } from "@/api/coach/route";
 import { profileApi } from "@/api/profile/route";
 import { getWorkoutSessionById } from "@/api/workouts/route";
 import {
@@ -410,7 +410,7 @@ function ActivityContent() {
   const [logType, setLogType] = useState("All Activity");
   const [timeFilter, setTimeFilter] = useState("All Time");
   const [search, setSearch] = useState("");
-  const [teamFilter, setTeamFilter] = useState(teamIdFromUrl || "All Team");
+  const [teams, setTeams] = useState<CoachTeam[]>([]);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [userInitial, setUserInitial] = useState("");
   // Real feed state
@@ -461,6 +461,7 @@ function ActivityContent() {
     } else if (tokenPayload?.email) {
       setUserInitial(tokenPayload.email[0]?.toUpperCase() ?? "");
     }
+    coachApi.getCoachTeams().then(setTeams).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -520,8 +521,7 @@ function ActivityContent() {
     const matchesType =
       logType === "All Activity" || a.kind === logType;
 
-    const matchesTeam =
-      teamFilter === "All Team" || a.team === teamFilter;
+    const matchesTeam = !teamIdFromUrl || a.team === teamIdFromUrl;
 
     if (timeFilter !== "All Time") {
       const d = new Date(a.dateIso);
@@ -583,13 +583,30 @@ function ActivityContent() {
         </div>
 
         {/* Title nav */}
-        <div className="flex items-center justify-center gap-6 py-4 bg-white border-b border-gray-100">
-          <button className="text-gray-400 hover:text-gray-600 transition"><ChevronLeft size={20} /></button>
-          <h1 className="text-lg font-black text-[#8B5CF6]">
-            {logType === "All Activity" ? "Player Activity" : logType}
-          </h1>
-          <button className="text-gray-400 hover:text-gray-600 transition"><ChevronRight size={20} /></button>
-        </div>
+        {(() => {
+          const idx = LOG_TYPES.indexOf(logType);
+          const canPrev = idx > 0;
+          const canNext = idx < LOG_TYPES.length - 1;
+          return (
+            <div className="flex items-center justify-center gap-6 py-4 bg-white border-b border-gray-100">
+              <button
+                onClick={() => canPrev && setLogType(LOG_TYPES[idx - 1])}
+                className={`transition ${canPrev ? "text-gray-500 hover:text-[#8B5CF6]" : "text-gray-200 cursor-default"}`}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h1 className="text-lg font-black text-[#8B5CF6] min-w-[160px] text-center">
+                {logType === "All Activity" ? "Player Activity" : logType}
+              </h1>
+              <button
+                onClick={() => canNext && setLogType(LOG_TYPES[idx + 1])}
+                className={`transition ${canNext ? "text-gray-500 hover:text-[#8B5CF6]" : "text-gray-200 cursor-default"}`}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Filters */}
         <div className="px-4 py-3 flex flex-col sm:flex-row gap-2">
@@ -606,13 +623,20 @@ function ActivityContent() {
           <div className="flex gap-2">
             <div className="relative flex-1 sm:flex-none">
               <select
-                value={teamFilter}
-                onChange={(e) => setTeamFilter(e.target.value)}
+                value={teamIdFromUrl}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (id) params.set("team_id", id);
+                  else params.delete("team_id");
+                  router.push(`?${params.toString()}`);
+                }}
                 className="w-full sm:w-auto h-9 pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#222] appearance-none outline-none sm:min-w-[120px]"
               >
-                <option>All Team</option>
-                <option>SP</option>
-                <option>Alpha</option>
+                <option value="">All Teams</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
               </select>
               <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500" />
             </div>
