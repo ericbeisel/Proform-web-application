@@ -229,7 +229,7 @@ export const profileApi = {
     try {
       let url = `/user-search?page=${page}`;
       if (search) {
-        url += `&search=${encodeURIComponent(search)}`;
+        url += `&name=${encodeURIComponent(search)}`;
       }
 
       const res = await apiClient.get<UserSearchResponse>(url);

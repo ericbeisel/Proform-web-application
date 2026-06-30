@@ -60,14 +60,6 @@ export default function FindUsersPage() {
       else setLoadingMore(true);
 
       const response = await profileApi.searchUsers(page, search);
-console.log(
-  "👥 Followers Count:",
-  response.data?.map((u) => ({
-    name: u.name,
-    username: u.username,
-    followers: u.followersCount,
-  }))
-);
       if (response.data && Array.isArray(response.data)) {
         const normalized = response.data.map((user) => {
           const stored = localStorage.getItem("userFollows");
