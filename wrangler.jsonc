@@ -1,5 +1,4 @@
-
-
+{
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "proformweb-1",
   "main": ".open-next/worker.js",
