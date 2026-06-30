@@ -1,10 +1,21 @@
 
-{
+
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "proformweb-1",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
   "observability": {
     "enabled": true
   },
-  "compatibility_flags": ["nodejs_compat"]
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "proformweb-1"
+    }
+  ]
 }
