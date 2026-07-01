@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Loader2,
   Heart,
@@ -25,6 +26,7 @@ import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api
 import { getTodayActivities } from "@/api/checklist/route";
 import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, generateSessionShareLink, WorkoutStats, PowerSetLog, TrackingLog } from "@/api/workouts/route";
 import FeedComments from "@/components/FeedComments";
+import FeedSettingsModal from "@/components/FeedSettingsModal";
 import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
 
@@ -186,6 +188,7 @@ const [creatingHighlight, setCreatingHighlight] =
   const [popupPowerSetLogs, setPopupPowerSetLogs] = useState<PowerSetLog[]>([]);
   const [popupTrackingLogs, setPopupTrackingLogs] = useState<TrackingLog[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
@@ -324,7 +327,11 @@ const [creatingHighlight, setCreatingHighlight] =
       const nextPage = page + 1;
       const res = await feedApi.getFeed(nextPage, "forYou");
       const rawFeeds = res.feeds || [];
-      setFeeds((prev) => [...prev, ...mapFeeds(rawFeeds)]);
+      setFeeds((prev) => {
+        const existingIds = new Set(prev.map(f => f.id));
+        const fresh = mapFeeds(rawFeeds).filter(f => !existingIds.has(f.id));
+        return [...prev, ...fresh];
+      });
       setHasMore(rawFeeds.length === 20);
       setPage(nextPage);
     } catch (err) {
@@ -584,7 +591,7 @@ const [creatingHighlight, setCreatingHighlight] =
         </button>
 
         {/* TRENDING */}
-        <button
+        {/* <button
           onClick={() => router.push("/feed/main-feed")}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-orange-50 hover:border-orange-200 transition-all group"
         >
@@ -592,10 +599,10 @@ const [creatingHighlight, setCreatingHighlight] =
             size={18}
             className="text-orange-500 group-hover:scale-110 transition-transform"
           />
-        </button>
+        </button> */}
 
         {/* FOLLOW PEOPLE */}
-        <button
+        {/* <button
           onClick={() => router.push("/profile/components/UserList")}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-blue-50 hover:border-blue-200 transition-all group"
         >
@@ -603,11 +610,11 @@ const [creatingHighlight, setCreatingHighlight] =
             size={18}
             className="text-blue-600 group-hover:scale-110 transition-transform"
           />
-        </button>
+        </button> */}
 
         {/* SETTINGS */}
         <button
-          onClick={() => router.push("/feed/settings")}
+          onClick={() => setShowSettingsModal(true)}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all group"
           title="Feed Settings"
         >
@@ -615,10 +622,10 @@ const [creatingHighlight, setCreatingHighlight] =
         </button>
 
         {/* NOTIFICATION */}
-        <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
+        {/* <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
           <Bell size={18} className="text-purple-600" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        </button> */}
 
         {/* CREATE */}
         <button
@@ -746,7 +753,7 @@ const [creatingHighlight, setCreatingHighlight] =
   </div>
 
   {/* TOGGLE */}
-  <div className="shrink-0 hidden md:flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
+  {/* <div className="shrink-0 hidden md:flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
 
     <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">
       My Workouts
@@ -776,7 +783,7 @@ const [creatingHighlight, setCreatingHighlight] =
         `}
       />
     </button>
-  </div>
+  </div> */}
 </div>
 
         {/* FEED COUNT */}
@@ -894,7 +901,7 @@ const [creatingHighlight, setCreatingHighlight] =
                           <button
                             onClick={() => {
                               const p = new URLSearchParams({
-                                feedId: feed.activity_id || String(feed.id),
+                                feedId: String(feed.id),
                                 userName: feed.user?.name || "",
                                 userUsername: feed.user?.username || "",
                                 title: feed.title || "",
@@ -931,13 +938,16 @@ const [creatingHighlight, setCreatingHighlight] =
                       {/* FOOTER */}
                       <div className="relative z-10 mt-6 flex items-center justify-between">
                         <div className="inline-flex items-center overflow-hidden rounded-full border border-[#e5e7eb] bg-white shadow-sm">
-                          {/* COMMENTS — only for completed */}
+                          {/* COMMENTS — always visible for completed cards */}
                           {isCompleted && (
                             <>
                               <button className="flex items-center gap-2 px-5 h-[44px] text-[#374151]">
-                                <span className="text-[15px] font-semibold">
-                                  {feed.commentsCount ?? feed.commentCount ?? 0}
-                                </span>
+                                <MessageCircle size={15} className="text-gray-400" />
+                                {(feed.commentsCount ?? feed.commentCount ?? 0) > 0 && (
+                                  <span className="text-[15px] font-semibold">
+                                    {feed.commentsCount ?? feed.commentCount ?? 0}
+                                  </span>
+                                )}
                               </button>
                               <div className="w-px h-5 bg-[#e5e7eb]" />
                             </>
@@ -1051,50 +1061,27 @@ const [creatingHighlight, setCreatingHighlight] =
             )}
           </div>
 
-          {/* RIGHT SIDEBAR */}
+          {/* RIGHT SIDEBAR — commented out */}
+          {false && (
           <div className="lg:w-80 space-y-6 mt-9 sticky top-[84px] self-start">
             {/* TRENDING */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center gap-2 mb-4">
-                <Flame
-                  size={18}
-                  className="text-[#e8365d]"
-                />
-
-                <h3 className="font-bold text-gray-800">
-                  Trending Today
-                </h3>
+                <Flame size={18} className="text-[#e8365d]" />
+                <h3 className="font-bold text-gray-800">Trending Today</h3>
               </div>
-
               <div className="space-y-3">
                 {trendingItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 rounded-2xl p-2 hover:bg-gray-50 transition-all"
-                  >
-                    {/* RANK */}
+                  <div key={idx} className="flex items-start gap-3 rounded-2xl p-2 hover:bg-gray-50 transition-all">
                     <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-orange-300 via-orange-400 to-orange-500 flex items-center justify-center shadow-[0_6px_14px_rgba(249,115,22,0.35)] border border-orange-200">
-                      <span className="text-xs font-black text-white">
-                        {idx + 1}
-                      </span>
+                      <span className="text-xs font-black text-white">{idx + 1}</span>
                     </div>
-
-                    {/* CONTENT */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {item.name}
-                      </p>
-
-                      <p className="text-xs text-gray-400">
-                        {item.user}
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-400">{item.user}</p>
                     </div>
-
                     <button className="text-[#e8365d] hover:scale-110 transition-transform">
-                      <Heart
-                        size={16}
-                        className="fill-[#e8365d]"
-                      />
+                      <Heart size={16} className="fill-[#e8365d]" />
                     </button>
                   </div>
                 ))}
@@ -1103,28 +1090,15 @@ const [creatingHighlight, setCreatingHighlight] =
 
             {/* SUGGESTED */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <h3 className="font-bold text-gray-800 mb-3">
-                Suggested Athletes
-              </h3>
-
+              <h3 className="font-bold text-gray-800 mb-3">Suggested Athletes</h3>
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3"
-                  >
+                  <div key={i} className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300"></div>
-
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-800">
-                        athlete_{i}
-                      </p>
-
-                      <p className="text-xs text-gray-400">
-                        1.2k followers
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800">athlete_{i}</p>
+                      <p className="text-xs text-gray-400">1.2k followers</p>
                     </div>
-
                     <button className="text-xs font-semibold text-white border border-[#6c3fef] px-3 py-1 rounded-full bg-[#6c3fef] transition-colors">
                       Follow
                     </button>
@@ -1133,6 +1107,7 @@ const [creatingHighlight, setCreatingHighlight] =
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 {/* showCardioPopup popup removed — dead code with hardcoded dummy data */}
@@ -1430,7 +1405,7 @@ const [creatingHighlight, setCreatingHighlight] =
 {showHighlightViewer && selectedGroup && (
   <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
 
-    <div className="relative w-full max-w-md rounded-[32px] overflow-hidden bg-white shadow-2xl">
+    <div className="relative w-full max-w-2xl rounded-[32px] overflow-hidden bg-white shadow-2xl">
 
       {/* CLOSE */}
       <button
@@ -1515,7 +1490,7 @@ const [creatingHighlight, setCreatingHighlight] =
             autoPlay
             muted
             playsInline
-            className="w-full max-h-[75vh] object-cover"
+            className="w-full max-h-[90vh] object-cover"
           />
         ) : selectedGroup.highlights[activeIndex]?.uploadedImage ||
           selectedGroup.highlights[activeIndex]?.uploaded_image ? (
@@ -1526,10 +1501,10 @@ const [creatingHighlight, setCreatingHighlight] =
               ""
             }
             alt="highlight"
-            className="w-full max-h-[75vh] object-cover"
+            className="w-full max-h-[90vh] object-cover"
           />
         ) : (
-          <div className="h-[500px] flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
+          <div className="h-[80vh] flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
             <Flame size={60} className="text-white" />
           </div>
         )}
@@ -1870,7 +1845,7 @@ const [creatingHighlight, setCreatingHighlight] =
                   {selectedSessionFeed && (
                     <div className="mb-4 border-t border-gray-100 pt-4">
                       <FeedComments
-                        feedId={String(selectedSessionFeed.activity_id || selectedSessionFeed.id)}
+                        feedId={String(selectedSessionFeed.id)}
                         onCommentAdded={() => {
                           setFeeds(prev => prev.map(f =>
                             String(f.id) === String(selectedSessionFeed.id)
@@ -1887,12 +1862,12 @@ const [creatingHighlight, setCreatingHighlight] =
                     </div>
                   )}
 
-                  {/* View/Join button */}
-                  <button
+                  {/* View/Join button — hidden when already completed */}
+                  {!selectedSessionFeed.type?.includes("Complete") && <button
                     onClick={() => {
                       if (selectedSessionFeed.type === "CompleteCardio") {
                         const params = new URLSearchParams({
-                          feedId: selectedSessionFeed.activity_id || String(selectedSessionFeed.id),
+                          feedId: String(selectedSessionFeed.id),
                           userName: selectedSessionFeed.user?.name || "",
                           userUsername: selectedSessionFeed.user?.username || "",
                           title: selectedSessionFeed.title || "",
@@ -1914,7 +1889,7 @@ const [creatingHighlight, setCreatingHighlight] =
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
                   >
                     View / Join session
-                  </button>
+                  </button>}
 
                   {/* Workout Preview */}
                   <button
@@ -1972,6 +1947,22 @@ const [creatingHighlight, setCreatingHighlight] =
               <div className="px-6 pt-6 pb-6">
                 <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Session</h3>
                 <p className="text-[13px] text-gray-400 mb-5 truncate">{shareSessionFeed.title || "Workout Session"}</p>
+
+                {/* QR Code */}
+                <div className="flex justify-center mb-5">
+                  {shareLinkLoading ? (
+                    <div className="w-[160px] h-[160px] rounded-2xl bg-gray-100 flex items-center justify-center">
+                      <Loader2 size={22} className="animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                        <QRCodeSVG value={displayUrl || "https://proformapp.com"} size={140} fgColor="#1f2937" bgColor="#ffffff" />
+                      </div>
+                      <p className="text-[12px] text-gray-400">Scan this code to join the session</p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
                   {shareLinkLoading ? (
@@ -2088,7 +2079,7 @@ const [creatingHighlight, setCreatingHighlight] =
               <button
                 onClick={() => {
                   const p = new URLSearchParams({
-                    feedId: inProgressCardioFeed.activity_id || String(inProgressCardioFeed.id),
+                    feedId: String(inProgressCardioFeed.id),
                     userName: inProgressCardioFeed.user?.name || "",
                     userUsername: inProgressCardioFeed.user?.username || "",
                     title: inProgressCardioFeed.title || "",
@@ -2108,6 +2099,10 @@ const [creatingHighlight, setCreatingHighlight] =
 
       {showUploadModal && (
         <UploadHighlightModal onClose={() => setShowUploadModal(false)} />
+      )}
+
+      {showSettingsModal && (
+        <FeedSettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
     </div>
   );
