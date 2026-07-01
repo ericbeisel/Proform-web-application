@@ -39,7 +39,9 @@ export default function UploadHighlightModal({ onClose }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);  // base64 data URL
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewIsVideo, setPreviewIsVideo] = useState(false);
+  const [caption, setCaption] = useState("");
   const [activityType, setActivityType] = useState("");
   const [showActivityPicker, setShowActivityPicker] = useState(false);
   const [secondaryOptions, setSecondaryOptions] = useState<SecondaryOption[]>([]);
@@ -87,11 +89,10 @@ export default function UploadHighlightModal({ onClose }: Props) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    setPreviewIsVideo(isVideo);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setPreviewUrl(dataUrl);
-    };
+    reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -100,6 +101,8 @@ export default function UploadHighlightModal({ onClose }: Props) {
     setSelectedSecondary("");
     setSecondaryOptions([]);
     setPreviewUrl(null);
+    setPreviewIsVideo(false);
+    setCaption("");
     setError("");
     setComingSoon(false);
     sessionStorage.removeItem("uploadHighlightImage");
@@ -108,6 +111,8 @@ export default function UploadHighlightModal({ onClose }: Props) {
   const navigate = (path: string) => {
     if (previewUrl) sessionStorage.setItem("uploadHighlightImage", previewUrl);
     else sessionStorage.removeItem("uploadHighlightImage");
+    if (caption.trim()) sessionStorage.setItem("uploadHighlightCaption", caption.trim());
+    else sessionStorage.removeItem("uploadHighlightCaption");
     onClose();
     router.push(path);
   };
@@ -179,20 +184,27 @@ export default function UploadHighlightModal({ onClose }: Props) {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               className="hidden"
               onChange={handleFileChange}
             />
             {previewUrl ? (
-              <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-gray-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+              <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-gray-200 bg-black">
+                {previewIsVideo ? (
+                  <video src={previewUrl} muted playsInline className="w-full h-full object-cover" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                )}
                 <button
-                  onClick={() => setPreviewUrl(null)}
+                  onClick={() => { setPreviewUrl(null); setPreviewIsVideo(false); }}
                   className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors"
                 >
                   <X size={12} />
                 </button>
+                {previewIsVideo && (
+                  <span className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">VIDEO</span>
+                )}
               </div>
             ) : (
               <button
@@ -202,8 +214,8 @@ export default function UploadHighlightModal({ onClose }: Props) {
                 <div className="w-10 h-10 rounded-2xl bg-white shadow-sm border border-purple-100 flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Upload size={18} className="text-purple-600" />
                 </div>
-                <p className="text-[13px] font-bold text-gray-700">Upload Activity Photo</p>
-                <p className="text-[11px] text-gray-400">Click to browse photo library</p>
+                <p className="text-[13px] font-bold text-gray-700">Upload Photo or Video</p>
+                <p className="text-[11px] text-gray-400">Image or video (max 30 seconds)</p>
               </button>
             )}
           </div>
@@ -305,8 +317,25 @@ export default function UploadHighlightModal({ onClose }: Props) {
             )}
           </div>
 
-          {/* Media reference hint (if image attached) */}
-       
+          {/* Caption */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">
+                Step 3: Add Caption
+              </p>
+              <span className={`text-[10px] font-semibold ${caption.length > 90 ? "text-red-400" : "text-gray-400"}`}>
+                {caption.length}/100
+              </span>
+            </div>
+            <textarea
+              value={caption}
+              onChange={e => { if (e.target.value.length <= 100) setCaption(e.target.value); }}
+              placeholder="Write a short caption… (optional)"
+              rows={3}
+              className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-[13px] text-gray-800 outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-400"
+            />
+          </div>
+
         </div>
 
         {/* Footer */}

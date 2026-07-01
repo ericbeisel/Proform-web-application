@@ -832,6 +832,17 @@ export const getWorkoutStats = async (sessionId: string): Promise<WorkoutStats |
   }
 };
 
+export const generateSessionShareLink = async (sessionId: string): Promise<string | null> => {
+  try {
+    const { data } = await apiClient.post<{ link?: string; url?: string; shareLink?: string }>(
+      `/workouts/session/${sessionId}/share-link`
+    );
+    return data?.link || data?.url || data?.shareLink || null;
+  } catch {
+    return null;
+  }
+};
+
 export const completeActivity = async (payload: {
   customActivityId?: number;
   sessionId: string;

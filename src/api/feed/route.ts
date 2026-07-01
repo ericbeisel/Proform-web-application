@@ -18,16 +18,34 @@ export interface Advertisement {
 
 export interface Feed {
   id: string;
-  user_id: number;
-  title: string;
-  username: string | null;
-  buttonLabel: string | null;
-  likes: (string | number)[];
-  othertable_id: number | null;
   type: string;
+  title: string;
+  description?: string | null;
+  user?: {
+    id: number;
+    username: string;
+    image?: string;
+    name: string;
+    email?: string;
+  } | null;
+  user_id: number;
+  member_id?: number | string;
+  activity_id?: string;
   created_at: string | null;
   updated_at: string | null;
+  likes: (string | number)[];
   likeCount: number;
+  commentCount?: number;
+  commentsCount?: number;
+  joined_count?: number;
+  cover_photo?: string;
+  workout_image?: string;
+  image?: string;
+  // legacy fields kept for backward compatibility
+  username?: string | null;
+  buttonLabel?: string | null;
+  othertable_id?: number | null;
+  date?: string;
 }
 
 export interface HighlightItem {
@@ -73,6 +91,18 @@ export interface CurrentUser {
     height?: string;
     activityLevel?: string;
     [key: string]: any;
+  };
+}
+
+export interface FeedComment {
+  id: string | number;
+  comment: string;
+  created_at?: string;
+  user?: {
+    id: number;
+    name: string;
+    username: string;
+    image?: string;
   };
 }
 
@@ -173,11 +203,13 @@ export const feedApi = {
   /**
    * Get Feed (Paginated)
    */
-  getFeed: async (page: number = 1): Promise<FeedResponse> => {
-    console.log("📡 Fetching feed for page:", page);
+  getFeed: async (page: number = 1, tab: "forYou" | "following" = "forYou"): Promise<FeedResponse> => {
+    console.log("📡 Fetching feed for page:", page, "tab:", tab);
     try {
-      const res = await apiClient.get<FeedResponse>(`/feed?page=${page}`);
-  
+      const url = tab === "following"
+        ? `/feed?page=${page}&type=following`
+        : `/feed?page=${page}`;
+      const res = await apiClient.get<FeedResponse>(url);
       return res.data;
     } catch (err) {
       console.error("💥 Failed to fetch feed");
@@ -300,6 +332,62 @@ export const feedApi = {
       return res.data || [];
     } catch (err) {
       throw new Error(extractErrorMessage(err, "Failed to fetch advertisements."));
+    }
+  },
+
+  getFeedDetails: async (feedId: string): Promise<{ cardioDetails?: any; hydrationDetails?: any; recoveryDetails?: any } | null> => {
+    try {
+      const res = await apiClient.get(`/feed/${feedId}/details`);
+      return res.data?.data || res.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  getFeedSettings: async (): Promise<{ filters: Record<string, boolean>; notifs: Record<string, string> } | null> => {
+    try {
+      const res = await apiClient.get("/feed/settings");
+      return res.data?.data || res.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveFeedSettings: async (payload: { filters: Record<string, boolean>; notifs: Record<string, string> }): Promise<void> => {
+    try {
+      await apiClient.post("/feed/settings", payload);
+    } catch {
+      // silently ignore — settings are persisted locally regardless
+    }
+  },
+
+  getFeedComments: async (feedId: string, page: number = 1): Promise<{ comments: FeedComment[]; total: number; hasMore: boolean }> => {
+    try {
+      const res = await apiClient.get(`/feed/${feedId}/comments`, { params: { page, limit: 10 } });
+      const data = res.data;
+      const comments = data?.comments || data?.data || [];
+      const total = data?.total ?? comments.length;
+      const hasMore = data?.hasMore ?? comments.length === 10;
+      return { comments, total, hasMore };
+    } catch {
+      return { comments: [], total: 0, hasMore: false };
+    }
+  },
+
+  addFeedComment: async (feedId: string, comment: string): Promise<FeedComment | null> => {
+    try {
+      const res = await apiClient.post(`/feed/${feedId}/comments`, { text: comment });
+      return res.data?.comment || res.data?.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  markHighlightWatched: async (highlightId: number): Promise<void> => {
+    try {
+      await apiClient.get(`/view-highlight?id=${highlightId}`);
+    } catch {
+      // silently ignore — viewing should never block the UI
     }
   },
 

@@ -10,7 +10,10 @@ import {
   Plus,
   Calendar,
   X,
+  Heart,
+  CheckCircle2,
 } from "lucide-react";
+import FeedComments from "@/components/FeedComments";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getCardioMenu,
@@ -35,6 +38,7 @@ export default function FeedCardioSessionPage() {
   const userName = searchParams.get("userName") || "User";
   const userUsername = searchParams.get("userUsername") || "user";
   const feedDate = searchParams.get("date") || "";
+  const likeCount = parseInt(searchParams.get("likeCount") || "0", 10);
 
   const [caloriesLeftWeek, setCaloriesLeftWeek] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,8 +46,8 @@ export default function FeedCardioSessionPage() {
   const [isGoalOpen, setIsGoalOpen] = useState(true);
   const [isRecordsOpen, setIsRecordsOpen] = useState(true);
 
-  const [goalCalories] = useState<number>(290);
-  const [goalMinutes] = useState<number>(42);
+  const [goalCalories, setGoalCalories] = useState<number>(0);
+  const [goalMinutes, setGoalMinutes] = useState<number>(0);
   const [showResetGoalModal, setShowResetGoalModal] = useState(false);
   const [newGoalInput, setNewGoalInput] = useState("");
   const [savingGoal, setSavingGoal] = useState(false);
@@ -79,6 +83,7 @@ export default function FeedCardioSessionPage() {
         if (details) {
           setSessionData(details);
           setCaloriesLeftWeek(details.left_this_week);
+          if (details.cardio_goal) setGoalCalories(details.cardio_goal);
 
           const calc = details.calculators[0];
           if (calc) {
@@ -89,6 +94,7 @@ export default function FeedCardioSessionPage() {
               suggestion: calc.suggestion || null,
               uploadedImage: null,
             });
+            if (calc.minutes) setGoalMinutes(calc.minutes);
           }
         } else {
           const defaultItem = menu[0];
@@ -179,6 +185,18 @@ export default function FeedCardioSessionPage() {
             <Calendar size={14} className="text-gray-600" />
           </button>
         </div>
+      </div>
+
+      {/* COMPLETION + LIKES STRIP */}
+      <div className="px-4 sm:px-6 pt-4 pb-1 flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1.5 rounded-full">
+          <CheckCircle2 size={12} /> Completed
+        </span>
+        {likeCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-400">
+            <Heart size={13} className="text-red-400 fill-red-400" /> {likeCount}
+          </span>
+        )}
       </div>
 
       {/* CALORIES LEFT BANNER */}
@@ -412,7 +430,7 @@ export default function FeedCardioSessionPage() {
               {/* Current goal */}
               <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-4">
                 <p className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">Current Goal (kcal)</p>
-                <p className="text-4xl font-black text-[#6c3fef]">{caloriesLeftWeek}</p>
+                <p className="text-4xl font-black text-[#6c3fef]">{goalCalories || caloriesLeftWeek}</p>
               </div>
 
               {/* New goal input */}
@@ -454,6 +472,15 @@ export default function FeedCardioSessionPage() {
                 {savingGoal ? "Saving..." : "Save Goal"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMMENTS */}
+      {feedId && (
+        <div className="px-4 sm:px-6 mb-24">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <FeedComments feedId={feedId} />
           </div>
         </div>
       )}

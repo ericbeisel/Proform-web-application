@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Loader2,
   Heart,
@@ -9,21 +9,22 @@ import {
   MoreVertical,
   TrendingUp,
   Flame,
-  Activity,
   Bell,
   Users,
   X,
   CalendarDays,
   FolderPlus,
-  ChevronDown,
   Home,
   MessageCircle,
   Dumbbell,
   CheckCircle2,
   ArrowRight,
+  Settings,
 } from "lucide-react";
-import { feedApi, CurrentUser, Feed, HighlightGroup, HighlightItem, Advertisement } from "@/api/feed/route";
-import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, WorkoutStats, PowerSetLog } from "@/api/workouts/route";
+import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api/feed/route";
+import { getTodayActivities } from "@/api/checklist/route";
+import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, generateSessionShareLink, WorkoutStats, PowerSetLog, TrackingLog } from "@/api/workouts/route";
+import FeedComments from "@/components/FeedComments";
 import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
 
@@ -45,6 +46,21 @@ interface ExtendedFeed extends Feed {
   title2?: string | null;
 }
 
+function getDateLabel(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return date.toLocaleDateString("en-US", { weekday: "long" });
+  if (diffDays < 14) return "1 week ago";
+  if (diffDays < 21) return "2 weeks ago";
+  if (diffDays < 28) return "3 weeks ago";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function groupByDate(
   feeds: ExtendedFeed[]
 ): { label: string; feeds: ExtendedFeed[] }[] {
@@ -53,23 +69,7 @@ function groupByDate(
 
   feeds.forEach((f) => {
     const d = new Date(f.date || f.created_at || Date.now());
-
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-
-    let label: string;
-
-    if (d.toDateString() === today.toDateString()) {
-      label = "Today";
-    } else if (d.toDateString() === yesterday.toDateString()) {
-      label = "Yesterday";
-    } else {
-      label = d.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    }
+    const label = getDateLabel(d);
 
     if (!map[label]) {
       map[label] = [];
@@ -88,11 +88,31 @@ function groupByDate(
 export default function FeedMainPage() {
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<"forYou" | "following">("forYou");
+
+  const [feedFilters, setFeedFilters] = useState<Record<string, boolean>>({
+    Workouts: true, CardioSessions: true, Recovery: true, Hydration: true, Nutrition: true,
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("feedActivityFilters");
+      if (saved) setFeedFilters(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // For You tab state
   const [feeds, setFeeds] = useState<ExtendedFeed[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const searchQuery = "";
+
+  // Following tab state
+  const [followingFeeds, setFollowingFeeds] = useState<ExtendedFeed[]>([]);
+  const [followingPage, setFollowingPage] = useState(1);
+  const [followingHasMore, setFollowingHasMore] = useState(true);
+  const [followingLoaded, setFollowingLoaded] = useState(false);
+  const [followingLoadingMore, setFollowingLoadingMore] = useState(false);
   const [showCardioPopup, setShowCardioPopup] = useState(false);
   const [showHighlightPopup, setShowHighlightPopup] =
   useState(false);
@@ -102,11 +122,17 @@ const [selectedGroup, setSelectedGroup] = useState<HighlightGroup | null>(null);
 const [activeIndex, setActiveIndex] = useState(0);
 const [showHighlightViewer, setShowHighlightViewer] = useState(false);
 const [fillActive, setFillActive] = useState(false);
+const [highlightPaused, setHighlightPaused] = useState(false);
 
 const SLIDE_DURATION = 5000;
 
 useEffect(() => {
-  if (!showHighlightViewer || !selectedGroup) return;
+  if (!showHighlightViewer || !selectedGroup || highlightPaused) return;
+
+  const currentHighlight = selectedGroup.highlights[activeIndex];
+  if (currentHighlight && !currentHighlight.is_viewed) {
+    feedApi.markHighlightWatched(currentHighlight.id);
+  }
 
   setFillActive(false);
   const fillTimer = setTimeout(() => setFillActive(true), 50);
@@ -127,7 +153,7 @@ useEffect(() => {
     clearTimeout(fillTimer);
     clearTimeout(advanceTimer);
   };
-}, [showHighlightViewer, activeIndex, selectedGroup]);
+}, [showHighlightViewer, activeIndex, selectedGroup, highlightPaused]);
 const [highlightDescription, setHighlightDescription] =
   useState("");
 
@@ -158,7 +184,14 @@ const [creatingHighlight, setCreatingHighlight] =
   const [sessionData, setSessionData] = useState<import("@/api/workouts/route").WorkoutSession | null>(null);
   const [popupWorkoutStats, setPopupWorkoutStats] = useState<WorkoutStats | null>(null);
   const [popupPowerSetLogs, setPopupPowerSetLogs] = useState<PowerSetLog[]>([]);
+  const [popupTrackingLogs, setPopupTrackingLogs] = useState<TrackingLog[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
+  const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
+  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
+  const [shareLinkLoading, setShareLinkLoading] = useState(false);
+  const [inProgressCardioFeed, setInProgressCardioFeed] = useState<ExtendedFeed | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (!selectedSessionFeed) {
@@ -167,6 +200,7 @@ const [creatingHighlight, setCreatingHighlight] =
       setSessionData(null);
       setPopupWorkoutStats(null);
       setPopupPowerSetLogs([]);
+      setPopupTrackingLogs([]);
       return;
     }
     const activityId = selectedSessionFeed.activity_id;
@@ -187,6 +221,7 @@ const [creatingHighlight, setCreatingHighlight] =
     if (isCompleted) {
       getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
       getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
+      getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
     }
   }, [selectedSessionFeed]);
 
@@ -231,6 +266,7 @@ const [creatingHighlight, setCreatingHighlight] =
     return () => clearInterval(timer);
   }, [ads]);
 
+
  const mapFeeds = (rawFeeds: any[]): ExtendedFeed[] =>
   rawFeeds.map((feed) => {
     const raw = feed as any;
@@ -265,6 +301,15 @@ const [creatingHighlight, setCreatingHighlight] =
     const allAds = await feedApi.getAdvertisements();
     const shuffled = [...allAds].sort(() => Math.random() - 0.5).slice(0, 4);
     setAds(shuffled);
+
+    try {
+      const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+      const checklistRes = await getTodayActivities(today);
+      const pending = (checklistRes.activities || []).filter((a) => !a.completed).length;
+      setPendingCount(pending);
+    } catch {
+      // badge stays 0 if checklist fails
+    }
   } catch (err) {
     console.error("Failed to load feed:", err);
   } finally {
@@ -272,12 +317,12 @@ const [creatingHighlight, setCreatingHighlight] =
   }
 };
 
-  const loadMore = async () => {
+  const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await feedApi.getFeed(nextPage);
+      const res = await feedApi.getFeed(nextPage, "forYou");
       const rawFeeds = res.feeds || [];
       setFeeds((prev) => [...prev, ...mapFeeds(rawFeeds)]);
       setHasMore(rawFeeds.length === 20);
@@ -286,6 +331,44 @@ const [creatingHighlight, setCreatingHighlight] =
       console.error("Failed to load more feeds:", err);
     } finally {
       setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, page]);
+
+  const loadFollowing = async () => {
+    try {
+      const res = await feedApi.getFeed(1, "following");
+      const rawFeeds = res.feeds || [];
+      setFollowingFeeds(mapFeeds(rawFeeds));
+      setFollowingHasMore(rawFeeds.length === 20);
+      setFollowingPage(1);
+      setFollowingLoaded(true);
+    } catch (err) {
+      console.error("Failed to load following feed:", err);
+      setFollowingLoaded(true);
+    }
+  };
+
+  const loadMoreFollowing = useCallback(async () => {
+    if (followingLoadingMore || !followingHasMore) return;
+    setFollowingLoadingMore(true);
+    try {
+      const nextPage = followingPage + 1;
+      const res = await feedApi.getFeed(nextPage, "following");
+      const rawFeeds = res.feeds || [];
+      setFollowingFeeds((prev) => [...prev, ...mapFeeds(rawFeeds)]);
+      setFollowingHasMore(rawFeeds.length === 20);
+      setFollowingPage(nextPage);
+    } catch (err) {
+      console.error("Failed to load more following feeds:", err);
+    } finally {
+      setFollowingLoadingMore(false);
+    }
+  }, [followingLoadingMore, followingHasMore, followingPage]);
+
+  const handleTabSwitch = (tab: "forYou" | "following") => {
+    setActiveTab(tab);
+    if (tab === "following" && !followingLoaded) {
+      loadFollowing();
     }
   };
 
@@ -351,15 +434,16 @@ const [creatingHighlight, setCreatingHighlight] =
     const formData = new FormData();
 
     formData.append("description", highlightDescription);
-    formData.append("file", highlightFile);
+    formData.append("image", highlightFile);
 
     await feedApi.createHighlight(formData);
-
-    alert("Highlight created successfully");
 
     setShowHighlightPopup(false);
     setHighlightDescription("");
     setHighlightFile(null);
+
+    const refreshed = await feedApi.listHighlights(1);
+    setHighlights(refreshed);
   } catch (err) {
     console.error(err);
     alert("Failed to create highlight");
@@ -369,6 +453,22 @@ const [creatingHighlight, setCreatingHighlight] =
 };
 
 
+
+  const activeLoadMore = useCallback(() => {
+    if (activeTab === "following") loadMoreFollowing();
+    else loadMore();
+  }, [activeTab, loadMore, loadMoreFollowing]);
+
+  useEffect(() => {
+    if (loading) return;
+    const handleScroll = () => {
+      const scrolled = window.scrollY + window.innerHeight;
+      const total = document.documentElement.scrollHeight;
+      if (scrolled >= total - 500) activeLoadMore();
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [activeLoadMore, loading]);
 
   if (loading) {
     return (
@@ -380,21 +480,27 @@ const [creatingHighlight, setCreatingHighlight] =
     );
   }
 
-  const q = searchQuery.toLowerCase().trim();
+  const activeFeedList = activeTab === "following" ? followingFeeds : feeds;
+  const activeHasMore = activeTab === "following" ? followingHasMore : hasMore;
+  const activeLoadingMore = activeTab === "following" ? followingLoadingMore : loadingMore;
 
-  const filteredFeeds = feeds.filter((feed) => {
+  const typeToFilterKey = (type: string): string => {
+    if (type.toLowerCase().includes("cardio")) return "CardioSessions";
+    if (type.toLowerCase().includes("recovery")) return "Recovery";
+    if (type.toLowerCase().includes("hydration")) return "Hydration";
+    if (type.toLowerCase().includes("nutrition")) return "Nutrition";
+    return "Workouts";
+  };
+
+  const filteredFeeds = activeFeedList.filter((feed) => {
     const matchesOwner = showMyWorkoutsOnly
       ? String(feed.member_id) === String(currentUser?.id)
       : true;
 
-    const matchesSearch = q
-      ? feed.title?.toLowerCase().includes(q) ||
-        feed.user?.username?.toLowerCase().includes(q) ||
-        feed.user?.name?.toLowerCase().includes(q) ||
-        feed.type?.toLowerCase().includes(q)
-      : true;
+    const filterKey = typeToFilterKey(feed.type || "");
+    const matchesFilter = feedFilters[filterKey] !== false;
 
-    return matchesOwner && matchesSearch;
+    return matchesOwner && matchesFilter;
   });
 
   const grouped = groupByDate(filteredFeeds);
@@ -426,7 +532,7 @@ const [creatingHighlight, setCreatingHighlight] =
       {/* CENTER LOGO */}
       <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex">
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push("/feed/main-feed")}
           className="flex items-center justify-center"
         >
           <img
@@ -458,10 +564,15 @@ const [creatingHighlight, setCreatingHighlight] =
         {/* CALENDAR / TODAY'S CHECKLIST */}
         <button
           onClick={() => router.push("/checklist")}
-          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-green-50 hover:border-green-200 transition-all group"
+          className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-green-50 hover:border-green-200 transition-all group"
           title="Today's Checklist"
         >
           <CalendarDays size={18} className="text-green-600 group-hover:scale-110 transition-transform" />
+          {pendingCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+              {pendingCount > 99 ? "99+" : pendingCount}
+            </span>
+          )}
         </button>
 
         {/* SEARCH */}
@@ -474,7 +585,7 @@ const [creatingHighlight, setCreatingHighlight] =
 
         {/* TRENDING */}
         <button
-          onClick={() => router.push("/feed/explore")}
+          onClick={() => router.push("/feed/main-feed")}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-orange-50 hover:border-orange-200 transition-all group"
         >
           <TrendingUp
@@ -494,13 +605,18 @@ const [creatingHighlight, setCreatingHighlight] =
           />
         </button>
 
+        {/* SETTINGS */}
+        <button
+          onClick={() => router.push("/feed/settings")}
+          className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all group"
+          title="Feed Settings"
+        >
+          <Settings size={18} className="text-gray-500 group-hover:scale-110 transition-transform" />
+        </button>
+
         {/* NOTIFICATION */}
         <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
-          <Bell
-            size={18}
-            className="text-purple-600"
-          />
-
+          <Bell size={18} className="text-purple-600" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
         </button>
 
@@ -511,6 +627,23 @@ const [creatingHighlight, setCreatingHighlight] =
         >
           <Plus size={16} />
         </button>
+
+        {/* USER AVATAR */}
+        <button
+          onClick={() => router.push("/profile")}
+          className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-200 shadow-sm hover:border-purple-400 transition-all shrink-0"
+          title="My Profile"
+        >
+          {currentUser?.image ? (
+            <img src={currentUser.image} alt="profile" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">
+                {(currentUser?.username || currentUser?.name || "U").charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+        </button>
       </div>
     </div>
 
@@ -520,24 +653,51 @@ const [creatingHighlight, setCreatingHighlight] =
 
       {/* CONTENT */}
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* FILTERS */}
-    {/* HIGHLIGHTS + TOGGLE */}
+        {/* TAB BAR */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-2xl p-1 w-fit mb-5">
+          {(["forYou", "following"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabSwitch(tab)}
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+                activeTab === tab
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab === "forYou" ? "For You" : "Following"}
+            </button>
+          ))}
+        </div>
+
+        {/* HIGHLIGHTS + TOGGLE */}
 <div className="mb-5 mt-4 flex items-center justify-between gap-4">
 
   {/* HIGHLIGHTS */}
   <div className="flex-1 overflow-x-auto scrollbar-hide">
     <div className="flex items-start gap-3 min-w-max px-1">
 
-      {/* ADD HIGHLIGHT CIRCLE */}
+      {/* ADD HIGHLIGHT CIRCLE — current user avatar + badge */}
       <button
         onClick={() => setShowHighlightPopup(true)}
         className="flex flex-col items-center gap-1.5 shrink-0"
       >
-        <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 p-[2px] shadow-md">
-          <div className="w-full h-full rounded-full bg-white p-[2px]">
-            <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center">
-              <Plus size={22} className="text-purple-600" strokeWidth={2.5} />
+        <div className="relative w-[56px] h-[56px]">
+          <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 p-[2px] shadow-md">
+            <div className="w-full h-full rounded-full bg-white p-[2px]">
+              <div className="w-full h-full rounded-full overflow-hidden bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center">
+                {currentUser?.image ? (
+                  <img src={currentUser.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-purple-600 text-base font-bold">
+                    {(currentUser?.username || currentUser?.name || "U").charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
             </div>
+          </div>
+          <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-purple-600 border-2 border-white flex items-center justify-center">
+            <Plus size={10} className="text-white" strokeWidth={3} />
           </div>
         </div>
         <p className="text-[10px] font-semibold text-gray-700 max-w-[58px] truncate text-center">
@@ -647,19 +807,34 @@ const [creatingHighlight, setCreatingHighlight] =
                 {group.feeds.map((feed, feedIdx) => {
                   const displayUser = feed.user;
 
+                  const isCompleted = feed.type?.includes("Complete");
+
+                  const isNutrition = feed.type?.toLowerCase().includes("nutrition");
+
                   const activityLabel =
                     feed.type === "CompleteWorkout" ? "PRIMARY" :
                     feed.type === "CompleteCardio" ? "CARDIO" :
                     feed.type === "CompleteSupplemental" ? "SUPPLEMENTAL" :
                     feed.type === "CompleteConditioning" ? "CONDITIONING" :
-                    "WORKOUT";
+                    feed.type === "CompleteRecovery" ? "RECOVERY" :
+                    feed.type === "CompleteHydration" ? "HYDRATION" :
+                    isNutrition ? "NUTRITION" :
+                    "SESSION";
 
                   const activityChipColor =
                     feed.type === "CompleteWorkout" ? "bg-blue-500" :
                     feed.type === "CompleteCardio" ? "bg-red-400" :
                     feed.type === "CompleteSupplemental" ? "bg-green-500" :
                     feed.type === "CompleteConditioning" ? "bg-yellow-400" :
+                    feed.type === "CompleteRecovery" ? "bg-purple-500" :
+                    feed.type === "CompleteHydration" ? "bg-teal-500" :
+                    isNutrition ? "bg-green-600" :
                     "bg-blue-500";
+
+                  const actionLabel =
+                    feed.type === "CompleteWorkout" ? "View Result" :
+                    (feed.type === "CompleteCardio" || feed.type === "CompleteHydration" || feed.type === "CompleteRecovery" || isNutrition) ? "View Details" :
+                    "View Session";
 
                   const card = (
                     <div
@@ -668,96 +843,110 @@ const [creatingHighlight, setCreatingHighlight] =
                     >
                       <div className="absolute top-0 right-0 w-[120px] h-[120px] rounded-full bg-[#f7f5fb] translate-x-[35%] -translate-y-[35%]" />
 
-                      <div className="relative z-10 flex items-start gap-3">
-                        {/* AVATAR */}
-                        <div className="shrink-0">
-                          <div className="w-[48px] h-[48px] rounded-full bg-[#8b5cf6] p-[3px] shadow-[0_4px_12px_rgba(139,92,246,0.30)]">
-                            <div className="w-full h-full rounded-full bg-[#10b981] border-[2px] border-white overflow-hidden flex items-center justify-center">
-                              {displayUser?.image ? (
-                                <img
-                                  src={displayUser.image}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-white text-base font-bold">
-                                  {(displayUser?.username || "U").charAt(0).toUpperCase()}
-                                </span>
-                              )}
+                      <div className="relative z-10">
+                        {/* TOP ROW: avatar | username + chip | 3-dot */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => displayUser?.id && router.push(`/player-card/${displayUser.id}`)}
+                            className="shrink-0 cursor-pointer"
+                          >
+                            <div className="w-[42px] h-[42px] rounded-full p-[2px] shadow-sm" style={{background: "linear-gradient(135deg,#8b5cf6,#6366f1)"}}>
+                              <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                                {displayUser?.image ? (
+                                  <img src={displayUser.image} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-white text-sm font-bold bg-gradient-to-br from-purple-500 to-indigo-500 w-full h-full flex items-center justify-center">
+                                    {(displayUser?.username || "U").charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          </button>
 
-                        {/* CONTENT */}
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-[14px] font-bold text-[#1da1f2] leading-none truncate">
-                              @{displayUser?.username || "username"}
-                            </h3>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
                             <button
-                              onClick={() => setShowCardioPopup(true)}
-                              className="shrink-0 p-0.5"
+                              onClick={() => displayUser?.username && router.push(`/profile/${encodeURIComponent(displayUser.username)}`)}
+                              className="text-[13px] font-bold text-[#6c3fef] hover:underline truncate cursor-pointer"
                             >
-                              <MoreVertical size={16} className="text-[#d1d5db]" />
+                              @{displayUser?.username || "username"}
                             </button>
-                          </div>
-
-                          <div className="mt-2">
-                            <span className={`inline-flex items-center gap-1.5 ${activityChipColor} text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide`}>
-                              <span className="w-[4px] h-[4px] rounded-full bg-white" />
+                            <span className={`shrink-0 inline-flex items-center gap-1.5 ${activityChipColor} text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide`}>
+                              <span className="w-[4px] h-[4px] rounded-full bg-white/80" />
                               {activityLabel}
                             </span>
                           </div>
 
-                          <h2 className="mt-1.5 text-[14px] font-bold text-[#111827] leading-snug break-words">
-                            {feed.title || "Workout Session"}
-                          </h2>
+                          <button
+                            onClick={() => setShareSessionFeed(feed)}
+                            className="shrink-0 p-1 rounded-lg hover:bg-gray-100 transition"
+                          >
+                            <MoreVertical size={15} className="text-gray-300" />
+                          </button>
+                        </div>
 
+                        {/* TITLE */}
+                        <p className="mt-3 ml-[54px] text-[13.5px] font-semibold text-gray-800 leading-snug">
+                          {feed.title || "Workout Session"}
+                        </p>
+
+                        {/* ACTION */}
+                        <div className="mt-3 ml-[54px]">
                           <button
                             onClick={() => {
+                              const p = new URLSearchParams({
+                                feedId: feed.activity_id || String(feed.id),
+                                userName: feed.user?.name || "",
+                                userUsername: feed.user?.username || "",
+                                title: feed.title || "",
+                                date: feed.date || feed.created_at || "",
+                                likeCount: String(feed.likeCount || 0),
+                              });
                               if (feed.type === "CompleteCardio") {
-                                const params = new URLSearchParams({
-                                  feedId: feed.activity_id || String(feed.id),
-                                  userName: feed.user?.name || "",
-                                  userUsername: feed.user?.username || "",
-                                  title: feed.title || "",
-                                  date: feed.date || feed.created_at || "",
-                                });
-                                router.push(`/feed/cardio-session?${params.toString()}`);
+                                router.push(`/feed/cardio-session?${p.toString()}`);
+                              } else if (feed.type === "CompleteRecovery") {
+                                router.push(`/feed/recovery-details?${p.toString()}`);
+                              } else if (feed.type === "CompleteHydration") {
+                                const oz = (feed as any).oz_number || "";
+                                if (oz) p.set("oz", String(oz));
+                                router.push(`/feed/hydration-details?${p.toString()}`);
+                              } else if (isNutrition && feed.type?.includes("Complete")) {
+                                const calories = (feed as any).calories || "";
+                                const protein = (feed as any).protein || "";
+                                if (calories) p.set("calories", String(calories));
+                                if (protein) p.set("protein", String(protein));
+                                router.push(`/feed/nutrition-details?${p.toString()}`);
+                              } else if (!feed.type?.includes("Complete") && feed.type?.toLowerCase().includes("cardio")) {
+                                setInProgressCardioFeed(feed);
                               } else {
                                 setSelectedSessionFeed(feed);
                               }
                             }}
-                            className="mt-4 h-[38px] px-4 rounded-2xl bg-[#eaf6ff] text-[#10b7f5] font-bold text-[13px] hover:opacity-90 transition flex items-center gap-1.5"
+                            className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#6c3fef] bg-purple-50 hover:bg-purple-100 border border-purple-100 px-4 py-2 rounded-xl transition"
                           >
-                            View/join session
-                            <span>→</span>
+                            {actionLabel} <span className="text-[11px]">→</span>
                           </button>
                         </div>
                       </div>
 
                       {/* FOOTER */}
-                      <div className="relative z-10 mt-6">
+                      <div className="relative z-10 mt-6 flex items-center justify-between">
                         <div className="inline-flex items-center overflow-hidden rounded-full border border-[#e5e7eb] bg-white shadow-sm">
-                          {/* COMMENTS */}
-                          <button className="flex items-center gap-2 px-5 h-[44px] text-[#374151]">
-                            <span className="text-[15px] font-semibold">
-                              {(feed as any)
-                                .commentsCount || 0}
-                            </span>
-                          </button>
-
-                          <div className="w-px h-5 bg-[#e5e7eb]" />
+                          {/* COMMENTS — only for completed */}
+                          {isCompleted && (
+                            <>
+                              <button className="flex items-center gap-2 px-5 h-[44px] text-[#374151]">
+                                <span className="text-[15px] font-semibold">
+                                  {feed.commentsCount ?? feed.commentCount ?? 0}
+                                </span>
+                              </button>
+                              <div className="w-px h-5 bg-[#e5e7eb]" />
+                            </>
+                          )}
 
                           {/* LIKES */}
                           <button
-                            onClick={() =>
-                              handleLike(feed)
-                            }
-                            disabled={
-                              likingFeedId ===
-                              String(feed.id)
-                            }
+                            onClick={() => handleLike(feed)}
+                            disabled={likingFeedId === String(feed.id)}
                             className="flex items-center gap-2 px-5 h-[44px] text-[#8b5cf6]"
                           >
                             <Heart
@@ -768,12 +957,19 @@ const [creatingHighlight, setCreatingHighlight] =
                                   : ""
                               }
                             />
-
                             <span className="text-[15px] font-semibold">
                               {feed.likeCount}
                             </span>
                           </button>
                         </div>
+
+                        {/* PEOPLE COUNT — hidden for Hydration and Recovery */}
+                        {feed.type !== "CompleteHydration" && feed.type !== "CompleteRecovery" && (
+                          <div className="flex items-center gap-1.5 text-gray-400">
+                            <Users size={14} />
+                            <span className="text-[13px] font-semibold">{feed.joined_count ?? 0}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -781,7 +977,7 @@ const [creatingHighlight, setCreatingHighlight] =
                   return (
                     <div key={String(feed.id)}>
                       {card}
-                      {feedIdx === 0 && ads.length > 0 && (
+                      {(feedIdx + 1) % 3 === 0 && ads.length > 0 && (
                         <button
                           onClick={() => setSelectedAd(ads[adIndex])}
                           className="block w-full relative rounded-[26px] overflow-hidden mb-4 shadow-sm border border-[#ececf3] bg-black text-left"
@@ -811,43 +1007,52 @@ const [creatingHighlight, setCreatingHighlight] =
             ))}
 
             {/* EMPTY */}
-            {filteredFeeds.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
-                <Activity
-                  size={48}
-                  className="text-gray-300 mx-auto mb-3"
-                />
+            {filteredFeeds.length === 0 && (() => {
+              const rawCount = activeFeedList.length;
+              const isFiltered = rawCount > 0;
+              return (
+                <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                  <Dumbbell size={48} className="text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold">
+                    {isFiltered ? "All activity types hidden" : "No activities yet"}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {isFiltered ? (
+                      <>
+                        Your filters are hiding everything.{" "}
+                        <button
+                          onClick={() => router.push("/feed/settings")}
+                          className="text-purple-500 underline"
+                        >
+                          Go to settings
+                        </button>{" "}
+                        to re-enable.
+                      </>
+                    ) : (
+                      "Follow friends to see their workouts here"
+                    )}
+                  </p>
+                </div>
+              );
+            })()}
 
-                <p className="text-gray-500">
-                  No activities yet
-                </p>
-
-                <p className="text-sm text-gray-400">
-                  Follow friends to see their workouts
-                  here
-                </p>
+            {/* FOLLOWING TAB — loading skeleton */}
+            {activeTab === "following" && !followingLoaded && (
+              <div className="flex justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-gray-400" />
               </div>
             )}
 
-            {/* LOAD MORE */}
-            {hasMore && filteredFeeds.length > 0 && (
-              <div className="flex justify-center mt-4 mb-8">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="flex items-center gap-2 px-8 py-3 rounded-full bg-white border border-gray-200 text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50 transition disabled:opacity-50"
-                >
-                  {loadingMore ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : null}
-                  {loadingMore ? "Loading..." : "Load More"}
-                </button>
+            {/* INFINITE SCROLL INDICATOR */}
+            {activeHasMore && activeLoadingMore && (
+              <div className="flex justify-center py-6">
+                <Loader2 size={20} className="animate-spin text-gray-400" />
               </div>
             )}
           </div>
 
           {/* RIGHT SIDEBAR */}
-          <div className="lg:w-80 space-y-6">
+          <div className="lg:w-80 space-y-6 mt-9 sticky top-[84px] self-start">
             {/* TRENDING */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center gap-2 mb-4">
@@ -930,13 +1135,10 @@ const [creatingHighlight, setCreatingHighlight] =
           </div>
         </div>
       </div>
-{showCardioPopup && (
+{/* showCardioPopup popup removed — dead code with hardcoded dummy data */}
+{false && (
   <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto">
-    
-    {/* CENTER WRAPPER */}
     <div className="min-h-screen flex items-center justify-center p-2 sm:p-4">
-      
-      {/* POPUP */}
       <div className="relative w-full max-w-[95vw] sm:max-w-2xl lg:max-w-3xl rounded-[24px] sm:rounded-[30px] bg-white border border-gray-100 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
 
         {/* CLOSE */}
@@ -1197,7 +1399,7 @@ const [creatingHighlight, setCreatingHighlight] =
             }
             placeholder="Write something about your highlight..."
             rows={4}
-            className="w-full rounded-3xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm outline-none resize-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition"
+            className="w-full rounded-3xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none resize-none focus:border-purple-500 focus:bg-white focus:ring-4 focus:ring-purple-100 transition"
           />
         </div>
 
@@ -1236,6 +1438,7 @@ const [creatingHighlight, setCreatingHighlight] =
           setShowHighlightViewer(false);
           setSelectedGroup(null);
           setActiveIndex(0);
+          setHighlightPaused(false);
         }}
         className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center"
       >
@@ -1247,7 +1450,11 @@ const [creatingHighlight, setCreatingHighlight] =
         {selectedGroup.highlights.map((_, i) => (
           <div key={i} className="flex-1 h-1 rounded-full bg-white/40">
             <div
-              className={`h-full rounded-full bg-white transition-[width] ease-linear ${
+              className={`h-full rounded-full bg-white ${
+                i === activeIndex
+                  ? "transition-[width] ease-linear"
+                  : "transition-none"
+              } ${
                 i < activeIndex
                   ? "w-full"
                   : i === activeIndex && fillActive
@@ -1292,8 +1499,11 @@ const [creatingHighlight, setCreatingHighlight] =
         </div>
       </div>
 
-      {/* MEDIA */}
-      <div className="bg-black">
+      {/* MEDIA + OVERLAY */}
+      <div
+        className="relative bg-black cursor-pointer select-none"
+        onClick={() => setHighlightPaused(p => !p)}
+      >
         {selectedGroup.highlights[activeIndex]?.uploadVideo ||
         selectedGroup.highlights[activeIndex]?.upload_video ? (
           <video
@@ -1302,8 +1512,9 @@ const [creatingHighlight, setCreatingHighlight] =
               selectedGroup.highlights[activeIndex].upload_video ||
               ""
             }
-            controls
             autoPlay
+            muted
+            playsInline
             className="w-full max-h-[75vh] object-cover"
           />
         ) : selectedGroup.highlights[activeIndex]?.uploadedImage ||
@@ -1322,29 +1533,39 @@ const [creatingHighlight, setCreatingHighlight] =
             <Flame size={60} className="text-white" />
           </div>
         )}
-      </div>
 
-      {/* DESCRIPTION */}
-      <div className="p-5 bg-white">
-        <p className="text-sm text-gray-700 leading-relaxed">
-          {selectedGroup.highlights[activeIndex]?.description || "No description"}
-        </p>
+        {/* Pause indicator */}
+        {highlightPaused && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+              <div className="flex gap-1.5">
+                <div className="w-1.5 h-6 bg-white rounded-full" />
+                <div className="w-1.5 h-6 bg-white rounded-full" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Description overlay */}
+        {selectedGroup.highlights[activeIndex]?.description && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-5 py-5 pointer-events-none">
+            <p className="text-[13px] font-medium text-white leading-relaxed line-clamp-3">
+              {selectedGroup.highlights[activeIndex].description}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* PREV / NEXT tap zones */}
       {selectedGroup.highlights.length > 1 && (
-        <div className="absolute inset-0 flex pointer-events-none" style={{ top: "60px", bottom: "80px" }}>
+        <div className="absolute inset-0 flex pointer-events-none" style={{ top: "60px", bottom: "0px" }}>
           <button
             className="flex-1 pointer-events-auto"
-            onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
+            onClick={(e) => { e.stopPropagation(); setHighlightPaused(false); setActiveIndex((i) => Math.max(0, i - 1)); }}
           />
           <button
             className="flex-1 pointer-events-auto"
-            onClick={() =>
-              setActiveIndex((i) =>
-                Math.min(selectedGroup.highlights.length - 1, i + 1)
-              )
-            }
+            onClick={(e) => { e.stopPropagation(); setHighlightPaused(false); setActiveIndex((i) => Math.min(selectedGroup.highlights.length - 1, i + 1)); }}
           />
         </div>
       )}
@@ -1462,8 +1683,12 @@ const [creatingHighlight, setCreatingHighlight] =
             {/* BOTTOM — white content */}
             {(() => {
               const isCompleted = selectedSessionFeed.type?.includes("Complete");
+              const stripPrefix = (val: string | number | undefined, prefix: string) => {
+                const s = String(val ?? "");
+                return s.toLowerCase().startsWith(prefix.toLowerCase()) ? s : `${prefix} ${s}`;
+              };
               const weekDay = sessionData?.week && sessionData?.day
-                ? `Week ${sessionData.week} / Day ${sessionData.day}`
+                ? `${stripPrefix(sessionData.week, "Week")} / ${stripPrefix(sessionData.day, "Day")}`
                 : "Single Session";
               return (
                 <div className="p-5 overflow-y-auto max-h-[55vh]">
@@ -1485,7 +1710,12 @@ const [creatingHighlight, setCreatingHighlight] =
                       <p className="font-bold text-gray-900 text-sm leading-tight">
                         {selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "User"}
                       </p>
-                      <p className="text-purple-500 text-xs">@{selectedSessionFeed.user?.username || "user"}</p>
+                      <button
+                        onClick={() => selectedSessionFeed.user?.username && router.push(`/profile/${encodeURIComponent(selectedSessionFeed.user.username)}`)}
+                        className="text-purple-500 text-xs hover:underline cursor-pointer"
+                      >
+                        @{selectedSessionFeed.user?.username || "user"}
+                      </button>
                     </div>
                     {isCompleted && (
                       <div className="ml-auto flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-2.5 py-1 rounded-full">
@@ -1545,15 +1775,15 @@ const [creatingHighlight, setCreatingHighlight] =
                   <div className="flex items-center gap-2 mb-4 flex-wrap">
                     <span className="flex items-center gap-1 text-purple-500 text-[11px] font-semibold bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
                       <Dumbbell size={11} />
-                      {sessionWorkoutCategory || selectedSessionFeed.title2 || "Full Body"}
+                      {sessionWorkoutCategory || selectedSessionFeed.title2 || ""}
                     </span>
                     <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
                       <Heart size={11} />
-                      0 likes
+                      {selectedSessionFeed.likeCount ?? 0} likes
                     </span>
                     <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
                       <MessageCircle size={11} />
-                      0 comments
+                      {selectedSessionFeed.commentsCount ?? selectedSessionFeed.commentCount ?? 0} comments
                     </span>
                   </div>
 
@@ -1619,6 +1849,44 @@ const [creatingHighlight, setCreatingHighlight] =
                     </div>
                   )}
 
+                  {/* Rounds Breakdown */}
+                  {isCompleted && popupTrackingLogs.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Rounds Breakdown</p>
+                      <div className="space-y-1.5">
+                        {popupTrackingLogs.map((log, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
+                            <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate pr-2">{log.title}</span>
+                            <span className="text-[12px] font-bold text-gray-900 shrink-0">
+                              {log.repetitions ?? "—"} × {log.weight ?? "—"} kg
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comments */}
+                  {selectedSessionFeed && (
+                    <div className="mb-4 border-t border-gray-100 pt-4">
+                      <FeedComments
+                        feedId={String(selectedSessionFeed.activity_id || selectedSessionFeed.id)}
+                        onCommentAdded={() => {
+                          setFeeds(prev => prev.map(f =>
+                            String(f.id) === String(selectedSessionFeed.id)
+                              ? { ...f, commentsCount: (f.commentsCount || 0) + 1 }
+                              : f
+                          ));
+                          setFollowingFeeds(prev => prev.map(f =>
+                            String(f.id) === String(selectedSessionFeed.id)
+                              ? { ...f, commentsCount: (f.commentsCount || 0) + 1 }
+                              : f
+                          ));
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* View/Join button */}
                   <button
                     onClick={() => {
@@ -1665,6 +1933,175 @@ const [creatingHighlight, setCreatingHighlight] =
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* SHARE SESSION MODAL */}
+      {shareSessionFeed && (() => {
+        const sessionId = shareSessionFeed.activity_id || String(shareSessionFeed.id);
+        const fallbackUrl = typeof window !== "undefined"
+          ? `${window.location.origin}/feed/main-feed?session=${sessionId}`
+          : "";
+        const displayUrl = shareLinkUrl || fallbackUrl;
+
+        if (!shareLinkLoading && !shareLinkUrl) {
+          setShareLinkLoading(true);
+          generateSessionShareLink(sessionId).then(link => {
+            setShareLinkUrl(link);
+            setShareLinkLoading(false);
+          });
+        }
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); setShareLinkUrl(null); }}
+          >
+            <div
+              className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); setShareLinkUrl(null); }}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} className="text-gray-600" />
+              </button>
+
+              <div className="px-6 pt-6 pb-6">
+                <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Session</h3>
+                <p className="text-[13px] text-gray-400 mb-5 truncate">{shareSessionFeed.title || "Workout Session"}</p>
+
+                <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
+                  {shareLinkLoading ? (
+                    <span className="text-[12px] text-gray-400 flex-1 flex items-center gap-2">
+                      <Loader2 size={13} className="animate-spin" /> Generating link…
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-gray-500 truncate flex-1">{displayUrl}</span>
+                  )}
+                  <button
+                    disabled={shareLinkLoading}
+                    onClick={() => {
+                      navigator.clipboard.writeText(displayUrl);
+                      setSessionLinkCopied(true);
+                      setTimeout(() => setSessionLinkCopied(false), 2000);
+                    }}
+                    className="shrink-0 text-[12px] font-bold text-purple-600 hover:text-purple-700 px-2 disabled:opacity-40"
+                  >
+                    {sessionLinkCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+
+                <button
+                  disabled={shareLinkLoading}
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: shareSessionFeed.title || "Workout Session", url: displayUrl });
+                    } else {
+                      navigator.clipboard.writeText(displayUrl);
+                      setSessionLinkCopied(true);
+                      setTimeout(() => setSessionLinkCopied(false), 2000);
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3.5 rounded-2xl text-[14px] transition hover:shadow-lg disabled:opacity-50"
+                >
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* CARDIO SESSION POPUP (in-progress) */}
+      {inProgressCardioFeed && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          onClick={() => setInProgressCardioFeed(null)}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Red banner */}
+            <div className="bg-gradient-to-br from-red-500 to-orange-500 px-5 pt-5 pb-6 relative">
+              <button
+                onClick={() => setInProgressCardioFeed(null)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition"
+              >
+                <X size={15} className="text-white" />
+              </button>
+              <span className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide mb-3">
+                <Flame size={10} /> Cardio · In Progress
+              </span>
+              <h2 className="text-white text-[18px] font-extrabold leading-tight pr-8">
+                {inProgressCardioFeed.title || "Cardio Session"}
+              </h2>
+            </div>
+
+            {/* Content */}
+            <div className="px-5 py-4 space-y-3">
+              {/* User row */}
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-red-100 flex items-center justify-center flex-shrink-0">
+                  {inProgressCardioFeed.user?.image ? (
+                    <img src={inProgressCardioFeed.user.image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-red-500 font-bold text-sm">
+                      {(inProgressCardioFeed.user?.username || "U").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-gray-900">{inProgressCardioFeed.user?.name || inProgressCardioFeed.user?.username || "User"}</p>
+                  <p className="text-[11px] text-red-500">@{inProgressCardioFeed.user?.username || "user"}</p>
+                </div>
+              </div>
+
+              {/* Date */}
+              {(inProgressCardioFeed.date || inProgressCardioFeed.created_at) && (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <CalendarDays size={13} />
+                  <span className="text-[12px]">
+                    {new Date(inProgressCardioFeed.date || inProgressCardioFeed.created_at || "").toLocaleDateString("en-US", {
+                      month: "long", day: "numeric", year: "numeric"
+                    })}
+                  </span>
+                </div>
+              )}
+
+              {/* Stats row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-red-50 rounded-2xl py-3 text-center border border-red-100">
+                  <p className="text-[18px] font-extrabold text-red-500">{(inProgressCardioFeed as any).calories ?? "—"}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Calories</p>
+                </div>
+                <div className="bg-orange-50 rounded-2xl py-3 text-center border border-orange-100">
+                  <p className="text-[18px] font-extrabold text-orange-500">{(inProgressCardioFeed as any).minutes ?? "—"}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Minutes</p>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={() => {
+                  const p = new URLSearchParams({
+                    feedId: inProgressCardioFeed.activity_id || String(inProgressCardioFeed.id),
+                    userName: inProgressCardioFeed.user?.name || "",
+                    userUsername: inProgressCardioFeed.user?.username || "",
+                    title: inProgressCardioFeed.title || "",
+                    date: inProgressCardioFeed.date || inProgressCardioFeed.created_at || "",
+                  });
+                  setInProgressCardioFeed(null);
+                  router.push(`/feed/cardio-session?${p.toString()}`);
+                }}
+                className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold py-3.5 rounded-2xl text-[14px] hover:shadow-lg transition"
+              >
+                View Session →
+              </button>
+            </div>
           </div>
         </div>
       )}
