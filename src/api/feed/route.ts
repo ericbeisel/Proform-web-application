@@ -94,6 +94,36 @@ export interface CurrentUser {
   };
 }
 
+export interface HydrationDetails {
+  record: {
+    oz_number: number;
+    title: string;
+    [key: string]: any;
+  };
+}
+
+export interface RecoveryDetails {
+  record: {
+    time_spent: number;
+    recovery_title: string;
+    [key: string]: any;
+  };
+}
+
+export interface CardioFeedDetails {
+  session: {
+    minutes: number;
+    calories_burned: number;
+    [key: string]: any;
+  };
+}
+
+export interface FeedDetailsResponse {
+  hydrationDetails?: HydrationDetails;
+  recoveryDetails?: RecoveryDetails;
+  cardioDetails?: CardioFeedDetails;
+}
+
 export interface FeedComment {
   id: string | number;
   comment?: string;
@@ -339,7 +369,7 @@ export const feedApi = {
     }
   },
 
-  getFeedDetails: async (feedId: string): Promise<{ cardioDetails?: any; hydrationDetails?: any; recoveryDetails?: any } | null> => {
+  getFeedDetails: async (feedId: string): Promise<FeedDetailsResponse | null> => {
     try {
       const res = await apiClient.get(`/feed/${feedId}/details`);
       return res.data?.data || res.data || null;

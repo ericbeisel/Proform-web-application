@@ -13,6 +13,91 @@ interface WorkoutDetailProps {
   onClose?: () => void;
 }
 
+function resolveWixImage(url?: string | null): string {
+  if (!url) return "";
+  if (url.startsWith("wix:image://v1/")) {
+    const mediaId = url
+      .replace("wix:image://v1/", "")
+      .split("#")[0]
+      .split("/")[0];
+    return `https://static.wixstatic.com/media/${mediaId}`;
+  }
+  return url;
+}
+
+function EquipmentIcon({ item }: { item: Equipment }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveWixImage(item.icon);
+  if (!src || failed) {
+    return <Dumbbell className="w-4 h-4 md:w-[18px] md:h-[18px] text-slate-400" />;
+  }
+  return (
+    <img
+      src={src}
+      alt={item.name}
+      className="w-full h-full object-cover rounded-2xl"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function ExerciseThumb({ ex }: { ex: Exercise }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveWixImage(ex.demoGif);
+  if (!src || failed) {
+    return <Dumbbell className="w-4 h-4 text-slate-300" />;
+  }
+  return (
+    <img
+      src={src}
+      alt={ex.name}
+      className="w-full h-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function PowerSetThumb({ ps }: { ps: PowerSet }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveWixImage(ps.demo_gif);
+  if (!src || failed) {
+    return <Dumbbell className="w-6 h-6" />;
+  }
+  return (
+    <img
+      src={src}
+      alt={ps.title_secondary}
+      className="w-full h-full object-contain"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function CompletedAvatar({ user, index }: { user: CompletedUser; index: number }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveWixImage(user.image);
+  if (!src || failed) {
+    return (
+      <div
+        title={user.name}
+        className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black text-white ring-2 ring-white shadow-sm
+          ${index % 3 === 0 ? 'bg-indigo-400' : index % 3 === 1 ? 'bg-blue-500' : 'bg-orange-400'}`}
+      >
+        {user.name.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={user.name}
+      title={user.name}
+      className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetailProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -175,18 +260,6 @@ const filteredExercises = exercises;
   // Get unique equipment names
   const uniqueEquipment = [...new Map(equipment.map(item => [item.name, item])).values()];
 
-  function resolveWixImage(url?: string): string {
-  if (!url) return "";
-  if (url.startsWith("wix:image://v1/")) {
-    const mediaId = url
-      .replace("wix:image://v1/", "")
-      .split("#")[0]
-      .split("/")[0];
-    return `https://static.wixstatic.com/media/${mediaId}`;
-  }
-  return url;
-}
-
   // Loading state
   if (loading) {
     return (
@@ -217,37 +290,29 @@ const filteredExercises = exercises;
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900 pb-32 overflow-x-hidden">
-      
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-32 overflow-x-hidden">
+
       <div className="max-w-[1200px] mx-auto p-4 md:p-8">
-        
+
         {/* Navigation Row */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-8">
           <button
             onClick={() => onClose ? onClose() : router.back()}
-            className="p-2 bg-slate-50 rounded-full hover:bg-slate-200 transition-all active:scale-90"
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm hover:bg-slate-50 transition-all active:scale-90"
           >
             <ArrowLeft className="w-[18px] h-[18px] text-slate-600" />
           </button>
 
-          <button onClick={() => router.push("/dashboard")} className="active:scale-90 transition-all">
-            <img
-              src="/images/proform-logo.jpg"
-              alt="Proform"
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          </button>
-
           <div className="flex gap-2">
-            <button className="p-2.5 bg-slate-50 rounded-xl text-slate-500 hover:bg-slate-100">
+            <button className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90">
               <Bookmark className="w-[18px] h-[18px]" />
             </button>
-            <button className="p-2.5 bg-slate-50 rounded-xl text-slate-500 hover:bg-slate-100">
+            <button className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90">
               <Share2 className="w-[18px] h-[18px]" />
             </button>
             <button
               onClick={() => onClose ? onClose() : router.back()}
-              className="p-2.5 bg-slate-50 rounded-xl text-slate-500 hover:bg-slate-100"
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90"
             >
               <X className="w-[18px] h-[18px]" />
             </button>
@@ -255,91 +320,84 @@ const filteredExercises = exercises;
         </div>
 
         {/* Hero Title Area */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-tight">This Workout:</p>
-            <h1 className="text-2xl md:text-3xl font-black text-[#6D28D9] leading-none">
-              {workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING')}
-            </h1>
-          
-            {programTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {programTags.map((tag) => (
-                  <span key={tag} className="px-4 md:px-5 py-1.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase">
-                    {tag}
-                  </span>
+            <p className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">This Workout:</p>
+            {(() => {
+              const title = workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING');
+              const [firstWord, ...rest] = title.split(' ');
+              return (
+                <h1 className="text-3xl md:text-4xl font-black leading-tight mb-3">
+                  <span className="text-violet-600">{firstWord}</span>
+                  {rest.length > 0 && <span className="text-slate-900"> {rest.join(' ')}</span>}
+                </h1>
+              );
+            })()}
+
+            {powerSets.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {powerSets.map((ps) => (
+                  ps.is_money_set ? (
+                    <span key={ps.id} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
+                      ★ Money Set
+                    </span>
+                  ) : (
+                    <span key={ps.id} className="px-3.5 py-1.5 bg-cyan-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
+                      ${ps.title_secondary?.split(' ').slice(-1)[0]?.toLowerCase().replace(/^./, (c) => c.toUpperCase())}
+                    </span>
+                  )
                 ))}
               </div>
             )}
           </div>
-   <button 
-  onClick={() => {
-    // Store all necessary data in localStorage
-    localStorage.setItem("workoutEquipment", JSON.stringify(uniqueEquipment));
-    localStorage.setItem("workoutProgramCode", programCode);
-    localStorage.setItem("workoutTitle", workoutTitle);
-    
-    // ⭐ READ the workoutIsFree value that was set by the program page
-    const isWorkoutFree = localStorage.getItem("workoutIsFree");
-    console.log("📝 workoutIsFree from localStorage:", isWorkoutFree);
-    
-    // Pass it forward (or re-store it to ensure it's there)
-    localStorage.setItem("workoutIsFree", isWorkoutFree === "true" ? "true" : "false");
-    
-    // Store the program ID for session creation
-    const resolvedProgramId = programId || localStorage.getItem("workoutProgramId");
-    if (resolvedProgramId) {
-      localStorage.setItem("workoutProgramId", resolvedProgramId);
-    }
-    
-    // Clear active session flag so rejoin banner shows fresh
-    localStorage.removeItem("sessionActive");
-
-    // Navigate to the updated session page
-    router.push("/workout/viewWorkoutSession");
-  }}            
-  className="w-full md:w-auto bg-[#6D28D9] text-white px-8 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-purple-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+   <button
+  onClick={() => setShowAddToQueueModal(true)}
+  className="w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-violet-200 transition-all active:scale-95 flex items-center justify-center gap-2"
 >
-  View Workout <ChevronRight size={14} />
+  <Plus size={14} strokeWidth={3} /> Add to Queue
 </button>
 
         </div>
 
         {/* MAIN RESPONSIVE GRID */}
-        <div className="grid grid-cols-12 gap-6 md:gap-8">
-          
-          <div className="col-span-12 lg:col-span-7 space-y-8">
+        <div className="grid grid-cols-12 gap-5 md:gap-6">
+
+          <div className="col-span-12 lg:col-span-7 space-y-6">
             {/* Dummy Chart Section - Keep as is */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                <div className="flex gap-2 mb-6">
-                  <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-pink-400"></div><span className="text-[8px] font-bold text-slate-400 uppercase">Workout</span></div>
-                  <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-700"></div><span className="text-[8px] font-bold text-slate-400 uppercase">Player Avg</span></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-pink-400"></div><span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Workout</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-600"></div><span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Player Avg</span></div>
                 </div>
-                <div className="flex items-end justify-between h-24 md:h-28 px-2 gap-3 md:gap-4">
-                  <div className="w-full bg-purple-700 rounded-t-lg h-[60%]"></div>
-                  <div className="w-full bg-purple-700 rounded-t-lg h-[75%]"></div>
-                  <div className="w-full bg-purple-700 rounded-t-lg h-[90%]"></div>
+                <div className="flex items-end justify-between h-20 md:h-24 px-1 gap-3 md:gap-4 border-b border-slate-100">
+                  {[55, 72, 90].map((h) => (
+                    <div key={h} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                      <span className="text-[9px] font-bold text-slate-500">{h}</span>
+                      <div className="w-full bg-gradient-to-t from-violet-600 to-violet-400 rounded-t-xl" style={{ height: `${h}%` }}></div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between mt-3 text-[8px] font-bold text-slate-300 uppercase">
+                <div className="flex justify-between mt-3 text-[9px] font-bold text-slate-400 uppercase tracking-wide">
                   <span>Week 1</span><span>Week 2</span><span>Week 3</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex items-center justify-center">
-                 <div className="w-28 h-28 md:w-32 md:h-32 rounded-full border-[12px] md:border-[14px] border-slate-50 relative">
-                    <div className="absolute inset-[-12px] md:inset-[-14px] rounded-full" 
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center justify-center">
+                 <div className="w-28 h-28 md:w-32 md:h-32 rounded-full relative flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full"
                          style={{ background: 'conic-gradient(#22C55E 0% 18%, #EF4444 18% 40%, #8B5CF6 40% 55%, #3B82F6 55% 82%, #D2B48C 82% 100%)' }}></div>
-                    <div className="absolute inset-0 bg-white rounded-full"></div>
+                    <div className="absolute inset-[13px] md:inset-[15px] bg-white rounded-full shadow-inner"></div>
+                    <span className="relative text-[9px] font-bold text-slate-400 uppercase tracking-widest">Focus</span>
                  </div>
               </div>
             </div>
 
             {/* Dummy Stats Section */}
-            <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm flex flex-wrap md:flex-nowrap justify-around gap-4">
+            <div className="bg-white rounded-3xl p-6 md:p-7 border border-slate-100 shadow-sm flex flex-wrap md:flex-nowrap justify-around divide-x divide-slate-100">
               {dummyStats.map((stat, i) => (
-                <div key={i} className="text-center min-w-[80px]">
-                  <p className="text-3xl md:text-5xl font-black text-slate-900 leading-none">{stat.value}</p>
+                <div key={i} className="text-center min-w-[80px] flex-1 px-2">
+                  <p className="text-3xl md:text-4xl font-black text-slate-900 leading-none">{stat.value}</p>
                   <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase mt-2 tracking-widest">{stat.label}</p>
                 </div>
               ))}
@@ -347,91 +405,65 @@ const filteredExercises = exercises;
 
             {/* Recently Completed */}
             {completedUsers.length > 0 && (
-              <div>
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">
-                  Recently Completed:
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+                  Recently Completed
                 </h3>
-                <div className="flex flex-wrap gap-2 md:gap-2.5">
+                <div className="flex flex-wrap gap-2.5">
                   {completedUsers.map((user, i) => (
-                    user.image ? (
-                      <img
-                        key={user.id}
-                        src={user.image}
-                        alt={user.name}
-                        title={user.name}
-                        className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover shadow-md"
-                      />
-                    ) : (
-                      <div
-                        key={user.id}
-                        title={user.name}
-                        className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-black text-white shadow-md
-                          ${i % 3 === 0 ? 'bg-indigo-400' : i % 3 === 1 ? 'bg-blue-500' : 'bg-orange-400'}`}
-                      >
-                        {user.name.slice(0, 2).toUpperCase()}
-                      </div>
-                    )
+                    <CompletedAvatar key={user.id} user={user} index={i} />
                   ))}
                 </div>
               </div>
             )}
 
             {/* REAL Exercises from Backend */}
-            <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-900">
-                  Exercises:
+            <div className="bg-white rounded-3xl p-6 md:p-7 border border-slate-100 shadow-sm">
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Exercises
                 </h3>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                   {filteredExercises.length} total
                 </span>
               </div>
-              <div
-                className="grid gap-3 overflow-x-auto pb-2"
-                style={{ gridTemplateRows: "repeat(2, auto)", gridAutoFlow: "column", gridAutoColumns: "110px", scrollbarWidth: "none" }}
-              >
-                {filteredExercises.map((ex, i) => (
-                  <div
-                    key={ex.id || i}
-                    className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-50 flex flex-col items-center text-center"
-                  >
-                    <div className="w-11 h-11 rounded-xl mb-3 overflow-hidden bg-slate-100 border border-slate-100 shrink-0 flex items-center justify-center">
-                      {ex.demoGif ? (
-                        <img
-                          src={resolveWixImage(ex.demoGif)}
-                          alt={ex.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Dumbbell className="w-4 h-4 text-slate-400" />
-                      )}
+              <div className="relative">
+                <div
+                  className="grid gap-3 overflow-x-auto pb-2"
+                  style={{ gridTemplateRows: "repeat(2, auto)", gridAutoFlow: "column", gridAutoColumns: "120px", scrollbarWidth: "none" }}
+                >
+                  {filteredExercises.map((ex, i) => (
+                    <div
+                      key={ex.id || i}
+                      className="bg-slate-50/60 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center hover:bg-slate-50 hover:border-slate-200 transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-xl mb-2.5 overflow-hidden bg-white border border-slate-100 shrink-0 flex items-center justify-center">
+                        <ExerciseThumb ex={ex} />
+                      </div>
+                      <p className="text-[8px] font-bold leading-tight mb-1 uppercase line-clamp-2 text-slate-700">
+                        {ex.name}
+                      </p>
+                      <p className="text-[7px] font-bold text-slate-300 uppercase">
+                        {ex.supplemental || 'Exercise'}
+                      </p>
                     </div>
-                    <p className="text-[8px] font-black leading-tight mb-1 uppercase line-clamp-2">
-                      {ex.name}
-                    </p>
-                    <p className="text-[7px] font-bold text-slate-300 uppercase">
-                      {ex.supplemental || 'Exercise'}
-                    </p>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute top-0 right-0 bottom-2 w-10 bg-gradient-to-l from-white to-transparent" />
               </div>
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-5 space-y-8">
+          <div className="col-span-12 lg:col-span-5 space-y-6">
             {/* REAL Equipment from Backend */}
-            <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm">
-              <h3 className="text-[11px] font-black mb-6 md:mb-8 uppercase tracking-widest">Eq. Needed:</h3>
-              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 gap-y-6 md:gap-y-8">
+            <div className="bg-white rounded-3xl p-6 md:p-7 border border-slate-100 shadow-sm">
+              <h3 className="text-[11px] font-bold mb-6 uppercase tracking-widest text-slate-400">Equipment Needed</h3>
+              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 gap-y-6 gap-x-2">
                 {uniqueEquipment.length > 0 ? (
                   uniqueEquipment.map((item, i) => (
                     <div key={item.id || i} className="flex flex-col items-center gap-2">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-50 rounded-xl md:rounded-2xl flex items-center justify-center border border-slate-100/50 overflow-hidden">
-  {item.icon ? (
-    <img src={item.icon} alt={item.name} className="w-full h-full object-cover rounded-xl" />
-  ) : (
-    <Dumbbell className="w-4 h-4 md:w-[18px] md:h-[18px] text-slate-400" />
-  )}
+                    <div className="w-11 h-11 md:w-12 md:h-12 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 overflow-hidden">
+  <EquipmentIcon item={item} />
 </div>
                       <span className="text-[7px] md:text-[8px] font-bold text-slate-400 text-center uppercase tracking-tighter leading-tight">
                         {item.name}
@@ -439,7 +471,7 @@ const filteredExercises = exercises;
                     </div>
                   ))
                 ) : (
-                  <p className="col-span-full text-center text-gray-400 text-sm">
+                  <p className="col-span-full text-center text-slate-400 text-sm">
                     No equipment required
                   </p>
                 )}
@@ -449,52 +481,50 @@ const filteredExercises = exercises;
             {/* Workout Stats */}
             {workoutStats && (
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#FF8A48] rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white flex flex-col justify-center min-h-[120px]">
-                  <div className="flex items-center gap-1.5 mb-2 opacity-80">
+                <div className="bg-gradient-to-br from-orange-400 to-orange-500 rounded-3xl p-6 md:p-7 text-white flex flex-col justify-center min-h-[120px] shadow-lg shadow-orange-100">
+                  <div className="flex items-center gap-1.5 mb-2 opacity-90">
                     <Zap className="w-3.5 h-3.5" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Calories</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Calories</span>
                   </div>
-                  <p className="text-3xl md:text-5xl font-black leading-none">{workoutStats.calories}</p>
+                  <p className={`text-3xl md:text-4xl font-black leading-none ${!workoutStats.calories ? 'opacity-40' : ''}`}>{workoutStats.calories || 0}</p>
                 </div>
-                <div className="bg-gradient-to-br from-[#7C3AED] to-[#6366F1] rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white flex flex-col justify-center min-h-[120px]">
-                  <div className="flex items-center gap-1.5 mb-2 opacity-80">
+                <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl p-6 md:p-7 text-white flex flex-col justify-center min-h-[120px] shadow-lg shadow-violet-100">
+                  <div className="flex items-center gap-1.5 mb-2 opacity-90">
                     <Zap className="w-3.5 h-3.5" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Power</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Power</span>
                   </div>
-                  <p className="text-3xl md:text-5xl font-black leading-none">{workoutStats.power}</p>
+                  <p className={`text-3xl md:text-4xl font-black leading-none ${!workoutStats.power ? 'opacity-40' : ''}`}>{workoutStats.power || 0}</p>
                 </div>
               </div>
             )}
 
             {/* Power Sets */}
             {powerSets.length > 0 && (
-              <div className="space-y-3">
+              <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-sm space-y-3">
                 <div className="flex items-center gap-2 px-1">
-                  <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                  <div className="w-6 h-6 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-500">
                     <Zap className="w-3 h-3" fill="currentColor" />
                   </div>
-                  <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">Power Sets</span>
+                  <span className="text-[9px] font-bold uppercase text-indigo-500 tracking-widest">Power Sets</span>
                   <span className="text-[9px] font-bold text-slate-400 ml-auto">{powerSets.length} sets</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {powerSets.map((ps) => (
-                    <div key={ps.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm flex gap-4 items-center p-3">
+                    <div key={ps.id} className="bg-slate-50/60 rounded-2xl border border-slate-100 flex gap-4 items-center p-3.5">
                       {/* Gif */}
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-300">
-                        {ps.demo_gif ? (
-                          <img src={resolveWixImage(ps.demo_gif)} alt={ps.title_secondary} className="w-full h-full object-contain" />
-                        ) : (
-                          <Dumbbell className="w-6 h-6" />
-                        )}
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-300 bg-white border border-slate-100">
+                        <PowerSetThumb ps={ps} />
                       </div>
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5 truncate">{ps.title_primary}</p>
-                        <p className="text-[11px] font-black uppercase leading-tight text-slate-900 mb-2 truncate">{ps.title_secondary}</p>
+                        <p className="text-[12px] font-black uppercase leading-tight text-slate-900 mb-2 truncate">{ps.title_secondary}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {(ps.child_sets || []).map((s) => (
-                            <div key={s.id} className="bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
-                              <p className="text-[10px] font-black text-slate-900 leading-none">{s.calculated_weight} {s.msrmt}</p>
+                            <div key={s.id} className="bg-white rounded-lg px-2 py-1 border border-slate-100">
+                              <p className={`text-[10px] font-black leading-none ${!s.calculated_weight ? 'text-slate-300' : 'text-slate-900'}`}>
+                                {s.calculated_weight || 0} {s.msrmt}
+                              </p>
                               <p className="text-[7px] font-bold text-slate-400">{s.label} · {s.reps}r</p>
                             </div>
                           ))}
@@ -517,7 +547,7 @@ onClick={() => {
   console.log("programId state:", programId);
   console.log("localStorage now:", localStorage.getItem("workoutProgramId"));
   setShowAddToQueueModal(true);
-}}          className="pointer-events-auto w-full max-w-[280px] md:max-w-xs bg-[#6D28D9] text-white py-4 rounded-full font-black text-[10px] uppercase tracking-[0.25em] shadow-2xl shadow-purple-400/50 flex items-center justify-center gap-2.5 transition-all active:scale-90 border border-white/10 hover:bg-[#5B21B6]">
+}}          className="pointer-events-auto w-full max-w-[280px] md:max-w-xs bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-full font-black text-[10px] uppercase tracking-[0.25em] shadow-2xl shadow-violet-300/50 flex items-center justify-center gap-2.5 transition-all active:scale-90 border border-white/10">
           <Plus className="w-4 h-4" strokeWidth={4} /> Add to Queue
         </button>
       </div>
