@@ -94,9 +94,40 @@ export interface CurrentUser {
   };
 }
 
+export interface HydrationDetails {
+  record: {
+    oz_number: number;
+    title: string;
+    [key: string]: any;
+  };
+}
+
+export interface RecoveryDetails {
+  record: {
+    time_spent: number;
+    recovery_title: string;
+    [key: string]: any;
+  };
+}
+
+export interface CardioFeedDetails {
+  session: {
+    minutes: number;
+    calories_burned: number;
+    [key: string]: any;
+  };
+}
+
+export interface FeedDetailsResponse {
+  hydrationDetails?: HydrationDetails;
+  recoveryDetails?: RecoveryDetails;
+  cardioDetails?: CardioFeedDetails;
+}
+
 export interface FeedComment {
   id: string | number;
-  comment: string;
+  comment?: string;
+  text?: string;
   created_at?: string;
   user?: {
     id: number;
@@ -188,8 +219,11 @@ apiClient.interceptors.response.use(
   (error) => {
     console.error(`❌ Response Error from ${error.config?.url}:`, {
       status: error.response?.status,
+      data: error.response?.data,
       message: error.response?.data?.message,
-      error: error.message
+      errorMessage: error.message,
+      errorCode: error.code,
+      isNetworkError: !error.response,
     });
     return Promise.reject(error);
   }
@@ -335,7 +369,7 @@ export const feedApi = {
     }
   },
 
-  getFeedDetails: async (feedId: string): Promise<{ cardioDetails?: any; hydrationDetails?: any; recoveryDetails?: any } | null> => {
+  getFeedDetails: async (feedId: string): Promise<FeedDetailsResponse | null> => {
     try {
       const res = await apiClient.get(`/feed/${feedId}/details`);
       return res.data?.data || res.data || null;
@@ -369,7 +403,13 @@ export const feedApi = {
       const total = data?.total ?? comments.length;
       const hasMore = data?.hasMore ?? comments.length === 10;
       return { comments, total, hasMore };
-    } catch {
+    } catch (err: any) {
+      console.warn("⚠️ getFeedComments failed:", {
+        feedId,
+        status: err?.response?.status,
+        body: err?.response?.data,
+        msg: err?.message,
+      });
       return { comments: [], total: 0, hasMore: false };
     }
   },
@@ -377,8 +417,17 @@ export const feedApi = {
   addFeedComment: async (feedId: string, comment: string): Promise<FeedComment | null> => {
     try {
       const res = await apiClient.post(`/feed/${feedId}/comments`, { text: comment });
-      return res.data?.comment || res.data?.data || null;
-    } catch {
+      const d = res.data;
+      // handle { data: {...} }, { comment: {...} }, or the object itself
+      const obj = d?.data || (typeof d?.comment === "object" ? d.comment : null) || (d?.id ? d : null);
+      return obj as FeedComment | null;
+    } catch (err: any) {
+      console.warn("⚠️ addFeedComment failed:", {
+        feedId,
+        status: err?.response?.status,
+        body: err?.response?.data,
+        msg: err?.message,
+      });
       return null;
     }
   },

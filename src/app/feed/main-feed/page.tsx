@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Loader2,
   Heart,
@@ -23,8 +24,10 @@ import {
 } from "lucide-react";
 import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api/feed/route";
 import { getTodayActivities } from "@/api/checklist/route";
-import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, generateSessionShareLink, WorkoutStats, PowerSetLog, TrackingLog } from "@/api/workouts/route";
+import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, generateSessionShareLink, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
+import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
 import FeedComments from "@/components/FeedComments";
+import FeedSettingsModal from "@/components/FeedSettingsModal";
 import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
 
@@ -185,12 +188,14 @@ const [creatingHighlight, setCreatingHighlight] =
   const [popupWorkoutStats, setPopupWorkoutStats] = useState<WorkoutStats | null>(null);
   const [popupPowerSetLogs, setPopupPowerSetLogs] = useState<PowerSetLog[]>([]);
   const [popupTrackingLogs, setPopupTrackingLogs] = useState<TrackingLog[]>([]);
+  const [popupRoundGroups, setPopupRoundGroups] = useState<WorkoutGroup[]>([]);
+  const [popupLoadRecords, setPopupLoadRecords] = useState<WorkoutLoadRecord[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
   const [shareLinkLoading, setShareLinkLoading] = useState(false);
-  const [inProgressCardioFeed, setInProgressCardioFeed] = useState<ExtendedFeed | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -201,6 +206,8 @@ const [creatingHighlight, setCreatingHighlight] =
       setPopupWorkoutStats(null);
       setPopupPowerSetLogs([]);
       setPopupTrackingLogs([]);
+      setPopupRoundGroups([]);
+      setPopupLoadRecords([]);
       return;
     }
     const activityId = selectedSessionFeed.activity_id;
@@ -210,11 +217,36 @@ const [creatingHighlight, setCreatingHighlight] =
         setSessionProgramImage(session.workoutImage || null);
         setSessionWorkoutCategory(session.workoutCategory || null);
         setSessionData(session);
+
+        // The chart needs every round the workout defines, not just the ones
+        // with logged data — that structure lives on the program, not the session.
+        const programCode = session.program_id || session.workout_code;
+        if (programCode) {
+          getProgramGroupedWorkouts(programCode)
+            .then((groups) => {
+              // Warm-up-like sections (e.g. RE-GEN) lead, ROUND N run ascending in the
+              // middle, and a finisher-like section trails last — the API returns groups
+              // in an arbitrary order, so sort explicitly to match the real workout flow.
+              const getSortKey = (label: string) => {
+                const upper = (label || "").toUpperCase();
+                const m = upper.match(/^ROUND\s+(\d+)/);
+                if (m) return 1000 + parseInt(m[1], 10);
+                if (upper.includes("FINISH")) return Infinity;
+                return 0;
+              };
+              const sorted = [...groups].sort((a, b) => getSortKey(a.label) - getSortKey(b.label));
+              setPopupRoundGroups(sorted);
+            })
+            .catch(() => setPopupRoundGroups([]));
+        } else {
+          setPopupRoundGroups([]);
+        }
       })
       .catch(() => {
         setSessionProgramImage(null);
         setSessionWorkoutCategory(null);
         setSessionData(null);
+        setPopupRoundGroups([]);
       });
 
     const isCompleted = selectedSessionFeed.type?.includes("Complete");
@@ -222,6 +254,9 @@ const [creatingHighlight, setCreatingHighlight] =
       getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
       getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
       getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
+      // /workouts/stats returns 0 for thisWorkout even when real data exists — the
+      // per-round load/power/kcal breakdown (and its sum) actually lives here instead.
+      getWorkoutLoadRecords(activityId).then(setPopupLoadRecords).catch(() => setPopupLoadRecords([]));
     }
   }, [selectedSessionFeed]);
 
@@ -324,7 +359,11 @@ const [creatingHighlight, setCreatingHighlight] =
       const nextPage = page + 1;
       const res = await feedApi.getFeed(nextPage, "forYou");
       const rawFeeds = res.feeds || [];
-      setFeeds((prev) => [...prev, ...mapFeeds(rawFeeds)]);
+      setFeeds((prev) => {
+        const existingIds = new Set(prev.map(f => f.id));
+        const fresh = mapFeeds(rawFeeds).filter(f => !existingIds.has(f.id));
+        return [...prev, ...fresh];
+      });
       setHasMore(rawFeeds.length === 20);
       setPage(nextPage);
     } catch (err) {
@@ -372,6 +411,17 @@ const [creatingHighlight, setCreatingHighlight] =
     }
   };
 
+  const applyLikeToggle = (f: ExtendedFeed, feedId: string | number, userId: number, isLiked: boolean): ExtendedFeed =>
+    f.id === feedId
+      ? {
+          ...f,
+          likeCount: isLiked ? f.likeCount - 1 : f.likeCount + 1,
+          likes: isLiked
+            ? (f.likes || []).filter((l) => Number(l) !== Number(userId))
+            : [...(f.likes || []), userId],
+        }
+      : f;
+
   const handleLike = async (feed: ExtendedFeed) => {
     if (!currentUser || !feed.id || likingFeedId === feed.id) return;
 
@@ -379,19 +429,9 @@ const [creatingHighlight, setCreatingHighlight] =
     const isLiked = !!(feed.likes?.some((l) => Number(l) === Number(userId)));
 
     // Optimistic update
-    setFeeds((prev) =>
-      prev.map((f) =>
-        f.id === feed.id
-          ? {
-              ...f,
-              likeCount: isLiked ? f.likeCount - 1 : f.likeCount + 1,
-              likes: isLiked
-                ? (f.likes || []).filter((l) => Number(l) !== Number(userId))
-                : [...(f.likes || []), userId],
-            }
-          : f
-      )
-    );
+    setFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, isLiked)));
+    setFollowingFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, isLiked)));
+    setSelectedSessionFeed((prev) => (prev ? applyLikeToggle(prev, feed.id, userId, isLiked) : prev));
 
     setLikingFeedId(feed.id);
 
@@ -403,19 +443,9 @@ const [creatingHighlight, setCreatingHighlight] =
       }
     } catch (err) {
       // Revert on failure
-      setFeeds((prev) =>
-        prev.map((f) =>
-          f.id === feed.id
-            ? {
-                ...f,
-                likeCount: isLiked ? f.likeCount + 1 : f.likeCount - 1,
-                likes: isLiked
-                  ? [...(f.likes || []), userId]
-                  : (f.likes || []).filter((l) => Number(l) !== Number(userId)),
-              }
-            : f
-        )
-      );
+      setFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, !isLiked)));
+      setFollowingFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, !isLiked)));
+      setSelectedSessionFeed((prev) => (prev ? applyLikeToggle(prev, feed.id, userId, !isLiked) : prev));
       console.error("Failed to toggle like:", err);
     } finally {
       setLikingFeedId(null);
@@ -584,7 +614,7 @@ const [creatingHighlight, setCreatingHighlight] =
         </button>
 
         {/* TRENDING */}
-        <button
+        {/* <button
           onClick={() => router.push("/feed/main-feed")}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-orange-50 hover:border-orange-200 transition-all group"
         >
@@ -592,10 +622,10 @@ const [creatingHighlight, setCreatingHighlight] =
             size={18}
             className="text-orange-500 group-hover:scale-110 transition-transform"
           />
-        </button>
+        </button> */}
 
         {/* FOLLOW PEOPLE */}
-        <button
+        {/* <button
           onClick={() => router.push("/profile/components/UserList")}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-blue-50 hover:border-blue-200 transition-all group"
         >
@@ -603,11 +633,11 @@ const [creatingHighlight, setCreatingHighlight] =
             size={18}
             className="text-blue-600 group-hover:scale-110 transition-transform"
           />
-        </button>
+        </button> */}
 
         {/* SETTINGS */}
         <button
-          onClick={() => router.push("/feed/settings")}
+          onClick={() => setShowSettingsModal(true)}
           className="p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all group"
           title="Feed Settings"
         >
@@ -615,10 +645,10 @@ const [creatingHighlight, setCreatingHighlight] =
         </button>
 
         {/* NOTIFICATION */}
-        <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
+        {/* <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all">
           <Bell size={18} className="text-purple-600" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        </button> */}
 
         {/* CREATE */}
         <button
@@ -746,7 +776,7 @@ const [creatingHighlight, setCreatingHighlight] =
   </div>
 
   {/* TOGGLE */}
-  <div className="shrink-0 hidden md:flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
+  {/* <div className="shrink-0 hidden md:flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
 
     <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">
       My Workouts
@@ -776,7 +806,7 @@ const [creatingHighlight, setCreatingHighlight] =
         `}
       />
     </button>
-  </div>
+  </div> */}
 </div>
 
         {/* FEED COUNT */}
@@ -893,13 +923,15 @@ const [creatingHighlight, setCreatingHighlight] =
                         <div className="mt-3 ml-[54px]">
                           <button
                             onClick={() => {
+                              const isLiked = !!(feed.likes?.some((l) => Number(l) === Number(currentUser?.id)));
                               const p = new URLSearchParams({
-                                feedId: feed.activity_id || String(feed.id),
+                                feedId: String(feed.id),
                                 userName: feed.user?.name || "",
                                 userUsername: feed.user?.username || "",
                                 title: feed.title || "",
                                 date: feed.date || feed.created_at || "",
                                 likeCount: String(feed.likeCount || 0),
+                                isLiked: String(isLiked),
                               });
                               if (feed.type === "CompleteCardio") {
                                 router.push(`/feed/cardio-session?${p.toString()}`);
@@ -916,7 +948,7 @@ const [creatingHighlight, setCreatingHighlight] =
                                 if (protein) p.set("protein", String(protein));
                                 router.push(`/feed/nutrition-details?${p.toString()}`);
                               } else if (!feed.type?.includes("Complete") && feed.type?.toLowerCase().includes("cardio")) {
-                                setInProgressCardioFeed(feed);
+                                router.push("/todays-focus-cardio/cardio-entry");
                               } else {
                                 setSelectedSessionFeed(feed);
                               }
@@ -931,13 +963,16 @@ const [creatingHighlight, setCreatingHighlight] =
                       {/* FOOTER */}
                       <div className="relative z-10 mt-6 flex items-center justify-between">
                         <div className="inline-flex items-center overflow-hidden rounded-full border border-[#e5e7eb] bg-white shadow-sm">
-                          {/* COMMENTS — only for completed */}
+                          {/* COMMENTS — always visible for completed cards */}
                           {isCompleted && (
                             <>
                               <button className="flex items-center gap-2 px-5 h-[44px] text-[#374151]">
-                                <span className="text-[15px] font-semibold">
-                                  {feed.commentsCount ?? feed.commentCount ?? 0}
-                                </span>
+                                <MessageCircle size={15} className="text-gray-400" />
+                                {(feed.commentsCount ?? feed.commentCount ?? 0) > 0 && (
+                                  <span className="text-[15px] font-semibold">
+                                    {feed.commentsCount ?? feed.commentCount ?? 0}
+                                  </span>
+                                )}
                               </button>
                               <div className="w-px h-5 bg-[#e5e7eb]" />
                             </>
@@ -1051,50 +1086,27 @@ const [creatingHighlight, setCreatingHighlight] =
             )}
           </div>
 
-          {/* RIGHT SIDEBAR */}
+          {/* RIGHT SIDEBAR — commented out */}
+          {false && (
           <div className="lg:w-80 space-y-6 mt-9 sticky top-[84px] self-start">
             {/* TRENDING */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center gap-2 mb-4">
-                <Flame
-                  size={18}
-                  className="text-[#e8365d]"
-                />
-
-                <h3 className="font-bold text-gray-800">
-                  Trending Today
-                </h3>
+                <Flame size={18} className="text-[#e8365d]" />
+                <h3 className="font-bold text-gray-800">Trending Today</h3>
               </div>
-
               <div className="space-y-3">
                 {trendingItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 rounded-2xl p-2 hover:bg-gray-50 transition-all"
-                  >
-                    {/* RANK */}
+                  <div key={idx} className="flex items-start gap-3 rounded-2xl p-2 hover:bg-gray-50 transition-all">
                     <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-orange-300 via-orange-400 to-orange-500 flex items-center justify-center shadow-[0_6px_14px_rgba(249,115,22,0.35)] border border-orange-200">
-                      <span className="text-xs font-black text-white">
-                        {idx + 1}
-                      </span>
+                      <span className="text-xs font-black text-white">{idx + 1}</span>
                     </div>
-
-                    {/* CONTENT */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {item.name}
-                      </p>
-
-                      <p className="text-xs text-gray-400">
-                        {item.user}
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-400">{item.user}</p>
                     </div>
-
                     <button className="text-[#e8365d] hover:scale-110 transition-transform">
-                      <Heart
-                        size={16}
-                        className="fill-[#e8365d]"
-                      />
+                      <Heart size={16} className="fill-[#e8365d]" />
                     </button>
                   </div>
                 ))}
@@ -1103,28 +1115,15 @@ const [creatingHighlight, setCreatingHighlight] =
 
             {/* SUGGESTED */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <h3 className="font-bold text-gray-800 mb-3">
-                Suggested Athletes
-              </h3>
-
+              <h3 className="font-bold text-gray-800 mb-3">Suggested Athletes</h3>
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3"
-                  >
+                  <div key={i} className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300"></div>
-
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-800">
-                        athlete_{i}
-                      </p>
-
-                      <p className="text-xs text-gray-400">
-                        1.2k followers
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800">athlete_{i}</p>
+                      <p className="text-xs text-gray-400">1.2k followers</p>
                     </div>
-
                     <button className="text-xs font-semibold text-white border border-[#6c3fef] px-3 py-1 rounded-full bg-[#6c3fef] transition-colors">
                       Follow
                     </button>
@@ -1133,6 +1132,7 @@ const [creatingHighlight, setCreatingHighlight] =
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 {/* showCardioPopup popup removed — dead code with hardcoded dummy data */}
@@ -1430,7 +1430,7 @@ const [creatingHighlight, setCreatingHighlight] =
 {showHighlightViewer && selectedGroup && (
   <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
 
-    <div className="relative w-full max-w-md rounded-[32px] overflow-hidden bg-white shadow-2xl">
+    <div className="relative w-full max-w-2xl rounded-[32px] overflow-hidden bg-white shadow-2xl">
 
       {/* CLOSE */}
       <button
@@ -1515,7 +1515,7 @@ const [creatingHighlight, setCreatingHighlight] =
             autoPlay
             muted
             playsInline
-            className="w-full max-h-[75vh] object-cover"
+            className="w-full max-h-[90vh] object-cover"
           />
         ) : selectedGroup.highlights[activeIndex]?.uploadedImage ||
           selectedGroup.highlights[activeIndex]?.uploaded_image ? (
@@ -1526,10 +1526,10 @@ const [creatingHighlight, setCreatingHighlight] =
               ""
             }
             alt="highlight"
-            className="w-full max-h-[75vh] object-cover"
+            className="w-full max-h-[90vh] object-cover"
           />
         ) : (
-          <div className="h-[500px] flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
+          <div className="h-[80vh] flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
             <Flame size={60} className="text-white" />
           </div>
         )}
@@ -1777,10 +1777,21 @@ const [creatingHighlight, setCreatingHighlight] =
                       <Dumbbell size={11} />
                       {sessionWorkoutCategory || selectedSessionFeed.title2 || ""}
                     </span>
-                    <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
-                      <Heart size={11} />
+                    <button
+                      onClick={() => handleLike(selectedSessionFeed)}
+                      disabled={likingFeedId === selectedSessionFeed.id}
+                      className="flex items-center gap-1 text-[11px] bg-gray-50 hover:bg-purple-50 px-2.5 py-1 rounded-full border border-gray-100 text-[#8b5cf6] transition"
+                    >
+                      <Heart
+                        size={11}
+                        className={
+                          selectedSessionFeed.likes?.some((l) => Number(l) === Number(currentUser?.id))
+                            ? "fill-[#8b5cf6]"
+                            : ""
+                        }
+                      />
                       {selectedSessionFeed.likeCount ?? 0} likes
-                    </span>
+                    </button>
                     <span className="flex items-center gap-1 text-gray-400 text-[11px] bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
                       <MessageCircle size={11} />
                       {selectedSessionFeed.commentsCount ?? selectedSessionFeed.commentCount ?? 0} comments
@@ -1788,43 +1799,116 @@ const [creatingHighlight, setCreatingHighlight] =
                   </div>
 
                   {/* Results section */}
-                  {isCompleted && popupWorkoutStats?.thisWorkout && (
-                    <div className="mb-4">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { label: "Load", value: popupWorkoutStats.thisWorkout.load },
-                          { label: "Power", value: popupWorkoutStats.thisWorkout.power },
-                          { label: "Kcal", value: popupWorkoutStats.thisWorkout.cals },
-                        ].map(({ label, value }) => (
-                          <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
-                            <p className="text-[20px] font-extrabold text-gray-900">{value ?? "—"}</p>
-                            <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
-                          </div>
-                        ))}
+                  {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout) && (() => {
+                    // /workouts/stats' thisWorkout is unreliable (returns 0 even with real
+                    // data logged). Each load-record's load/power/kcal is a running CUMULATIVE
+                    // total, not a per-round delta, so the true session total is just the last
+                    // record's values — summing every record would multiply-count the total.
+                    const lastRecord = popupLoadRecords[popupLoadRecords.length - 1];
+                    const totals = lastRecord
+                      ? {
+                          load: Number(lastRecord.load) || 0,
+                          power: Number(lastRecord.power) || 0,
+                          cals: Number(lastRecord.kcal) || 0,
+                        }
+                      : popupWorkoutStats?.thisWorkout ?? { load: 0, power: 0, cals: 0 };
+                    // A session can have load-record rows pre-populated at 0 before anything
+                    // is actually logged — go by whether they (or tracking/power-set logs)
+                    // show real activity, not just whether the arrays are non-empty.
+                    const hasLoggedData = totals.load > 0 || totals.power > 0 || totals.cals > 0
+                      || popupTrackingLogs.length > 0 || popupPowerSetLogs.length > 0;
+                    return (
+                      <div className="mb-4">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: "Load", value: totals.load },
+                            { label: "Power", value: totals.power },
+                            { label: "Kcal", value: totals.cals },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
+                              <p className="text-[20px] font-extrabold text-gray-900">
+                                {!hasLoggedData ? "n/a" : value ?? "—"}
+                              </p>
+                              <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Load chart (simple CSS bars) */}
-                  {isCompleted && popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0 && (
+                  {isCompleted && (popupLoadRecords.length > 0 || popupRoundGroups.length > 0 || popupTrackingLogs.length > 0 || (popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0)) && (
                     <div className="mb-4">
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Load Chart</p>
                       <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                        <div className="flex items-end gap-1.5 h-20">
-                          {(() => {
-                            const max = Math.max(...popupWorkoutStats.loadChart, 1);
-                            return popupWorkoutStats.loadChart.map((val, i) => (
-                              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                <div
-                                  className="w-full rounded-t-md bg-cyan-400"
-                                  style={{ height: `${Math.max(4, (val / max) * 72)}px` }}
-                                />
-                                <span className="text-[8px] text-gray-400">R{i + 1}</span>
+                        {(() => {
+                          const normalize = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+                          // Each load-record's load is a running CUMULATIVE total, not a
+                          // per-round value — diff consecutive records to get this round's
+                          // actual load. record.title is an internal exercise code (e.g.
+                          // "ANE12"), not a display name, so the label comes from the
+                          // program's round structure at the same position instead.
+                          const bars = popupLoadRecords.length > 0
+                            ? popupLoadRecords.map((r, i) => {
+                                const prev = i > 0 ? Number(popupLoadRecords[i - 1].load) || 0 : 0;
+                                const value = Math.max(0, (Number(r.load) || 0) - prev);
+                                const label = popupRoundGroups.length === popupLoadRecords.length
+                                  ? popupRoundGroups[i].label
+                                  : r.title || `R${i + 1}`;
+                                return { label, value };
+                              })
+                            : popupRoundGroups.length > 0
+                              ? popupRoundGroups.map((group) => {
+                                  const key = normalize(group.label);
+                                  const value = popupTrackingLogs
+                                    .filter((log) => {
+                                      const logKey = normalize(log.title);
+                                      return logKey && key && (logKey.startsWith(key) || key.startsWith(logKey));
+                                    })
+                                    .reduce((sum, log) => sum + (log.load ?? 0), 0);
+                                  return { label: group.label, value };
+                                })
+                              : popupTrackingLogs.length > 0
+                                ? popupTrackingLogs.map((log, i) => ({ label: log.title || `R${i + 1}`, value: log.load ?? 0 }))
+                                : (popupWorkoutStats?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
+
+                          const rawMax = Math.max(...bars.map((b) => b.value), 1);
+                          // Round the axis ceiling up to a "nice" number so the scale reads cleanly.
+                          const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
+                          const steps = [1, 1.5, 2, 3, 4, 5, 10];
+                          const step = steps.find((s) => rawMax <= s * magnitude) ?? 10;
+                          const axisMax = step * magnitude;
+                          const ticks = [4, 3, 2, 1, 0].map((n) => Math.round((axisMax * n) / 4));
+
+                          return (
+                            <div className="flex gap-2">
+                              <div className="flex flex-col justify-between h-16 mt-[17px] text-[9px] text-gray-400 font-medium text-right">
+                                {ticks.map((t, i) => (
+                                  <span key={i}>{t}</span>
+                                ))}
                               </div>
-                            ));
-                          })()}
-                        </div>
+                              <div className="flex-1 flex items-end gap-1.5 min-w-0">
+                                {bars.map((b, i) => (
+                                  <div key={i} className="flex-1 min-w-0 flex flex-col items-center">
+                                    <span className="text-[9px] font-bold text-gray-600 mb-1">{b.value}</span>
+                                    <div className="w-full h-16 flex items-end">
+                                      <div
+                                        className="w-full rounded-t-md bg-cyan-400"
+                                        style={{ height: `${Math.max(4, (b.value / axisMax) * 64)}px` }}
+                                      />
+                                    </div>
+                                    <span className="text-[8px] text-gray-400 truncate w-full text-center uppercase mt-1" title={b.label}>
+                                      {b.label}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -1870,7 +1954,7 @@ const [creatingHighlight, setCreatingHighlight] =
                   {selectedSessionFeed && (
                     <div className="mb-4 border-t border-gray-100 pt-4">
                       <FeedComments
-                        feedId={String(selectedSessionFeed.activity_id || selectedSessionFeed.id)}
+                        feedId={String(selectedSessionFeed.id)}
                         onCommentAdded={() => {
                           setFeeds(prev => prev.map(f =>
                             String(f.id) === String(selectedSessionFeed.id)
@@ -1887,12 +1971,13 @@ const [creatingHighlight, setCreatingHighlight] =
                     </div>
                   )}
 
-                  {/* View/Join button */}
-                  <button
+                  {/* View/Join button — hidden when already completed or it's your own session */}
+                  {!selectedSessionFeed.type?.includes("Complete") &&
+                    String(selectedSessionFeed.member_id) !== String(currentUser?.id) && <button
                     onClick={() => {
                       if (selectedSessionFeed.type === "CompleteCardio") {
                         const params = new URLSearchParams({
-                          feedId: selectedSessionFeed.activity_id || String(selectedSessionFeed.id),
+                          feedId: String(selectedSessionFeed.id),
                           userName: selectedSessionFeed.user?.name || "",
                           userUsername: selectedSessionFeed.user?.username || "",
                           title: selectedSessionFeed.title || "",
@@ -1914,17 +1999,21 @@ const [creatingHighlight, setCreatingHighlight] =
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
                   >
                     View / Join session
-                  </button>
+                  </button>}
 
                   {/* Workout Preview */}
                   <button
                     onClick={() => {
                       const code = sessionData?.program_id || sessionData?.workout_code || "";
+                      const title = sessionData?.title || selectedSessionFeed.title || "";
                       localStorage.setItem("workoutProgramCode", code);
-                      localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                      localStorage.setItem("workoutTitle", title);
                       localStorage.setItem("workoutName", sessionData?.programName || "");
                       localStorage.setItem("workoutIsFree", "true");
-                      router.push("/workout/viewWorkoutSession");
+                      const params = new URLSearchParams();
+                      if (code) params.set("code", code);
+                      if (title) params.set("workoutKey", title);
+                      router.push(`/workout/detail?${params.toString()}`);
                     }}
                     className="w-full flex items-center justify-center gap-1.5 text-gray-500 font-semibold text-sm hover:text-gray-700 transition"
                   >
@@ -1973,6 +2062,22 @@ const [creatingHighlight, setCreatingHighlight] =
                 <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Session</h3>
                 <p className="text-[13px] text-gray-400 mb-5 truncate">{shareSessionFeed.title || "Workout Session"}</p>
 
+                {/* QR Code */}
+                <div className="flex justify-center mb-5">
+                  {shareLinkLoading ? (
+                    <div className="w-[160px] h-[160px] rounded-2xl bg-gray-100 flex items-center justify-center">
+                      <Loader2 size={22} className="animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                        <QRCodeSVG value={displayUrl || "https://proformapp.com"} size={140} fgColor="#1f2937" bgColor="#ffffff" />
+                      </div>
+                      <p className="text-[12px] text-gray-400">Scan this code to join the session</p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
                   {shareLinkLoading ? (
                     <span className="text-[12px] text-gray-400 flex-1 flex items-center gap-2">
@@ -2015,99 +2120,12 @@ const [creatingHighlight, setCreatingHighlight] =
         );
       })()}
 
-      {/* CARDIO SESSION POPUP (in-progress) */}
-      {inProgressCardioFeed && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-          onClick={() => setInProgressCardioFeed(null)}
-        >
-          <div
-            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Red banner */}
-            <div className="bg-gradient-to-br from-red-500 to-orange-500 px-5 pt-5 pb-6 relative">
-              <button
-                onClick={() => setInProgressCardioFeed(null)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition"
-              >
-                <X size={15} className="text-white" />
-              </button>
-              <span className="inline-flex items-center gap-1.5 bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide mb-3">
-                <Flame size={10} /> Cardio · In Progress
-              </span>
-              <h2 className="text-white text-[18px] font-extrabold leading-tight pr-8">
-                {inProgressCardioFeed.title || "Cardio Session"}
-              </h2>
-            </div>
-
-            {/* Content */}
-            <div className="px-5 py-4 space-y-3">
-              {/* User row */}
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full overflow-hidden bg-red-100 flex items-center justify-center flex-shrink-0">
-                  {inProgressCardioFeed.user?.image ? (
-                    <img src={inProgressCardioFeed.user.image} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-red-500 font-bold text-sm">
-                      {(inProgressCardioFeed.user?.username || "U").charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-gray-900">{inProgressCardioFeed.user?.name || inProgressCardioFeed.user?.username || "User"}</p>
-                  <p className="text-[11px] text-red-500">@{inProgressCardioFeed.user?.username || "user"}</p>
-                </div>
-              </div>
-
-              {/* Date */}
-              {(inProgressCardioFeed.date || inProgressCardioFeed.created_at) && (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <CalendarDays size={13} />
-                  <span className="text-[12px]">
-                    {new Date(inProgressCardioFeed.date || inProgressCardioFeed.created_at || "").toLocaleDateString("en-US", {
-                      month: "long", day: "numeric", year: "numeric"
-                    })}
-                  </span>
-                </div>
-              )}
-
-              {/* Stats row */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-red-50 rounded-2xl py-3 text-center border border-red-100">
-                  <p className="text-[18px] font-extrabold text-red-500">{(inProgressCardioFeed as any).calories ?? "—"}</p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Calories</p>
-                </div>
-                <div className="bg-orange-50 rounded-2xl py-3 text-center border border-orange-100">
-                  <p className="text-[18px] font-extrabold text-orange-500">{(inProgressCardioFeed as any).minutes ?? "—"}</p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Minutes</p>
-                </div>
-              </div>
-
-              {/* CTA */}
-              <button
-                onClick={() => {
-                  const p = new URLSearchParams({
-                    feedId: inProgressCardioFeed.activity_id || String(inProgressCardioFeed.id),
-                    userName: inProgressCardioFeed.user?.name || "",
-                    userUsername: inProgressCardioFeed.user?.username || "",
-                    title: inProgressCardioFeed.title || "",
-                    date: inProgressCardioFeed.date || inProgressCardioFeed.created_at || "",
-                  });
-                  setInProgressCardioFeed(null);
-                  router.push(`/feed/cardio-session?${p.toString()}`);
-                }}
-                className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold py-3.5 rounded-2xl text-[14px] hover:shadow-lg transition"
-              >
-                View Session →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showUploadModal && (
         <UploadHighlightModal onClose={() => setShowUploadModal(false)} />
+      )}
+
+      {showSettingsModal && (
+        <FeedSettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
     </div>
   );

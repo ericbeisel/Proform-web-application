@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Send, Loader2, ChevronDown, X } from "lucide-react";
+import { Send, Loader2, ChevronDown, X } from "lucide-react";
 import { feedApi, FeedComment } from "@/api/feed/route";
 
 interface Props {
@@ -13,7 +13,7 @@ function formatCommentTime(dateStr?: string): string {
   if (!dateStr) return "";
   try {
     const d = new Date(dateStr);
-    const date = d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+    const date = d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
     const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
     return `${date} ${time}`;
   } catch {
@@ -66,6 +66,7 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
     setInputOpen(false);
     const tempComment: FeedComment = {
       id: `temp-${Date.now()}`,
+      text,
       comment: text,
       created_at: new Date().toISOString(),
     };
@@ -79,26 +80,26 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
     setSubmitting(false);
   };
 
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-          <MessageCircle size={12} /> Comments {total > 0 && `(${total})`}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[15px] font-bold text-gray-900">
+          Comments:{total > 0 && <span className="text-gray-400 font-normal ml-1 text-[13px]">({total})</span>}
         </p>
         {!inputOpen && (
           <button
             onClick={openInput}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-100 px-3 py-1.5 rounded-xl transition"
+            className="text-[13px] font-semibold text-purple-600 hover:text-purple-700 transition"
           >
-            <MessageCircle size={11} /> Add a Comment
+            Add a Comment
           </button>
         )}
       </div>
 
       {/* Textarea input */}
-      {inputOpen ? (
-        <div className="mb-4 space-y-2">
+      {inputOpen && (
+        <div className="mb-5 space-y-2">
           <textarea
             ref={inputRef}
             value={input}
@@ -106,12 +107,12 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
             onKeyDown={e => { if (e.key === "Escape") { setInputOpen(false); setInput(""); } }}
             placeholder="Write a comment…"
             rows={3}
-            className="w-full resize-none bg-white border-2 border-purple-400 rounded-xl px-4 py-2.5 text-[13px] text-gray-800 outline-none focus:ring-2 focus:ring-purple-100 transition placeholder:text-gray-400"
+            className="w-full resize-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-[13px] text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-50 transition placeholder:text-gray-400"
           />
           <div className="flex items-center gap-2 justify-end">
             <button
               onClick={() => { setInputOpen(false); setInput(""); }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-gray-500 hover:bg-gray-100 transition"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-gray-400 hover:text-gray-600 transition"
             >
               <X size={13} /> Cancel
             </button>
@@ -119,7 +120,7 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
               onMouseDown={e => e.preventDefault()}
               onClick={submit}
               disabled={!input.trim() || submitting}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-[12px] font-bold transition"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-[12px] font-semibold transition"
             >
               {submitting
                 ? <><Loader2 size={13} className="animate-spin" /> Sending…</>
@@ -127,38 +128,41 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
             </button>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Comments list */}
       {loading ? (
-        <div className="flex justify-center py-4">
+        <div className="flex justify-center py-6">
           <Loader2 size={18} className="text-purple-400 animate-spin" />
         </div>
       ) : comments.length === 0 ? (
-        <p className="text-center text-[12px] text-gray-300 py-3">No comments yet. Be first!</p>
+        <p className="text-[13px] text-gray-400 py-2">No comments yet.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {comments.map((c) => (
-            <div key={c.id} className="flex items-start gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <div key={c.id} className="flex items-start gap-3">
+              {/* Avatar */}
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {c.user?.image ? (
                   <img src={c.user.image} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-white text-[10px] font-bold">
+                  <span className="text-white text-[12px] font-bold">
                     {(c.user?.username || c.user?.name || "?").charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
-              <div className="flex-1 bg-gray-50 rounded-2xl px-3 py-2 border border-gray-100">
-                <div className="flex items-center justify-between mb-0.5">
-                  <p className="text-[11px] font-bold text-purple-600">
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[13px] font-semibold text-purple-600">
                     {c.user ? `@${c.user.username || c.user.name}` : "You"}
-                  </p>
+                  </span>
                   {c.created_at && (
-                    <span className="text-[10px] text-gray-400">{formatCommentTime(c.created_at)}</span>
+                    <span className="text-[11px] text-gray-400 flex-shrink-0">{formatCommentTime(c.created_at)}</span>
                   )}
                 </div>
-                <p className="text-[12px] text-gray-700 leading-relaxed">{c.comment}</p>
+                <p className="text-[13px] text-gray-700 leading-relaxed">{c.text || c.comment}</p>
               </div>
             </div>
           ))}
@@ -167,7 +171,7 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="w-full flex items-center justify-center gap-1.5 text-[12px] text-gray-400 hover:text-purple-600 py-2 transition"
+              className="flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-purple-600 py-1 transition"
             >
               {loadingMore ? <Loader2 size={13} className="animate-spin" /> : <ChevronDown size={13} />}
               {loadingMore ? "Loading…" : `Load more (${total - comments.length} remaining)`}
