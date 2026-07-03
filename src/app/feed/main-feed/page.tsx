@@ -1933,23 +1933,6 @@ const [creatingHighlight, setCreatingHighlight] =
                     </div>
                   )}
 
-                  {/* Rounds Breakdown */}
-                  {isCompleted && popupTrackingLogs.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Rounds Breakdown</p>
-                      <div className="space-y-1.5">
-                        {popupTrackingLogs.map((log, idx) => (
-                          <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-                            <span className="text-[12px] font-semibold text-gray-700 flex-1 truncate pr-2">{log.title}</span>
-                            <span className="text-[12px] font-bold text-gray-900 shrink-0">
-                              {log.repetitions ?? "—"} × {log.weight ?? "—"} kg
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Comments */}
                   {selectedSessionFeed && (
                     <div className="mb-4 border-t border-gray-100 pt-4">
@@ -1971,9 +1954,8 @@ const [creatingHighlight, setCreatingHighlight] =
                     </div>
                   )}
 
-                  {/* View/Join button — hidden when already completed or it's your own session */}
-                  {!selectedSessionFeed.type?.includes("Complete") &&
-                    String(selectedSessionFeed.member_id) !== String(currentUser?.id) && <button
+                  {/* View/Join button — hidden only for your own session; shown for others' sessions even when completed */}
+                  {String(selectedSessionFeed.member_id) !== String(currentUser?.id) && <button
                     onClick={() => {
                       if (selectedSessionFeed.type === "CompleteCardio") {
                         const params = new URLSearchParams({
