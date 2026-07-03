@@ -1,7 +1,7 @@
 
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "peevo",
+  "name": "peevo", 
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-30",
   "compatibility_flags": ["nodejs_compat"],
