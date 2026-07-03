@@ -17,10 +17,11 @@ import FeedComments from "@/components/FeedComments";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getCardioMenu,
-  getCardioSessionDetails,
+  getCardioDashboard,
   updateCardioGoal,
-  CardioSessionDetailsResponse,
 } from "@/api/cardio/route";
+import { feedApi } from "@/api/feed/route";
+import { useFeedLike } from "@/hooks/useFeedLike";
 
 interface Session {
   name: string;
@@ -38,9 +39,10 @@ export default function FeedCardioSessionPage() {
   const userName = searchParams.get("userName") || "User";
   const userUsername = searchParams.get("userUsername") || "user";
   const feedDate = searchParams.get("date") || "";
-  const likeCount = parseInt(searchParams.get("likeCount") || "0", 10);
+  const initialLikeCount = parseInt(searchParams.get("likeCount") || "0", 10);
+  const initialLiked = searchParams.get("isLiked") === "true";
+  const { liked, count: likeCount, toggle: toggleLike } = useFeedLike(feedId, initialLiked, initialLikeCount);
 
-  const [caloriesLeftWeek, setCaloriesLeftWeek] = useState(0);
   const [loading, setLoading] = useState(true);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [isGoalOpen, setIsGoalOpen] = useState(true);
@@ -69,33 +71,34 @@ export default function FeedCardioSessionPage() {
     uploadedImage: null,
   });
 
-  const [sessionData, setSessionData] =
-    useState<CardioSessionDetailsResponse | null>(null);
-
   useEffect(() => {
     const load = async () => {
       try {
-        const [menu, details] = await Promise.all([
+        // getCardioSessionDetails expects a real cardio-session id, but every caller of
+        // this page (see main-feed/page.tsx) only ever has the feed's own id — the two
+        // are different id spaces, so that lookup would always 404 here and is skipped.
+        // This feed's actual minutes/calories_burned come from feedApi.getFeedDetails,
+        // and cardio_goal is a member-level weekly setting from the dashboard endpoint.
+        const [menu, feedDetails, dashboard] = await Promise.all([
           getCardioMenu(),
-          feedId ? getCardioSessionDetails(feedId) : Promise.resolve(null),
+          feedId ? feedApi.getFeedDetails(feedId) : Promise.resolve(null),
+          getCardioDashboard().catch(() => null),
         ]);
 
-        if (details) {
-          setSessionData(details);
-          setCaloriesLeftWeek(details.left_this_week);
-          if (details.cardio_goal) setGoalCalories(details.cardio_goal);
+        const cardioSession = feedDetails?.cardioDetails?.session;
 
-          const calc = details.calculators[0];
-          if (calc) {
-            setSession({
-              name: calc.cardio_option || calc.title || menu[0]?.name || "",
-              calories: calc.calories_burned,
-              minutes: calc.minutes,
-              suggestion: calc.suggestion || null,
-              uploadedImage: null,
-            });
-            if (calc.minutes) setGoalMinutes(calc.minutes);
-          }
+        const cardioGoal = dashboard?.userDetail?.cardio_goal;
+        if (cardioGoal) setGoalCalories(cardioGoal);
+
+        if (cardioSession) {
+          setSession({
+            name: cardioSession.cardio_option || cardioSession.title || menu[0]?.name || "",
+            calories: cardioSession.calories_burned ?? null,
+            minutes: cardioSession.minutes ?? null,
+            suggestion: cardioSession.suggestion || null,
+            uploadedImage: null,
+          });
+          if (cardioSession.minutes) setGoalMinutes(cardioSession.minutes);
         } else {
           const defaultItem = menu[0];
           if (defaultItem) {
@@ -143,11 +146,6 @@ export default function FeedCardioSessionPage() {
 
   const caloriesLeft = Math.max(0, goalCalories - (session.calories || 0));
 
-  const displayName = sessionData?.user?.username
-    ? sessionData.user.username
-    : userName;
-  const displayUsername = sessionData?.user?.username || userUsername;
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f4f4f8] flex items-center justify-center">
@@ -175,8 +173,8 @@ export default function FeedCardioSessionPage() {
 
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-gray-500 hidden sm:inline">
-            <span className="font-semibold">Author:</span> {displayName}{" "}
-            <span className="text-[#1da1f2]">@{displayUsername}</span>
+            <span className="font-semibold">Author:</span> {userName}{" "}
+            <span className="text-[#1da1f2]">@{userUsername}</span>
           </span>
           <button className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center shadow-sm">
             <Plus size={14} className="text-white" />
@@ -192,11 +190,13 @@ export default function FeedCardioSessionPage() {
         <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1.5 rounded-full">
           <CheckCircle2 size={12} /> Completed
         </span>
-        {likeCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-400">
-            <Heart size={13} className="text-red-400 fill-red-400" /> {likeCount}
-          </span>
-        )}
+        <button
+          onClick={toggleLike}
+          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#8b5cf6]"
+        >
+          <Heart size={15} className={liked ? "fill-[#8b5cf6]" : ""} />
+          {likeCount}
+        </button>
       </div>
 
       {/* CALORIES LEFT BANNER */}
@@ -205,7 +205,7 @@ export default function FeedCardioSessionPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <p className="text-xs text-[#7c3aed] font-medium">Left this week:</p>
-              <p className="text-4xl font-bold text-[#7c3aed]">{caloriesLeftWeek}</p>
+              <p className="text-4xl font-bold text-[#7c3aed]">{caloriesLeft}</p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -430,7 +430,7 @@ export default function FeedCardioSessionPage() {
               {/* Current goal */}
               <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-4">
                 <p className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">Current Goal (kcal)</p>
-                <p className="text-4xl font-black text-[#6c3fef]">{goalCalories || caloriesLeftWeek}</p>
+                <p className="text-4xl font-black text-[#6c3fef]">{goalCalories}</p>
               </div>
 
               {/* New goal input */}

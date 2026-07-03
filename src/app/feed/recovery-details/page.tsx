@@ -1,21 +1,38 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Heart, CalendarDays, User, CheckCircle2 } from "lucide-react";
 import FeedComments from "@/components/FeedComments";
+import { feedApi } from "@/api/feed/route";
+import { useFeedLike } from "@/hooks/useFeedLike";
 
 export default function FeedRecoveryDetailsPage() {
   const router = useRouter();
   const params = useSearchParams();
 
   const feedId = params.get("feedId") || "";
-  const title = params.get("title") || "Recovery Session";
   const userName = params.get("userName") || "";
   const userUsername = params.get("userUsername") || "";
   const date = params.get("date") || "";
-  const zone = params.get("zone") || "";
-  const duration = params.get("duration") || "";
-  const likeCount = parseInt(params.get("likeCount") || "0", 10);
+  const initialLikeCount = parseInt(params.get("likeCount") || "0", 10);
+  const initialLiked = params.get("isLiked") === "true";
+
+  const [title, setTitle] = useState(params.get("title") || "Recovery Session");
+  const [duration, setDuration] = useState(params.get("duration") || "");
+
+  const { liked, count: likeCount, toggle: toggleLike } = useFeedLike(feedId, initialLiked, initialLikeCount);
+
+  useEffect(() => {
+    if (!feedId) return;
+    feedApi.getFeedDetails(feedId).then((res) => {
+      const record = res?.recoveryDetails?.record;
+      if (record) {
+        if (record.recovery_title) setTitle(record.recovery_title);
+        if (record.time_spent != null) setDuration(String(record.time_spent));
+      }
+    });
+  }, [feedId]);
 
   const formatDate = (d: string) => {
     if (!d) return "";
@@ -49,22 +66,19 @@ export default function FeedRecoveryDetailsPage() {
           <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1.5 rounded-full">
             <CheckCircle2 size={12} /> Completed
           </span>
-          {likeCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-400">
-              <Heart size={13} className="text-red-400 fill-red-400" /> {likeCount}
-            </span>
-          )}
+          <button
+            onClick={toggleLike}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#8b5cf6]"
+          >
+            <Heart size={15} className={liked ? "fill-[#8b5cf6]" : ""} />
+            {likeCount}
+          </button>
         </div>
 
         {/* Banner */}
         <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl p-5 text-white">
           <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1 block">Recovery Session</span>
           <h2 className="text-[20px] font-extrabold leading-tight mb-3">{title}</h2>
-          {zone && (
-            <span className="inline-flex items-center gap-1 bg-white/20 text-white text-[11px] font-bold px-3 py-1 rounded-full">
-              <Heart size={10} /> {zone}
-            </span>
-          )}
         </div>
 
         {/* Info card */}

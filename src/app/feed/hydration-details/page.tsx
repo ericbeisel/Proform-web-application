@@ -1,20 +1,38 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Droplets, CalendarDays, User, Heart, CheckCircle2 } from "lucide-react";
 import FeedComments from "@/components/FeedComments";
+import { feedApi } from "@/api/feed/route";
+import { useFeedLike } from "@/hooks/useFeedLike";
 
 export default function FeedHydrationDetailsPage() {
   const router = useRouter();
   const params = useSearchParams();
 
   const feedId = params.get("feedId") || "";
-  const title = params.get("title") || "Hydration Log";
   const userName = params.get("userName") || "";
   const userUsername = params.get("userUsername") || "";
   const date = params.get("date") || "";
-  const oz = params.get("oz") || "";
-  const likeCount = parseInt(params.get("likeCount") || "0", 10);
+  const initialLikeCount = parseInt(params.get("likeCount") || "0", 10);
+  const initialLiked = params.get("isLiked") === "true";
+
+  const [title, setTitle] = useState(params.get("title") || "Hydration Log");
+  const [oz, setOz] = useState(params.get("oz") || "");
+
+  const { liked, count: likeCount, toggle: toggleLike } = useFeedLike(feedId, initialLiked, initialLikeCount);
+
+  useEffect(() => {
+    if (!feedId) return;
+    feedApi.getFeedDetails(feedId).then((res) => {
+      const record = res?.hydrationDetails?.record;
+      if (record) {
+        if (record.title) setTitle(record.title);
+        if (record.oz_number != null) setOz(String(record.oz_number));
+      }
+    });
+  }, [feedId]);
 
   const formatDate = (d: string) => {
     if (!d) return "";
@@ -51,11 +69,13 @@ export default function FeedHydrationDetailsPage() {
           <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1.5 rounded-full">
             <CheckCircle2 size={12} /> Completed
           </span>
-          {likeCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-400">
-              <Heart size={13} className="text-red-400 fill-red-400" /> {likeCount}
-            </span>
-          )}
+          <button
+            onClick={toggleLike}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#8b5cf6]"
+          >
+            <Heart size={15} className={liked ? "fill-[#8b5cf6]" : ""} />
+            {likeCount}
+          </button>
         </div>
 
         {/* Banner */}
