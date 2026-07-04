@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Plus, MapPin, Dumbbell, ChevronRight, Loader2, CheckCircle2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { equipmentApi, EquipmentItem, LocationItem } from "@/api/location/route";
+import { equipmentApi, EquipmentItem, LocationItem, Equipment as CatalogEquipment } from "@/api/location/route";
 import { getProgramEquipment, Equipment } from "@/api/programs/route";
 import { createFeedPost, createWorkoutLocation, createWorkoutSession, swapExercise } from "@/api/workouts/route";
 import { WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
@@ -18,6 +18,8 @@ export default function EquipmentNeededPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [programEquipment, setProgramEquipment] = useState<Equipment[]>([]);
   const [programEquipmentLoading, setProgramEquipmentLoading] = useState(true);
+  const [allEquipment, setAllEquipment] = useState<CatalogEquipment[]>([]);
+  const [allEquipmentLoading, setAllEquipmentLoading] = useState(true);
   const [selectedEquipIds, setSelectedEquipIds] = useState<Set<number>>(new Set());
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [isNewlyCreated, setIsNewlyCreated] = useState(false);
@@ -30,12 +32,13 @@ export default function EquipmentNeededPage() {
       try {
         const programCode = localStorage.getItem("workoutProgramCode");
 
-        const promises: Promise<any>[] = [equipmentApi.getLocationList()];
+        const promises: Promise<any>[] = [equipmentApi.getLocationList(), equipmentApi.getAllEquipment()];
         if (programCode) promises.push(getProgramEquipment(programCode));
 
-        const [locData, programEquip] = await Promise.all(promises);
+        const [locData, allEquip, programEquip] = await Promise.all(promises);
 
         setLocations(locData);
+        setAllEquipment(Array.isArray(allEquip) ? allEquip : []);
         if (programEquip && Array.isArray(programEquip)) {
           setProgramEquipment(programEquip);
           // Auto-select all program equipment when no location is chosen yet
@@ -64,6 +67,7 @@ export default function EquipmentNeededPage() {
         console.error("Initialization failed:", err);
       } finally {
         setProgramEquipmentLoading(false);
+        setAllEquipmentLoading(false);
       }
     };
     initializeData();
@@ -185,6 +189,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     const sessionId = sessionResult.session.id;
     console.log("[session] ✓ Session created — id:", sessionId);
     localStorage.setItem(`activeSessionId_${pendingSessionCode.toUpperCase()}`, sessionId);
+    localStorage.setItem(`sessionEngaged_${sessionId}`, "true");
     localStorage.setItem("workoutLocationName", selectedLocationName);
     localStorage.setItem("workoutLocationId", locationId);
     localStorage.removeItem("pendingSessionCode");
@@ -282,6 +287,15 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
   const allProgramEquipSelected =
     programEquipment.length === 0 ||
     programEquipment.every((eq) => selectedEquipIds.has(eq.id));
+
+  // Everything in the full catalog that isn't already shown as Required or
+  // as part of the selected location's Available equipment.
+  const otherEquipment = allEquipment.filter((eq) => {
+    const nameLower = eq.name?.toLowerCase();
+    const inRequired = programEquipment.some((req) => req.name?.toLowerCase() === nameLower);
+    const inAvailable = equipments.some((av) => av.name?.toLowerCase() === nameLower);
+    return !inRequired && !inAvailable;
+  });
 
 
   return (
@@ -458,6 +472,55 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             />
                           </div>
 
+                          <p className={`text-[9px] font-bold uppercase tracking-wider text-center ${
+                            isSelected ? "text-[#7c3aed]" : "text-gray-500"
+                          }`}>
+                            {eq.name}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* OTHER EQUIPMENT — full catalog, optional extras beyond required/location gear */}
+              {allEquipmentLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="animate-spin text-[#7c3aed]" size={24} />
+                </div>
+              ) : otherEquipment.length > 0 && (
+                <div>
+                  <div className="mb-3 px-2">
+                    <h2 className="text-lg font-bold text-gray-900">Other Equipment</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Optional — add anything else you have</p>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                    {otherEquipment.map((eq) => {
+                      const isSelected = selectedEquipIds.has(eq.id);
+                      return (
+                        <button
+                          key={eq.id}
+                          type="button"
+                          onClick={() => toggleEquipment(eq.id)}
+                          className={`relative flex flex-col items-center bg-white border rounded-2xl p-3 shadow-sm transition-all hover:shadow-md ${
+                            isSelected
+                              ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
+                              : "border-gray-100 opacity-80"
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 text-[#7c3aed]">
+                              <CheckCircle2 size={14} fill="white" />
+                            </div>
+                          )}
+                          <div className="h-10 w-10 mb-2 flex items-center justify-center bg-gray-50 rounded-xl p-1.5">
+                            {eq.icon ? (
+                              <img src={eq.icon} alt={eq.name} className="max-h-full max-w-full object-contain" />
+                            ) : (
+                              <Dumbbell size={18} className="text-purple-400" />
+                            )}
+                          </div>
                           <p className={`text-[9px] font-bold uppercase tracking-wider text-center ${
                             isSelected ? "text-[#7c3aed]" : "text-gray-500"
                           }`}>

@@ -31,6 +31,8 @@ import {
   Loader2,
   Plus,
   FileText,
+  Award,
+  TrendingUp,
 } from "lucide-react";
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -99,6 +101,9 @@ export default function ViewWorkoutSessionPage() {
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
+  const [expandedPowerSets, setExpandedPowerSets] = useState<Set<number>>(
+    new Set(),
+  );
   const [swappedExercises, setSwappedExercises] = useState<
     Map<string, WorkoutGroupItem>
   >(new Map());
@@ -106,6 +111,10 @@ export default function ViewWorkoutSessionPage() {
   const [activeSession, setActiveSession] = useState<IncompleteSession | null>(
     null,
   );
+  // True only once the user has explicitly engaged with a session (created it or
+  // pressed Rejoin) — as opposed to merely having a matching session ID sitting in
+  // localStorage. Scoped per-session-id so it self-heals once a session completes.
+  const [isSessionEngaged, setIsSessionEngaged] = useState(false);
   const [workoutGroups, setWorkoutGroups] = useState<WorkoutGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejoinLoading, setRejoinLoading] = useState(false);
@@ -261,6 +270,14 @@ export default function ViewWorkoutSessionPage() {
 
   const toggleRound = (id: number) => {
     setCollapsedRounds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const togglePowerSet = (id: number) => {
+    setExpandedPowerSets((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -434,6 +451,8 @@ export default function ViewWorkoutSessionPage() {
   const handleRejoin = async (session: IncompleteSession) => {
     setSessionStarted(true);
     setActiveSession(session);
+    setIsSessionEngaged(true);
+    localStorage.setItem(`sessionEngaged_${session.id}`, "true");
     setRejoinLoading(true);
     const programCode = localStorage
       .getItem("workoutProgramCode")
@@ -613,29 +632,28 @@ export default function ViewWorkoutSessionPage() {
           );
           if (sessions.length > 0) {
             setIncompleteSessions(sessions);
-            if (justCreated || sessionActive) {
-              const storedId = localStorage.getItem(
-                `activeSessionId_${normalizedCode}`,
+            // Only auto-connect to a session that is verifiably still incomplete per
+            // the API and matches the ID scoped to this program. Never guess (e.g. by
+            // falling back to sessions[0]) — "sessionActive" is a sticky flag that's
+            // never cleared, so trusting it for a blind fallback would permanently
+            // hijack the wrong session and hide the rejoin banner.
+            const storedId = localStorage.getItem(
+              `activeSessionId_${normalizedCode}`,
+            );
+            const matched = storedId
+              ? sessions.find((s) => s.id === storedId)
+              : null;
+            console.log(
+              "[mount] storedId:",
+              storedId,
+              "| matched:",
+              matched?.id ?? "none",
+            );
+            if (matched) {
+              setActiveSession(matched);
+              setIsSessionEngaged(
+                localStorage.getItem(`sessionEngaged_${matched.id}`) === "true",
               );
-              const matched = storedId
-                ? sessions.find((s) => s.id === storedId)
-                : null;
-              console.log(
-                "[mount] storedId:",
-                storedId,
-                "| matched:",
-                matched?.id ?? "none",
-              );
-              if (matched) {
-                setActiveSession(matched);
-              } else if (sessionActive) {
-                // Fallback: use first session if stored ID doesn't match
-                console.log(
-                  "[mount] sessionActive fallback — using sessions[0]:",
-                  sessions[0].id,
-                );
-                setActiveSession(sessions[0]);
-              }
             }
           }
         })
@@ -830,10 +848,16 @@ export default function ViewWorkoutSessionPage() {
 
   const rounds = transformToRounds();
 
+  // Shows whenever there's a session to resume that the user hasn't explicitly
+  // engaged with yet — the sidebar (session nav/progress) is hidden while it's up
+  // since there's nothing to navigate until the user rejoins or starts fresh.
+  const showRejoinBanner =
+    !isSessionEngaged && (!!activeSession || incompleteSessions.length > 0);
+
   return (
     <div className="h-screen overflow-hidden bg-[#f7f7fa] flex">
-      {/* SIDEBAR — only visible once session is started */}
-      {sessionStarted && (
+      {/* SIDEBAR — only visible once session is started, and not while the rejoin banner is up */}
+      {sessionStarted && !showRejoinBanner && (
         <div className="hidden lg:flex w-[220px] bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white flex-col p-6 flex-shrink-0">
           <div className="bg-white/10 rounded-[24px] p-4 mb-8">
             <h2 className="text-[11px] font-black leading-tight break-words uppercase tracking-wide">
@@ -1018,12 +1042,7 @@ export default function ViewWorkoutSessionPage() {
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
                   <button
-                    onClick={() => {
-                      const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
-                      localStorage.setItem("pendingSessionCode", code);
-                      localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
-                      router.push("/workout/equipmentNeeded");
-                    }}
+                    onClick={() => router.push("/location")}
                     className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
                   >
                     <MapPin size={14} className="text-[#7c3aed]" />
@@ -1099,42 +1118,48 @@ export default function ViewWorkoutSessionPage() {
             )}
         </div>
 
-        {/* REJOIN BANNER */}
-        {!activeSession && incompleteSessions.length > 0 && (
-          <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
-            <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
-                <div className="min-w-0">
-                  <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
-                    {incompleteSession
-                      ? `Rejoin Live Session: ${incompleteSession.id.slice(0, 6)}`
-                      : "Active Session In Progress"}
-                  </h3>
-                  <p className="text-white/80 text-[10px] mt-1 font-medium">
-                    {incompleteSession
-                      ? `Started ${new Date(incompleteSession.created_at).toLocaleString()}`
-                      : "You have an ongoing workout session"}
-                  </p>
+        {/* REJOIN BANNER — shows whenever there's a session to resume and the user
+            hasn't explicitly engaged with it yet (created it or pressed Rejoin).
+            Knowing about a session (activeSession) is not the same as being
+            engaged with it — mirrors the mobile app's isSessionActive gate. */}
+        {showRejoinBanner && (() => {
+          const bannerSession = activeSession || incompleteSession;
+          return (
+            <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
+              <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
+                      {bannerSession
+                        ? `Rejoin Live Session: ${bannerSession.id.slice(0, 6)}`
+                        : "Active Session In Progress"}
+                    </h3>
+                    <p className="text-white/80 text-[10px] mt-1 font-medium">
+                      {bannerSession
+                        ? `Started ${new Date(bannerSession.created_at).toLocaleString()}`
+                        : "You have an ongoing workout session"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleRejoin(bannerSession!)}
+                    className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
+                  >
+                    Rejoin
+                  </button>
+                  <button
+                    onClick={() => setShowRejoinModal(true)}
+                    className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
+                  >
+                    <ChevronRight size={16} className="text-white" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => handleRejoin(incompleteSession!)}
-                  className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
-                >
-                  Rejoin
-                </button>
-                <button
-                  onClick={() => setShowRejoinModal(true)}
-                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
-                >
-                  <ChevronRight size={16} className="text-white" />
-                </button>
-              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* REJOIN SESSIONS MODAL */}
         {showRejoinModal && (
@@ -1207,52 +1232,53 @@ export default function ViewWorkoutSessionPage() {
           ) : (
             <>
               {activeView === "Results" ? (
-                <div className="space-y-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                      <Activity size={18} />
+                <div className="space-y-4">
+                  {/* Banner */}
+                  <div className="rounded-[24px] overflow-hidden bg-gradient-to-r from-[#8B5CF6] to-[#6D28D9] px-5 py-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                      <TrendingUp size={20} className="text-white" />
                     </div>
                     <div>
-                      <h2 className="text-[20px] font-black text-[#222]">
-                        Live Results
-                      </h2>
-                      <p className="text-[11px] text-gray-400">
-                        Real-time performance data
-                      </p>
+                      <p className="text-[17px] font-black text-white">Live Results</p>
+                      <p className="text-[12px] text-white/70">Real-time performance data</p>
                     </div>
                   </div>
 
                   {/* Workout Stats from API */}
                   {workoutStats && (
                     <div className="space-y-5">
+                      {/* This Workout header */}
+                      <div className="flex items-center gap-2">
+                        <Award size={18} className="text-[#7c3aed]" />
+                        <p className="text-[15px] font-black text-[#222]">This Workout:</p>
+                      </div>
+
                       {/* This Workout — 3 colored cards */}
                       <div className="grid grid-cols-3 gap-3">
                         {[
                           {
                             label: "Load",
                             value: workoutStats.thisWorkout.load,
-                            from: "from-[#60a5fa]",
-                            to: "to-[#3b82f6]",
+                            color: "#3B82F6",
                             icon: <Activity size={18} />,
                           },
                           {
                             label: "Power",
                             value: workoutStats.thisWorkout.power,
-                            from: "from-[#a78bfa]",
-                            to: "to-[#7c3aed]",
+                            color: "#8B5CF6",
                             icon: <Zap size={18} />,
                           },
                           {
                             label: "Cals",
                             value: workoutStats.thisWorkout.cals,
-                            from: "from-[#fb923c]",
-                            to: "to-[#f97316]",
+                            color: "#F97316",
                             icon: <Flame size={18} />,
                           },
-                        ].map(({ label, value, from, to, icon }) => (
+                        ].map(({ label, value, color, icon }) => (
                           <div
                             key={label}
-                            className={`bg-gradient-to-br ${from} ${to} rounded-[20px] p-4 flex flex-col items-center justify-center text-white min-h-[110px]`}
+                            style={{ backgroundColor: color }}
+                            className="rounded-[20px] p-4 flex flex-col items-center justify-center text-white min-h-[110px]"
                           >
                             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-2">
                               {icon}
@@ -1269,91 +1295,116 @@ export default function ViewWorkoutSessionPage() {
 
                       {/* This Workout Avg */}
                       <div>
-                        {/* This Workout Avg */}
-                        <div className="bg-white rounded-[20px] border border-gray-100 p-4">
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <Users
-                              size={12}
-                              className="text-[#7c3aed] shrink-0"
-                            />
-                            <p className="text-[12px] font-black text-[#222] leading-tight">
-                              This Workout Avg. (all other users)
-                            </p>
-                          </div>
-                          <p className="text-[10px] text-gray-400 mb-3"></p>
-                          <div className="grid grid-cols-3 gap-1 text-center">
-                            {[
-                              {
-                                label: "LOAD",
-                                value: workoutStats.overallAverage.load,
-                                color: "text-[#7c3aed]",
-                              },
-                              {
-                                label: "POWER",
-                                value: workoutStats.overallAverage.power,
-                                color: "text-[#7c3aed]",
-                              },
-                              {
-                                label: "CALS",
-                                value: workoutStats.overallAverage.cals,
-                                color: "text-[#f97316]",
-                              },
-                            ].map(({ label, value, color }) => (
-                              <div key={label}>
-                                <p className="text-[8px] font-black text-gray-400 tracking-widest mb-0.5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users size={18} className="text-[#7c3aed] shrink-0" />
+                          <p className="text-[15px] font-black text-[#222]">
+                            This Workout Avg. (all other users):
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-[20px] border border-gray-100 p-4 flex items-stretch">
+                          {[
+                            {
+                              label: "Load",
+                              value: workoutStats.overallAverage.load,
+                              color: "text-[#3B82F6]",
+                            },
+                            {
+                              label: "Power",
+                              value: workoutStats.overallAverage.power,
+                              color: "text-[#8B5CF6]",
+                            },
+                            {
+                              label: "Cals",
+                              value: workoutStats.overallAverage.cals,
+                              color: "text-[#F97316]",
+                            },
+                          ].flatMap(({ label, value, color }, i) => {
+                            const col = (
+                              <div key={`col-${label}`} className="flex-1 text-center">
+                                <p className="text-[10px] font-bold text-gray-400 mb-1">
                                   {label}
                                 </p>
-                                <p
-                                  className={`text-[20px] font-black ${color}`}
-                                >
+                                <p className={`text-[20px] font-black ${color}`}>
                                   {value}
                                 </p>
                               </div>
-                            ))}
-                          </div>
+                            );
+                            return i > 0
+                              ? [<div key={`div-${label}`} className="w-px self-stretch bg-gray-100 mx-2" />, col]
+                              : [col];
+                          })}
                         </div>
                       </div>
 
-                      {/* Load Chart */}
-                      {(roundLoads.some((v) => v > 0) ||
-                        workoutStats.loadChart.length > 0) && (
-                        <div className="bg-white rounded-[20px] border border-gray-100 p-5">
-                          <p className="text-[15px] font-black text-[#222] mb-4">
-                            Load Chart:
-                          </p>
-                          <div className="relative">
-                            {(() => {
-                              const chartData = roundLoads.length
-                                ? roundLoads
-                                : workoutStats.loadChart;
-                              const max = Math.max(...chartData, 1);
-                              const steps = [
-                                max,
-                                Math.round(max * 0.75),
-                                Math.round(max * 0.5),
-                                Math.round(max * 0.25),
-                                0,
-                              ];
-                              return (
-                                <div className="flex gap-2">
+                      {/* Muscles Used */}
+                      {workoutStats.thisWorkout.muscleTracking.length > 0 && (() => {
+                        const formatLabel = (muscle: string) =>
+                          muscle.replace(/([A-Z])/g, " $1").trim().toUpperCase();
+                        const sortedMuscles = [...workoutStats.thisWorkout.muscleTracking].sort(
+                          (a, b) => Object.values(b)[0] - Object.values(a)[0],
+                        );
+                        const activeMuscles = sortedMuscles.filter(
+                          (item) => Object.values(item)[0] > 0,
+                        );
+                        const chartMuscles =
+                          activeMuscles.length > 0 ? activeMuscles : sortedMuscles.slice(0, 5);
+                        const max = Math.max(
+                          ...chartMuscles.map((m) => Object.values(m)[0]),
+                          1,
+                        );
+                        const steps = [max, Math.round(max * 0.6), Math.round(max * 0.3), 0];
+
+                        return (
+                          <div className="bg-white rounded-[20px] border border-gray-100 p-5">
+                            <p className="text-[15px] font-black text-[#222] mb-4">
+                              Muscles Used:
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {sortedMuscles.map((item, i) => {
+                                const [muscle, value] = Object.entries(item)[0];
+                                const label = formatLabel(muscle);
+                                const displayValue = value.toFixed(2).replace(/\.00$/, "");
+                                return (
                                   <div
-                                    className="flex flex-col justify-between text-[9px] text-gray-400 text-right pr-1"
-                                    style={{ height: 140 }}
+                                    key={i}
+                                    className="bg-gray-50 rounded-2xl border border-gray-100 py-3 px-2 flex flex-col items-center justify-center text-center"
                                   >
-                                    {steps.map((s) => (
-                                      <span key={s}>{s}</span>
-                                    ))}
+                                    <span className="text-[8px] font-black text-gray-500 tracking-wide truncate w-full">
+                                      {label}
+                                    </span>
+                                    <span className="text-[14px] font-black text-[#222] mt-1">
+                                      {displayValue}
+                                    </span>
                                   </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Muscle Chart — bar chart */}
+                            <div className="mt-6">
+                              <p className="text-[15px] font-black text-[#222] mb-4">
+                                Muscle Chart:
+                              </p>
+                              <div className="flex gap-2">
+                                {/* Y-axis */}
+                                <div
+                                  className="flex flex-col justify-between text-[9px] text-gray-400 text-right pr-1 shrink-0"
+                                  style={{ height: 120 }}
+                                >
+                                  {steps.map((s) => (
+                                    <span key={s}>{s}</span>
+                                  ))}
+                                </div>
+                                {/* Bars */}
+                                <div className="flex-1">
                                   <div
-                                    className="flex-1 flex items-end gap-2"
-                                    style={{ height: 140 }}
+                                    className="flex items-end gap-2"
+                                    style={{ height: 120 }}
                                   >
-                                    {chartData.map((val, i) => {
-                                      const pct =
-                                        max > 0 ? (val / max) * 100 : 0;
-                                      const roundLabel =
-                                        workoutGroups[i]?.label ??
-                                        `ROUND ${i + 1}`;
+                                    {chartMuscles.map((item, i) => {
+                                      const [muscle, value] = Object.entries(item)[0];
+                                      const pct = (value / max) * 100;
+                                      const label = formatLabel(muscle).slice(0, 8);
                                       return (
                                         <div
                                           key={i}
@@ -1361,167 +1412,50 @@ export default function ViewWorkoutSessionPage() {
                                           style={{ height: "100%" }}
                                         >
                                           <div
-                                            className="bg-[#7c3aed] rounded-t-md"
+                                            className="rounded-t-lg bg-[#A7F3D0]"
                                             style={{
                                               height: `${Math.max(pct, 2)}%`,
                                               width: "clamp(16px, 40%, 40px)",
                                             }}
                                           />
-                                          <span className="text-[8px] text-gray-400 text-center leading-tight whitespace-pre-line">
-                                            {roundLabel.replace(
-                                              /\s+(\d+|GEN)$/i,
-                                              "\n$1",
-                                            )}
+                                          <span className="text-[7px] text-gray-400 text-center leading-tight">
+                                            {label}
                                           </span>
                                         </div>
                                       );
                                     })}
                                   </div>
                                 </div>
-                              );
-                            })()}
-                            <div className="flex items-center justify-center gap-2 mt-3">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" />
-                              <span className="text-[11px] text-gray-500">
-                                Your Progress
-                              </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Muscles Used */}
-                      {workoutStats.thisWorkout.muscleTracking.length > 0 && (
-                        <div className="bg-white rounded-[20px] border border-gray-100 p-5">
-                          <p className="text-[15px] font-black text-[#222] mb-4">
-                            Muscles Used:
-                          </p>
-                          <div className="grid grid-cols-3 gap-x-2 gap-y-3">
-                            {[...workoutStats.thisWorkout.muscleTracking]
-                              .sort(
-                                (a, b) =>
-                                  Object.values(b)[0] - Object.values(a)[0],
-                              )
-                              .map((item, i) => {
-                                const [muscle, value] = Object.entries(item)[0];
-                                const label = muscle
-                                  .replace(/([A-Z])/g, " $1")
-                                  .trim()
-                                  .toUpperCase();
-                                return (
-                                  <div
-                                    key={i}
-                                    className="flex items-center justify-between border-b border-gray-100 pb-2"
-                                  >
-                                    <span className="text-[9px] font-bold text-gray-600 truncate pr-1">
-                                      {label}
-                                    </span>
-                                    <span className="text-[11px] font-black text-[#222] shrink-0">
-                                      {value.toFixed(2)}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                          </div>
-
-                          {/* Muscle Chart — bar chart */}
-                          <div className="mt-6">
-                            <p className="text-[15px] font-black text-[#222] mb-4">
-                              Muscle Chart:
-                            </p>
-                            {(() => {
-                              const sorted = [
-                                ...workoutStats.thisWorkout.muscleTracking,
-                              ]
-                                .sort(
-                                  (a, b) =>
-                                    Object.values(b)[0] - Object.values(a)[0],
-                                )
-                                .slice(0, 5);
-                              const max = Math.max(
-                                ...sorted.map((m) => Object.values(m)[0]),
-                                1,
-                              );
-                              const steps = [
-                                max,
-                                Math.round(max * 0.6),
-                                Math.round(max * 0.3),
-                                0,
-                              ];
-                              return (
-                                <div className="flex gap-2">
-                                  {/* Y-axis */}
-                                  <div
-                                    className="flex flex-col justify-between text-[9px] text-gray-400 text-right pr-1 shrink-0"
-                                    style={{ height: 120 }}
-                                  >
-                                    {steps.map((s) => (
-                                      <span key={s}>{s}</span>
-                                    ))}
-                                  </div>
-                                  {/* Bars */}
-                                  <div className="flex-1">
-                                    <div
-                                      className="flex items-end gap-2"
-                                      style={{ height: 120 }}
-                                    >
-                                      {sorted.map((item, i) => {
-                                        const [muscle, value] =
-                                          Object.entries(item)[0];
-                                        const pct = (value / max) * 100;
-                                        const label = muscle
-                                          .replace(/([A-Z])/g, " $1")
-                                          .trim()
-                                          .toUpperCase()
-                                          .slice(0, 8);
-                                        return (
-                                          <div
-                                            key={i}
-                                            className="flex-1 flex flex-col items-center justify-end gap-1"
-                                            style={{ height: "100%" }}
-                                          >
-                                            <div
-                                              className="rounded-t-lg bg-[#2dd4bf]"
-                                              style={{
-                                                height: `${Math.max(pct, 2)}%`,
-                                                width: "clamp(16px, 40%, 40px)",
-                                              }}
-                                            />
-                                            <span className="text-[7px] text-gray-400 text-center leading-tight">
-                                              {label}
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
               ) : activeView === "Powersets" ? (
-                <div className="space-y-6 pb-20">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-full bg-[#7c3aed] flex items-center justify-center text-white">
-                      <Zap size={18} />
+                <div className="space-y-4 pb-20">
+                  {/* Banner */}
+                  <div className="rounded-[24px] overflow-hidden bg-gradient-to-r from-[#8B5CF6] to-[#6D28D9] px-5 py-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                      <Zap size={20} className="text-white" fill="white" />
                     </div>
                     <div>
-                      <h2 className="text-[20px] font-black text-[#222]">Power Sets</h2>
-                      <p className="text-[11px] text-gray-400">Your strength movements</p>
+                      <p className="text-[17px] font-black text-white">Power Sets</p>
+                      <p className="text-[12px] text-white/70">Your strength movements</p>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-[11px] font-black text-[#7c3aed] uppercase tracking-widest">
-                      {workoutTitle || "WORKOUT"}
-                    </p>
-                    <p className="text-[18px] font-black text-[#222]">
+                  {/* Title */}
+                  <div className="px-1">
+                    {workoutName && (
+                      <p className="text-[11px] font-black text-[#7c3aed] uppercase tracking-widest">
+                        {workoutName}
+                      </p>
+                    )}
+                    <p className="text-[20px] font-black text-[#111]">{workoutTitle || "POWER SETS"}</p>
+                    <p className="text-[12px] text-gray-400">
                       {powerSets.length} power set{powerSets.length !== 1 ? "s" : ""}
                     </p>
                   </div>
@@ -1538,10 +1472,11 @@ export default function ViewWorkoutSessionPage() {
                   ) : (
                     <div className="space-y-4">
                       {powerSets.map((ps, gi) => {
-                        const isCollapsed = collapsedRounds.has(gi);
+                        const isCollapsed = !expandedPowerSets.has(gi);
                         const thumb = resolveWixImage(ps.demo_gif);
                         const roundLabel = getRoundLabel(ps.round);
                         const isGray = ps.is_gray;
+                        const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
                         return (
                           <div
                             key={ps.id || gi}
@@ -1554,7 +1489,7 @@ export default function ViewWorkoutSessionPage() {
                           >
                             {/* Card header — click collapses, outer div click opens modal */}
                             <button
-                              onClick={(e) => { e.stopPropagation(); toggleRound(gi); }}
+                              onClick={(e) => { e.stopPropagation(); togglePowerSet(gi); }}
                               className="w-full flex items-center gap-3 p-4 text-left transition hover:brightness-95"
                             >
                               {/* Thumbnail / emoji */}
@@ -1574,7 +1509,7 @@ export default function ViewWorkoutSessionPage() {
                                   </span>
                                   {ps.is_money_set && (
                                     <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
-                                      $ MONEY SET
+                                      ★ MONEY SET
                                     </span>
                                   )}
                                 </div>
@@ -1603,6 +1538,16 @@ export default function ViewWorkoutSessionPage() {
                                     const repsText = s.reps
                                       ? String(s.reps).toLowerCase().includes("rep") ? s.reps : `${s.reps} reps`
                                       : "—";
+                                    const sourceUnit = (s.msrmt || "lbs").toLowerCase();
+                                    let displayWeight = s.calculated_weight || 0;
+                                    if (sourceUnit === "lbs" && targetUnit === "kg") {
+                                      displayWeight = Math.round(displayWeight * 0.45359237);
+                                    } else if (sourceUnit === "kg" && targetUnit === "lbs") {
+                                      displayWeight = Math.round(displayWeight / 0.45359237);
+                                    }
+                                    const weightText = displayWeight
+                                      ? `${displayWeight} ${targetUnit}`
+                                      : s.label || "—";
                                     return (
                                       <div
                                         key={s.id || si}
@@ -1613,29 +1558,15 @@ export default function ViewWorkoutSessionPage() {
                                           <span className="text-[11px] font-black text-[#7c3aed]">{si + 1}</span>
                                         </div>
 
-                                        {/* Weight */}
+                                        {/* Weight / reps stack */}
                                         <div className="flex-1 min-w-0">
-                                          <span className="text-[13px] font-bold text-[#222]">
-                                            {s.calculated_weight
-                                              ? `${s.calculated_weight} ${s.msrmt || "lbs"}`
-                                              : s.label || "—"}
-                                          </span>
-                                          {isMainPowerSet && (
-                                            <span className="ml-2 text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
-                                              $
-                                            </span>
-                                          )}
+                                          <p className="text-[13px] font-bold text-[#222] leading-tight">{weightText}</p>
+                                          <p className="text-[11px] text-gray-400 leading-tight">{repsText}</p>
                                         </div>
 
-                                        {/* Reps */}
-                                        <span className="text-[12px] text-gray-500 font-semibold shrink-0">
-                                          {repsText}
-                                        </span>
-
-                                        {/* Multiplier */}
-                                        {s.multiplier != null && (
-                                          <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
-                                            ×{s.multiplier}
+                                        {isMainPowerSet && (
+                                          <span className="text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shrink-0">
+                                            $
                                           </span>
                                         )}
 
@@ -1738,7 +1669,14 @@ export default function ViewWorkoutSessionPage() {
 
                             {/* Round header */}
                             <div className="flex items-center px-4 py-3 gap-3">
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  localStorage.setItem("sessionActive", "true");
+                                  router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`);
+                                }}
+                                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                              >
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: isExpanded ? roundColor : "#F3F4F6" }}>
                                   <Dumbbell size={18} color={isExpanded ? "white" : "#9CA3AF"} />
                                 </div>
@@ -1751,7 +1689,7 @@ export default function ViewWorkoutSessionPage() {
                                   </div>
                                   <p className="text-[11px] text-gray-400">{group.rounds} • {group.workouts.length} exercises</p>
                                 </div>
-                              </div>
+                              </button>
                               <div className="flex items-center gap-2 shrink-0">
                                 {isRoundComplete
                                   ? <CheckCircle2 size={16} className="text-emerald-500" />
@@ -1768,6 +1706,7 @@ export default function ViewWorkoutSessionPage() {
                             {isExpanded && (
                               <div className="border-t border-gray-100 px-4 pb-3">
                                 {group.workouts.map((ex, exIdx) => {
+                                  const anyEx = ex as any;
                                   const exId = ex.exercise_id || "";
                                   const matchingLogs = mapSessionLogs.filter((log: any) => {
                                     const logExId = String(log.exerciseId || "");
@@ -1780,13 +1719,42 @@ export default function ViewWorkoutSessionPage() {
                                     return aNum - bNum;
                                   });
                                   const imgUrl = resolveWixImage(ex.demo_gif);
+                                  const isHome = !!anyEx.swapped_exercise_id;
+                                  const isMoneySet = !!anyEx.is_money_set;
+
+                                  const matchingPowerSet = ex.is_power_set
+                                    ? powerSets.find((ps: any) => ps.id === anyEx.id || ps.exercise_uuid === exId)
+                                    : null;
+                                  const powerSetChips = matchingPowerSet?.child_sets
+                                    ? [...matchingPowerSet.child_sets]
+                                        .sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0))
+                                        .map((s) => ({ reps: s.reps, pct: Math.round((s.multiplier || 0) * 100) }))
+                                    : null;
+
+                                  const plannedSets = parseInt(String(ex.sets || group.rounds || "1").replace(/\D/g, ""), 10) || 1;
+                                  const plannedWeight = anyEx.calculated_weight ?? anyEx.member_weight ?? ex.weight;
+                                  const weightUnit = anyEx.msrmt || "lbs";
+                                  const slotCount = Math.max(powerSetChips?.length || plannedSets || 1, sortedLogs.length);
 
                                   return (
-                                    <div key={exIdx} className="flex flex-col py-3 border-b border-gray-50 last:border-0">
+                                    <button
+                                      key={exIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        localStorage.setItem("sessionActive", "true");
+                                        router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${exIdx}`);
+                                      }}
+                                      className="flex flex-col py-3 border-b border-gray-50 last:border-0 w-full text-left"
+                                    >
                                       <div className="flex items-center gap-3">
                                         <div className="w-6 h-6 rounded-full bg-[#ede9fe] flex items-center justify-center shrink-0">
                                           <span className="text-[10px] font-black text-[#7c3aed]">{exIdx + 1}</span>
                                         </div>
+                                        {isHome && (
+                                          <div className="w-4 h-4 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                                            <Home size={9} className="text-emerald-500" />
+                                          </div>
+                                        )}
                                         <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
                                           {imgUrl ? (
                                             <img src={imgUrl} alt={ex.exercise_name} className="w-full h-full object-cover" />
@@ -1795,35 +1763,61 @@ export default function ViewWorkoutSessionPage() {
                                           )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                          <p className="text-[12px] font-black text-[#111] truncate">{ex.exercise_name}</p>
-                                          {sortedLogs.length === 0 && (
-                                            <p className="text-[10px] text-gray-400">
-                                              {ex.sets ? `${ex.sets} × ` : ""}{ex.reps || "8–12"}{ex.weight ? ` @ ${ex.weight}` : ""}
-                                            </p>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <p className="text-[12px] font-black text-[#111] truncate">{ex.exercise_name}</p>
+                                            {isMoneySet && (
+                                              <span className="text-[9px] font-black bg-emerald-500 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">$</span>
+                                            )}
+                                          </div>
+                                          {ex.supplemental && (
+                                            <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{ex.supplemental}</p>
                                           )}
                                         </div>
                                         {ex.is_power_set && (
                                           <span className="text-[9px] font-black bg-emerald-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0">$</span>
                                         )}
                                       </div>
-                                      {sortedLogs.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 mt-2 ml-9">
-                                          {sortedLogs.map((log: any, sIdx: number) => (
-                                            <div
-                                              key={log.id || sIdx}
-                                              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                                log.isPowerSetLog
-                                                  ? "bg-emerald-50 border border-emerald-300 text-emerald-700"
-                                                  : "bg-gray-900 text-white"
-                                              }`}
-                                            >
-                                              <span>{log.title || `Set ${sIdx + 1}`}: {log.repetitions ?? log.reps ?? 0} @ {log.weight ?? 0}</span>
-                                              {log.isPowerSetLog && <span className="text-emerald-500 font-black ml-0.5">$</span>}
+                                      <div className="flex flex-wrap gap-1.5 mt-2 ml-9">
+                                        {Array.from({ length: slotCount }).map((_, i) => {
+                                          const log: any = sortedLogs[i];
+                                          if (log) {
+                                            const reps = log.repetitions ?? log.reps ?? 0;
+                                            const weight = log.weight ?? 0;
+                                            const logTitle = log.title || `Set ${i + 1}`;
+                                            const isPowerSetLog = !!log.isPowerSetLog;
+                                            const isCompleted = log.status === true || (isPowerSetLog && weight > 0);
+                                            const pillClass = isPowerSetLog
+                                              ? "bg-emerald-50 border border-emerald-300 text-emerald-700"
+                                              : isCompleted
+                                              ? "bg-orange-50 border border-orange-300 text-orange-700"
+                                              : "bg-gray-900 text-white";
+                                            return (
+                                              <div
+                                                key={log.id || i}
+                                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${pillClass}`}
+                                              >
+                                                <span>{logTitle}: {reps} @ {parseFloat(String(weight)) || weight} {weightUnit}</span>
+                                                {isPowerSetLog && <span className="text-emerald-500 font-black ml-0.5">$</span>}
+                                              </div>
+                                            );
+                                          }
+                                          if (powerSetChips && powerSetChips[i]) {
+                                            const chip = powerSetChips[i];
+                                            return (
+                                              <div key={i} className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-400">
+                                                Set {i + 1}: {chip.reps} @ {chip.pct}%
+                                              </div>
+                                            );
+                                          }
+                                          const weightDisplay = plannedWeight ? ` @ ${plannedWeight} ${weightUnit}` : "";
+                                          return (
+                                            <div key={i} className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-400">
+                                              Set {i + 1}: {ex.reps || "8–12"}{weightDisplay}
                                             </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </button>
                                   );
                                 })}
                               </div>

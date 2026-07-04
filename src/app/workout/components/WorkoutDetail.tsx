@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Share2, Bookmark, X,
-  Dumbbell, Zap, Plus, ChevronRight, Loader2
+  Dumbbell, Zap, Plus, Eye, ChevronRight, Loader2
 } from "lucide-react";
 import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, getProgramTags, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
 import { getCompletedUsers, CompletedUser } from "@/api/workouts/route";
@@ -351,7 +351,12 @@ const filteredExercises = exercises;
             )}
           </div>
    <button
-  onClick={() => setShowAddToQueueModal(true)}
+  onClick={() => {
+    console.log("=== Opening modal ===");
+    console.log("programId state:", programId);
+    console.log("localStorage now:", localStorage.getItem("workoutProgramId"));
+    setShowAddToQueueModal(true);
+  }}
   className="w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-violet-200 transition-all active:scale-95 flex items-center justify-center gap-2"
 >
   <Plus size={14} strokeWidth={3} /> Add to Queue
@@ -543,12 +548,12 @@ const filteredExercises = exercises;
       <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
         <button
 onClick={() => {
-  console.log("=== Opening modal ===");
-  console.log("programId state:", programId);
-  console.log("localStorage now:", localStorage.getItem("workoutProgramId"));
-  setShowAddToQueueModal(true);
+  if (programCode) localStorage.setItem("workoutProgramCode", programCode);
+  const title = workoutTitle || workoutKey || "";
+  if (title) localStorage.setItem("workoutTitle", title);
+  router.push("/workout/viewWorkoutSession");
 }}          className="pointer-events-auto w-full max-w-[280px] md:max-w-xs bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-full font-black text-[10px] uppercase tracking-[0.25em] shadow-2xl shadow-violet-300/50 flex items-center justify-center gap-2.5 transition-all active:scale-90 border border-white/10">
-          <Plus className="w-4 h-4" strokeWidth={4} /> Add to Queue
+          <Eye className="w-4 h-4" strokeWidth={4} /> View Workout
         </button>
       </div>
 
