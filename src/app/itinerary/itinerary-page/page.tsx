@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Calendar, X, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Calendar, X, Loader2, Check, Trash2, Pencil } from "lucide-react";
 import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
 import { getProgramTags } from "@/api/programs/route";
+import AddActivityModal from "@/app/checklist/components/addActivityModal";
 
 type FilterTab =
   | "PRIMARY"
@@ -160,11 +162,11 @@ const DAY_ORDER = [
 ];
 
 export default function ItineraryPage() {
+  const router = useRouter();
   const [showAddWorkout, setShowAddWorkout] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab | null>(null);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [repeatType, setRepeatType] = useState<"week" | "repeat">("repeat");
   const [selectedWorkout, setSelectedWorkout] = useState<ItineraryWorkout | null>(null);
+  const [schedulePopup, setSchedulePopup] = useState<{ workout: ItineraryWorkout; kind: "cardio" | "hydration" | "recovery" } | null>(null);
   const [selectedWorkoutTags, setSelectedWorkoutTags] = useState<string[]>([]);
   const [itineraryData, setItineraryData] = useState<ItineraryWorkout[]>([]);
   const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
@@ -172,28 +174,34 @@ export default function ItineraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const itinerary = await getItinerary();
+      setItineraryData(itinerary);
+      setError(null);
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setError(err.message || "Failed to fetch itinerary");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const itinerary = await getItinerary();
-        setItineraryData(itinerary);
-        setError(null);
-      } catch (err: any) {
-        console.error("Error fetching data:", err);
-        setError(err.message || "Failed to fetch itinerary");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  // Weekly Schedule cards only cover primary/supplemental/conditioning workouts —
+  // cardio, recovery, custom, and hydration only ever show as calendar dots.
+  const SCHEDULE_EXCLUDED_TYPES = new Set(["cardio", "recovery", "custom", "hydration", "nutrition"]);
 
   // Group workouts by day from API data
   const workoutsByDay: Record<string, ItineraryWorkout[]> = {};
   for (const day of DAY_ORDER) workoutsByDay[day] = [];
-  
+
   for (const workout of itineraryData) {
+    if (SCHEDULE_EXCLUDED_TYPES.has(workout.type.toLowerCase())) continue;
     const day = workout.activity_day;
     if (workoutsByDay[day]) {
       workoutsByDay[day].push(workout);
@@ -201,13 +209,30 @@ export default function ItineraryPage() {
   }
 
   // Create dots for calendar view from itinerary data
-  const dotsByDay: Record<number, ItineraryWorkout[]> = {};
-  for (let i = 0; i < 7; i++) dotsByDay[i] = [];
+  const dotsByDayRaw: Record<number, ItineraryWorkout[]> = {};
+  for (let i = 0; i < 7; i++) dotsByDayRaw[i] = [];
 
   for (const workout of itineraryData) {
     const dayNum = workout.day_number;
     if (dayNum >= 0 && dayNum < 7) {
-      dotsByDay[dayNum].push(workout);
+      dotsByDayRaw[dayNum].push(workout);
+    }
+  }
+
+  // With no category filter active, collapse to one dot per unique type per
+  // day; with a filter active, show every matching activity stacked instead.
+  const dotsByDay: Record<number, ItineraryWorkout[]> = {};
+  for (let i = 0; i < 7; i++) {
+    const dayActivities = dotsByDayRaw[i];
+    if (activeFilter) {
+      dotsByDay[i] = dayActivities.filter((a) => getFilterFromType(a.type) === activeFilter);
+    } else {
+      const seenTypes = new Set<string>();
+      dotsByDay[i] = dayActivities.filter((a) => {
+        if (seenTypes.has(a.type)) return false;
+        seenTypes.add(a.type);
+        return true;
+      });
     }
   }
 
@@ -231,43 +256,32 @@ const totalWorkouts = (() => {
   return allWorkouts.filter(w => w.type === scheduleType).length;
 })();
 
-// Add this function with your other functions
-const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => {
-  // Update local state
-  setItineraryData(prev => prev.map(w => 
-    w.id === workoutId 
-      ? { ...w, completed: isCompleted, completed_activity: isCompleted }
-      : w
-  ));
-  
-
-};
-
   useEffect(() => {
     if (!itineraryData.length) return;
     const uniqueCodes = [...new Set(itineraryData.map((w) => w.title).filter(Boolean))];
     uniqueCodes.forEach((code) => {
-      getProgramTags(code.toLowerCase())
-        .then((tags) => setTagsMap((prev) => ({ ...prev, [code]: tags })))
+      const cleanCode = code.trim().split(" ")[0];
+      if (!cleanCode) return;
+      getProgramTags(cleanCode.toLowerCase())
+        .then((tags) => {
+          console.log("[itinerary] schedule card tags for", code, ":", tags);
+          setTagsMap((prev) => ({ ...prev, [code]: tags }));
+        })
         .catch(() => {});
     });
   }, [itineraryData]);
 
   useEffect(() => {
     if (!selectedWorkout?.title) { setSelectedWorkoutTags([]); return; }
-    getProgramTags(selectedWorkout.title.toLowerCase())
+    const cleanCode = selectedWorkout.title.trim().split(" ")[0];
+    if (!cleanCode) { setSelectedWorkoutTags([]); return; }
+    getProgramTags(cleanCode.toLowerCase())
       .then((tags) => {
         console.log("[itinerary] tags for", selectedWorkout.title, ":", tags);
         setSelectedWorkoutTags(tags);
       })
       .catch(() => setSelectedWorkoutTags([]));
   }, [selectedWorkout]);
-
-  const toggleDay = (day: string) => {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-    );
-  };
 
   const formatTime = (time: string): string => {
     if (!time) return "";
@@ -279,6 +293,19 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
   };
 
   const handleDotClick = (workout: ItineraryWorkout) => {
+    const type = workout.type.toLowerCase();
+    if (type === "cardio") {
+      setSchedulePopup({ workout, kind: "cardio" });
+      return;
+    }
+    if (type === "hydration") {
+      setSchedulePopup({ workout, kind: "hydration" });
+      return;
+    }
+    if (type === "recovery") {
+      setSchedulePopup({ workout, kind: "recovery" });
+      return;
+    }
     setSelectedWorkout(workout);
   };
 
@@ -315,13 +342,24 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
 
+      {/* ── Weekly Agenda link ── */}
+      <button
+        onClick={() => router.push("/checklist/weekly-agenda")}
+        className="flex items-center gap-1.5 px-4 sm:px-6 pt-4 pb-1 flex-shrink-0 text-purple-600 hover:text-purple-700 transition-colors self-start"
+      >
+        <Calendar size={14} />
+        <span className="text-[13px] sm:text-[14px] font-bold">Weekly Agenda</span>
+      </button>
+
       {/* ── Filter Pills ── */}
       <div className="flex items-center gap-2 px-4 sm:px-6 py-4 overflow-x-auto scrollbar-hide flex-shrink-0">
         {FILTER_TABS.map((tab) => {
           const count = itineraryData.filter(
             (w) => getFilterFromType(w.type) === tab.key
           ).length;
-          
+          const isActive = activeFilter === tab.key;
+          const isAnyActive = activeFilter !== null;
+
           return (
             <button
               key={tab.key}
@@ -329,10 +367,10 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                 setActiveFilter(activeFilter === tab.key ? null : tab.key)
               }
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-[12px] sm:text-[13px] font-bold whitespace-nowrap border transition-all ${
-                activeFilter === tab.key
+                isActive
                   ? `${tab.activeBg} ${tab.activeText} border-transparent shadow-md`
                   : tab.color
-              }`}
+              } ${isAnyActive && !isActive ? "opacity-30" : ""}`}
             >
               <span className={`w-2 h-2 rounded-full inline-block ${tab.dot}`} />
               {tab.label}
@@ -342,14 +380,6 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
             </button>
           );
         })}
-      </div>
-
-      {/* ── Weekly Agenda toggle ── */}
-      <div className="flex items-center gap-2 px-5 sm:px-6 py-1 flex-shrink-0">
-        <Calendar size={15} className="text-purple-600" />
-        <span className="text-[13px] sm:text-[14px] text-purple-600 font-bold">
-          Weekly Agenda
-        </span>
       </div>
 
       {/* ── Dot Grid Calendar ── */}
@@ -381,12 +411,7 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
           {Array.from({ length: maxRows }).map((_, rowIdx) => (
             <div key={`row-${rowIdx}`} className="grid grid-cols-7 gap-2 mb-3">
               {Array.from({ length: 7 }).map((_, colIdx) => {
-                const activitiesInThisDay = dotsByDay[colIdx] || [];
-                const filteredActivities = activeFilter
-                  ? activitiesInThisDay.filter((a) => getFilterFromType(a.type) === activeFilter)
-                  : activitiesInThisDay;
-
-                const activity = filteredActivities[rowIdx];
+                const activity = (dotsByDay[colIdx] || [])[rowIdx];
 
                 if (!activity) {
                   return (
@@ -397,12 +422,16 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                   );
                 }
 
+                const isCompleted = !!(activity.completed || activity.completed_activity);
+
                 return (
                   <div
                     key={`dot-${activity.id}-${colIdx}-${rowIdx}`}
                     onClick={() => handleDotClick(activity)}
-                    className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${getDotColor(activity.type)} cursor-pointer hover:scale-125 transition-all duration-300 mx-auto shadow-sm`}
-                  />
+                    className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${getDotColor(activity.type)} cursor-pointer hover:scale-125 transition-all duration-300 mx-auto shadow-sm flex items-center justify-center ${isCompleted ? "ring-2 ring-offset-1 ring-gray-300" : ""}`}
+                  >
+                    {isCompleted && <Check size={8} className="text-white" strokeWidth={3} />}
+                  </div>
                 );
               })}
             </div>
@@ -410,13 +439,13 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
         </div>
       </div>
 
-      {/* ── Add Workout CTA ── */}
+      {/* ── Add Activity CTA ── */}
       <button
         onClick={() => setShowAddWorkout(true)}
         className="mx-4 sm:mx-6 bg-purple-700 hover:bg-purple-800 text-white text-[14px] sm:text-[15px] font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg"
       >
         <Plus size={18} strokeWidth={3} />
-        Add Workout
+        Add Activity
       </button>
 
       {/* ── Weekly Schedule ── */}
@@ -442,7 +471,6 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
         <option value="Workout">Workout</option>
         <option value="Field Workout">Field Workout</option>
         <option value="Supplemental">Supplemental</option>
-        <option value="Cardio">Cardio</option>
       </select>
       <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -494,31 +522,12 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                   </span>
                 </div>
 
-                {/* Checkbox - Top Right */}
-                <div className="absolute top-3 right-3 z-10">
-                  <label 
-                    className="relative flex items-center cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={w.completed || w.completed_activity || false}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        // Handle completion toggle
-                        handleToggleComplete(w.id, !(w.completed || w.completed_activity));
-                      }}
-                      className="peer sr-only"
-                    />
-                    <div className="w-5 h-5 rounded-md border-2 border-white/70 bg-white/10 backdrop-blur-sm flex items-center justify-center transition-all peer-checked:bg-green-500 peer-checked:border-green-500 peer-hover:border-white">
-                      {(w.completed || w.completed_activity) && (
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </label>
-                </div>
+                {/* Completed indicator - Top Right (read-only, reflects real backend state) */}
+                {(w.completed || w.completed_activity) && (
+                  <div className="absolute top-3 right-3 z-10 w-5 h-5 rounded-md bg-green-500 flex items-center justify-center shadow-sm">
+                    <Check size={12} className="text-white" strokeWidth={3} />
+                  </div>
+                )}
 
                 <div className="absolute bottom-3 left-3 right-3">
                   {w.program_name && (
@@ -547,16 +556,23 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
                   )}
 
                   {(() => {
-                    const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
+                    const tagLabel = (tag: string): string | null => {
+                      const t = tag.toUpperCase();
+                      if (t.includes("UES")) return "Bench";
+                      if (t.includes("LES")) return "Squat";
+                      if (t.includes("CCS")) return "Clean";
+                      if (t.includes("HHP")) return "Deadlift";
+                      return null;
+                    };
                     const badges = (tagsMap[w.title] || [])
-                      .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
+                      .map(tagLabel)
                       .filter(Boolean) as string[];
                     if (!badges.length) return null;
                     return (
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {badges.map((name) => (
+                        {badges.map((name, idx) => (
                           <span
-                            key={name}
+                            key={`${name}-${idx}`}
                             className="px-1.5 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[9px] font-semibold"
                           >
                             ${name}
@@ -575,168 +591,221 @@ const handleToggleComplete = async (workoutId: string, isCompleted: boolean) => 
   </div>
 </div>
 
-      {/* ── Add Workout Modal ── (keep same as before) ── */}
+      {/* ── Add Activity Modal ── */}
       {showAddWorkout && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-          <div className="bg-white w-full sm:w-[600px] rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl relative animate-in slide-in-from-bottom duration-300">
-            <button
-              onClick={() => setShowAddWorkout(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-black p-2"
-            >
-              <X size={24} />
-            </button>
-
-            <h2 className="text-[20px] sm:text-[24px] font-black mb-6">
-              Add Workout
-            </h2>
-
-            <div className="space-y-5">
-              <div>
-                <p className="text-[13px] sm:text-[14px] font-bold mb-2 text-gray-700">Workout Details</p>
-                <input
-                  className="w-full border-2 border-gray-100 rounded-2xl p-4 bg-gray-50 text-[15px] focus:border-purple-500 outline-none transition-colors"
-                  placeholder="Select or search workout"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setRepeatType("week")}
-                  className={`flex-1 py-3.5 rounded-2xl text-[14px] font-bold transition-all ${
-                    repeatType === "week"
-                      ? "bg-gray-900 text-white shadow-lg"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  This Week
-                </button>
-                <button
-                  onClick={() => setRepeatType("repeat")}
-                  className={`flex-1 py-3.5 rounded-2xl text-[14px] font-bold transition-all ${
-                    repeatType === "repeat"
-                      ? "bg-purple-600 text-white shadow-lg"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  Repeat Weekly
-                </button>
-              </div>
-
-              <div>
-                <p className="text-[13px] sm:text-[14px] font-bold mb-2 text-gray-700">Set Time</p>
-                <input
-                  type="time"
-                  className="w-full border-2 border-gray-100 rounded-2xl p-4 bg-gray-50 text-[16px] font-medium outline-none"
-                />
-              </div>
-
-              <div>
-                <p className="text-[13px] sm:text-[14px] font-bold mb-2 text-gray-700">Select Days</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {DAYS_SHORT.map((day, i) => {
-                    const fullDay = DAYS_FULL[i];
-                    const selected = selectedDays.includes(fullDay);
-                    return (
-                      <button
-                        key={day}
-                        onClick={() => toggleDay(fullDay)}
-                        className={`rounded-xl py-3 text-[14px] font-bold border-2 transition-all ${
-                          selected
-                            ? "bg-purple-600 text-white border-purple-600 shadow-md"
-                            : "bg-white text-gray-400 border-gray-100 hover:border-purple-200"
-                        }`}
-                      >
-                        {day}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black py-4 rounded-2xl text-[16px] shadow-xl active:scale-[0.98] transition-transform mt-4">
-                Update Itinerary
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddActivityModal
+          onClose={() => setShowAddWorkout(false)}
+          onAdded={() => {
+            setShowAddWorkout(false);
+            fetchData();
+          }}
+          day={getTodayInfo().todayName}
+        />
       )}
 
-      {/* ── Workout Detail Modal ── (keep same as before) ── */}
-      {selectedWorkout && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setSelectedWorkout(null)}
-        >
+      {/* ── Workout Detail Popup ── */}
+      {selectedWorkout && (() => {
+        const tagLabel = (tag: string): string | null => {
+          const t = tag.toUpperCase();
+          if (t.includes("UES")) return "Bench";
+          if (t.includes("LES")) return "Squat";
+          if (t.includes("CCS")) return "Clean";
+          if (t.includes("HHP")) return "Deadlift";
+          return null;
+        };
+        const powerTags = selectedWorkoutTags
+          .map(tagLabel)
+          .filter(Boolean) as string[];
+
+        const EDIT_TIME_SECTIONS: Record<string, string> = {
+          workout: "workout",
+          "field workout": "workout",
+          supplemental: "supplemental",
+          conditioning: "conditioning",
+        };
+        const editTimeSection = EDIT_TIME_SECTIONS[selectedWorkout.type.toLowerCase()];
+
+        return (
           <div
-            className="bg-white w-full sm:w-[500px] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden relative animate-in slide-in-from-bottom sm:zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setSelectedWorkout(null)}
           >
-            <div className="px-6 pt-8 pb-8 space-y-6">
-              <div className="relative h-[220px] rounded-3xl overflow-hidden shadow-lg">
-                {selectedWorkout.cover_photo ? (
-                  <img 
-                    src={selectedWorkout.cover_photo} 
+            <div
+              className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedWorkout(null)}
+                className="absolute right-5 top-5 p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <h2 className="text-xl font-extrabold text-gray-900 text-center">{selectedWorkout.type}</h2>
+              <p className="text-center text-xs text-gray-400 font-semibold mt-1 mb-4">Upcoming:</p>
+
+              {/* Image card */}
+              <div className="relative w-full h-40 rounded-2xl overflow-hidden mb-4 bg-gradient-to-br from-gray-700 to-gray-900">
+                {selectedWorkout.cover_photo && (
+                  <img
+                    src={selectedWorkout.cover_photo}
                     alt={selectedWorkout.workout_title}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
-                ) : (
-                  <div className={`absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900`} />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6">
-                  <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase mb-2">
-                    {selectedWorkout.type}
-                  </span>
-                  <h3 className="text-[28px] font-black text-center leading-tight">
-                    {selectedWorkout.workout_title}
-                  </h3>
-                  <p className="text-[14px] font-medium opacity-80 mt-1">
-                    {selectedWorkout.week} • {selectedWorkout.muscles_used}
-                  </p>
-                  {selectedWorkoutTags.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                      {selectedWorkoutTags.map((tag) => (
-                        <span key={tag} className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-[10px] font-black rounded-full uppercase">
-                          {tag}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-3">
+                  <p className="text-white/80 text-[11px] font-bold uppercase tracking-wide">{selectedWorkout.type}</p>
+                  <p className="text-violet-400 font-extrabold text-lg leading-snug mb-1.5">{selectedWorkout.workout_title}</p>
+                  {powerTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {powerTags.map((label, idx) => (
+                        <span key={idx} className="bg-cyan-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+                          ${label}
                         </span>
                       ))}
                     </div>
                   )}
+                  {selectedWorkout.muscles_used && (
+                    <p className="text-white text-sm font-semibold">{selectedWorkout.muscles_used}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Date row */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 mb-4 border border-gray-100">
+                <div className="flex items-center gap-2 text-gray-800 font-semibold text-sm">
+                  <Calendar size={16} className="text-gray-400" />
+                  {selectedWorkout.activity_day} @ {formatTime(selectedWorkout.activity_time)}
                 </div>
                 <button
-                  onClick={() => setSelectedWorkout(null)}
-                  className="absolute top-4 right-4 w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white"
+                  onClick={() => {
+                    setSelectedWorkout(null);
+                    router.push(editTimeSection ? `/preferences?section=${editTimeSection}` : "/preferences");
+                  }}
+                  className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                  title="Edit time"
                 >
-                  <X size={20} />
+                  <Pencil size={16} className="text-purple-500" />
                 </button>
               </div>
 
-              <div className="bg-gray-50 rounded-2xl p-5 flex items-center justify-between border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
-                    <Calendar size={20} />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-black text-gray-900">{selectedWorkout.activity_day}</p>
-                    <p className="text-[12px] text-gray-500 font-bold">
-                      @ {formatTime(selectedWorkout.activity_time)}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <button
+                onClick={() => {
+                  setSelectedWorkout(null);
+                  router.push(`/workout/detail?code=${encodeURIComponent(selectedWorkout.title)}&workoutKey=${encodeURIComponent(selectedWorkout.workout_title)}`);
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl mb-3 transition-colors shadow-md"
+              >
+                View Workout
+              </button>
 
-              <div className="flex flex-col gap-3">
-                <button className="w-full bg-purple-700 text-white py-4 rounded-2xl font-black text-[16px] shadow-lg active:scale-95 transition-transform">
-                  Start Workout
-                </button>
-                <button className="w-full border-2 border-gray-100 text-gray-500 py-4 rounded-2xl font-black text-[15px] active:scale-95 transition-transform">
-                  View Full Queue
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setSelectedWorkout(null);
+                  router.push("/workout");
+                }}
+                className="w-full border border-purple-200 text-purple-600 font-bold py-3.5 rounded-xl mb-3 hover:bg-purple-50 transition-colors"
+              >
+                View Queue
+              </button>
+
+              <button
+                onClick={() => alert("Removing workouts from the itinerary isn't supported yet — manage this from the Queue.")}
+                className="w-full flex items-center justify-center gap-1.5 text-red-500 font-semibold text-sm py-1.5 mb-1 hover:text-red-600 transition-colors"
+              >
+                <Trash2 size={14} />
+                Remove from Itinerary
+              </button>
+
+              <button
+                onClick={() => setSelectedWorkout(null)}
+                className="w-full text-center text-gray-400 text-sm py-1 hover:text-gray-600 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* ── Cardio / Hydration / Recovery Dot Popup ── */}
+      {schedulePopup && (() => {
+        const { workout, kind } = schedulePopup;
+        const label = kind === "cardio" ? "Cardio" : kind === "hydration" ? "Hydration" : "Recovery";
+        const manageRoute =
+          kind === "cardio" ? "/todays-focus-cardio/scheduled-cardio"
+          : kind === "hydration" ? "/hydration/hydration-queue"
+          : "/recovery/recovery-dashboard?openGoal=1";
+        const completeRoute =
+          kind === "cardio" ? "/todays-focus-cardio/cardio-entry"
+          : kind === "hydration" ? "/hydration/submitHydration"
+          : "/recovery/suggestedRecovery";
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setSchedulePopup(null)}
+          >
+            <div
+              className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-extrabold text-purple-600">{label}</span>
+                <button
+                  onClick={() => {
+                    setSchedulePopup(null);
+                    router.push(manageRoute);
+                  }}
+                  className="p-2 -m-2 rounded-full text-red-500 hover:bg-red-50 transition-colors"
+                  title={`Manage in ${label} Schedule`}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+
+              <h2 className="text-xl font-extrabold text-gray-900 text-center mb-4">
+                Completed by {workout.activity_day}
+              </h2>
+
+              <div className="border-t border-gray-100 mb-4" />
+
+              <p className="text-center text-sm text-gray-500 mb-1">{label} #1</p>
+              <p className="text-center text-sm text-gray-400 mb-6">
+                Time: {formatTime(workout.activity_time)}
+              </p>
+
+              <button
+                onClick={() => {
+                  setSchedulePopup(null);
+                  router.push(completeRoute);
+                }}
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3.5 rounded-xl mb-3 transition-all shadow-md"
+              >
+                Complete Activity
+              </button>
+
+              <button
+                onClick={() => {
+                  setSchedulePopup(null);
+                  router.push(manageRoute);
+                }}
+                className="w-full border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl mb-3 hover:bg-gray-50 transition-colors"
+              >
+                {label} Schedule Settings
+              </button>
+
+              <button
+                onClick={() => setSchedulePopup(null)}
+                className="w-full text-center text-gray-400 text-sm py-1 hover:text-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

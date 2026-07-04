@@ -124,6 +124,8 @@ export interface MissedActivity {
   completed: boolean;
   recurring: string;
   SetItineraryTime: number;
+  teamId?: string | number | null;
+  completed_activity?: string | null;
 }
 
 interface MissedActivitiesResponse {
@@ -145,10 +147,29 @@ export const getMissedActivities = async (): Promise<MissedActivity[]> => {
   }
 };
 
+// Same endpoint as getMissedActivities, but keeps the day-grouped AllActivity
+// map the weekly agenda view needs instead of only the flat missed list.
+export const getWeeklyActivities = async (): Promise<MissedActivitiesResponse> => {
+  try {
+    const { data } = await apiClient.get<MissedActivitiesResponse>(
+      "/itinerary-setup/missed-activities",
+    );
+    return {
+      AllActivity: data.AllActivity ?? {},
+      missedActivity: data.missedActivity ?? [],
+    };
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to fetch weekly activities."),
+    );
+  }
+};
+
 export const itineraryApi = {
   getItinerary,
   getCustomActivities,
   getMissedActivities,
+  getWeeklyActivities,
 };
 
 export default itineraryApi;

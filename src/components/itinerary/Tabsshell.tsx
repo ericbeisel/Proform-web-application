@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import PageTitle from "@/components/itinerary/Pagetitle";
-import { ChevronRight, AlertCircle } from "lucide-react";
+import { ChevronRight, AlertCircle, CalendarDays } from "lucide-react";
+import { getMissedActivities } from "@/api/itinerary/route";
 
 // Routes inside (tabs) that should hide the shared shell
 const HIDDEN_SHELL_ROUTES = ["/itinerary/missed-activity", "/itinerary/all-activity", "/itinerary/queue"];
@@ -15,6 +17,11 @@ export default function TabsShell({
   const pathname = usePathname();
   const router = useRouter();
   const hideShell = HIDDEN_SHELL_ROUTES.some((r) => pathname.startsWith(r));
+  const [missedCount, setMissedCount] = useState(0);
+
+  useEffect(() => {
+    getMissedActivities().then((list) => setMissedCount(list.length)).catch(() => {});
+  }, []);
 
   if (hideShell) {
     return (
@@ -41,15 +48,24 @@ export default function TabsShell({
           />
         </div>
 
-        {/* Right — Missed Activity + Go to Queue */}
+        {/* Right — Checklist + Missed Activity + Go to Queue */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push("/checklist/missed-activity")}
-            className="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 text-[11px] sm:text-[12px] font-semibold px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors whitespace-nowrap"
+            onClick={() => router.push("/checklist")}
+            className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-purple-700 hover:bg-purple-50 transition-colors"
+            title="Today's Checklist"
           >
-            <AlertCircle size={12} />
-            Missed Activity
+            <CalendarDays size={17} />
           </button>
+          {missedCount > 0 && (
+            <button
+              onClick={() => router.push("/checklist/missed-activity")}
+              className="flex items-center gap-1.5 border border-red-200 bg-red-50 text-red-600 text-[11px] sm:text-[12px] font-semibold px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors whitespace-nowrap"
+            >
+              <AlertCircle size={12} />
+              {missedCount} Missed
+            </button>
+          )}
           <button
             onClick={() => router.push("/workout")}
             className="bg-purple-700 hover:bg-purple-800 text-white text-[12px] sm:text-[13px] font-bold px-4 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap"

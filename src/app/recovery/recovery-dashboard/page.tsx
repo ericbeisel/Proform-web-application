@@ -9,7 +9,7 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getRecoveryDashboard, getAllRecoveryZones, updateRecoveryGoal, RecoveryDashboardData, RecoveryZone } from "@/api/recovery/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
 
@@ -59,6 +59,7 @@ const formatDate = (dateString: string): string => {
 
 export default function RecoveryDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [updatingGoal, setUpdatingGoal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +71,13 @@ export default function RecoveryDashboard() {
   const [adIndex, setAdIndex] = useState(0);
   const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Deep link support — e.g. from the itinerary popup's "Recovery Schedule Settings" button
+  useEffect(() => {
+    if (searchParams.get("openGoal") === "1") {
+      setShowModal(true);
+    }
+  }, [searchParams]);
 
   // Fetch dashboard data and recovery zones
   useEffect(() => {
@@ -543,12 +551,6 @@ export default function RecoveryDashboard() {
             <h2 className="text-center text-xl font-semibold mb-4">
               Recovery Goal
             </h2>
-
-            <div className="bg-green-100 text-green-700 text-sm p-3 rounded-xl mb-6 text-center">
-              {aiSuggestion?.suggestedMin
-                ? `*AI suggests at least ${aiSuggestion.suggestedMin} minutes of recovery each week`
-                : "*AI suggests at least 82 minutes of recovery each week"}
-            </div>
 
             <div className="flex items-center justify-center gap-8 mb-6 flex-wrap">
               <div className="bg-gray-100 rounded-xl px-8 py-6 text-center">

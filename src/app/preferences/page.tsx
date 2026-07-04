@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import EditTimeModal, { TimeSlot } from "./EditTimeModal";
 import {
   ActivityDay,
@@ -287,8 +287,11 @@ function ScheduleBlock({
 
 const MemoizedScheduleBlock = React.memo(ScheduleBlock);
 
+const EDIT_TIME_SECTIONS: ScheduleSection[] = ["workout", "cardio", "supplemental", "conditioning"];
+
 export default function PreferencesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const {
     data: preferencesData,
@@ -361,6 +364,15 @@ export default function PreferencesPage() {
       console.log("Preferences data schedule:", preferencesData.schedule);
     }
   }, [preferencesData]);
+
+  // Deep link support — e.g. from the itinerary popup's edit-time pencil icon
+  useEffect(() => {
+    if (!preferencesData) return;
+    const section = searchParams.get("section");
+    if (section && (EDIT_TIME_SECTIONS as string[]).includes(section)) {
+      setActiveEditSection(section as ScheduleSection);
+    }
+  }, [preferencesData, searchParams]);
 
   useEffect(() => {
     if (isError) {

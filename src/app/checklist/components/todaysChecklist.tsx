@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Settings, X, Plus, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Calendar, Settings, X, Plus, Clock, AlertCircle, Loader2, ListChecks } from "lucide-react";
 import AddActivityModal from "./addActivityModal";
 import { useRouter } from "next/navigation";
 import { getTodayActivities, getSuggestions, type TodayActivity, type Suggestion } from "@/api/checklist/route";
@@ -80,6 +80,7 @@ function activityToItem(a: TodayActivity): ChecklistItem {
     isWorkout: a.type === "Workout" || a.type === "Supplemental",
     workoutCode: a.title,
     workoutKey: a.workout_title,
+    apiCompleted: a.completed,
   };
 }
 
@@ -154,12 +155,6 @@ export default function TodaysChecklist() {
       .finally(() => setLoading(false));
   }, [today, refreshKey]);
 
-  const toggle = (id: string) =>
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
 
   const nonSuggestionCount = items.filter((i) => i.type !== "Suggestion").length;
   const showSuggestions = !hideSuggested && nonSuggestionCount < 10;
@@ -167,7 +162,7 @@ export default function TodaysChecklist() {
   const total = visible.length;
   const doneCount = [...completed].filter((id) => visible.find((i) => i.id === id)).length;
   const progress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const overdueCount = visible.filter((i) => i.overdue && !completed.has(i.id)).length;
+  const overdueCount = visible.filter((i) => i.overdue && i.type !== "Suggestion" && !completed.has(i.id)).length;
 
   return (
     <div
@@ -189,6 +184,13 @@ export default function TodaysChecklist() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/itinerary/itinerary-page")}
+              className="flex items-center gap-1.5 border border-purple-200 bg-purple-50 text-purple-700 text-[11px] font-semibold px-3 py-1.5 rounded-full hover:bg-purple-100 transition-colors"
+            >
+              <ListChecks size={13} />
+              Itinerary
+            </button>
             {overdueCount > 0 && (
               <button
                 onClick={() => router.push("/checklist/missed-activity")}
@@ -303,8 +305,19 @@ export default function TodaysChecklist() {
                     router.push("/todays-focus-cardio/cardio-entry");
                     return;
                   }
-                  if (item.type === "Suggestion" && done) return;
-                  toggle(item.id);
+                  if (item.type === "Hydration") {
+                    router.push("/hydration/hydrationDashboard");
+                    return;
+                  }
+                  if (item.type === "Recovery") {
+                    router.push("/recovery/recovery-dashboard");
+                    return;
+                  }
+                  if (item.isWorkout) {
+                    router.push(`/workout/detail?code=${encodeURIComponent(item.workoutCode ?? "")}&workoutKey=${encodeURIComponent(item.workoutKey ?? "")}`);
+                    return;
+                  }
+                  // Suggestion (no matching action) — nothing to do on click.
                 };
 
                 return (
@@ -312,7 +325,7 @@ export default function TodaysChecklist() {
                     key={item.id}
                     onClick={handleCardClick}
                     className={`relative rounded-2xl border p-4 cursor-pointer transition-all duration-200 ${
-                      item.overdue && !done
+                      item.overdue && item.type !== "Suggestion" && !done
                         ? "border-red-300 bg-white"
                         : done && item.type === "Suggestion"
                         ? "border-dashed border-gray-300 bg-gray-50"
@@ -326,7 +339,7 @@ export default function TodaysChecklist() {
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${badge}`}>
                         {item.type}
                       </span>
-                      {item.overdue && !done && (
+                      {item.overdue && !done && item.type !== "Suggestion" && (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-500">
                           Overdue
                         </span>

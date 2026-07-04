@@ -334,21 +334,35 @@ const filteredExercises = exercises;
               );
             })()}
 
-            {powerSets.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {powerSets.map((ps) => (
-                  ps.is_money_set ? (
-                    <span key={ps.id} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
-                      ★ Money Set
+            {(() => {
+              const tagLabel = (tag: string): string | null => {
+                const t = tag.toUpperCase();
+                if (t.includes('UES')) return 'Bench';
+                if (t.includes('LES')) return 'Squat';
+                if (t.includes('CCS')) return 'Clean';
+                if (t.includes('HHP')) return 'Deadlift';
+                return null;
+              };
+              const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
+              const hasMoneySet = powerSets.some((ps) => ps.is_money_set);
+
+              if (!powerSetTags.length && !hasMoneySet) return null;
+
+              return (
+                <div className="flex flex-wrap gap-1.5 mt-1.5 mb-0.5">
+                  {hasMoneySet && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full tracking-wide">
+                      ★ MONEY SET
                     </span>
-                  ) : (
-                    <span key={ps.id} className="px-3.5 py-1.5 bg-cyan-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
-                      ${ps.title_secondary?.split(' ').slice(-1)[0]?.toLowerCase().replace(/^./, (c) => c.toUpperCase())}
+                  )}
+                  {powerSetTags.map((label, idx) => (
+                    <span key={idx} className="px-3 py-1 bg-cyan-500 text-white text-[10px] font-black rounded-full tracking-wide">
+                      ${label}
                     </span>
-                  )
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
    <button
   onClick={() => {
