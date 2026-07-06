@@ -63,6 +63,7 @@ import {
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
+import { getUserIdFromToken } from "@/lib/auth/session";
 
 function getSectionColor(label: string, index: number): string {
   const l = (label || "").toLowerCase();
@@ -659,12 +660,24 @@ function ViewWorkoutSessionContent() {
       }
 
       getIncompleteSessions(normalizedCode)
-        .then((sessions) => {
+        .then((allSessions) => {
           console.log(
             "[mount] incompleteSessions returned:",
-            sessions.length,
-            sessions.map((s) => s.id),
+            allSessions.length,
+            allSessions.map((s) => s.id),
           );
+          // The API returns incomplete sessions for the whole program, not
+          // scoped to the caller — filter to sessions this account actually
+          // owns/started, otherwise viewing someone else's shared session
+          // link surfaces a "Rejoin" banner for THEIR session.
+          const myUserId = getUserIdFromToken();
+          const sessions = myUserId
+            ? allSessions.filter(
+                (s) =>
+                  String(s.owner_id) === String(myUserId) ||
+                  String(s.member_id) === String(myUserId),
+              )
+            : allSessions;
           if (sessions.length > 0) {
             setIncompleteSessions(sessions);
             // Only auto-connect to a session that is verifiably still incomplete per
