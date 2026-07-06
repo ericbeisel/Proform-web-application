@@ -1937,8 +1937,8 @@ const plusMinutes = lastCard?.minutes || 0;
             e.target === e.currentTarget && setShowCompletePopup(false)
           }
         >
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 relative">
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl relative flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center px-6 pt-6 pb-4 flex-shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
               Cardio Completion
               </h2>
@@ -1950,56 +1950,60 @@ const plusMinutes = lastCard?.minutes || 0;
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-4">
-              Get credit towards one of your scheduled cardio sessions (Choose
-              One):
-            </p>
+            <div className="overflow-y-auto flex-1 min-h-0 px-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Get credit towards one of your scheduled cardio sessions (Choose
+                One):
+              </p>
 
-            <div className="space-y-3 mb-6">
-         {scheduledActivities.map((activity) => (
-  <label
-    key={activity.id}
-    className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${
-      selectedActivityId === activity.custom_activity_id
-        ? "border-purple-500 bg-purple-50"
-        : "border-gray-200 hover:bg-gray-50"
-    }`}
-  >
-    <input
-      type="radio"
-      name="cardioOption"
-      value={activity.custom_activity_id}
-      checked={selectedActivityId === activity.custom_activity_id}
-      onChange={() => setSelectedActivityId(activity.custom_activity_id)}
-      className="w-4 h-4 text-purple-600"
-    />
-    <span className="text-sm text-gray-700">
-      Cardio due by {activity.day_name} at {formatTime(activity.title)}
-    </span>
-  </label>
-))}
+              <div className="space-y-3">
+           {scheduledActivities.map((activity) => (
+    <label
+      key={activity.id}
+      className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition ${
+        selectedActivityId === activity.custom_activity_id
+          ? "border-purple-500 bg-purple-50"
+          : "border-gray-200 hover:bg-gray-50"
+      }`}
+    >
+      <input
+        type="radio"
+        name="cardioOption"
+        value={activity.custom_activity_id}
+        checked={selectedActivityId === activity.custom_activity_id}
+        onChange={() => setSelectedActivityId(activity.custom_activity_id)}
+        className="w-4 h-4 text-purple-600 flex-shrink-0"
+      />
+      <span className="text-sm text-gray-700">
+        Cardio due by {activity.day_name} at {formatTime(activity.title)}
+      </span>
+    </label>
+  ))}
+              </div>
             </div>
 
-            <button
-              onClick={handleSaveToScheduled}
-              disabled={!selectedActivityId}
-              className="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed mb-3"
-            >
-              Save Cardio
-            </button>
+            <div className="px-6 pt-4 pb-6 flex-shrink-0">
+              <button
+                onClick={handleSaveToScheduled}
+                disabled={!selectedActivityId}
+                className="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+              >
+                Save Cardio
+              </button>
 
-            <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400">or</span>
-              <div className="flex-1 h-px bg-gray-200" />
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">or</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <button
+                onClick={handleCreateNew}
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-3 rounded-xl font-semibold transition"
+              >
+                Create a New One
+              </button>
             </div>
-
-            <button
-              onClick={handleCreateNew}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-3 rounded-xl font-semibold transition"
-            >
-              Create a New One
-            </button>
           </div>
         </div>
       )}

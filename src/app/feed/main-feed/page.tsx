@@ -94,7 +94,7 @@ export default function FeedMainPage() {
   const [activeTab, setActiveTab] = useState<"forYou" | "following">("forYou");
 
   const [feedFilters, setFeedFilters] = useState<Record<string, boolean>>({
-    Workouts: true, CardioSessions: true, Recovery: true, Hydration: true, Nutrition: true,
+    workouts: true, cardio: true, recovery: true, hydration: true,
   });
 
   useEffect(() => {
@@ -515,11 +515,11 @@ const [creatingHighlight, setCreatingHighlight] =
   const activeLoadingMore = activeTab === "following" ? followingLoadingMore : loadingMore;
 
   const typeToFilterKey = (type: string): string => {
-    if (type.toLowerCase().includes("cardio")) return "CardioSessions";
-    if (type.toLowerCase().includes("recovery")) return "Recovery";
-    if (type.toLowerCase().includes("hydration")) return "Hydration";
-    if (type.toLowerCase().includes("nutrition")) return "Nutrition";
-    return "Workouts";
+    if (type.toLowerCase().includes("cardio")) return "cardio";
+    if (type.toLowerCase().includes("recovery")) return "recovery";
+    if (type.toLowerCase().includes("hydration")) return "hydration";
+    if (type.toLowerCase().includes("nutrition")) return "nutrition";
+    return "workouts";
   };
 
   const filteredFeeds = activeFeedList.filter((feed) => {
