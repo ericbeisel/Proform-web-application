@@ -3,23 +3,23 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Settings, Check, Loader2,
-  Dumbbell, Activity, Heart, Droplets, Salad,
+  ArrowLeft, SlidersHorizontal, Check, Loader2,
+  Dumbbell, Activity, Heart, Droplets,
   Mail, Bell, BellOff, ChevronRight,
 } from "lucide-react";
 import { feedApi } from "@/api/feed/route";
 
 const ACTIVITY_TYPES = [
   {
-    key: "Workouts",
+    key: "workouts",
     filterLabel: "Workouts",
     notifLabel: "Workout",
     icon: Dumbbell,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-600",
   },
   {
-    key: "CardioSessions",
+    key: "cardio",
     filterLabel: "Cardio Sessions",
     notifLabel: "Cardio Activity",
     icon: Activity,
@@ -27,7 +27,7 @@ const ACTIVITY_TYPES = [
     iconColor: "text-red-500",
   },
   {
-    key: "Recovery",
+    key: "recovery",
     filterLabel: "Recovery",
     notifLabel: "Recovery Log",
     icon: Heart,
@@ -35,20 +35,12 @@ const ACTIVITY_TYPES = [
     iconColor: "text-green-600",
   },
   {
-    key: "Hydration",
+    key: "hydration",
     filterLabel: "Hydration",
     notifLabel: "Hydration Check-in",
     icon: Droplets,
-    iconBg: "bg-teal-100",
-    iconColor: "text-teal-600",
-  },
-  {
-    key: "Nutrition",
-    filterLabel: "Nutrition",
-    notifLabel: "Nutrition",
-    icon: Salad,
-    iconBg: "bg-emerald-100",
-    iconColor: "text-emerald-600",
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
   },
 ] as const;
 
@@ -116,26 +108,35 @@ export default function FeedSettingsPage() {
   return (
     <div className="min-h-screen bg-[#f4f4f8] pb-10">
       {/* Header */}
-      <div className="bg-white sticky top-0 z-40 border-b px-4 py-3 flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="w-9 h-9 bg-[#6c3fef] rounded-xl flex items-center justify-center hover:bg-purple-700 transition"
-        >
-          <ArrowLeft size={18} className="text-white" />
-        </button>
-        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-          <Settings size={16} className="text-purple-600" />
+      <div className="relative bg-gradient-to-br from-violet-600 to-purple-700 sticky top-0 z-40 px-5 py-6 overflow-hidden">
+        <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+        <div className="absolute bottom-0 left-16 w-16 h-16 rounded-full bg-white/10" />
+        <div className="relative flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition flex-shrink-0"
+          >
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <div>
+            <h1 className="font-bold text-[17px] text-white flex items-center gap-2">
+              <SlidersHorizontal size={17} className="text-white" /> Feed Settings
+            </h1>
+            <p className="text-[12px] text-white/70 mt-0.5">Personalise your activity feed</p>
+          </div>
         </div>
-        <h1 className="font-bold text-[16px] text-gray-900 flex-1">Feed Settings</h1>
       </div>
 
       <div className="px-4 py-5 space-y-5 max-w-xl mx-auto">
 
         {/* Section 1 — Activity filters */}
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 pt-5 pb-3">
-            <p className="text-[15px] font-extrabold text-gray-900">Activity Type Filters</p>
-            <p className="text-[12px] text-gray-400 mt-0.5">Toggle what appears in your feed</p>
+          <div className="px-5 pt-5 pb-3 flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full bg-[#6c3fef] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">1</span>
+            <div>
+              <p className="text-[15px] font-extrabold text-gray-900">Activity type filters</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">Choose which activities appear in your feed</p>
+            </div>
           </div>
 
           <div className="px-5 space-y-1">

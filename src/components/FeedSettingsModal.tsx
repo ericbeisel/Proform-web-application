@@ -2,18 +2,17 @@
 
 import { useState, useEffect } from "react";
 import {
-  X, Settings, Check, Loader2,
-  Dumbbell, Activity, Heart, Droplets, Salad,
+  ArrowLeft, SlidersHorizontal, Check, Loader2,
+  Dumbbell, Activity, Heart, Droplets,
   Mail, Bell, BellOff, ChevronRight,
 } from "lucide-react";
 import { feedApi } from "@/api/feed/route";
 
 const ACTIVITY_TYPES = [
-  { key: "Workouts",      filterLabel: "Workouts",        notifLabel: "Workout",           icon: Dumbbell,  iconBg: "bg-blue-100",    iconColor: "text-blue-600"    },
-  { key: "CardioSessions",filterLabel: "Cardio Sessions", notifLabel: "Cardio Activity",   icon: Activity,  iconBg: "bg-red-100",     iconColor: "text-red-500"     },
-  { key: "Recovery",      filterLabel: "Recovery",        notifLabel: "Recovery Log",      icon: Heart,     iconBg: "bg-green-100",   iconColor: "text-green-600"   },
-  { key: "Hydration",     filterLabel: "Hydration",       notifLabel: "Hydration Check-in",icon: Droplets,  iconBg: "bg-teal-100",    iconColor: "text-teal-600"    },
-  { key: "Nutrition",     filterLabel: "Nutrition",       notifLabel: "Nutrition",         icon: Salad,     iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
+  { key: "workouts", filterLabel: "Workouts",        notifLabel: "Workout",            icon: Dumbbell,  iconBg: "bg-violet-100", iconColor: "text-violet-600" },
+  { key: "cardio",   filterLabel: "Cardio Sessions", notifLabel: "Cardio Activity",    icon: Activity,  iconBg: "bg-red-100",    iconColor: "text-red-500"    },
+  { key: "recovery", filterLabel: "Recovery",        notifLabel: "Recovery Log",       icon: Heart,     iconBg: "bg-green-100",  iconColor: "text-green-600"  },
+  { key: "hydration",filterLabel: "Hydration",       notifLabel: "Hydration Check-in", icon: Droplets,  iconBg: "bg-blue-100",   iconColor: "text-blue-600"   },
 ] as const;
 
 type ActivityKey = typeof ACTIVITY_TYPES[number]["key"];
@@ -81,17 +80,23 @@ export default function FeedSettingsModal({ onClose }: Props) {
       <div className="relative w-full max-w-lg bg-[#f4f4f8] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
         {/* Modal header */}
-        <div className="bg-white border-b px-5 py-4 flex items-center gap-3 flex-shrink-0">
-          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-            <Settings size={16} className="text-purple-600" />
+        <div className="relative bg-gradient-to-br from-violet-600 to-purple-700 px-5 py-6 flex-shrink-0 overflow-hidden">
+          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+          <div className="absolute bottom-0 left-16 w-16 h-16 rounded-full bg-white/10" />
+          <div className="relative flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition flex-shrink-0"
+            >
+              <ArrowLeft size={18} className="text-white" />
+            </button>
+            <div>
+              <h2 className="font-bold text-[17px] text-white flex items-center gap-2">
+                <SlidersHorizontal size={17} className="text-white" /> Feed Settings
+              </h2>
+              <p className="text-[12px] text-white/70 mt-0.5">Personalise your activity feed</p>
+            </div>
           </div>
-          <h2 className="font-bold text-[16px] text-gray-900 flex-1">Feed Settings</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-          >
-            <X size={16} className="text-gray-500" />
-          </button>
         </div>
 
         {/* Scrollable content */}
@@ -99,9 +104,12 @@ export default function FeedSettingsModal({ onClose }: Props) {
 
           {/* Section 1 — Activity filters */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 pt-5 pb-3">
-              <p className="text-[15px] font-extrabold text-gray-900">Activity Type Filters</p>
-              <p className="text-[12px] text-gray-400 mt-0.5">Toggle what appears in your feed</p>
+            <div className="px-5 pt-5 pb-3 flex items-center gap-3">
+              <span className="w-7 h-7 rounded-full bg-[#6c3fef] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">1</span>
+              <div>
+                <p className="text-[15px] font-extrabold text-gray-900">Activity type filters</p>
+                <p className="text-[12px] text-gray-400 mt-0.5">Choose which activities appear in your feed</p>
+              </div>
             </div>
 
             <div className="px-5 space-y-1">
