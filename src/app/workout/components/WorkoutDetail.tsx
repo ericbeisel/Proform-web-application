@@ -1,16 +1,59 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Share2, Bookmark, X,
   Dumbbell, Zap, Plus, Eye, ChevronRight, Loader2
 } from "lucide-react";
-import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, getProgramTags, Exercise, Equipment, PowerSet, WorkoutStats } from "@/api/programs/route";
+import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, getProgramTags, getProgramPreview, Exercise, Equipment, PowerSet, WorkoutStats, ChartBarDatum, ChartPieDatum, ProgramPreview } from "@/api/programs/route";
 import { getCompletedUsers, CompletedUser } from "@/api/workouts/route";
 interface WorkoutDetailProps {
   workoutId?: number | string;
   onClose?: () => void;
+}
+
+const MUSCLE_NAME_MAP: Record<string, string> = {
+  chest: 'Chest',
+  glutes: 'Glutes',
+  abdominals: 'Abs',
+  biceps: 'Biceps',
+  triceps: 'Triceps',
+  frontdelts: 'Front Delts',
+  lateraldelts: 'Side Delts',
+  reardelts: 'Rear Delts',
+  traps: 'Traps',
+  forearms: 'Forearms',
+  calves: 'Calves',
+  hamstrings: 'Hamstrings',
+  adductors: 'Adductors',
+  abuductorships: 'Abductors',
+  quads: 'Quads',
+  vmo: 'VMO',
+  oblique: 'Obliques',
+  scaps: 'Scaps',
+  latsupperback: 'Lats/Upper Back',
+  midlowback: 'Lower Back',
+  neck: 'Neck',
+};
+
+const MUSCLE_COLOR_FALLBACK: Record<string, string> = {
+  '#DC2626': 'Chest',
+  '#A78BFA': 'Biceps',
+  '#3B82F6': 'Triceps',
+  '#D4B499': 'Lats',
+  '#06B6D4': 'Quads',
+  '#16A34A': 'Glutes',
+};
+
+function formatMuscleName(muscle: string, color?: string): string {
+  const cleanMuscle = (muscle || '').trim().toLowerCase();
+  if (MUSCLE_NAME_MAP[cleanMuscle]) return MUSCLE_NAME_MAP[cleanMuscle];
+  if (color) {
+    const mapped = MUSCLE_COLOR_FALLBACK[color.toUpperCase().trim()];
+    if (mapped) return mapped;
+  }
+  return muscle || 'Other';
 }
 
 function resolveWixImage(url?: string | null): string {
@@ -108,6 +151,7 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [powerSets, setPowerSets] = useState<PowerSet[]>([]);
   const [workoutStats, setWorkoutStats] = useState<WorkoutStats | null>(null);
+  const [previewData, setPreviewData] = useState<ProgramPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
@@ -130,6 +174,23 @@ console.log("programUuid from URL:", programUuid);
     { label: 'Load', value: '97' },
     { label: 'Duration', value: '31:30' },
     { label: 'Movements', value: '24' }
+  ];
+
+  // Fallback data — same defaults the mobile app falls back to when
+  // workoutStats.charts is missing.
+  const barData: ChartBarDatum[] = [
+    { value: 65, label: 'Week 1', frontColor: '#6202AC', roundedTop: true },
+    { value: 75, label: 'Week 2', frontColor: '#6202AC', roundedTop: true },
+    { value: 85, label: 'Week 3', frontColor: '#6202AC', roundedTop: true },
+  ];
+
+  const pieData: ChartPieDatum[] = [
+    { value: 25, color: '#DC2626', label: 'Chest' },
+    { value: 15, color: '#A78BFA', label: 'Biceps' },
+    { value: 20, color: '#3B82F6', label: 'Triceps' },
+    { value: 15, color: '#D4B499', label: 'Lats' },
+    { value: 25, color: '#06B6D4', label: 'Quads' },
+    { value: 10, color: '#16A34A', label: 'Glutes' },
   ];
 
 useEffect(() => {
@@ -159,6 +220,7 @@ useEffect(() => {
       setWorkoutStats(statsData);
       setProgramCode(lowerCode);
       getProgramTags(lowerCode).then(setProgramTags).catch(() => {});
+      getProgramPreview(lowerCode).then(setPreviewData).catch(() => {});
 
       if (workoutKey) setWorkoutTitle(workoutKey);
 
@@ -260,6 +322,27 @@ const filteredExercises = exercises;
   // Get unique equipment names
   const uniqueEquipment = [...new Map(equipment.map(item => [item.name, item])).values()];
 
+  // Real bar/pie chart data from GET /programs/{code}/workout-stats, falling
+  // back to the same static defaults the mobile app uses when charts is missing.
+  const displayBarData: ChartBarDatum[] = workoutStats?.charts?.barData || barData;
+
+  const displayPieData = useMemo(() => {
+    const rawData = workoutStats?.charts?.pieData || pieData;
+    const total = rawData.reduce((sum, item) => sum + (item.value || 0), 0);
+    return rawData.map((item) => {
+      const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
+      return {
+        ...item,
+        label: formatMuscleName(item.label || item.muscle || '', item.color),
+        percentage,
+      };
+    });
+  }, [workoutStats]);
+
+  const maxBarValue = Math.max(...displayBarData.map((d) => d.value), 1);
+
+  const displayTitle = workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING');
+
   // Loading state
   if (loading) {
     return (
@@ -324,8 +407,7 @@ const filteredExercises = exercises;
           <div>
             <p className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">This Workout:</p>
             {(() => {
-              const title = workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING');
-              const [firstWord, ...rest] = title.split(' ');
+              const [firstWord, ...rest] = displayTitle.split(' ');
               return (
                 <h1 className="text-3xl md:text-4xl font-black leading-tight mb-3">
                   <span className="text-violet-600">{firstWord}</span>
@@ -345,11 +427,20 @@ const filteredExercises = exercises;
               };
               const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
               const hasMoneySet = powerSets.some((ps) => ps.is_money_set);
+              // The API only ever returns `franchiseCode` (e.g. "OPM") for this
+              // program — franchise_name/franchise are kept as fallbacks in case
+              // other programs return a full name instead.
+              const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
 
-              if (!powerSetTags.length && !hasMoneySet) return null;
+              if (!powerSetTags.length && !hasMoneySet && !franchiseName) return null;
 
               return (
                 <div className="flex flex-wrap gap-1.5 mt-1.5 mb-0.5">
+                  {franchiseName && (
+                    <span className="px-3 py-1 bg-[#7C3AED] text-white text-[10px] font-black rounded-full tracking-wide uppercase">
+                      {franchiseName}
+                    </span>
+                  )}
                   {hasMoneySet && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full tracking-wide">
                       ★ MONEY SET
@@ -382,7 +473,7 @@ const filteredExercises = exercises;
         <div className="grid grid-cols-12 gap-5 md:gap-6">
 
           <div className="col-span-12 lg:col-span-7 space-y-6">
-            {/* Dummy Chart Section - Keep as is */}
+            {/* Bar chart (weekly load) + pie chart (muscle focus) — from GET /programs/{code}/workout-stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
                 <div className="flex items-center gap-4 mb-6">
@@ -390,24 +481,54 @@ const filteredExercises = exercises;
                   <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-600"></div><span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Player Avg</span></div>
                 </div>
                 <div className="flex items-end justify-between h-20 md:h-24 px-1 gap-3 md:gap-4 border-b border-slate-100">
-                  {[55, 72, 90].map((h) => (
-                    <div key={h} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
-                      <span className="text-[9px] font-bold text-slate-500">{h}</span>
-                      <div className="w-full bg-gradient-to-t from-violet-600 to-violet-400 rounded-t-xl" style={{ height: `${h}%` }}></div>
+                  {displayBarData.map((bar, i) => (
+                    <div key={`${bar.label}-${i}`} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                      <span className="text-[9px] font-bold text-slate-500">{bar.value}</span>
+                      <div
+                        className={bar.roundedTop === false ? "w-full" : "w-full rounded-t-xl"}
+                        style={{
+                          height: `${(bar.value / maxBarValue) * 100}%`,
+                          backgroundColor: bar.frontColor || "#6202AC",
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between mt-3 text-[9px] font-bold text-slate-400 uppercase tracking-wide">
-                  <span>Week 1</span><span>Week 2</span><span>Week 3</span>
+                  {displayBarData.map((bar, i) => (
+                    <span key={`${bar.label}-label-${i}`}>{bar.label}</span>
+                  ))}
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center justify-center">
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-3">
                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-full relative flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full"
-                         style={{ background: 'conic-gradient(#22C55E 0% 18%, #EF4444 18% 40%, #8B5CF6 40% 55%, #3B82F6 55% 82%, #D2B48C 82% 100%)' }}></div>
+                    <div
+                      className="absolute inset-0 rounded-full"
+                      style={{
+                        background: (() => {
+                          const total = displayPieData.reduce((sum, item) => sum + (item.value || 0), 0) || 1;
+                          let cursor = 0;
+                          const stops = displayPieData.map((item) => {
+                            const start = (cursor / total) * 100;
+                            cursor += item.value || 0;
+                            const end = (cursor / total) * 100;
+                            return `${item.color} ${start}% ${end}%`;
+                          });
+                          return `conic-gradient(${stops.join(", ")})`;
+                        })(),
+                      }}
+                    />
                     <div className="absolute inset-[13px] md:inset-[15px] bg-white rounded-full shadow-inner"></div>
                     <span className="relative text-[9px] font-bold text-slate-400 uppercase tracking-widest">Focus</span>
+                 </div>
+                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                   {displayPieData.filter((item) => item.label).slice(0, 5).map((item, idx) => (
+                     <div key={`${item.label}-${idx}`} className="flex items-center gap-1.5">
+                       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                       <span className="text-[8px] font-bold text-slate-500">{item.label} {item.percentage}%</span>
+                     </div>
+                   ))}
                  </div>
               </div>
             </div>

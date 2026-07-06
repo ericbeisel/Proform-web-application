@@ -265,9 +265,27 @@ export interface ProgramsBySettingResponse {
   totalPages: number;
 }
 
+export interface ChartBarDatum {
+  value: number;
+  label: string;
+  frontColor?: string;
+  roundedTop?: boolean;
+}
+
+export interface ChartPieDatum {
+  value: number;
+  color: string;
+  label?: string;
+  muscle?: string;
+}
+
 export interface WorkoutStats {
   calories: string;
   power: number;
+  charts?: {
+    barData?: ChartBarDatum[];
+    pieData?: ChartPieDatum[];
+  };
 }
 
 export interface PowerSetChild {
@@ -820,6 +838,29 @@ export const getProgramTags = async (code: string): Promise<string[]> => {
   }
 };
 
+// Matches the mobile app's programService.getProgramPreview — used for the
+// franchise tag/badge shown on the workout detail screen.
+export interface ProgramPreview {
+  title?: string;
+  program_name?: string;
+  description?: string;
+  type?: string;
+  franchise?: string;
+  franchise_name?: string;
+  franchiseCode?: string;
+  [key: string]: unknown;
+}
+
+export const getProgramPreview = async (code: string): Promise<ProgramPreview | null> => {
+  try {
+    const { data } = await apiClient.get<ProgramPreview>(`/programs/${code}/preview`);
+    return data ?? null;
+  } catch (error: unknown) {
+    console.error("Error fetching program preview:", error);
+    return null;
+  }
+};
+
 export const getProgramGroupedWorkouts = async (
   programCode: string,
 ): Promise<WorkoutGroup[]> => {
@@ -834,6 +875,35 @@ export const getProgramGroupedWorkouts = async (
       getErrorMessage(error, "Failed to fetch grouped workouts."),
     );
   }
+};
+
+// Consolidated endpoint that returns everything the workout session view
+// needs in one call — replaces separate getProgramTags/getProgramPreview/
+// getProgramPowerSets/getProgramGroupedWorkouts calls when a sessionId is
+// available (e.g. opening a shared session link).
+export interface ProgramOverviewResponse {
+  rounds: WorkoutGroup[];
+  powerSets: PowerSet[];
+  tags: string[];
+  stats?: WorkoutStats;
+  preview: ProgramPreview | null;
+  rejoinSessions?: Record<string, unknown>[];
+}
+
+export const getProgramOverview = async (
+  code: string,
+  options?: { locationId?: string | null; sessionId?: string | null },
+): Promise<ProgramOverviewResponse> => {
+  const { data } = await apiClient.get<ProgramOverviewResponse>(
+    `/programs/${code}/overview`,
+    {
+      params: {
+        ...(options?.locationId ? { locationId: options.locationId } : {}),
+        ...(options?.sessionId ? { sessionId: options.sessionId } : {}),
+      },
+    },
+  );
+  return data;
 };
 
 export const workoutApi = {

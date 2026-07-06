@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Play,
@@ -19,6 +19,7 @@ import {
   Eye,
   Search,
   Copy,
+  Check,
   Link,
   Zap,
   Flame,
@@ -35,15 +36,15 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import PowerSetTrackingModal, { type VelocitySet } from "./PowerSetTrackingModal";
 import {
-  getProgramGroupedWorkouts,
-  getProgramTags,
   getProgramPowerSets,
+  getProgramOverview,
   WorkoutGroup,
   WorkoutGroupItem,
   PowerSet,
+  ProgramPreview,
 } from "@/api/programs/route";
 import {
   getIncompleteSessions,
@@ -54,6 +55,7 @@ import {
   createTrackingLog,
   getWorkoutStats,
   getWorkoutLoadRecords,
+  getWorkoutSessionById,
   getPowerSetLogs,
   IncompleteSession,
   WorkoutStats,
@@ -84,13 +86,15 @@ function resolveWixImage(url?: string): string {
   return url;
 }
 
-export default function ViewWorkoutSessionPage() {
+function ViewWorkoutSessionContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Existing state
   const [location, setLocation] = useState<string | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [followerSearch, setFollowerSearch] = useState("");
   const [activeView, setActiveView] = useState("Overview");
   const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
@@ -121,6 +125,7 @@ export default function ViewWorkoutSessionPage() {
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
   const [workoutName, setWorkoutName] = useState<string>("");
   const [programTags, setProgramTags] = useState<string[]>([]);
+  const [previewData, setPreviewData] = useState<ProgramPreview | null>(null);
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -521,14 +526,28 @@ export default function ViewWorkoutSessionPage() {
   // Fetch real data (from 1st code)
   useEffect(() => {
     const initializeWorkout = async () => {
+      // Arriving via a shared "Copy URL" link (?sessionId=...) on a browser with
+      // no local session state — resolve the program code/title from the
+      // session itself so the rest of this function (which reads from
+      // localStorage) can proceed exactly as it does for the normal in-app flow.
+      const urlSessionId = searchParams.get("sessionId");
+      if (urlSessionId && !localStorage.getItem("workoutProgramCode")) {
+        try {
+          const session = await getWorkoutSessionById(urlSessionId);
+          if (session?.workout_code) {
+            localStorage.setItem("workoutProgramCode", session.workout_code);
+          }
+          const resolvedTitle = session?.workoutTitle || session?.title;
+          if (resolvedTitle) localStorage.setItem("workoutTitle", resolvedTitle);
+        } catch (err) {
+          console.error("[viewWorkout] failed to resolve session for shared link:", err);
+        }
+      }
+
       const savedLocation = localStorage.getItem("workoutLocationName");
       if (savedLocation) setLocation(savedLocation);
 
       const programCode = localStorage.getItem("workoutProgramCode");
-      if (programCode)
-        getProgramTags(programCode.toLowerCase())
-          .then(setProgramTags)
-          .catch(() => {});
       const title = localStorage.getItem("workoutTitle");
       if (title) setWorkoutTitle(title);
       const name = localStorage.getItem("workoutName");
@@ -537,7 +556,10 @@ export default function ViewWorkoutSessionPage() {
       const isFree = localStorage.getItem("workoutIsFree");
       if (isFree === "true") setHasPurchased(true);
 
+      // A shared "Copy URL" link carries ?sessionId=... so anyone opening it
+      // loads that specific session, regardless of their own local session state.
       const storedSessionId =
+        searchParams.get("sessionId") ??
         localStorage.getItem(`activeSessionId_${programCode?.toUpperCase()}`) ??
         localStorage.getItem("summarySessionId");
       console.log(
@@ -568,15 +590,17 @@ export default function ViewWorkoutSessionPage() {
         return;
       }
 
+      // Single consolidated call replaces separate tags/preview/power-sets/
+      // grouped-workouts requests — the backend returns everything needed
+      // for this view (optionally scoped to storedSessionId) in one response.
       setPowerSetsLoading(true);
-      getProgramPowerSets(programCode, storedSessionId)
-        .then(setPowerSets)
-        .catch(() => {})
-        .finally(() => setPowerSetsLoading(false));
+      getProgramOverview(programCode.toLowerCase(), { sessionId: storedSessionId })
+        .then((overview) => {
+          setProgramTags(Array.isArray(overview.tags) ? overview.tags : []);
+          setPreviewData(overview.preview ?? null);
+          setPowerSets(Array.isArray(overview.powerSets) ? overview.powerSets : []);
 
-      getProgramGroupedWorkouts(programCode)
-        .then((res) => {
-          const groups = Array.isArray(res) ? res : [];
+          const groups = Array.isArray(overview.rounds) ? overview.rounds : [];
           const getRoundNum = (label: string) => {
             const m = label.match(/^ROUND\s+(\d+)/i);
             return m ? parseInt(m[1], 10) : Infinity;
@@ -584,8 +608,11 @@ export default function ViewWorkoutSessionPage() {
           groups.sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
           setWorkoutGroups(groups);
         })
-        .catch((err) => console.error("Failed to fetch grouped workouts:", err))
-        .finally(() => setLoading(false));
+        .catch((err) => console.error("Failed to fetch program overview:", err))
+        .finally(() => {
+          setPowerSetsLoading(false);
+          setLoading(false);
+        });
 
       const normalizedCode = programCode.toUpperCase();
       const justCreated = localStorage.getItem("sessionJustCreated") === "true";
@@ -945,18 +972,38 @@ export default function ViewWorkoutSessionPage() {
                 <p className="text-[12px] font-black uppercase tracking-wide text-[#222] mt-1">
                   {totalExercises} Exercises
                 </p>
-                {programTags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {programTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const tagLabel = (tag: string): string | null => {
+                    const t = tag.toUpperCase();
+                    if (t.includes('UES')) return 'Bench';
+                    if (t.includes('LES')) return 'Squat';
+                    if (t.includes('CCS')) return 'Clean';
+                    if (t.includes('HHP')) return 'Deadlift';
+                    return null;
+                  };
+                  const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
+                  const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
+
+                  if (!powerSetTags.length && !franchiseName) return null;
+
+                  return (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {franchiseName && (
+                        <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[9px] font-black rounded-full uppercase">
+                          {franchiseName}
+                        </span>
+                      )}
+                      {powerSetTags.map((label, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase"
+                        >
+                          ${label}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1513,7 +1560,7 @@ export default function ViewWorkoutSessionPage() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[13px] font-black text-[#222] leading-tight truncate">
+                                <p className="text-[13px] font-black text-[#222] leading-tight">
                                   {ps.title_secondary || ps.title_primary}
                                 </p>
                                 {ps.child_sets?.length > 0 && (
@@ -2354,14 +2401,23 @@ export default function ViewWorkoutSessionPage() {
                   <div className="flex items-center gap-2">
                     <Link size={12} className="text-gray-400 flex-shrink-0" />
                     <p className="text-[11px] text-gray-400 truncate">
-                      https://www.proformapp.com/session/
-                      {incompleteSession?.id?.slice(0, 6) || "pending"}
+                      {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${incompleteSession?.id || "pending"}`}
                     </p>
                   </div>
                 </div>
-                <button className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2">
-                  <Copy size={14} />
-                  Copy URL
+                <button
+                  onClick={() => {
+                    if (!incompleteSession?.id) return;
+                    const url = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${incompleteSession.id}`;
+                    navigator.clipboard.writeText(url);
+                    setSessionLinkCopied(true);
+                    setTimeout(() => setSessionLinkCopied(false), 2000);
+                  }}
+                  disabled={!incompleteSession?.id}
+                  className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sessionLinkCopied ? <Check size={14} /> : <Copy size={14} />}
+                  {sessionLinkCopied ? "Copied!" : "Copy URL"}
                 </button>
               </div>
             </div>
@@ -2929,5 +2985,17 @@ export default function ViewWorkoutSessionPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ViewWorkoutSessionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" />
+      </div>
+    }>
+      <ViewWorkoutSessionContent />
+    </Suspense>
   );
 }

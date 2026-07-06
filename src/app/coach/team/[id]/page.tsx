@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
+import { CreatePlayerModal } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
@@ -74,6 +75,7 @@ function TeamDetailContent() {
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
   const [playerSearch, setPlayerSearch] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [userInitial, setUserInitial] = useState("");
 
@@ -339,18 +341,6 @@ function TeamDetailContent() {
                   <button className="h-7 px-3 rounded-full border border-gray-200 text-[10px] font-semibold text-gray-500 hover:bg-gray-50 transition">
                     FILTER GROUP
                   </button>
-                  <button className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition">
-                    <Plus size={14} className="text-white" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const params = new URLSearchParams({ team_name: teamName });
-                      router.push(`/coach/team/${id}/add-player?${params.toString()}`);
-                    }}
-                    className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition"
-                  >
-                    <UserPlus size={14} className="text-white" />
-                  </button>
                 </div>
               </div>
 
@@ -402,9 +392,32 @@ function TeamDetailContent() {
               )}
 
               <div className="flex items-center justify-between mt-4">
-                <button className="h-8 px-5 rounded-full bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition">
-                  View All
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const params = new URLSearchParams({ team_name: teamName });
+                      router.push(`/coach/team/${id}/roster?${params.toString()}`);
+                    }}
+                    className="h-8 px-5 rounded-full bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#2563EB] transition"
+                  >
+                    View All
+                  </button>
+                  <button
+                    onClick={() => {
+                      const params = new URLSearchParams({ team_name: teamName });
+                      router.push(`/coach/team/${id}/add-player?${params.toString()}`);
+                    }}
+                    className="w-8 h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition"
+                  >
+                    <Plus size={14} className="text-white" />
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="w-8 h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition"
+                  >
+                    <UserPlus size={14} className="text-white" />
+                  </button>
+                </div>
                 <button className="flex items-center gap-1 text-xs font-semibold text-[#8B5CF6] hover:underline">
                   Next <ChevronRight size={14} />
                 </button>
@@ -483,6 +496,15 @@ function TeamDetailContent() {
         </div>
       </div>
       </div>
+
+      {showCreateModal && (
+        <CreatePlayerModal
+          teamId={id}
+          teamName={teamName}
+          onClose={() => setShowCreateModal(false)}
+          onPlayerCreated={(newPlayer) => setPlayers((prev) => [...prev, newPlayer])}
+        />
+      )}
     </div>
   );
 }

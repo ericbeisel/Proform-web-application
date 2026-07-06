@@ -2,10 +2,11 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, Suspense } from "react";
-import { ArrowLeft, X, ShieldCheck, ChevronDown, CheckCircle2, Menu, Camera, UserPlus, FolderPlus, RefreshCw, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, X, ShieldCheck, ChevronDown, CheckCircle2, Menu, FolderPlus, RefreshCw, ArrowLeftRight } from "lucide-react";
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { TeamInviteQrModal } from "@/app/coach/coach-dashboard/components/TeamInviteQrModal";
+import { CreatePlayerModal } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
@@ -71,19 +72,6 @@ function RosterContent() {
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [createEmail, setCreateEmail] = useState("");
-  const [createImage, setCreateImage] = useState<File | null>(null);
-  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!createImage) { setCreateImagePreview(null); return; }
-    const objectUrl = URL.createObjectURL(createImage);
-    setCreateImagePreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [createImage]);
 
   useEffect(() => {
     const user = getAuthUser();
@@ -147,37 +135,6 @@ function RosterContent() {
   function removePlayer(playerId: number) {
     // TODO(backend): no endpoint yet to remove a player from a team — local-only for now.
     setPlayers((prev) => prev.filter((p) => p.id !== playerId));
-  }
-
-  function resetCreateForm() {
-    setCreateName("");
-    setCreateEmail("");
-    setCreateImage(null);
-    setCreateError(null);
-  }
-
-  async function handleCreatePlayer(closeAfter: boolean) {
-    if (!createName.trim() || !createEmail.trim()) {
-      setCreateError("Please enter both a name and an email.");
-      return;
-    }
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const newPlayer = await coachApi.createPlayer({
-        team_id: id,
-        name: createName.trim(),
-        email: createEmail.trim(),
-        image: createImage,
-      });
-      setPlayers((prev) => [...prev, decoratePlayer(newPlayer, prev.length)]);
-      resetCreateForm();
-      if (closeAfter) setShowCreateModal(false);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create player.");
-    } finally {
-      setCreating(false);
-    }
   }
 
   // TODO(backend): no real invite-token/sign-up-link endpoint exists yet for a
@@ -301,7 +258,7 @@ function RosterContent() {
                 Connect ID&apos;s
               </button>
               <button
-                onClick={() => { resetCreateForm(); setShowCreateModal(true); }}
+                onClick={() => setShowCreateModal(true)}
                 className="h-9 px-4 rounded-full border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
               >
                 + Create Player(s)
@@ -559,102 +516,16 @@ function RosterContent() {
         />
       )}
 
-      {/* Create Player modal */}
+      {/* Create Player modal — shared with the team detail page */}
       {showCreateModal && (
-        <div
-          className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
-          onClick={() => setShowCreateModal(false)}
-        >
-          <div
-            className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl p-6 flex flex-col gap-5 max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#f5f0ff] flex items-center justify-center text-[#8B5CF6] shrink-0">
-                  <UserPlus size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-[#222] leading-tight">Create Player</h2>
-                  <p className="text-xs text-gray-400">Add a new player to {teamName}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
-              >
-                <X size={16} className="text-gray-600" />
-              </button>
-            </div>
-
-            {/* Photo upload */}
-            <div className="flex justify-center">
-              <label className="relative cursor-pointer group">
-                <div className="w-20 h-20 rounded-full bg-[#f5f5f7] border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden group-hover:border-[#8B5CF6] transition">
-                  {createImagePreview ? (
-                    <img src={createImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <UserPlus size={22} className="text-gray-300" />
-                  )}
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white shadow-md group-hover:bg-[#7C3AED] transition">
-                  <Camera size={13} />
-                </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => setCreateImage(e.target.files?.[0] ?? null)}
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-[#222]">Full Name</label>
-              <input
-                type="text"
-                placeholder="First and last name"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                className="h-11 rounded-xl bg-[#f5f5f7] px-4 text-sm outline-none border border-transparent focus:border-[#8B5CF6] transition"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-[#222]">Email</label>
-              <input
-                type="email"
-                placeholder="player@email.com"
-                value={createEmail}
-                onChange={(e) => setCreateEmail(e.target.value)}
-                className="h-11 rounded-xl bg-[#f5f5f7] px-4 text-sm outline-none border border-transparent focus:border-[#8B5CF6] transition"
-              />
-            </div>
-
-            {createError && (
-              <p className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-2.5 text-center leading-snug">
-                {createError}
-              </p>
-            )}
-
-            <div className="flex flex-col gap-2.5 mt-1">
-              <button
-                onClick={() => handleCreatePlayer(true)}
-                disabled={creating}
-                className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creating ? "Saving…" : "Save"}
-              </button>
-              <button
-                onClick={() => handleCreatePlayer(false)}
-                disabled={creating}
-                className="h-12 rounded-2xl border border-[#8B5CF6] text-[#8B5CF6] text-sm font-semibold hover:bg-[#f5f0ff] transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {creating ? "Saving…" : "Save & Add Another"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CreatePlayerModal
+          teamId={id}
+          teamName={teamName}
+          onClose={() => setShowCreateModal(false)}
+          onPlayerCreated={(newPlayer) =>
+            setPlayers((prev) => [...prev, decoratePlayer(newPlayer, prev.length)])
+          }
+        />
       )}
     </div>
   );
