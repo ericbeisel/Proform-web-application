@@ -63,7 +63,7 @@ import {
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
-import { getUserIdFromToken } from "@/lib/auth/session";
+import { getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
 
 function getSectionColor(label: string, index: number): string {
   const l = (label || "").toLowerCase();
@@ -670,8 +670,12 @@ function ViewWorkoutSessionContent() {
           // The API returns incomplete sessions for the whole program, not
           // scoped to the caller — filter to sessions this account actually
           // owns/started, otherwise viewing someone else's shared session
-          // link surfaces a "Rejoin" banner for THEIR session.
-          const myUserId = getUserIdFromToken();
+          // link surfaces a "Rejoin" banner for THEIR session. getAuthUser()
+          // (set directly from the login response) is more reliable than
+          // decoding the JWT, since not every token here is guaranteed to
+          // carry a usable sub/id claim.
+          const myUserId = getAuthUser()?.id ?? getUserIdFromToken();
+          console.log("[rejoin] current user id:", myUserId);
           const sessions = myUserId
             ? allSessions.filter(
                 (s) =>
