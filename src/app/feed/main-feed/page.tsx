@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api/feed/route";
 import { getTodayActivities } from "@/api/checklist/route";
-import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, generateSessionShareLink, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
+import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup } from "@/api/programs/route";
 import FeedComments from "@/components/FeedComments";
 import FeedSettingsModal from "@/components/FeedSettingsModal";
@@ -204,8 +204,6 @@ const [creatingHighlight, setCreatingHighlight] =
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
-  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
-  const [shareLinkLoading, setShareLinkLoading] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -2021,30 +2019,23 @@ const [creatingHighlight, setCreatingHighlight] =
       {/* SHARE SESSION MODAL */}
       {shareSessionFeed && (() => {
         const sessionId = shareSessionFeed.activity_id || String(shareSessionFeed.id);
-        const fallbackUrl = typeof window !== "undefined"
-          ? `${window.location.origin}/feed/main-feed?session=${sessionId}`
-          : "";
-        const displayUrl = shareLinkUrl || fallbackUrl;
-
-        if (!shareLinkLoading && !shareLinkUrl) {
-          setShareLinkLoading(true);
-          generateSessionShareLink(sessionId).then(link => {
-            setShareLinkUrl(link);
-            setShareLinkLoading(false);
-          });
-        }
+        // Same link format as the "Invite via Link" share on viewWorkoutSession —
+        // that page already resolves a bare sessionId into the full session
+        // (program, exercises, purchase state), so no extra share-link API call
+        // or feed-specific route is needed here.
+        const displayUrl = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId}`;
 
         return (
           <div
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); setShareLinkUrl(null); }}
+            onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); }}
           >
             <div
               className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <button
-                onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); setShareLinkUrl(null); }}
+                onClick={() => { setShareSessionFeed(null); setSessionLinkCopied(false); }}
                 className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
               >
                 <X size={14} className="text-gray-600" />
@@ -2056,30 +2047,17 @@ const [creatingHighlight, setCreatingHighlight] =
 
                 {/* QR Code */}
                 <div className="flex justify-center mb-5">
-                  {shareLinkLoading ? (
-                    <div className="w-[160px] h-[160px] rounded-2xl bg-gray-100 flex items-center justify-center">
-                      <Loader2 size={22} className="animate-spin text-gray-400" />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                      <QRCodeSVG value={displayUrl} size={140} fgColor="#1f2937" bgColor="#ffffff" />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
-                        <QRCodeSVG value={displayUrl || "https://proformapp.com"} size={140} fgColor="#1f2937" bgColor="#ffffff" />
-                      </div>
-                      <p className="text-[12px] text-gray-400">Scan this code to join the session</p>
-                    </div>
-                  )}
+                    <p className="text-[12px] text-gray-400">Scan this code to join the session</p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
-                  {shareLinkLoading ? (
-                    <span className="text-[12px] text-gray-400 flex-1 flex items-center gap-2">
-                      <Loader2 size={13} className="animate-spin" /> Generating link…
-                    </span>
-                  ) : (
-                    <span className="text-[12px] text-gray-500 truncate flex-1">{displayUrl}</span>
-                  )}
+                  <span className="text-[12px] text-gray-500 truncate flex-1">{displayUrl}</span>
                   <button
-                    disabled={shareLinkLoading}
                     onClick={() => {
                       navigator.clipboard.writeText(displayUrl);
                       setSessionLinkCopied(true);
@@ -2092,7 +2070,6 @@ const [creatingHighlight, setCreatingHighlight] =
                 </div>
 
                 <button
-                  disabled={shareLinkLoading}
                   onClick={() => {
                     if (navigator.share) {
                       navigator.share({ title: shareSessionFeed.title || "Workout Session", url: displayUrl });
