@@ -848,6 +848,7 @@ export interface ProgramPreview {
   franchise?: string;
   franchise_name?: string;
   franchiseCode?: string;
+  free?: boolean;
   [key: string]: unknown;
 }
 

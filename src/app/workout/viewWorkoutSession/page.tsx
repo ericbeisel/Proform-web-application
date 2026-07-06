@@ -600,6 +600,14 @@ function ViewWorkoutSessionContent() {
           setPreviewData(overview.preview ?? null);
           setPowerSets(Array.isArray(overview.powerSets) ? overview.powerSets : []);
 
+          // A shared-link visitor never goes through the "browse program"
+          // flow that normally sets workoutIsFree in localStorage, so a
+          // free program would otherwise show a "requires purchase" paywall.
+          if (overview.preview?.free) {
+            localStorage.setItem("workoutIsFree", "true");
+            setHasPurchased(true);
+          }
+
           const groups = Array.isArray(overview.rounds) ? overview.rounds : [];
           const getRoundNum = (label: string) => {
             const m = label.match(/^ROUND\s+(\d+)/i);
