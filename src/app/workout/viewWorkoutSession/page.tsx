@@ -535,8 +535,9 @@ function ViewWorkoutSessionContent() {
       if (urlSessionId && !localStorage.getItem("workoutProgramCode")) {
         try {
           const session = await getWorkoutSessionById(urlSessionId);
-          if (session?.workout_code) {
-            localStorage.setItem("workoutProgramCode", session.workout_code);
+          const resolvedCode = session?.workout_code || session?.program_id;
+          if (resolvedCode) {
+            localStorage.setItem("workoutProgramCode", resolvedCode);
           }
           const resolvedTitle = session?.workoutTitle || session?.title;
           if (resolvedTitle) localStorage.setItem("workoutTitle", resolvedTitle);
