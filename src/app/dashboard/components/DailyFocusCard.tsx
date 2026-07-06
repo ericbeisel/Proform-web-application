@@ -12,6 +12,7 @@ export default function DailyFocusCard() {
       title: "Itinerary",
       desc: "Plan your day",
       color: "bg-[#6c5ce7]/10 text-[#6c5ce7]",
+      route: "/itinerary/itinerary-page",
     },
     {
       icon: HeartPulse,

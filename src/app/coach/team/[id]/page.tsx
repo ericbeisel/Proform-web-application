@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from "react";
 import {
   ArrowLeft,
   Plus,
+  UserPlus,
   ChevronRight,
   FileText,
   Zap,
@@ -340,6 +341,15 @@ function TeamDetailContent() {
                   </button>
                   <button className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition">
                     <Plus size={14} className="text-white" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const params = new URLSearchParams({ team_name: teamName });
+                      router.push(`/coach/team/${id}/add-player?${params.toString()}`);
+                    }}
+                    className="w-7 h-7 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition"
+                  >
+                    <UserPlus size={14} className="text-white" />
                   </button>
                 </div>
               </div>

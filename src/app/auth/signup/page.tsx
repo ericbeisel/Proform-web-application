@@ -1,20 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';           // ← add this import
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
-  
+  const searchParams = useSearchParams();
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  
+
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);   // ← new state
+
+  // Prefill email when arriving from an invite/sign link (e.g. ?email=...&name=...)
+  useEffect(() => {
+    const invitedEmail = searchParams.get('email');
+    if (invitedEmail) {
+      setFormData((prev) => ({ ...prev, email: invitedEmail }));
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -148,5 +157,13 @@ export default function SignupPage() {
         </p>
       </div>
     </>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

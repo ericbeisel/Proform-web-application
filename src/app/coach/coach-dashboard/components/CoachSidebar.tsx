@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { Users, UserPlus, Target } from "lucide-react";
+
 interface CoachSidebarProps {
   profilePicture: string | null;
   userInitial: string;
@@ -9,20 +12,14 @@ interface CoachSidebarProps {
   onClose?: () => void;
 }
 
-const NAV_ITEMS = [
-  { label: "Teams",       highlight: false },
-  { label: "Calendar",    highlight: false },
-  { label: "Activity",    highlight: false },
-  { label: "Players",     highlight: false },
-  { label: "Reports",     highlight: false },
-  { label: "Create Team", highlight: false },
-];
-
-const TOOL_ITEMS = [
-  "Team Queues", "Settings",
+const QUICK_LINK_ITEMS = [
+  { label: "All Teams",      icon: Users,    href: "/coach/coach-dashboard" },
+  { label: "All Players",    icon: UserPlus, href: "/coach/activity" },
+  { label: "All Activities", icon: Target,   href: "/coach/activity" },
 ];
 
 export function CoachSidebar({ profilePicture, userInitial, onSwitchToPlayer, onLogOut, isOpen = false, onClose }: CoachSidebarProps) {
+  const router = useRouter();
   return (
     <>
       {/* Mobile backdrop */}
@@ -45,27 +42,17 @@ export function CoachSidebar({ profilePicture, userInitial, onSwitchToPlayer, on
 
       {/* Menu */}
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.label}
-            className={`text-sm py-2.5 px-3 rounded-xl text-left transition-colors hover:bg-[#f5f0ff] hover:text-[#8B5CF6] ${
-              item.highlight ? "text-[#e17055] font-medium" : "text-[#3d3a4a]"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-
-        <div className="h-px bg-[#f0eef8] my-2" />
         <span className="text-[11px] font-semibold text-[#b0adc0] uppercase tracking-wide px-3 mb-1">
-          Tools
+          Quick Links
         </span>
 
-        {TOOL_ITEMS.map((label) => (
+        {QUICK_LINK_ITEMS.map(({ label, icon: Icon, href }) => (
           <button
             key={label}
-            className="text-sm py-2.5 px-3 rounded-xl text-left text-[#3d3a4a] hover:bg-[#f5f0ff] hover:text-[#8B5CF6] transition-colors"
+            onClick={() => { onClose?.(); router.push(href); }}
+            className="flex items-center gap-2.5 text-sm py-2.5 px-3 rounded-xl text-left text-[#3d3a4a] hover:bg-[#f5f0ff] hover:text-[#8B5CF6] transition-colors"
           >
+            <Icon size={15} />
             {label}
           </button>
         ))}

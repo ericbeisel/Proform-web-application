@@ -17,17 +17,15 @@ import {
   Upload,
   Trash2,
   UserPlus,
-  Copy,
-  Check,
   ChevronDown,
   MessageCircle,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { coachApi, type CoachTeam } from "@/api/coach/route";
 import { getAuthUser, getUserIdFromToken, getTokenPayload, clearAuthSession } from "@/lib/auth/session";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { fetchCountries, fetchStates, fetchCities } from "@/api/account-setup/route";
 import { profileApi } from "@/api/profile/route";
+import { TeamInviteQrModal } from "./components/TeamInviteQrModal";
 import { CoachSidebar } from "./components/CoachSidebar";
 
 const quickActions = [
@@ -52,9 +50,6 @@ export default function CoachDashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmTeam, setDeleteConfirmTeam] = useState<CoachTeam | null>(null);
   const [inviteTeam, setInviteTeam] = useState<CoachTeam | null>(null);
-  const [inviteUrl, setInviteUrl] = useState<string>("");
-  const [loadingInvite, setLoadingInvite] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [activateCode, setActivateCode] = useState("");
   const [activating, setActivating] = useState(false);
@@ -107,12 +102,6 @@ export default function CoachDashboardPage() {
     } else {
       setShowAdminDetailsModal(true);
     }
-  }
-
-  function handleCopyUrl(url: string) {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   useEffect(() => {
@@ -170,46 +159,6 @@ export default function CoachDashboardPage() {
   }, []);
 
   // sidebar — no outside-click close
-
-  // Fetch real invite link when invite modal opens
-  useEffect(() => {
-    if (!inviteTeam) { setInviteUrl(""); return; }
-    setLoadingInvite(true);
-    coachApi.getTeamInvite(inviteTeam.id)
-      .then((info) => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
-        const extractCode = (link?: string | null) =>
-          link ? link.split("/").filter(Boolean).pop() ?? "" : "";
-        const code =
-          info.unique_code ||
-          extractCode(info.invite_link) ||
-          inviteTeam.unique_code ||
-          extractCode(inviteTeam.invite_link) ||
-          "";
-        const params = new URLSearchParams({
-          code,
-          team_id: inviteTeam.id,
-          team_name: info.name ?? inviteTeam.name,
-          org_name: info.institution?.title ?? inviteTeam.school ?? "",
-          owner_name: info.owner ?? inviteTeam.owner_name ?? "",
-        });
-        setInviteUrl(`${origin}/player/team-invite?${params.toString()}`);
-      })
-      .catch(() => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
-        const extractCode = (link?: string | null) =>
-          link ? link.split("/").filter(Boolean).pop() ?? "" : "";
-        const params = new URLSearchParams({
-          code: inviteTeam.unique_code || extractCode(inviteTeam.invite_link) || "",
-          team_id: inviteTeam.id,
-          team_name: inviteTeam.name,
-          org_name: inviteTeam.school ?? "",
-          owner_name: inviteTeam.owner_name ?? "",
-        });
-        setInviteUrl(`${origin}/player/team-invite?${params.toString()}`);
-      })
-      .finally(() => setLoadingInvite(false));
-  }, [inviteTeam]);
 
   // Auto-validate activation code
   useEffect(() => {
@@ -306,50 +255,6 @@ export default function CoachDashboardPage() {
   const [planName, setPlanName] = useState<string | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [floatingOpen, setFloatingOpen] = useState(true);
-  const [fabPos, setFabPos] = useState({ x: 0, y: 0 });
-  const fabInitialized = useRef(false);
-  const dragging = useRef(false);
-  const wasDragged = useRef(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-  const fabRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!fabInitialized.current && typeof window !== "undefined") {
-      // 56px bubble + 16px margin from edges
-      setFabPos({ x: window.innerWidth - 72, y: window.innerHeight - 72 });
-      fabInitialized.current = true;
-    }
-  }, []);
-
-  function onFabMouseDown(e: React.MouseEvent) {
-    if ((e.target as HTMLElement).closest("button[data-action='nav']")) return;
-    dragging.current = true;
-    wasDragged.current = false;
-    dragOffset.current = {
-      x: e.clientX - fabPos.x,
-      y: e.clientY - fabPos.y,
-    };
-    e.preventDefault();
-  }
-
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      wasDragged.current = true;
-      setFabPos({
-        x: Math.min(Math.max(0, e.clientX - dragOffset.current.x), window.innerWidth - 60),
-        y: Math.min(Math.max(0, e.clientY - dragOffset.current.y), window.innerHeight - 60),
-      });
-    }
-    function onMouseUp() { dragging.current = false; }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] overflow-x-hidden">
@@ -452,73 +357,7 @@ export default function CoachDashboardPage() {
 
       {/* ── Invite Modal ── */}
       {inviteTeam && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setInviteTeam(null)}
-        >
-          <div
-            className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl p-5 sm:p-6 flex flex-col gap-5 max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                {inviteTeam.logo ? (
-                  <img src={inviteTeam.logo} alt={inviteTeam.name} className="w-12 h-12 rounded-2xl object-cover" />
-                ) : (
-                  <div className="w-12 h-12 rounded-2xl bg-[#8B5CF6] flex items-center justify-center text-white font-bold text-lg">
-                    {inviteTeam.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  {inviteTeam.owner_name && (
-                    <p className="text-[11px] font-semibold text-orange-500 uppercase">{inviteTeam.owner_name}</p>
-                  )}
-                  <h3 className="text-base font-bold text-[#222]">{inviteTeam.name}</h3>
-                </div>
-              </div>
-              <button
-                onClick={() => setInviteTeam(null)}
-                className="w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
-              >
-                <X size={16} className="text-gray-600" />
-              </button>
-            </div>
-
-            <h2 className="text-lg font-bold text-[#8B5CF6]">Invite Player(s)</h2>
-
-            <div className="bg-[#f5f5f7] rounded-2xl p-4 sm:p-6 flex flex-col items-center gap-3">
-              <div className="p-3 bg-white rounded-2xl border-2 border-[#8B5CF6]">
-                {loadingInvite ? (
-                  <div className="w-[140px] h-[140px] bg-gray-100 animate-pulse rounded-xl" />
-                ) : (
-                  <QRCodeSVG value={inviteUrl || " "} size={140} />
-                )}
-              </div>
-              <p className="text-xs text-gray-500 text-center leading-relaxed">
-                Invite up to 50 people to join your team. Share your custom QR
-                Code or URL to send them an invite
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-bold text-[#222]">Share with URL:</p>
-              <div className="h-11 rounded-xl bg-[#f5f5f7] px-4 flex items-center text-xs text-gray-500 truncate border border-transparent">
-                {inviteUrl}
-              </div>
-              <button
-                onClick={() =>
-                  handleCopyUrl(
-                    inviteUrl,
-                  )
-                }
-                className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)]"
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Copied!" : "Copy URL"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TeamInviteQrModal team={inviteTeam} onClose={() => setInviteTeam(null)} />
       )}
 
       {/* ── Activate Team Plan Modal ── */}
@@ -1251,11 +1090,22 @@ export default function CoachDashboardPage() {
 
                 {/* Bottom */}
                 <div className="flex items-center justify-between mt-4">
-                  <div className="flex items-center gap-2 text-gray-500">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const params = new URLSearchParams({
+                        team_name: team.name,
+                        org_name: team.school ?? "",
+                        logo: team.logo ?? "",
+                      });
+                      router.push(`/coach/team/${team.id}/roster?${params.toString()}`);
+                    }}
+                    className="flex items-center gap-2 text-gray-500 hover:opacity-80 transition"
+                  >
                     <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#8B5CF6] flex items-center justify-center">
                       <Users size={14} className="text-white" />
                     </div>
-                    <div>
+                    <div className="text-left">
                       <p className="text-sm font-semibold text-[#222]">
                         {team.tagged_players_count}
                         <span className={team.tagged_players_count >= 50 ? "text-red-500 font-semibold" : "text-[#222] font-semibold"}>/50</span>
@@ -1267,7 +1117,7 @@ export default function CoachDashboardPage() {
                         }
                       </p>
                     </div>
-                  </div>
+                  </button>
 
                   {/* Message */}
                   <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1290,60 +1140,6 @@ export default function CoachDashboardPage() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* ── Floating Action Menu ── */}
-      <div
-        ref={fabRef}
-        onMouseDown={onFabMouseDown}
-        style={{
-          position: "fixed",
-          left: fabPos.x > 0 ? fabPos.x : "auto",
-          right: fabPos.x > 0 ? "auto" : 16,
-          top: fabPos.y > 0 ? fabPos.y : "auto",
-          bottom: fabPos.y > 0 ? "auto" : 16,
-          zIndex: 9999,
-          userSelect: "none",
-          width: 44,
-          height: 44,
-        }}
-      >
-        {/* Menu panel — absolutely above the bubble, right-aligned so it opens leftward */}
-        {floatingOpen && (
-          <div
-            style={{ position: "absolute", bottom: "calc(100% + 10px)", right: 0 }}
-            className="bg-[#2d1b69] rounded-2xl shadow-[0_8px_32px_rgba(45,27,105,0.4)] border border-purple-800/30 p-2 flex flex-col gap-0.5 w-[185px]"
-          >
-            {[
-              { label: "All Teams", icon: Users, href: "/coach/coach-dashboard" },
-              { label: "All Players", icon: UserPlus, href: "/coach/activity" },
-              { label: "All Activities", icon: Target, href: "/coach/activity" },
-            ].map(({ label, icon: Icon, href }) => (
-              <button
-                key={label}
-                data-action="nav"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => { setFloatingOpen(false); router.push(href); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 text-white/90 hover:text-white transition-colors text-sm font-medium w-full text-left"
-              >
-                <Icon size={16} />
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Purple bubble */}
-        <button
-          data-action="toggle"
-          onClick={() => { if (wasDragged.current) { wasDragged.current = false; return; } setFloatingOpen((v) => !v); }}
-          className="w-11 h-11 rounded-full bg-[#8B5CF6] flex items-center justify-center shadow-[0_8px_24px_rgba(139,92,246,0.5)] hover:bg-[#7C3AED] active:scale-95 transition-all"
-        >
-          {floatingOpen
-            ? <X size={22} className="text-white" />
-            : <SlidersHorizontal size={20} className="text-white" />
-          }
-        </button>
       </div>
 
       </div>{/* end shifting wrapper */}

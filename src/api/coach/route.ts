@@ -76,9 +76,11 @@ export interface TeamPlayer {
   id: number;
   name?: string;
   username?: string;
+  email?: string;
   profile_picture?: string | null;
   score?: string;
   completion_pct?: string | number;
+  pendingSignup?: boolean;
 }
 
 export interface GetTeamPlayersParams {
@@ -373,6 +375,84 @@ export const getTeamPlayers = async (
   }
 };
 
+export interface SearchPlayersParams {
+  team_id?: number | string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+// TODO(backend): no endpoint exists yet to search players across all teams (for the
+// "Add Player to Team" page). Confirm route/params with backend, then replace this stub.
+// Returning hardcoded dummy data until then.
+const DUMMY_ALL_PLAYERS: TeamPlayer[] = [
+  { id: 9001, name: "Asher Fisher",  username: "asherfisher",  profile_picture: null, score: "2/4", completion_pct: 50 },
+  { id: 9002, name: "Aiden Phoenix", username: "aidenphoenix", profile_picture: null, score: "0/4", completion_pct: 0 },
+  { id: 9003, name: "Aiden Jones",   username: "aiden_jones",  profile_picture: null, score: "1/4", completion_pct: 25 },
+  { id: 9004, name: "Bella Cruz",    username: "bellacruz",    profile_picture: null, score: "3/4", completion_pct: 75 },
+  { id: 9005, name: "Carter Lane",   username: "carterlane",   profile_picture: null, score: "4/4", completion_pct: 100 },
+  { id: 9006, name: "Dylan Wells",   username: "dylanwells",   profile_picture: null, score: "0/4", completion_pct: 0 },
+  { id: 9007, name: "Emma Sinclair", username: "emmasinclair", profile_picture: null, score: "2/4", completion_pct: 50 },
+];
+
+export const searchAllPlayers = async (
+  params: SearchPlayersParams,
+): Promise<{ players: TeamPlayer[]; total: number }> => {
+  console.warn("[coachApi] searchAllPlayers → backend endpoint pending, returning dummy data", params);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const q = (params.search ?? "").trim().toLowerCase();
+  const filtered = q
+    ? DUMMY_ALL_PLAYERS.filter(
+        (p) => p.name?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q),
+      )
+    : DUMMY_ALL_PLAYERS;
+  return { players: filtered, total: filtered.length };
+};
+
+// TODO(backend): no endpoint exists yet to add an existing player to a team.
+// Confirm route/method/body with backend, then replace this stub.
+// Currently simulates success against dummy data so the UI flow can be tested end-to-end.
+export const addPlayerToTeam = async (
+  payload: { team_id: number | string; player_id: number },
+): Promise<{ message: string }> => {
+  console.warn("[coachApi] addPlayerToTeam → backend endpoint pending, simulating success", payload);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return { message: "Player added (dummy — backend endpoint pending)." };
+};
+
+// TODO(backend): no endpoint exists yet to create a brand-new player account from the
+// coach roster ("Create Player" modal). Confirm route/method/body with backend, then
+// replace this stub. Currently simulates success so the UI flow can be tested end-to-end.
+export const createPlayer = async (
+  payload: { team_id: number | string; name: string; email: string; image?: File | null },
+): Promise<TeamPlayer> => {
+  console.warn("[coachApi] createPlayer → backend endpoint pending, simulating success", {
+    ...payload,
+    image: payload.image?.name,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return {
+    id: Math.floor(Math.random() * 1_000_000) + 100_000,
+    name: payload.name,
+    username: payload.email.split("@")[0],
+    email: payload.email,
+    profile_picture: payload.image ? URL.createObjectURL(payload.image) : null,
+    score: "0/4",
+    completion_pct: 0,
+    pendingSignup: true,
+  };
+};
+
+// TODO(backend): no endpoint exists yet to email a sign-up invite to a coach-created
+// player. Confirm route/body with backend, then replace this stub.
+export const sendPlayerInvite = async (
+  payload: { team_id: number | string; player_id: number; email: string },
+): Promise<{ message: string }> => {
+  console.warn("[coachApi] sendPlayerInvite → backend endpoint pending, simulating success", payload);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return { message: `Invite sent to ${payload.email} (dummy — backend endpoint pending).` };
+};
+
 // ─── Activity Logs ────────────────────────────────────────────────────────────
 
 export interface ActivityLog {
@@ -442,6 +522,10 @@ export const coachApi = {
   getTeamInvite,
   joinTeam,
   getTeamPlayers,
+  searchAllPlayers,
+  addPlayerToTeam,
+  createPlayer,
+  sendPlayerInvite,
   getPresignedUrl,
   uploadFileToS3,
   getActivityLogs,

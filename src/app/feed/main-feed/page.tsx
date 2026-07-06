@@ -861,6 +861,7 @@ const [creatingHighlight, setCreatingHighlight] =
                   const isCompleted = feed.type?.includes("Complete");
 
                   const isNutrition = feed.type?.toLowerCase().includes("nutrition");
+                  const isCardio = feed.type?.toLowerCase().includes("cardio");
 
                   const activityLabel =
                     feed.type === "CompleteWorkout" ? "PRIMARY" :
@@ -870,6 +871,7 @@ const [creatingHighlight, setCreatingHighlight] =
                     feed.type === "CompleteRecovery" ? "RECOVERY" :
                     feed.type === "CompleteHydration" ? "HYDRATION" :
                     isNutrition ? "NUTRITION" :
+                    isCardio ? "CARDIO" :
                     "SESSION";
 
                   const activityChipColor =
@@ -880,6 +882,7 @@ const [creatingHighlight, setCreatingHighlight] =
                     feed.type === "CompleteRecovery" ? "bg-purple-500" :
                     feed.type === "CompleteHydration" ? "bg-teal-500" :
                     isNutrition ? "bg-green-600" :
+                    isCardio ? "bg-red-400" :
                     "bg-blue-500";
 
                   const actionLabel =

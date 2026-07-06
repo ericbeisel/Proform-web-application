@@ -9,7 +9,8 @@ import {
   Brain, Zap,
   X,
   Trash2,
-  CheckCircle
+  CheckCircle,
+  AlertTriangle
 } from "lucide-react";
 import { completeRecoveryCustomActivity, deleteRecoveryCustomActivity, getRecoveryCustomActivities, RecoveryCustomActivity } from "@/api/recovery/route";
 import { useToast } from "@/components/ui/toast-provider";
@@ -57,6 +58,8 @@ const toast = useToast();
   const [recoveryType, setRecoveryType] = useState("All");
   const [selectedActivity, setSelectedActivity] = useState<SelectedActivity | null>(null);
 const [showModal, setShowModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string | number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch recovery activities using getRecoveryCustomActivities API
   useEffect(() => {
@@ -149,23 +152,36 @@ const markCompleteFromModal = () => {
   }
 };
 
-const deleteActivity = async () => {
-  if (selectedActivity) {
-    try {
-      // Call the delete API
-      await deleteRecoveryCustomActivity(selectedActivity.id);
-      
-      // Update local state
-      setSessions((prev) => prev.filter((s) => s.id !== selectedActivity.id));
-      setRecoveryActivities((prev) => prev.filter((w) => w.id !== selectedActivity.id));
-      
-      toast.success("Activity deleted successfully!");
-      setShowModal(false);
-      setSelectedActivity(null);
-    } catch (error) {
-      console.error("Failed to delete activity:", error);
-      toast.error("Failed to delete activity. Please try again.");
-    }
+// Ask for confirmation before deleting — from the card's own delete button
+// (works even on completed cards, which aren't clickable into the modal).
+const requestDeleteSession = (e: React.MouseEvent, session: RecoverySession) => {
+  e.stopPropagation();
+  setDeleteTarget({ id: session.id, name: session.name });
+};
+
+// Ask for confirmation before deleting — from the "Delete Activity" button
+// inside the details modal.
+const requestDeleteFromModal = () => {
+  if (!selectedActivity) return;
+  setDeleteTarget({ id: selectedActivity.id, name: selectedActivity.name });
+};
+
+const confirmDelete = async () => {
+  if (!deleteTarget) return;
+  setDeleting(true);
+  try {
+    await deleteRecoveryCustomActivity(deleteTarget.id);
+    setSessions((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+    setRecoveryActivities((prev) => prev.filter((w) => w.id !== deleteTarget.id));
+    toast.success("Activity deleted successfully!");
+    setShowModal(false);
+    setSelectedActivity(null);
+  } catch (error) {
+    console.error("Failed to delete activity:", error);
+    toast.error("Failed to delete activity. Please try again.");
+  } finally {
+    setDeleting(false);
+    setDeleteTarget(null);
   }
 };
 
@@ -233,14 +249,16 @@ const formatTime = (time: string | undefined): string => {
       case "meditation":
         return "from-purple-500 to-pink-600";
       case "stretching":
-        return "from-green-500 to-emerald-600";
+        return "from-fuchsia-500 to-violet-600";
       case "massage":
         return "from-amber-500 to-yellow-600";
       case "ice bath":
       case "cold plunge":
         return "from-cyan-500 to-blue-600";
+      case "recovery":
+        return "from-purple-600 to-indigo-600";
       default:
-        return "from-teal-500 to-green-600";
+        return "from-orange-400 to-rose-500";
     }
   };
 
@@ -261,7 +279,7 @@ const formatTime = (time: string | undefined): string => {
     return (
       <div className="min-h-screen bg-[#f4f4f8] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-3" />
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-3" />
           <p className="text-gray-500">Loading recovery activities...</p>
         </div>
       </div>
@@ -274,11 +292,11 @@ const formatTime = (time: string | undefined): string => {
       <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 border-b border-[#e8e8f0] sticky top-0 z-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3.5">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center font-extrabold text-base sm:text-lg text-white flex-shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full flex items-center justify-center font-extrabold text-base sm:text-lg text-white flex-shrink-0">
               R
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-green-600 m-0">
+              <h1 className="text-lg sm:text-xl font-extrabold text-purple-600 m-0">
                 Recovery Dashboard
               </h1>
               <p className="text-[10px] sm:text-xs text-[#999] m-0">
@@ -299,7 +317,7 @@ const formatTime = (time: string | undefined): string => {
                 onClick={() => router.push("/recovery/field-workout-times-recovery")}
                 className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
               >
-                <Settings size={18} className="text-green-600" />
+                <Settings size={18} className="text-purple-600" />
               </div>
             </div>
 
@@ -309,7 +327,7 @@ const formatTime = (time: string | undefined): string => {
                 onClick={() => window.location.reload()}
                 className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
               >
-                <RefreshCw size={18} className="text-green-600" />
+                <RefreshCw size={18} className="text-purple-600" />
               </div>
             </div>
 
@@ -319,7 +337,7 @@ const formatTime = (time: string | undefined): string => {
                 onClick={() => router.push("/itinerary/itinerary-page")} 
                 className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
               >
-                <Calendar size={18} className="text-green-600" />
+                <Calendar size={18} className="text-purple-600" />
               </div>
             </div>
 
@@ -328,7 +346,7 @@ const formatTime = (time: string | undefined): string => {
             {/* Add Activity Button */}
             <button 
               onClick={() => router.push("/recovery/all-recovery-options")}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 border-none rounded-lg text-white p-1.5 sm:p-2 cursor-pointer flex items-center justify-center shadow-sm hover:opacity-90 transition-all"
+              className="bg-gradient-to-r from-purple-500 to-indigo-600 border-none rounded-lg text-white p-1.5 sm:p-2 cursor-pointer flex items-center justify-center shadow-sm hover:opacity-90 transition-all"
             >
               <Plus size={18} />
             </button>
@@ -349,22 +367,22 @@ const formatTime = (time: string | undefined): string => {
         <div className="max-w-6xl mx-auto px-4 mt-12">
           <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
-                <Heart size={32} className="text-green-600" />
+              <div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center">
+                <Heart size={32} className="text-purple-600" />
               </div>
             </div>
-            
+
             <h3 className="text-lg font-bold text-gray-800 mb-2">
               No recovery activities scheduled
             </h3>
-            
+
             <p className="text-sm text-gray-500 mb-6">
               Add recovery activities to help your body recover and perform better
             </p>
-            
+
             <button
               onClick={() => router.push("/recovery/all-recovery-options")}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 mx-auto shadow-sm"
+              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:opacity-90 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 mx-auto shadow-sm"
             >
               <Plus size={16} />
               Add Recovery Activity
@@ -379,7 +397,7 @@ const formatTime = (time: string | undefined): string => {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4 px-1">
             <div>
               <p className="text-sm text-gray-500 mt-1">
-                <span className="font-semibold text-green-600">{sessions.length}</span> total recovery activities on your schedule
+                <span className="font-semibold text-purple-600">{sessions.length}</span> total recovery activities on your schedule
               </p>
             </div>
     
@@ -396,21 +414,32 @@ const formatTime = (time: string | undefined): string => {
       } bg-gradient-to-br ${getTypeGradient(session.type)}`}
       style={{ minHeight: "160px" }}
     >
-      {/* Completed Overlay Badge */}
-      {session.completed && (
-        <div className="absolute top-2 right-2 z-10">
+      {/* Top-right controls — Completed badge (if any) + Delete, kept in one
+          row so they never collide with the type chip in the top-left */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5">
+        {session.completed && (
           <div className="bg-green-500 text-white px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-lg">
             <CheckCircle size={12} />
             Completed
           </div>
-        </div>
-      )}
-      
-      <div className="relative p-3 sm:p-4 flex flex-col h-full min-h-[160px]">
+        )}
+        <button
+          onClick={(e) => requestDeleteSession(e, session)}
+          title="Delete activity"
+          className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-sm text-white flex items-center justify-center hover:bg-red-500 transition-colors shrink-0"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+
+      <div className="relative p-3 sm:p-4 pr-9 flex flex-col h-full min-h-[160px]">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/20 backdrop-blur-sm text-white text-xs font-medium">
             {getRecoveryIcon(session.type)}
-            <span>{session.type || "Recovery"}</span>
+            {/* Skip the label when it just repeats the activity's own name (e.g. type="Recovery", name="Recovery") */}
+            {session.type && session.type.toLowerCase() !== session.name?.toLowerCase() && (
+              <span>{session.type}</span>
+            )}
           </div>
           {session.recoveryScore && !session.completed && (
             <div className={`px-2 py-0.5 rounded-lg ${getScoreBgColor(session.recoveryScore)} border text-xs font-semibold`}>
@@ -423,7 +452,7 @@ const formatTime = (time: string | undefined): string => {
           <p className="text-xs mb-0.5 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
             <span className="text-white/80 text-xs">
-              {session.day} {formatTime(session.time)}
+              By {session.day} {formatTime(session.time)}
             </span>
           </p>
           <p className={`font-bold text-sm sm:text-base m-0 mb-0.5 line-clamp-2 ${
@@ -488,7 +517,7 @@ const formatTime = (time: string | undefined): string => {
       
         {/* Recovery Score */}
         {selectedActivity.recoveryScore && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 text-center border border-green-200 mb-4">
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-3 text-center border border-purple-200 mb-4">
             <p className="text-xs text-gray-400 mb-1">Recovery Score</p>
             <p className={`text-2xl font-bold ${getScoreColor(selectedActivity.recoveryScore)}`}>
               {selectedActivity.recoveryScore}
@@ -510,7 +539,7 @@ const formatTime = (time: string | undefined): string => {
         <div className="flex flex-col gap-3 pt-2">
         <button
   onClick={markCompleteFromModal}
-  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
+  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
 >
   <Check size={18} />
   Complete Activity
@@ -525,13 +554,47 @@ const formatTime = (time: string | undefined): string => {
           </button>
           
           <button
-            onClick={deleteActivity}
+            onClick={requestDeleteFromModal}
             className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
           >
             <Trash2 size={18} />
             Delete Activity
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Delete confirmation warning popup */}
+{deleteTarget && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-6 flex flex-col items-center gap-4 text-center">
+      <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+        <AlertTriangle size={28} className="text-red-500" />
+      </div>
+      <div>
+        <h3 className="text-lg font-bold text-gray-800">Delete this activity?</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          &ldquo;{deleteTarget.name}&rdquo; will be permanently removed. This can&apos;t be undone.
+        </p>
+      </div>
+      <div className="flex gap-3 w-full mt-2">
+        <button
+          onClick={() => setDeleteTarget(null)}
+          disabled={deleting}
+          className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={confirmDelete}
+          disabled={deleting}
+          className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {deleting && <Loader2 size={16} className="animate-spin" />}
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
       </div>
     </div>
   </div>
