@@ -2110,7 +2110,7 @@ function ViewWorkoutSessionContent() {
 
               <div className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-[10px] font-bold mb-3">
                 <Sparkles size={8} />
-                ID: {incompleteSession?.id?.slice(0, 6) || "pending"}
+                ID: {(activeSession || incompleteSession)?.id?.slice(0, 6) || "pending"}
               </div>
 
               <h2 className="text-[22px] leading-[24px] font-black uppercase mb-1">
@@ -2190,7 +2190,7 @@ function ViewWorkoutSessionContent() {
                   </h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">
                     Session ID:{" "}
-                    {incompleteSession?.id?.slice(0, 6) || "pending"}
+                    {(activeSession || incompleteSession)?.id?.slice(0, 6) || "pending"}
                   </p>
                 </div>
                 <button
@@ -2423,28 +2423,40 @@ function ViewWorkoutSessionContent() {
                 <p className="text-[13px] font-black text-[#222] mb-3">
                   Invite via Link
                 </p>
-                <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Link size={12} className="text-gray-400 flex-shrink-0" />
-                    <p className="text-[11px] text-gray-400 truncate">
-                      {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${incompleteSession?.id || "pending"}`}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (!incompleteSession?.id) return;
-                    const url = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${incompleteSession.id}`;
-                    navigator.clipboard.writeText(url);
-                    setSessionLinkCopied(true);
-                    setTimeout(() => setSessionLinkCopied(false), 2000);
-                  }}
-                  disabled={!incompleteSession?.id}
-                  className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {sessionLinkCopied ? <Check size={14} /> : <Copy size={14} />}
-                  {sessionLinkCopied ? "Copied!" : "Copy URL"}
-                </button>
+                {(() => {
+                  // incompleteSession is just incompleteSessions[0] — the first
+                  // unfinished session for this whole program, which may not be
+                  // the one currently in view. Prefer the session actually
+                  // engaged with (activeSession), same priority used for the
+                  // rejoin banner elsewhere on this page.
+                  const shareSession = activeSession || incompleteSession;
+                  return (
+                    <>
+                      <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Link size={12} className="text-gray-400 flex-shrink-0" />
+                          <p className="text-[11px] text-gray-400 truncate">
+                            {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${shareSession?.id || "pending"}`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (!shareSession?.id) return;
+                          const url = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${shareSession.id}`;
+                          navigator.clipboard.writeText(url);
+                          setSessionLinkCopied(true);
+                          setTimeout(() => setSessionLinkCopied(false), 2000);
+                        }}
+                        disabled={!shareSession?.id}
+                        className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sessionLinkCopied ? <Check size={14} /> : <Copy size={14} />}
+                        {sessionLinkCopied ? "Copied!" : "Copy URL"}
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
