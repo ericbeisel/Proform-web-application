@@ -3,8 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
+import PerformanceStatsCard from "./PerformanceStatsCard";
 
-export default function ItineraryCard() {
+interface Props {
+  weeklyStats?: {
+    load: number;
+    str: number;
+    cal: number;
+    pwr: number;
+  };
+}
+
+export default function ItineraryCard({ weeklyStats }: Props) {
   const router = useRouter();
   const [data, setData] = useState<ItineraryWorkout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +48,7 @@ export default function ItineraryCard() {
   return (
     <div
       onClick={() => router.push("/itinerary/itinerary-page")}
-      className="bg-[#1c1929] rounded-2xl p-5 shadow-[0_2px_12px_rgba(108,92,231,0.07)] border border-transparent cursor-pointer hover:border-purple-700/40 transition-all"
+      className="h-full flex flex-col bg-[#1c1929] rounded-2xl p-5 shadow-[0_2px_12px_rgba(108,92,231,0.07)] border border-transparent cursor-pointer hover:border-purple-700/40 transition-all"
     >
       <div className="text-white/50 text-[11px] uppercase tracking-wider">
         Itinerary
@@ -65,6 +75,15 @@ export default function ItineraryCard() {
                 <div className="text-white/40 text-[10px] mt-0.5">{label}</div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-4 flex-1" onClick={(e) => e.stopPropagation()}>
+            <PerformanceStatsCard
+              load={weeklyStats?.load ?? 0}
+              str={weeklyStats?.str ?? 0}
+              cal={weeklyStats?.cal ?? 0}
+              pwr={weeklyStats?.pwr ?? 0}
+            />
           </div>
         </>
       )}

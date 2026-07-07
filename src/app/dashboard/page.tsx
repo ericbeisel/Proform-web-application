@@ -21,7 +21,6 @@ import QuickActions from "./components/QuickActions"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [activeNav, setActiveNav] = useState("Home")
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -102,9 +101,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#f0eff4] text-[#1a1825] antialiased">
       <DashboardHeader
-        activeNav={activeNav}
-        setActiveNav={setActiveNav}
         userName={dashboardData?.userName}
+        unreadNotificationsCount={dashboardData?.unreadNotificationsCount}
+        pfPoints={dashboardData?.pfPoints}
       />
 
       <main className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
@@ -166,15 +165,10 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[260px_1fr_340px] gap-5">
 
-          <ItineraryCard />
+          <ItineraryCard weeklyStats={dashboardData?.weeklyStats} />
 
           <div className="space-y-5">
-            <ForYouCard
-              currentWeight={dashboardData?.currentWeight}
-              goalWeight={dashboardData?.goalWeight}
-              measurementUnit={dashboardData?.measurementUnit}
-              trainingGoals={dashboardData?.trainingGoals}
-            />
+            <ForYouCard />
               <DailyFocusCard />
             <AccountabilityTools />
             <StandardsCard />

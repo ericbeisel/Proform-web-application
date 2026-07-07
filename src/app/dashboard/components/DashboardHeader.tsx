@@ -1,26 +1,28 @@
 "use client";
 
-import { BarChart2, User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { BarChart2, User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import Link from "next/link";
 import { useState } from "react";
 
 type Props = {
-  activeNav: string;
-  setActiveNav: (value: string) => void;
   userName?: string;
+  unreadNotificationsCount?: number;
+  pfPoints?: number;
 };
 
 export default function DashboardHeader({
-  activeNav,
-  setActiveNav,
   userName,
+  unreadNotificationsCount = 0,
+  pfPoints = 0,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -58,6 +60,12 @@ export default function DashboardHeader({
     { label: "Teams",     icon: Users,        href: "/team-dashboard" },
   ];
 
+  const isNavItemActive = (href: string | null): boolean => {
+    if (!href) return false;
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e8e6f0]">
       <div className="h-16 relative flex items-center px-4 sm:px-6 lg:px-8">
@@ -67,14 +75,14 @@ export default function DashboardHeader({
           {navItems.map(({ label, icon: Icon, href }) => (
             <button
               key={label}
-              onClick={() => { setActiveNav(label); if (href) router.push(href); }}
+              onClick={() => { if (href) router.push(href); }}
               className={`
                 flex items-center gap-1.5 px-3 lg:px-4 py-1.5 text-[12px] lg:text-[13px] font-medium rounded-[7px]
                 transition-all duration-150
                 ${
-                  activeNav === label
+                  isNavItemActive(href)
                     ? "bg-white text-[#6c5ce7] shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
-                    : "text-[#8b879e] hover:text-[#6c5ce7]"
+                    : "text-[#8b879e] hover:bg-white hover:text-[#6c5ce7] hover:shadow-[0_1px_4px_rgba(0,0,0,0.08)] active:bg-white active:shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
                 }
               `}
             >
@@ -96,6 +104,33 @@ export default function DashboardHeader({
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          {/* Highlights / Watch */}
+          <button
+            onClick={() => setShowComingSoon(true)}
+            className="hidden sm:flex w-9 h-9 rounded-full bg-[#6c5ce7] items-center justify-center text-white hover:opacity-90 transition-all"
+          >
+            <Tv size={16} />
+          </button>
+
+          {/* Live Sessions */}
+          <button
+            onClick={() => router.push("/live-sessions")}
+            className="hidden sm:flex relative w-9 h-9 rounded-full bg-[#00c896] items-center justify-center text-white hover:opacity-90 transition-all"
+          >
+            <Play size={16} fill="currentColor" />
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+              188
+            </span>
+          </button>
+
+          {/* Points */}
+          <button
+            onClick={() => router.push("/points")}
+            className="hidden sm:flex items-center px-3 h-9 rounded-full bg-[#ffb020] text-white text-sm font-bold hover:opacity-90 transition-all"
+          >
+            {pfPoints.toLocaleString()} pts
+          </button>
+
           {/* Analytics */}
           <button className="hidden sm:flex w-9 h-9 rounded-[10px] border border-[#e8e6f0] bg-white items-center justify-center text-[#8b879e] hover:border-[#a29bfe] hover:text-[#6c5ce7] transition-all">
             <BarChart2 size={18} />
@@ -130,6 +165,30 @@ export default function DashboardHeader({
             )}
           </button>
 
+          {/* Calendar */}
+          <button
+            onClick={() => router.push("/checklist")}
+            className="hidden sm:flex relative w-9 h-9 rounded-full bg-[#f1eefe] items-center justify-center text-[#6c5ce7] hover:bg-[#e6e0fd] transition-all"
+          >
+            <Calendar size={16} />
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+              9
+            </span>
+          </button>
+
+          {/* Notifications */}
+          <button
+            onClick={() => router.push("/checklist/missed-activity")}
+            className="hidden sm:flex relative w-9 h-9 rounded-full bg-[#f1eefe] items-center justify-center text-[#6c5ce7] hover:bg-[#e6e0fd] transition-all"
+          >
+            <Bell size={16} />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+              </span>
+            )}
+          </button>
+
           {/* Avatar */}
           <Link href="/account">
             <div
@@ -157,13 +216,12 @@ export default function DashboardHeader({
             <button
               key={label}
               onClick={() => {
-                setActiveNav(label);
                 setMobileMenuOpen(false);
                 if (href) router.push(href);
               }}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm
                 ${
-                  activeNav === label
+                  isNavItemActive(href)
                     ? "bg-purple-50 text-[#6c5ce7]"
                     : "text-gray-600 hover:bg-gray-50"
                 }
@@ -195,6 +253,27 @@ export default function DashboardHeader({
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* Coming Soon popup */}
+      {showComingSoon && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowComingSoon(false)}
+        >
+          <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl p-8 text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#f1eefe] flex items-center justify-center">
+              <Tv size={28} className="text-[#6c5ce7]" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mt-5">Coming Soon!</h2>
+            <button
+              onClick={() => setShowComingSoon(false)}
+              className="w-full bg-[#6c5ce7] hover:bg-[#5b4bd4] text-white font-semibold py-3 rounded-xl mt-6 transition"
+            >
+              Got it
+            </button>
+          </div>
         </div>
       )}
     </header>

@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Utensils } from "lucide-react";
+import { ArrowLeft, Utensils, Bell } from "lucide-react";
 
 export default function MicrosPage() {
   const router = useRouter();
+  const [notified, setNotified] = useState(false);
 
   return (
     <div
@@ -21,18 +23,33 @@ export default function MicrosPage() {
           >
             <ArrowLeft size={17} />
           </button>
-          <h1 className="text-lg font-extrabold text-gray-900">Micros</h1>
+          <h1 className="text-lg font-extrabold text-gray-900">Nutrition & Macros</h1>
         </div>
 
         {/* Coming Soon */}
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 pb-20">
-          <div className="w-20 h-20 rounded-3xl bg-green-50 flex items-center justify-center">
-            <Utensils size={36} className="text-green-500" />
+          <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center">
+            <Utensils size={32} className="text-amber-500" />
           </div>
           <div className="text-center">
-            <p className="text-2xl font-extrabold text-gray-900">Coming Soon</p>
-            <p className="text-sm text-gray-400 mt-2">Micronutrient tracking is on its way.</p>
+            <p className="text-2xl font-extrabold text-gray-900">Nutrition & Macros</p>
+            <p className="text-sm text-gray-400 mt-2">
+              Monitor your daily nutritional intake and macro balance.
+            </p>
           </div>
+
+          <span className="bg-purple-50 text-purple-700 text-xs font-bold px-4 py-1.5 rounded-full">
+            COMING SOON
+          </span>
+
+          <button
+            onClick={() => setNotified(true)}
+            disabled={notified}
+            className="flex items-center gap-2 border border-gray-200 text-gray-900 font-semibold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition-colors disabled:opacity-60"
+          >
+            <Bell size={16} className="text-purple-600" />
+            {notified ? "We'll notify you!" : "Notify me when this feature is ready"}
+          </button>
         </div>
 
       </div>

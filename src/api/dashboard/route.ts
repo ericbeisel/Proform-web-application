@@ -50,6 +50,11 @@ export interface UserOtherDetail {
   Clean_CMP: null | string;
   Deadlift_CMP: null | string;
   optimalWellnessScore: null | string;
+  unread_notifications_count?: number | string;
+  weekly_load?: number | string;
+  weekly_str?: number | string;
+  weekly_kcal?: number | string;
+  weekly_power?: number | string;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +68,7 @@ export interface UserData {
   created_at: string;
   updated_at: string;
   image: string | null;
+  pf_points?: number | string;
   OtherDetail: UserOtherDetail;
 }
 
@@ -99,6 +105,14 @@ export interface DashboardSummary {
   trainingSports: string[];
   birthDate: string;
   gender: string;
+  unreadNotificationsCount: number;
+  pfPoints: number;
+  weeklyStats: {
+    load: number;
+    str: number;
+    cal: number;
+    pwr: number;
+  };
 }
 
 export interface ActivityLevel {
@@ -372,6 +386,14 @@ export const dashboardApi = {
       trainingSports: parseToList(details.trainingSport),
       birthDate: details.birthDate || "",
       gender: details.gender || "",
+      unreadNotificationsCount: parseInt(String(details.unread_notifications_count ?? 0), 10) || 0,
+      pfPoints: parseInt(String(user?.pf_points ?? 0), 10) || 0,
+      weeklyStats: {
+        load: parseInt(String(details.weekly_load ?? 0), 10) || 0,
+        str: parseInt(String(details.weekly_str ?? 0), 10) || 0,
+        cal: parseInt(String(details.weekly_kcal ?? 0), 10) || 0,
+        pwr: parseInt(String(details.weekly_power ?? 0), 10) || 0,
+      },
     };
   },
 
