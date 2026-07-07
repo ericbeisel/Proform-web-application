@@ -527,12 +527,15 @@ function ViewWorkoutSessionContent() {
   // Fetch real data (from 1st code)
   useEffect(() => {
     const initializeWorkout = async () => {
-      // Arriving via a shared "Copy URL" link (?sessionId=...) on a browser with
-      // no local session state — resolve the program code/title from the
-      // session itself so the rest of this function (which reads from
-      // localStorage) can proceed exactly as it does for the normal in-app flow.
+      // Arriving via a shared "Copy URL" link (?sessionId=...) — always resolve
+      // fresh from the session itself, since no normal in-app navigation to
+      // this page ever includes a sessionId query param (they all rely on
+      // localStorage already being set correctly). Skipping this whenever
+      // workoutProgramCode already existed meant a browser that had ever
+      // viewed a *different* program before would keep showing that stale
+      // program/exercises instead of the one actually being shared.
       const urlSessionId = searchParams.get("sessionId");
-      if (urlSessionId && !localStorage.getItem("workoutProgramCode")) {
+      if (urlSessionId) {
         try {
           const session = await getWorkoutSessionById(urlSessionId);
           const resolvedCode = session?.workout_code || session?.program_id;
@@ -541,6 +544,13 @@ function ViewWorkoutSessionContent() {
           }
           const resolvedTitle = session?.workoutTitle || session?.title;
           if (resolvedTitle) localStorage.setItem("workoutTitle", resolvedTitle);
+          // These are re-derived below from a fresh getProgramOverview call
+          // (workoutIsFree from preview.free) or simply don't apply to a
+          // session we didn't set up ourselves — clear them so a value left
+          // over from a previously-viewed, different program can't leak
+          // through as this session's free/purchase status or subtitle.
+          localStorage.removeItem("workoutIsFree");
+          localStorage.removeItem("workoutName");
         } catch (err) {
           console.error("[viewWorkout] failed to resolve session for shared link:", err);
         }
