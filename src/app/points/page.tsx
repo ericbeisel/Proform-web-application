@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Info, Trophy, ShoppingCart, Coins, Gift, Package, Headphones, ShoppingBag, Zap, Dumbbell } from "lucide-react";
 import type { ComponentType } from "react";
-import { getPointsTotal } from "@/api/points/route";
+import { dashboardApi } from "@/api/dashboard/route";
 
 type RewardItem = {
   icon: ComponentType<{ size?: number; className?: string }>;
@@ -30,8 +30,9 @@ export default function PointsPage() {
   const [points, setPoints] = useState<number | null>(null);
 
   useEffect(() => {
-    getPointsTotal()
-      .then(setPoints)
+    dashboardApi
+      .getDashboardSummary()
+      .then((summary) => setPoints(summary.pfPoints))
       .catch(() => setPoints(0));
   }, []);
 

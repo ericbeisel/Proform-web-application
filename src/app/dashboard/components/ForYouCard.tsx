@@ -2,54 +2,49 @@
 "use client";
 
 import { useState } from "react";
-import { Flame, Target, TrendingUp, Award } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Flame, Utensils, AlertCircle, BarChart2 } from "lucide-react";
 
-interface ForYouCardProps {
-  currentWeight?: number;
-  goalWeight?: number;
-  measurementUnit?: string;
-  trainingGoals?: string[];
-}
+export default function ForYouCard() {
+  const router = useRouter();
 
-export default function ForYouCard({
-  currentWeight,
-  goalWeight,
-  measurementUnit = "lbs",
-  trainingGoals = [],
-}: ForYouCardProps) {
   const carouselItems = [
     {
       icon: Flame,
       title: "Complete Cardio",
       description: "Stay on track to meet your Cardio Goals",
       color: "from-[#6c5ce7] to-[#a29bfe]",
+      route: "/todays-focus-cardio/cardio-entry",
     },
     {
-      icon: Target,
-      title: currentWeight
-        ? `Current: ${currentWeight} ${measurementUnit}`
-        : "Track Weight",
-      description: goalWeight
-        ? `Goal: ${goalWeight} ${measurementUnit}`
-        : "Set your weight goals",
-      color: "from-[#fd7b4d] to-[#fdcb6e]",
+      icon: Utensils,
+      title: "Log a Meal!",
+      description: "Track your meals with Macro-Tracker",
+      color: "from-[#00cfff] to-[#00cfff]",
+      route: "/micros",
     },
     {
-      icon: TrendingUp,
-      title: trainingGoals[0] || "Build Strength",
-      description: "Continue your fitness journey",
-      color: "from-[#00b894] to-[#55efc4]",
+      icon: AlertCircle,
+      title: "Missed Activity",
+      description: "See what you missed today/this week",
+      color: "from-[#ffa726] to-[#ffa726]",
+      route: "/checklist/missed-activity",
     },
     {
-      icon: Award,
-      title: "Weekly Challenge",
-      description: "Complete 5 workouts this week",
-      color: "from-[#e17055] to-[#fab1a0]",
+      icon: BarChart2,
+      title: "Track your Progress",
+      description: "View your results from this week",
+      color: "from-[#8b7cf6] to-[#8b7cf6]",
+      route: "/admin-player-progress",
     },
   ];
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentItem = carouselItems[currentIndex];
+
+  const handleCardClick = () => {
+    if (currentItem.route) router.push(currentItem.route);
+  };
 
   const handlePrev = () => {
     setCurrentIndex((prev) =>
@@ -80,17 +75,22 @@ export default function ForYouCard({
 
         {/* Content */}
         <div
-          className={`w-14 h-14 mx-auto mb-3 bg-gradient-to-br ${currentItem.color} rounded-full flex items-center justify-center`}
+          onClick={handleCardClick}
+          className={currentItem.route ? "cursor-pointer" : ""}
         >
-          <currentItem.icon size={24} className="text-white" />
-        </div>
+          <div
+            className={`w-14 h-14 mx-auto mb-3 bg-gradient-to-br ${currentItem.color} rounded-full flex items-center justify-center`}
+          >
+            <currentItem.icon size={24} className="text-white" />
+          </div>
 
-        <div className="text-white font-bold text-base">
-          {currentItem.title}
-        </div>
+          <div className="text-white font-bold text-base">
+            {currentItem.title}
+          </div>
 
-        <div className="text-white/50 text-xs mt-1.5">
-          {currentItem.description}
+          <div className="text-white/50 text-xs mt-1.5">
+            {currentItem.description}
+          </div>
         </div>
 
         {/* Dots */}
