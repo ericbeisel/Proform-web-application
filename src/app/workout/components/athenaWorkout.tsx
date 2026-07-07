@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -35,7 +35,19 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getWorkoutSection, SectionExercise, getTrackingLogs, createTrackingLog, getWorkoutLoads, createWorkoutLoad, WorkoutLoadSummary, swapExercise } from "@/api/workouts/route";
+import {
+  getWorkoutSectionFull,
+  SectionExercise,
+  getTrackingLogs,
+  createTrackingLog,
+  getWorkoutLoads,
+  getWorkoutLoadRecords,
+  createWorkoutLoad,
+  WorkoutLoadSummary,
+  WorkoutLoadRecord,
+  updateSessionLocation,
+  getPowerSetDetails,
+} from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { equipmentApi, LocationItem, Equipment } from "@/api/location/route";
@@ -110,6 +122,45 @@ function computeExerciseLoad(
   return { load, power, kcal };
 }
 
+// Checks whether every required "money set" ($) across this round's power-set
+// exercises has been recorded — mirrors mobile's verifyPowerSetsCompletion.
+// PowerSetDetailSet doesn't declare min_reps/power_id (the type lags the real
+// API response), so those are read defensively. If no set on a given exercise
+// is flagged via min_reps, fall back to treating the LAST set as the money
+// set — the same convention /workout/dollarSet itself uses to show the $ icon
+// — so verification still works even if min_reps isn't populated for this
+// endpoint.
+async function verifyPowerSetsCompletedFor(
+  exercises: SectionExercise[],
+  sessionId: string | null,
+): Promise<boolean> {
+  if (!sessionId) return true;
+  const powerSetExercises = exercises.filter((ex) => ex.is_power_set);
+  if (powerSetExercises.length === 0) return true;
+
+  try {
+    for (const ex of powerSetExercises) {
+      const details = await getPowerSetDetails({ specializedWorkoutId: ex.id, sessionId });
+      const allSets = details.sets || [];
+      if (allSets.length === 0) continue;
+
+      const flaggedMoneySets = allSets.filter(
+        (s) => (s as unknown as { min_reps?: number | null }).min_reps !== undefined
+          && (s as unknown as { min_reps?: number | null }).min_reps !== null,
+      );
+      const moneySets = flaggedMoneySets.length > 0 ? flaggedMoneySets : [allSets[allSets.length - 1]];
+
+      if (!moneySets.every((s) => s.recorded === true)) {
+        return false;
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn("[athena] Failed to verify power sets completion:", err);
+    return true;
+  }
+}
+
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith("wix:image://")) {
@@ -169,12 +220,29 @@ export default function AthenaWorkoutPage() {
 
   // Workout loads
   const [workoutLoads, setWorkoutLoads] = useState<WorkoutLoadSummary>({ load: 0, power: 0, kcal: 0 });
-  const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
+
+  // Round completion — mirrors mobile's handleToggleComplete/verifyPowerSetsCompletion
+  const [isCurrentRoundCompleted, setIsCurrentRoundCompleted] = useState(false);
+  const [powerSetsCompleted, setPowerSetsCompleted] = useState(true);
+  // True while a fresh verifyPowerSetsCompletedFor call is in flight for the
+  // current round — the completion checkbox must stay disabled during this
+  // window, since powerSetsCompleted can still hold a stale value from the
+  // previous round until it resolves.
+  const [verifyingPowerSets, setVerifyingPowerSets] = useState(false);
+  const [showMoneySetModal, setShowMoneySetModal] = useState(false);
+  const [isCountingRoundStats, setIsCountingRoundStats] = useState(false);
+  const [loadRecords, setLoadRecords] = useState<WorkoutLoadRecord[]>([]);
 
   const refreshLoads = async (sid: string | null) => {
     if (!sid) return;
     const loads = await getWorkoutLoads(sid);
     setWorkoutLoads(loads);
+  };
+
+  const refreshLoadRecords = async (sid: string | null) => {
+    if (!sid) return;
+    const records = await getWorkoutLoadRecords(sid);
+    setLoadRecords(records);
   };
 
   // Exercise tracking
@@ -222,6 +290,7 @@ export default function AthenaWorkoutPage() {
     setTimeRemaining(SETUP_DURATION);
   }, [currentExerciseIndex]);
 
+
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
@@ -246,6 +315,7 @@ export default function AthenaWorkoutPage() {
         const sid = localStorage.getItem(`activeSessionId_${code?.toUpperCase()}`);
         setSessionId(sid);
         refreshLoads(sid);
+        refreshLoadRecords(sid);
         const loc = localStorage.getItem("workoutLocationName");
         if (loc) setLocationName(loc);
         const locId = localStorage.getItem("workoutLocationId");
@@ -268,12 +338,25 @@ export default function AthenaWorkoutPage() {
         if (startIdx > 0) setCurrentSectionIndex(startIdx);
 
         if (groups.length > 0) {
-          const exercises = await getWorkoutSection({
+          const sectionRes = await getWorkoutSectionFull({
             sessionId: sid,
             programCode: code,
             section: groups[startIdx]?.label || groups[0].label,
           });
+          const exercises = sectionRes.exercises || sectionRes.workouts || [];
           setSectionExercises(exercises);
+          setIsCurrentRoundCompleted(!!sectionRes.isCompleted);
+          // The session's own location is the source of truth once it
+          // exists server-side — same endpoint mobile reads locationName
+          // from on every section fetch.
+          if (sectionRes.locationName) {
+            setLocationName(sectionRes.locationName);
+            localStorage.setItem("workoutLocationName", sectionRes.locationName);
+          }
+          setVerifyingPowerSets(true);
+          verifyPowerSetsCompletedFor(exercises, sid)
+            .then(setPowerSetsCompleted)
+            .finally(() => setVerifyingPowerSets(false));
           if (startExerciseIdx > 0 && startExerciseIdx < exercises.length) {
             setCurrentExerciseIndex(startExerciseIdx);
           }
@@ -293,12 +376,23 @@ export default function AthenaWorkoutPage() {
       setDataLoading(true);
       if (preserveIndex === undefined) setCurrentExerciseIndex(0);
       try {
-        const exercises = await getWorkoutSection({
+        const sectionRes = await getWorkoutSectionFull({
           sessionId: sid,
           programCode: code,
           section: groups[sectionIndex].label,
         });
+        const exercises = sectionRes.exercises || sectionRes.workouts || [];
         setSectionExercises(exercises);
+        setIsCurrentRoundCompleted(!!sectionRes.isCompleted);
+        if (sectionRes.locationName) {
+          setLocationName(sectionRes.locationName);
+          localStorage.setItem("workoutLocationName", sectionRes.locationName);
+        }
+        setVerifyingPowerSets(true);
+        verifyPowerSetsCompletedFor(exercises, sid)
+          .then(setPowerSetsCompleted)
+          .finally(() => setVerifyingPowerSets(false));
+        refreshLoadRecords(sid);
         if (preserveIndex !== undefined) setCurrentExerciseIndex(preserveIndex);
       } catch (err) {
         console.error("[athena] Failed to load section exercises:", err);
@@ -311,6 +405,97 @@ export default function AthenaWorkoutPage() {
 
   const currentSection = sections[currentSectionIndex];
   const currentExercise = sectionExercises[currentExerciseIndex];
+
+  // Sum of this round's exercises — mirrors mobile's currentRoundStats
+  const currentRoundStats = useMemo(() => {
+    return sectionExercises.reduce(
+      (acc, ex) => {
+        const { load, power, kcal } = computeExerciseLoad(
+          ex as SectionExercise & Record<string, unknown>,
+          userOtherDetail,
+          currentSection?.rounds,
+        );
+        return { load: acc.load + load, power: acc.power + power, kcal: acc.kcal + kcal };
+      },
+      { load: 0, power: 0, kcal: 0 },
+    );
+  }, [sectionExercises, userOtherDetail, currentSection]);
+
+  // Cumulative stats carried forward from the nearest previously-completed
+  // round — mirrors mobile's previousRoundStats.
+  const previousRoundStats = useMemo(() => {
+    for (let i = currentSectionIndex - 1; i >= 0; i--) {
+      const label = sections[i]?.label;
+      const match = loadRecords.find(
+        (r) =>
+          (r.workout_complete === true || (r as unknown as { workoutComplete?: boolean }).workoutComplete === true) &&
+          r.title === label,
+      );
+      if (match) {
+        return { load: match.load || 0, power: match.power || 0, kcal: match.kcal || 0 };
+      }
+    }
+    return { load: 0, power: 0, kcal: 0 };
+  }, [sections, currentSectionIndex, loadRecords]);
+
+  const handleToggleRoundComplete = async (checked: boolean) => {
+    if (checked && !powerSetsCompleted) {
+      setShowMoneySetModal(true);
+      return;
+    }
+    if (!sessionId || !currentSection) return;
+
+    setIsCountingRoundStats(true);
+    try {
+      const loadToSave = checked ? previousRoundStats.load + currentRoundStats.load : undefined;
+      const powerToSave = checked ? previousRoundStats.power + currentRoundStats.power : undefined;
+      const kcalToSave = checked ? previousRoundStats.kcal + currentRoundStats.kcal : undefined;
+
+      await createWorkoutLoad({
+        sessionId,
+        workoutId: sectionExercises[0]?.id || currentSection.label,
+        title: currentSection.label,
+        workoutComplete: checked,
+        program: workoutCode?.toUpperCase(),
+        load: loadToSave,
+        power: powerToSave,
+        kcal: kcalToSave,
+      });
+      setIsCurrentRoundCompleted(checked);
+      await Promise.all([refreshLoads(sessionId), refreshLoadRecords(sessionId)]);
+    } catch (err) {
+      console.error("[athena] Failed to save round completion:", err);
+    } finally {
+      setIsCountingRoundStats(false);
+    }
+  };
+
+  // Auto-complete the round the moment its money sets become fully recorded
+  // (e.g. returning from the $-set page) — mirrors mobile's effect keyed off
+  // powerSetsCompleted.
+  useEffect(() => {
+    const hasPowerSets = sectionExercises.some((ex) => ex.is_power_set);
+    if (powerSetsCompleted && hasPowerSets && !isCurrentRoundCompleted && !isCountingRoundStats && sessionId) {
+      handleToggleRoundComplete(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [powerSetsCompleted]);
+
+  // Re-verify money-set completion when the tab regains focus — covers
+  // navigating to /workout/dollarSet and back via full page navigation.
+  useEffect(() => {
+    const onFocus = () => {
+      if (!sessionId) return;
+      setVerifyingPowerSets(true);
+      verifyPowerSetsCompletedFor(sectionExercises, sessionId)
+        .then(setPowerSetsCompleted)
+        .finally(() => setVerifyingPowerSets(false));
+      refreshLoadRecords(sessionId);
+      refreshLoads(sessionId);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [sectionExercises, sessionId]);
 
   const exercisesForSidebar = sectionExercises.map((ex, i) => ({
     id: i + 1,
@@ -329,17 +514,6 @@ export default function AthenaWorkoutPage() {
       { id: newId, weight: 0, reps: "", maxV: 0, unit: "m/s" },
     ]);
   };
-
-  // Restore completed exercise IDs from localStorage when sessionId is available
-  useEffect(() => {
-    if (!sessionId) return;
-    const stored = localStorage.getItem(`completedExercises_${sessionId}`);
-    if (stored) {
-      try {
-        setCompletedExerciseIds(new Set(JSON.parse(stored)));
-      } catch {}
-    }
-  }, [sessionId]);
 
   // Fetch user detail once on mount for weight calculations
   useEffect(() => {
@@ -462,6 +636,12 @@ export default function AthenaWorkoutPage() {
     }
   };
 
+  // Mirrors mobile's WorkoutSessionScreen.handleSelectLocation: persist the
+  // location on the session server-side, then re-fetch the current section
+  // so its exercises come back already substituted for the new location's
+  // equipment — not a per-exercise swapExercise loop (that's the unrelated
+  // manual single-exercise-swap feature, same mistake fixed in
+  // viewWorkoutSession's handleLocationFilter).
   const handleLocationSelect = async (loc: LocationItem) => {
     setShowLocationPopup(false);
     setLocationName(loc.name);
@@ -472,34 +652,19 @@ export default function AthenaWorkoutPage() {
     if (!sessionId || !workoutCode || !currentSection) return;
     setSwappingLocation(true);
     try {
-      const existingIds = sectionExercises.map((e) => e.exercise_id).filter(Boolean);
-      const updated = await Promise.all(
-        sectionExercises.map(async (ex) => {
-          if (!ex.exercise_id || ex.is_power_set) return ex;
-          try {
-            const result = await swapExercise({
-              exerciseId: ex.exercise_id,
-              sessionId,
-              section: currentSection.label,
-              existingExercises: existingIds,
-            });
-            if (result.swapped && result.exercise) {
-              return {
-                ...ex,
-                exercise_id: result.exercise.exercise_uuid || ex.exercise_id,
-                exercise_name: result.exercise.name || ex.exercise_name,
-                demo_gif: result.exercise.demoGif || ex.demo_gif,
-                reps: result.exercise.defaultReps || ex.reps,
-                supplemental: result.exercise.supplemental || ex.supplemental,
-              } as SectionExercise;
-            }
-          } catch {}
-          return ex;
-        }),
-      );
-      setSectionExercises(updated);
+      await updateSessionLocation(sessionId, String(loc.id));
+      const sectionRes = await getWorkoutSectionFull({
+        sessionId,
+        programCode: workoutCode,
+        section: currentSection.label,
+      });
+      setSectionExercises(sectionRes.exercises || sectionRes.workouts || []);
+      if (sectionRes.locationName) {
+        setLocationName(sectionRes.locationName);
+        localStorage.setItem("workoutLocationName", sectionRes.locationName);
+      }
     } catch (err) {
-      console.error("[location] Failed to swap exercises:", err);
+      console.error("[location] Failed to update session location:", err);
     } finally {
       setSwappingLocation(false);
     }
@@ -592,7 +757,21 @@ export default function AthenaWorkoutPage() {
       {/* SECTION 1: Fixed Headers */}
       <div className="flex flex-col shrink-0">
         <header className="bg-[#6202AC] text-white py-2 px-4 flex items-center justify-between">
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider hover:opacity-80 transition">
+          <button
+            onClick={() => {
+              // One-shot signal, consumed immediately on the next mount —
+              // mirrors mobile's onGoBack, which explicitly re-passes
+              // currentSessionId (not null) to setPlayMode, keeping
+              // activeSession/isSessionActivated intact since it never
+              // actually leaves the mounted screen. Web can't avoid a real
+              // unmount crossing this route boundary, so this signals
+              // "still engaged" for the very next viewWorkoutSession mount,
+              // as opposed to genuinely backing out of the workout entirely.
+              localStorage.setItem("returningFromAthenaWorkout", "true");
+              router.back();
+            }}
+            className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider hover:opacity-80 transition"
+          >
             <ChevronLeft size={16} strokeWidth={3} />
             <span className="hidden sm:inline">Return to Workout</span>
             <span className="inline sm:hidden">Back</span>
@@ -711,7 +890,7 @@ export default function AthenaWorkoutPage() {
             {currentExercise && (
               <button
                 onClick={() => setShowSwapModal(true)}
-                disabled={completedExerciseIds.has(String(currentExercise?.id ?? currentExercise?.exercise_id ?? ""))}
+                disabled={isCurrentRoundCompleted}
                 className="absolute top-2 right-2 w-14 h-14 bg-white rounded-2xl shadow-md flex items-center justify-center overflow-hidden border border-gray-100 hover:scale-105 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {(() => {
@@ -1007,41 +1186,13 @@ export default function AthenaWorkoutPage() {
                   <div className="flex items-center gap-1.5">
                     <input
                       type="checkbox"
-                      checked={completedExerciseIds.has(String(currentExercise?.id ?? currentExercise?.exercise_id ?? ""))}
-                      className="w-3.5 h-3.5 accent-[#6202AC] rounded"
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        const exKey = String(currentExercise?.id ?? currentExercise?.exercise_id ?? "");
-                        setCompletedExerciseIds(prev => {
-                          const next = new Set(prev);
-                          if (checked) next.add(exKey);
-                          else next.delete(exKey);
-                          if (sessionId) {
-                            localStorage.setItem(`completedExercises_${sessionId}`, JSON.stringify([...next]));
-                          }
-                          return next;
-                        });
-                        if (checked && currentExercise && sessionId) {
-                          const { load, power, kcal } = computeExerciseLoad(
-                            currentExercise as SectionExercise & Record<string, unknown>,
-                            userOtherDetail,
-                            currentSection?.rounds,
-                          );
-                          createWorkoutLoad({
-                            sessionId,
-                            workoutId: currentExercise.id,
-                            title: currentExercise.title,
-                            workoutComplete: true,
-                            program: workoutCode?.toUpperCase(),
-                            load,
-                            power,
-                            kcal,
-                          }).then(() => refreshLoads(sessionId)).catch(console.error);
-                        }
-                      }}
+                      checked={isCurrentRoundCompleted}
+                      disabled={isCurrentRoundCompleted || isCountingRoundStats || verifyingPowerSets}
+                      className="w-3.5 h-3.5 accent-[#6202AC] rounded disabled:opacity-60"
+                      onChange={(e) => handleToggleRoundComplete(e.target.checked)}
                     />
                     <p className="text-[9px] font-bold text-gray-400">
-                      Check when completed
+                      {isCountingRoundStats ? "Saving..." : verifyingPowerSets ? "Checking $ sets..." : "Check when completed"}
                     </p>
                   </div>
                   <span className="text-xs font-medium text-purple-600">
@@ -1063,7 +1214,7 @@ export default function AthenaWorkoutPage() {
                   <div className="text-center">
                     <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Weight</p>
                     <span className="text-xs font-black text-gray-700">
-                      {currentExercise?.weight && currentExercise.weight !== "0" ? `${currentExercise.weight} lbs` : "—"}
+                      {currentExercise?.weight && currentExercise.weight !== "0" ? `${currentExercise.weight} ${(userOtherDetail?.measurementUnit || "lbs").toLowerCase()}` : "—"}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 md:gap-2">
@@ -1527,6 +1678,7 @@ export default function AthenaWorkoutPage() {
           locationName={locationName}
           section={currentSection?.label || ""}
           sectionExercises={sectionExercises}
+          userOtherDetail={userOtherDetail}
           onClose={() => setShowSwapModal(false)}
           onSwapSaved={() => {
             setShowSwapModal(false);
@@ -1535,6 +1687,24 @@ export default function AthenaWorkoutPage() {
             }
           }}
         />
+      )}
+
+      {/* MONEY SET INCOMPLETE MODAL */}
+      {showMoneySetModal && (
+        <div className="fixed inset-0 z-[400] bg-black/40 flex items-center justify-center p-6">
+          <div className="bg-white/95 w-full max-w-sm rounded-[36px] px-6 pt-8 pb-6 text-center shadow-2xl">
+            <h2 className="text-[22px] font-bold text-gray-900 mb-4">Money Set Incomplete</h2>
+            <p className="text-[15px] text-gray-600 leading-snug mb-7">
+              Please complete and save all money sets ($) for the power set exercises in this round before checking this round as completed.
+            </p>
+            <button
+              onClick={() => setShowMoneySetModal(false)}
+              className="w-full h-[54px] rounded-full bg-gray-200 text-gray-900 font-bold hover:bg-gray-300 transition"
+            >
+              OK
+            </button>
+          </div>
+        </div>
       )}
 
       {/* EXERCISE TRACKING MODAL */}

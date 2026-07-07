@@ -11,6 +11,7 @@ import {
   saveExerciseSwap,
   SaveSwapPayload,
 } from "@/api/workouts/route";
+import { UserOtherDetail } from "@/api/dashboard/route";
 
 function resolveMedia(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -30,6 +31,7 @@ interface Props {
   locationName: string;
   section: string;
   sectionExercises: SectionExercise[];
+  userOtherDetail?: UserOtherDetail | null;
   onClose: () => void;
   onSwapSaved: () => void;
 }
@@ -41,9 +43,11 @@ export default function SwapExerciseModal({
   locationName,
   section,
   sectionExercises,
+  userOtherDetail,
   onClose,
   onSwapSaved,
 }: Props) {
+  const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase().trim();
   const router = useRouter();
   const [step, setStep] = useState<Step>("suggest");
   const [suggestions, setSuggestions] = useState<SuggestedExercise[]>([]);
@@ -94,7 +98,7 @@ export default function SwapExerciseModal({
         sets: customSets,
         reps: customReps,
         weight: parseFloat(customWeight) || 0,
-        weightAdj: "kg",
+        weightAdj: exercise.weight_adj || selected.weight_adj || "",
       };
       if (scope === "all") payload.allLocations = true;
       else if (scope === "location" && locationId) payload.oneLocation = locationId;
@@ -117,8 +121,8 @@ export default function SwapExerciseModal({
     ? resolveMedia(selected.demoGif || selected.demo_gif)
     : resolveMedia(exercise.demo_gif || exercise.demoGif);
   const currentLabel = step !== "suggest" && selected
-    ? `${customSets}x ${customReps} ${customWeight}kg`
-    : `${exercise.sets || "1"}x ${exercise.reps} ${exercise.weight ? `${exercise.weight}kg` : "0kg"}`;
+    ? `${customSets}x ${customReps} ${customWeight}${userUnit}`
+    : `${exercise.sets || "1"}x ${exercise.reps} ${exercise.weight ? `${exercise.weight}${userUnit}` : `0${userUnit}`}`;
 
   return (
     <>
@@ -156,7 +160,7 @@ export default function SwapExerciseModal({
               )}
             </div>
             <p className="text-[10px] text-gray-400 text-center mt-2">
-              {exercise.sets || "1"}x {exercise.reps} {exercise.weight ? `${exercise.weight}kg` : ""}
+              {exercise.sets || "1"}x {exercise.reps} {exercise.weight ? `${exercise.weight}${userUnit}` : ""}
             </p>
           </div>
 
@@ -216,7 +220,7 @@ export default function SwapExerciseModal({
                       )}
                     </div>
                     <p className="text-[10px] text-gray-500 text-center">
-                      {s.sets || "1"}x {s.defaultReps?.split("-").pop()?.replace(/\D/g, "") || "—"} {s.weight ? `${s.weight}kg` : ""}
+                      {s.sets || "1"}x {s.defaultReps?.split("-").pop()?.replace(/\D/g, "") || "—"} {s.weight ? `${s.weight}${userUnit}` : ""}
                     </p>
                   </button>
                 ))}
@@ -269,7 +273,7 @@ export default function SwapExerciseModal({
                   onChange={(e) => setCustomWeight(e.target.value)}
                   className="w-20 border border-gray-200 rounded-xl px-3 py-2 text-[15px] font-bold text-center outline-none focus:border-blue-400"
                 />
-                <span className="text-[15px] font-bold text-gray-700">kg</span>
+                <span className="text-[15px] font-bold text-gray-700">{userUnit}</span>
               </div>
               <button
                 onClick={() => setStep("review")}

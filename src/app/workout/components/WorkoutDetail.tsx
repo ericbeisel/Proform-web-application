@@ -169,11 +169,17 @@ console.log("programUuid from URL:", programUuid);
 
 
 
-  // Dummy data for static UI elements
+  // Fallback values shown only until GET /programs/{code}/workout-stats resolves
   const dummyStats = [
     { label: 'Load', value: '97' },
     { label: 'Duration', value: '31:30' },
     { label: 'Movements', value: '24' }
+  ];
+
+  const displayLoadStats = [
+    { label: 'Load', value: workoutStats?.load ?? dummyStats[0].value },
+    { label: 'Duration', value: workoutStats?.duration ?? dummyStats[1].value },
+    { label: 'Movements', value: workoutStats?.movements ?? dummyStats[2].value },
   ];
 
   // Fallback data — same defaults the mobile app falls back to when
@@ -220,13 +226,22 @@ useEffect(() => {
       setWorkoutStats(statsData);
       setProgramCode(lowerCode);
       getProgramTags(lowerCode).then(setProgramTags).catch(() => {});
-      getProgramPreview(lowerCode).then(setPreviewData).catch(() => {});
+      getProgramPreview(lowerCode).then((preview) => {
+        setPreviewData(preview);
+        // Fall back to the preview title when the URL didn't carry a
+        // workoutKey, mirroring mobile's workoutData/previewData fallback chain.
+        if (!workoutKey) {
+          const fallbackName = (preview?.workout_title as string | undefined) || preview?.title;
+          if (fallbackName) {
+            getCompletedUsers(fallbackName).then(setCompletedUsers).catch(() => {});
+          }
+        }
+      }).catch(() => {});
 
       if (workoutKey) setWorkoutTitle(workoutKey);
 
-      const name = workoutKey || "";
-      if (name) {
-        getCompletedUsers(name)
+      if (workoutKey) {
+        getCompletedUsers(workoutKey)
           .then(setCompletedUsers)
           .catch(() => {});
       }
@@ -533,9 +548,9 @@ const filteredExercises = exercises;
               </div>
             </div>
 
-            {/* Dummy Stats Section */}
+            {/* Load / Duration / Movements — from GET /programs/{code}/workout-stats */}
             <div className="bg-white rounded-3xl p-6 md:p-7 border border-slate-100 shadow-sm flex flex-wrap md:flex-nowrap justify-around divide-x divide-slate-100">
-              {dummyStats.map((stat, i) => (
+              {displayLoadStats.map((stat, i) => (
                 <div key={i} className="text-center min-w-[80px] flex-1 px-2">
                   <p className="text-3xl md:text-4xl font-black text-slate-900 leading-none">{stat.value}</p>
                   <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase mt-2 tracking-widest">{stat.label}</p>

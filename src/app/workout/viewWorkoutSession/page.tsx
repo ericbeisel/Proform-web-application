@@ -48,22 +48,95 @@ import {
 } from "@/api/programs/route";
 import {
   getIncompleteSessions,
-  getWorkoutSection,
   getWorkoutSectionFull,
-  swapExercise,
   getTrackingLogs,
   createTrackingLog,
   getWorkoutStats,
   getWorkoutLoadRecords,
   getWorkoutSessionById,
   getPowerSetLogs,
+  createWorkoutSession,
+  createFeedPost,
   IncompleteSession,
   WorkoutStats,
   WorkoutLoadRecord,
 } from "@/api/workouts/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
+import { equipmentApi } from "@/api/location/route";
 import { getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
+import { convertToUserUnit } from "@/lib/units";
+
+// Exact port of mobile's sortedRounds comparator (OverviewScreen.tsx:947-965)
+// plus its per-round exercise sort (OverviewScreen.tsx:1377) — the raw
+// backend order isn't trusted for display there either. Priority: WARM
+// first, then ROUND ordered numerically by the digit in the label,
+// everything else alphabetically; exercises within each round by `.order`.
+function sortWorkoutGroups(groups: WorkoutGroup[]): WorkoutGroup[] {
+  const sorted = [...groups].sort((a, b) => {
+    const aLabel = (a.label || "").toUpperCase();
+    const bLabel = (b.label || "").toUpperCase();
+    const isAWarmup = aLabel.includes("WARM");
+    const isBWarmup = bLabel.includes("WARM");
+    if (isAWarmup && !isBWarmup) return -1;
+    if (!isAWarmup && isBWarmup) return 1;
+    const isARound = aLabel.includes("ROUND");
+    const isBRound = bLabel.includes("ROUND");
+    if (isARound && !isBRound) return -1;
+    if (!isARound && isBRound) return 1;
+    const aNum = parseInt(aLabel.match(/\d+/)?.[0] || "999", 10);
+    const bNum = parseInt(bLabel.match(/\d+/)?.[0] || "999", 10);
+    if (aNum !== bNum) return aNum - bNum;
+    return aLabel.localeCompare(bLabel);
+  });
+  sorted.forEach((g) => {
+    g.workouts = [...(g.workouts || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  });
+  return sorted;
+}
+
+// Exact port of mobile's ExerciseTrackingModal parseHeightInches — handles
+// both a plain number and a "5'10"" style string.
+function parseHeightInches(heightStr: string | number | null | undefined): number {
+  if (!heightStr) return 0;
+  const str = String(heightStr).trim();
+  if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+  const match = str.match(/(\d+)\s*['’`‘ft]*\s*(\d+)?/);
+  if (match) {
+    const feet = parseInt(match[1], 10) || 0;
+    const inches = parseInt(match[2], 10) || 0;
+    return feet * 12 + inches;
+  }
+  return parseFloat(str) || 0;
+}
+
+// Exact port of mobile's ExerciseTrackingModal.handleSaveSet load formula —
+// previously this file used a much simpler (userWeight*userHeight +
+// reps*weight)/2600 that dropped the loadMeter/repVariant multipliers
+// entirely and didn't parse height strings, producing different load
+// values than mobile for the same set.
+function computeTrackingLoad(
+  userDetail: UserOtherDetail | null,
+  exercise: WorkoutGroupItem | null,
+  weightNum: number,
+  repsNum: number,
+): number {
+  const measurementUnit = (userDetail?.measurementUnit || "lbs").toLowerCase().trim();
+  const isKg = measurementUnit === "kg";
+  const weightConv = (val: number) => (isKg ? val * 2.2046 : val);
+  const rawWeight = parseFloat(String(userDetail?.currentWeight || 0)) || 0;
+  const weight = weightConv(rawWeight);
+  const height = parseHeightInches(userDetail?.height);
+  const data1 = weight * height;
+  const ex = exercise as unknown as { loadMeter?: number; rep_variant?: number; repVariant?: number } | null;
+  const E = parseInt(String(ex?.loadMeter ?? 3)) || 3;
+  const e = parseFloat(String(ex?.repVariant ?? ex?.rep_variant ?? 1)) || 1;
+  // Mobile always treats the typed weight as kg for this calculation,
+  // converting to lbs regardless of the account's display unit.
+  const wt = weightNum * 2.20462262;
+  const data2 = E * (repsNum * e) * 1 * wt;
+  return Math.ceil((data1 + data2) / 2600);
+}
 
 function getSectionColor(label: string, index: number): string {
   const l = (label || "").toLowerCase();
@@ -129,12 +202,18 @@ function ViewWorkoutSessionContent() {
   const [previewData, setPreviewData] = useState<ProgramPreview | null>(null);
   const [hasPurchased, setHasPurchased] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  // Mirrors mobile's exercise-tap-before-session-starts modal — mobile's
+  // version doesn't actually render exercise-specific details despite
+  // storing them, it's just a "Ready to Start?" confirmation, so no need to
+  // track which exercise was tapped.
+  const [showStartSessionPrompt, setShowStartSessionPrompt] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [incompleteSessions, setIncompleteSessions] = useState<
     IncompleteSession[]
   >([]);
   const incompleteSession = incompleteSessions[0] ?? null;
   const [showRejoinModal, setShowRejoinModal] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | number | null>(null);
   const [trackingItem, setTrackingItem] = useState<WorkoutGroupItem | null>(
     null,
   );
@@ -167,6 +246,11 @@ function ViewWorkoutSessionContent() {
     WorkoutGroup[]
   >([]);
   const [locationFilterLoading, setLocationFilterLoading] = useState(false);
+  // Server-persisted default location id (from /default-location) — used to
+  // detect when it changes (e.g. edited on another tab/device) so the
+  // location-based swap can be refreshed, mirroring mobile's focus-driven
+  // re-sync in OverviewScreen.
+  const defaultLocationIdRef = useRef<string | number | null>(null);
   const [powerSets, setPowerSets] = useState<PowerSet[]>([]);
   const [powerSetsLoading, setPowerSetsLoading] = useState(false);
   const [velocityExercise, setVelocityExercise] = useState<PowerSet | null>(null);
@@ -298,53 +382,34 @@ function ViewWorkoutSessionContent() {
     });
   };
 
+  // Mirrors mobile's OverviewScreen: passing locationId into the overview
+  // call itself is what makes the backend swap in exercises matching that
+  // location's equipment — this does NOT go through the per-exercise
+  // swap-exercise endpoint (that's a separate, user-initiated single-swap
+  // feature, unrelated to location-based filtering).
   const handleLocationFilter = async (checked: boolean) => {
     setFilterByLocation(checked);
     if (!checked) return;
 
     const code = localStorage.getItem("workoutProgramCode");
-    const sid =
-      activeSession?.id ??
-      (code
-        ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`)
-        : null);
-    if (!workoutGroups.length || !sid) {
+    if (!code) {
       setFilterByLocation(false);
       return;
     }
 
+    const sid =
+      activeSession?.id ??
+      localStorage.getItem(`activeSessionId_${code.toUpperCase()}`) ??
+      undefined;
+    const locationId = defaultLocationIdRef.current;
+
     setLocationFilterLoading(true);
     try {
-      const filtered = await Promise.all(
-        workoutGroups.map(async (group) => {
-          const existingExercises = group.workouts
-            .map((w) => w.exercise_id)
-            .filter(Boolean);
-          const swappedWorkouts = await Promise.all(
-            group.workouts.map(async (item): Promise<WorkoutGroupItem> => {
-              const result = await swapExercise({
-                exerciseId: item.exercise_id,
-                sessionId: sid,
-                section: group.label,
-                existingExercises,
-              });
-              if (result.swapped) {
-                return {
-                  ...item,
-                  exercise_id: result.exercise.exercise_id,
-                  exercise_name: result.exercise.name,
-                  demo_gif: result.exercise.demoGif,
-                  supplemental: result.exercise.supplemental,
-                  reps: result.exercise.defaultReps || item.reps,
-                };
-              }
-              return item;
-            }),
-          );
-          return { ...group, workouts: swappedWorkouts };
-        }),
-      );
-      setLocationFilteredGroups(filtered);
+      const overview = await getProgramOverview(code.toLowerCase(), {
+        sessionId: sid || undefined,
+        locationId: locationId != null ? String(locationId) : undefined,
+      });
+      setLocationFilteredGroups(sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []));
     } catch (err) {
       console.error("[location filter] Failed:", err);
       setFilterByLocation(false);
@@ -352,6 +417,39 @@ function ViewWorkoutSessionContent() {
       setLocationFilterLoading(false);
     }
   };
+
+  // Track the server-persisted default location and re-run the location
+  // filter if it changes while this tab has focus — mirrors mobile's
+  // getDefaultLocation-on-focus re-sync in OverviewScreen. Web has no
+  // equivalent of this endpoint wired up elsewhere, so it's fetched here.
+  useEffect(() => {
+    const checkDefaultLocation = async () => {
+      try {
+        const res = await equipmentApi.getDefaultLocation();
+        const newId = res?.data?.id ?? null;
+        const changed =
+          defaultLocationIdRef.current !== null &&
+          String(defaultLocationIdRef.current) !== String(newId);
+        defaultLocationIdRef.current = newId;
+        // Update the visible "Location:" text too — not just the id used
+        // for the filter — so switching your default on /location and
+        // coming back reflects it without a manual page refresh.
+        if (res?.data?.name) {
+          setLocation(res.data.name);
+          localStorage.setItem("workoutLocationName", res.data.name);
+        }
+        if (changed && filterByLocation) {
+          handleLocationFilter(true);
+        }
+      } catch (err) {
+        console.warn("[location filter] Failed to check default location:", err);
+      }
+    };
+
+    checkDefaultLocation();
+    window.addEventListener("focus", checkDefaultLocation);
+    return () => window.removeEventListener("focus", checkDefaultLocation);
+  }, [filterByLocation]);
 
   // New handlers from 1st code
   const addSet = () =>
@@ -446,6 +544,24 @@ function ViewWorkoutSessionContent() {
   );
   const isLocked = !hasPurchased;
 
+  // Tapping an exercise before a session exists — mirrors mobile's
+  // preview-modal branch (isLocked -> purchase prompt, else -> "Ready to
+  // Start?" confirmation before actually starting a session).
+  const handleExerciseTapWithoutSession = () => {
+    if (isLocked) {
+      setShowPurchaseModal(true);
+    } else {
+      setShowStartSessionPrompt(true);
+    }
+  };
+
+  const startNewSession = () => {
+    const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+    localStorage.setItem("pendingSessionCode", code);
+    localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+    router.push("/workout/equipmentNeeded");
+  };
+
   const getRoundLabel = (roundValue: number | string | undefined): string => {
     if (!workoutGroups || workoutGroups.length === 0) return `ROUND ${roundValue ?? 1}`;
     const alphaSorted = [...workoutGroups].sort((a, b) =>
@@ -457,63 +573,40 @@ function ViewWorkoutSessionContent() {
   const handleRejoin = async (session: IncompleteSession) => {
     setSessionStarted(true);
     setActiveSession(session);
+    // Not persisted — matches mobile exactly: engagement lives only in this
+    // mount's React state, always re-derived from the backend's
+    // rejoinSessions on the next fresh visit rather than remembered client-side.
     setIsSessionEngaged(true);
-    localStorage.setItem(`sessionEngaged_${session.id}`, "true");
     setRejoinLoading(true);
+
+    // This session's exercises are already location/session-scoped
+    // server-side — getProgramOverview(code, { sessionId }) already returns
+    // workoutGroups with any swaps baked in (confirmed via a live capture:
+    // the overview's exercise_name for a swapped slot already matches the
+    // post-swap name /workouts/section returns). No separate diffing needed.
+    //
+    // A previous version of this function fetched each round via
+    // getWorkoutSection and paired its array positionally against
+    // group.workouts to detect swaps — but /workouts/section's raw order
+    // does NOT match group.workouts' `.order`-sorted sequence, so that
+    // positional pairing attributed swap data to the wrong exercise
+    // entirely (e.g. swap info for the exercise at `.order === 4` got
+    // written against whichever exercise happened to sit at array index 0).
+    // That's what caused completely different exercises to render.
+    const sessionLocationName = (session as unknown as { locationName?: string }).locationName;
+    if (sessionLocationName) {
+      setLocation(sessionLocationName);
+      localStorage.setItem("workoutLocationName", sessionLocationName);
+    }
     const programCode = localStorage
       .getItem("workoutProgramCode")
       ?.toUpperCase();
     localStorage.setItem(`activeSessionId_${programCode}`, session.id);
-
-    try {
-      const newSwapsMap: [string, WorkoutGroupItem][] = [];
-      for (const group of workoutGroups) {
-        const sectionExercises = await getWorkoutSection({
-          sessionId: session.id,
-          section: group.label,
-        });
-        sectionExercises.forEach((sectionEx, i) => {
-          const originalEx = group.workouts[i];
-          const isSwapped =
-            !!sectionEx.original_exercise_name &&
-            sectionEx.original_exercise_name !== "null";
-          if (isSwapped && originalEx) {
-            const swappedItem: WorkoutGroupItem = {
-              ...originalEx,
-              exercise_id: sectionEx.exercise_id,
-              exercise_name: sectionEx.exercise_name,
-              demo_gif: sectionEx.demo_gif || sectionEx.demoGif,
-              reps: sectionEx.reps,
-              sets: sectionEx.sets,
-              supplemental: sectionEx.supplemental,
-              weight: sectionEx.weight,
-              weight_adj: sectionEx.weight_adj,
-            };
-            newSwapsMap.push([originalEx.exercise_id, swappedItem]);
-          }
-        });
-      }
-      setSwappedExercises(new Map(newSwapsMap));
-      if (programCode) {
-        localStorage.setItem(
-          `swappedExercises_${programCode}`,
-          JSON.stringify(newSwapsMap),
-        );
-      }
-    } catch (err) {
-      console.error("[rejoin] Failed to fetch swaps:", err);
-      const savedSwaps = programCode
-        ? localStorage.getItem(`swappedExercises_${programCode}`)
-        : null;
-      if (savedSwaps) {
-        try {
-          const entries: [string, WorkoutGroupItem][] = JSON.parse(savedSwaps);
-          setSwappedExercises(new Map(entries));
-        } catch {}
-      }
-    } finally {
-      setRejoinLoading(false);
+    if (programCode) {
+      localStorage.removeItem(`swappedExercises_${programCode}`);
     }
+    setSwappedExercises(new Map());
+    setRejoinLoading(false);
   };
 
   const getActualExercise = (original: WorkoutGroupItem): WorkoutGroupItem => {
@@ -524,9 +617,58 @@ function ViewWorkoutSessionContent() {
     return original;
   };
 
+  // Mirrors mobile's handleJoinOrCreateSession: pressing Start/Resume on a
+  // session you don't own creates your own linked session (via
+  // refSessionId) instead of operating directly on the owner's session —
+  // otherwise a non-host joiner would silently hijack the host's session.
+  // Hosts (or a freshly self-created session) just resume directly.
+  const handleStartWorkout = async () => {
+    if (!activeSession) return;
+    const code = localStorage.getItem("workoutProgramCode");
+    try {
+      if (!isHost(activeSession)) {
+        const created = await createWorkoutSession({
+          workoutLibraryId: code || "",
+          locationId: activeSession.location_id || undefined,
+          refSessionId: activeSession.id,
+        });
+        const newSessionId = created.session?.id;
+        if (newSessionId) {
+          try {
+            await createFeedPost({ sessionId: newSessionId, workoutLibraryId: code || "" });
+          } catch (postErr) {
+            console.warn("[startWorkout] Failed to create feed post for joined session:", postErr);
+          }
+          if (code) {
+            localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, newSessionId);
+          }
+          setActiveSession({ ...activeSession, id: newSessionId, session_id: newSessionId });
+        }
+      } else {
+        try {
+          await createFeedPost({ sessionId: activeSession.id, workoutLibraryId: code || "" });
+        } catch (postErr) {
+          console.warn("[startWorkout] Failed to create feed post:", postErr);
+        }
+      }
+    } catch (err) {
+      console.error("[startWorkout] Failed to prepare session:", err);
+    } finally {
+      localStorage.setItem("sessionActive", "true");
+      router.push("/workout/athenaWorkout");
+    }
+  };
+
   // Fetch real data (from 1st code)
   useEffect(() => {
     const initializeWorkout = async () => {
+      // Computed synchronously (not inside applyIncompleteSessions, which
+      // only runs once the overview fetch resolves) so isHost has a value
+      // immediately — otherwise a host clicking Start Workout before that
+      // fetch finishes would be misidentified as a non-host joiner.
+      const myUserIdEarly = getAuthUser()?.id ?? getUserIdFromToken();
+      setMyUserId(myUserIdEarly ?? null);
+
       // Arriving via a shared "Copy URL" link (?sessionId=...) — always resolve
       // fresh from the session itself, since no normal in-app navigation to
       // this page ever includes a sessionId query param (they all rely on
@@ -551,6 +693,43 @@ function ViewWorkoutSessionContent() {
           // through as this session's free/purchase status or subtitle.
           localStorage.removeItem("workoutIsFree");
           localStorage.removeItem("workoutName");
+
+          // Activate this specific session immediately, regardless of
+          // ownership — mirrors mobile's autoActivateSession deep-link path.
+          // Without this, a non-host opening someone else's shared link
+          // would never see this session at all, since the ownership filter
+          // in applyIncompleteSessions (below) deliberately excludes
+          // sessions the viewer doesn't own/belong to. The actual
+          // host-vs-non-host decision (resume directly vs. create a linked
+          // session) happens later, on Start Workout press.
+          const rawSession = session as unknown as {
+            owner_id?: string;
+            member_id?: string;
+          };
+          setActiveSession({
+            id: session.id,
+            session_id: session.id,
+            title: session.title || "",
+            workout_name: session.workoutCategory || "",
+            program_name: session.programName || "",
+            program_id: resolvedCode || "",
+            created_at: session.createdAt || session.started_at || "",
+            updated_at: session.createdAt || session.started_at || "",
+            owner_id: rawSession.owner_id || "",
+            member_id: rawSession.member_id || rawSession.owner_id || "",
+            url: "",
+            status: false,
+            location_id: session.location_id,
+            team_id: null,
+            save_data: null,
+          });
+          setIsSessionEngaged(true);
+          if (resolvedCode) {
+            localStorage.setItem(
+              `activeSessionId_${resolvedCode.toUpperCase()}`,
+              session.id,
+            );
+          }
         } catch (err) {
           console.error("[viewWorkout] failed to resolve session for shared link:", err);
         }
@@ -602,12 +781,93 @@ function ViewWorkoutSessionContent() {
         return;
       }
 
+      const normalizedCode = programCode.toUpperCase();
+
+      // Shared by both the overview's bundled rejoinSessions and the
+      // standalone getIncompleteSessions fallback below — the two return the
+      // exact same record shape (confirmed via a live capture: rejoinSessions
+      // entries have identical id/owner_id/member_id/session_id/location_id
+      // fields to getIncompleteSessions' response).
+      const applyIncompleteSessions = (allSessions: IncompleteSession[]) => {
+        console.log(
+          "[mount] incompleteSessions returned:",
+          allSessions.length,
+          allSessions.map((s) => s.id),
+        );
+        // The API returns incomplete sessions for the whole program, not
+        // scoped to the caller — filter to sessions this account actually
+        // owns/started, otherwise viewing someone else's shared session
+        // link surfaces a "Rejoin" banner for THEIR session. getAuthUser()
+        // (set directly from the login response) is more reliable than
+        // decoding the JWT, since not every token here is guaranteed to
+        // carry a usable sub/id claim.
+        const myUserId = getAuthUser()?.id ?? getUserIdFromToken();
+        console.log("[rejoin] current user id:", myUserId);
+        setMyUserId(myUserId ?? null);
+        const sessions = myUserId
+          ? allSessions.filter(
+              (s) =>
+                String(s.owner_id) === String(myUserId) ||
+                String(s.member_id) === String(myUserId),
+            )
+          : allSessions;
+        if (sessions.length > 0) {
+          setIncompleteSessions(sessions);
+          // Only auto-connect to a session that is verifiably still incomplete per
+          // the API and matches the ID scoped to this program. Never guess (e.g. by
+          // falling back to sessions[0]) — "sessionActive" is a sticky flag that's
+          // never cleared, so trusting it for a blind fallback would permanently
+          // hijack the wrong session and hide the rejoin banner.
+          const storedId = localStorage.getItem(
+            `activeSessionId_${normalizedCode}`,
+          );
+          const matched = storedId
+            ? sessions.find((s) => s.id === storedId)
+            : null;
+          console.log(
+            "[mount] storedId:",
+            storedId,
+            "| matched:",
+            matched?.id ?? "none",
+          );
+          if (matched) {
+            setActiveSession(matched);
+            // isSessionEngaged is left at its default false here — mirrors
+            // mobile: merely finding a still-incomplete session on a fresh
+            // mount surfaces the rejoin banner, it doesn't silently resume it.
+            // Engagement only becomes true via an explicit Rejoin/Start tap.
+          }
+        }
+      };
+
       // Single consolidated call replaces separate tags/preview/power-sets/
       // grouped-workouts requests — the backend returns everything needed
       // for this view (optionally scoped to storedSessionId) in one response.
       setPowerSetsLoading(true);
+      console.log(
+        "[overview] fetching with code:",
+        programCode.toLowerCase(),
+        "| sessionId:",
+        storedSessionId,
+      );
       getProgramOverview(programCode.toLowerCase(), { sessionId: storedSessionId })
         .then((overview) => {
+          console.log(
+            "[overview] RAW rounds from backend:",
+            JSON.stringify(
+              (overview.rounds || []).map((g) => ({
+                label: g.label,
+                exercises: (g.workouts || []).map((w) => ({
+                  order: w.order,
+                  name: w.exercise_name,
+                  supplemental: w.supplemental,
+                })),
+              })),
+              null,
+              2,
+            ),
+          );
+          console.log("[overview] preview.title/code:", overview.preview?.title, overview.preview?.code);
           setProgramTags(Array.isArray(overview.tags) ? overview.tags : []);
           setPreviewData(overview.preview ?? null);
           setPowerSets(Array.isArray(overview.powerSets) ? overview.powerSets : []);
@@ -620,13 +880,29 @@ function ViewWorkoutSessionContent() {
             setHasPurchased(true);
           }
 
-          const groups = Array.isArray(overview.rounds) ? overview.rounds : [];
-          const getRoundNum = (label: string) => {
-            const m = label.match(/^ROUND\s+(\d+)/i);
-            return m ? parseInt(m[1], 10) : Infinity;
-          };
-          groups.sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
+          const groups = sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []);
           setWorkoutGroups(groups);
+
+          // Seeds the location display before a session/section fetch takes
+          // over (that's the authoritative source once a session exists —
+          // see athenaWorkout.tsx's per-section override).
+          if (overview.selectedLocation?.name) {
+            setLocation(overview.selectedLocation.name);
+            localStorage.setItem("workoutLocationName", overview.selectedLocation.name);
+          }
+
+          // The backend only populates rejoinSessions when the overview is
+          // fetched without a sessionId (i.e. before a session is chosen) —
+          // confirmed via a live capture, it's absent once a sessionId is
+          // passed. Use it directly when present instead of firing a second,
+          // redundant request for the same data; fall back otherwise.
+          if (Array.isArray(overview.rejoinSessions) && overview.rejoinSessions.length > 0) {
+            applyIncompleteSessions(overview.rejoinSessions as unknown as IncompleteSession[]);
+          } else {
+            getIncompleteSessions(normalizedCode)
+              .then(applyIncompleteSessions)
+              .catch((err) => console.error("[rejoin] API error:", err));
+          }
         })
         .catch((err) => console.error("Failed to fetch program overview:", err))
         .finally(() => {
@@ -634,9 +910,30 @@ function ViewWorkoutSessionContent() {
           setLoading(false);
         });
 
-      const normalizedCode = programCode.toUpperCase();
       const justCreated = localStorage.getItem("sessionJustCreated") === "true";
-      if (justCreated) localStorage.removeItem("sessionJustCreated");
+      if (justCreated) {
+        localStorage.removeItem("sessionJustCreated");
+        // One-shot signal from equipmentNeeded.tsx's session-creation flow —
+        // not indefinite persistence like the flag removed above. This is
+        // the same page boundary problem as athenaWorkout: the session
+        // becomes active on a *different* page (equipmentNeeded), so this
+        // mount needs telling once, immediately after, that it's engaged.
+        setIsSessionEngaged(true);
+      }
+      // Same one-shot pattern for "Return to Workout" from athenaWorkout —
+      // mobile's onGoBack keeps activeSession/isSessionActivated intact
+      // since it never unmounts; this is the closest web equivalent given
+      // it's a genuinely different route.
+      const returningFromAthena = localStorage.getItem("returningFromAthenaWorkout") === "true";
+      if (returningFromAthena) {
+        localStorage.removeItem("returningFromAthenaWorkout");
+        setIsSessionEngaged(true);
+      }
+      const returningFromLocation = localStorage.getItem("returningFromLocation") === "true";
+      if (returningFromLocation) {
+        localStorage.removeItem("returningFromLocation");
+        setIsSessionEngaged(true);
+      }
       const sessionActive = localStorage.getItem("sessionActive") === "true";
 
       console.log(
@@ -669,58 +966,6 @@ function ViewWorkoutSessionContent() {
           } catch {}
         }
       }
-
-      getIncompleteSessions(normalizedCode)
-        .then((allSessions) => {
-          console.log(
-            "[mount] incompleteSessions returned:",
-            allSessions.length,
-            allSessions.map((s) => s.id),
-          );
-          // The API returns incomplete sessions for the whole program, not
-          // scoped to the caller — filter to sessions this account actually
-          // owns/started, otherwise viewing someone else's shared session
-          // link surfaces a "Rejoin" banner for THEIR session. getAuthUser()
-          // (set directly from the login response) is more reliable than
-          // decoding the JWT, since not every token here is guaranteed to
-          // carry a usable sub/id claim.
-          const myUserId = getAuthUser()?.id ?? getUserIdFromToken();
-          console.log("[rejoin] current user id:", myUserId);
-          const sessions = myUserId
-            ? allSessions.filter(
-                (s) =>
-                  String(s.owner_id) === String(myUserId) ||
-                  String(s.member_id) === String(myUserId),
-              )
-            : allSessions;
-          if (sessions.length > 0) {
-            setIncompleteSessions(sessions);
-            // Only auto-connect to a session that is verifiably still incomplete per
-            // the API and matches the ID scoped to this program. Never guess (e.g. by
-            // falling back to sessions[0]) — "sessionActive" is a sticky flag that's
-            // never cleared, so trusting it for a blind fallback would permanently
-            // hijack the wrong session and hide the rejoin banner.
-            const storedId = localStorage.getItem(
-              `activeSessionId_${normalizedCode}`,
-            );
-            const matched = storedId
-              ? sessions.find((s) => s.id === storedId)
-              : null;
-            console.log(
-              "[mount] storedId:",
-              storedId,
-              "| matched:",
-              matched?.id ?? "none",
-            );
-            if (matched) {
-              setActiveSession(matched);
-              setIsSessionEngaged(
-                localStorage.getItem(`sessionEngaged_${matched.id}`) === "true",
-              );
-            }
-          }
-        })
-        .catch((err) => console.error("[rejoin] API error:", err));
     };
 
     initializeWorkout();
@@ -813,7 +1058,33 @@ function ViewWorkoutSessionContent() {
     rounds?: string;
   }) => {
     const actualItem = getActualExercise(item);
-    const isSwapped = swappedExercises.has(item.exercise_id);
+    // Matches mobile's isHome={!!exercise.swapped_exercise_id} — the
+    // backend already flags swapped exercises directly on the item, no
+    // need for a separately-computed client-side swap map.
+    const isSwapped = !!actualItem.swapped_exercise_id;
+    // calculated_weight is the backend's already-computed, already-formatted
+    // final weight (handles weight_adj% -> lift-max multiplication itself);
+    // the raw `weight` field is sometimes just that multiplier (e.g. 0.65),
+    // not an actual weight, so it must never be shown directly. Mirrors
+    // mobile's getExerciseWeightToDisplay exactly: it returns
+    // exercise.calculated_weight completely as-is with zero client-side
+    // conversion or relabeling — whatever unit the backend baked in is
+    // trusted outright, since re-deriving/re-converting it client-side (as
+    // an earlier version of this fix did) produces wrong numbers.
+    const rawCardWeight = (actualItem as unknown as { calculated_weight?: string | null; member_weight?: string | null }).calculated_weight
+      ?? (actualItem as unknown as { member_weight?: string | null }).member_weight
+      ?? null;
+    const cardWeightDisplay =
+      rawCardWeight != null && String(rawCardWeight).trim() !== "" && String(rawCardWeight).trim() !== "0"
+        ? String(rawCardWeight).trim()
+        : "";
+    const matchingPowerSet = actualItem.is_power_set
+      ? powerSets.find(
+          (ps) =>
+            ps.id === actualItem.exercise_id ||
+            (ps as unknown as { exercise_uuid?: string }).exercise_uuid === actualItem.exercise_id,
+        )
+      : null;
 
     return (
       <div
@@ -822,14 +1093,25 @@ function ViewWorkoutSessionContent() {
       >
         <div className="absolute top-2 left-2 flex items-center gap-1">
           {actualItem.is_power_set && (
-            <span className="text-[9px] font-black text-white bg-emerald-500 rounded-full px-1.5 py-0.5 leading-none">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (matchingPowerSet) openVelocityModal(matchingPowerSet);
+              }}
+              className="text-[9px] font-black text-white bg-emerald-500 rounded-full px-1.5 py-0.5 leading-none hover:bg-emerald-600 transition"
+            >
               $
-            </span>
+            </button>
           )}
           {isSwapped && <Home size={12} className="text-emerald-500" />}
         </div>
 
-        {!locked && sessionStarted && (
+        {/* Matches mobile's showEdit={isPlayMode || isSessionActivated} —
+            the pencil only shows once actually engaged in a session, not
+            merely once the page has "started" rendering session UI. Power
+            sets don't get the pencil at all — the $ badge above opens the
+            dedicated PowerSetTrackingModal instead. */}
+        {!locked && isSessionActive && !actualItem.is_power_set && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -863,21 +1145,44 @@ function ViewWorkoutSessionContent() {
           {actualItem.exercise_name}
         </h3>
 
-        <div className="mt-1 text-center">
+        <div className="mt-1 text-center flex items-center justify-center gap-1.5">
+          {rounds && (
+            <span className="text-[16px] leading-none font-black tracking-tight text-[#7c3aed]">
+              {(() => {
+                // Same formatting as mobile's ExerciseCard `sets` prop —
+                // "(3x)" -> "3x", otherwise strip the parens as a fallback.
+                const matchVal = String(rounds).match(/\d+/);
+                return matchVal ? `${matchVal[0]}x` : String(rounds).toLowerCase().replace(/[()]/g, "");
+              })()}
+            </span>
+          )}
           <p className="text-[16px] leading-none font-black tracking-tight text-[#222]">
             {actualItem.reps || "—"}
           </p>
-          {rounds && (
-            <p className="text-[10px] font-bold text-[#7c3aed] mt-0.5">
-              {rounds}
-            </p>
-          )}
         </div>
 
-        {actualItem.weight !== undefined && (
-          <p className="text-[10px] font-bold text-red-500 text-center mt-0.5">
-            @ {actualItem.weight} kg
+        {cardWeightDisplay && (
+          <p className="text-[10px] font-bold text-black text-center mt-0.5">
+            {cardWeightDisplay}
           </p>
+        )}
+
+        {/* Per-set breakdown chips for power sets — mirrors mobile's
+            ExerciseCard `tags` (child_sets sorted by multiplier, each
+            rendered as "{reps} @ {pct}%"). */}
+        {actualItem.is_power_set && matchingPowerSet?.child_sets && matchingPowerSet.child_sets.length > 0 && (
+          <div className="flex flex-wrap gap-1 justify-center mt-1.5">
+            {[...matchingPowerSet.child_sets]
+              .sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0))
+              .map((s, idx) => (
+                <span
+                  key={idx}
+                  className="text-[9px] font-medium text-gray-500 border border-gray-300 rounded-md px-1.5 py-0.5"
+                >
+                  {s.reps} @ {Math.round((s.multiplier || 0) * 100)}%
+                </span>
+              ))}
+          </div>
         )}
 
         {actualItem.supplemental && (
@@ -916,6 +1221,21 @@ function ViewWorkoutSessionContent() {
   // since there's nothing to navigate until the user rejoins or starts fresh.
   const showRejoinBanner =
     !isSessionEngaged && (!!activeSession || incompleteSessions.length > 0);
+
+  // Mirrors mobile's isSessionActive = (isPlayMode || isSessionActivated) &&
+  // activeSession !== null. activeSession alone isn't enough to gate
+  // "jump into a round/exercise" affordances — it also gets set just from
+  // finding a matching still-incomplete session on mount (that's what
+  // drives the rejoin banner), before the user has actually joined/rejoined.
+  const isSessionActive = !!activeSession && isSessionEngaged;
+
+  // Whether the current viewer created this session — mirrors mobile's isHost.
+  // Only owner_id is used (not member_id): confirmed via a live capture that
+  // every self-owned session has owner_id === member_id === the creator's own
+  // id, but member_id's value for a genuine non-owner joiner is unverified,
+  // so it's deliberately excluded to avoid a false-positive "host" match.
+  const isHost = (session: IncompleteSession | null | undefined): boolean =>
+    !!session && myUserId != null && String(session.owner_id) === String(myUserId);
 
   return (
     <div className="h-screen overflow-hidden bg-[#f7f7fa] flex">
@@ -969,10 +1289,7 @@ function ViewWorkoutSessionContent() {
           </div>
 
           <button
-            onClick={() => {
-              localStorage.setItem("sessionActive", "true");
-              router.push("/workout/athenaWorkout");
-            }}
+            onClick={handleStartWorkout}
             disabled={!activeSession}
             className={`mt-auto py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition
     ${
@@ -997,7 +1314,15 @@ function ViewWorkoutSessionContent() {
                 <ArrowLeft size={20} />
               </button>
               <div>
-                <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase">
+                {/* Program name (e.g. "Reconditioning") — mobile shows this
+                    as a subtitle above the main workout title, sourced from
+                    the active/incomplete session's program_name. */}
+                {(activeSession?.program_name || incompleteSession?.program_name) && (
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 leading-none">
+                    {activeSession?.program_name || incompleteSession?.program_name}
+                  </p>
+                )}
+                <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase mt-0.5">
                   {workoutTitle || "Formula-1"}
                 </h1>
                 {workoutName && (
@@ -1005,9 +1330,6 @@ function ViewWorkoutSessionContent() {
                     {workoutName}
                   </p>
                 )}
-                <p className="text-[12px] font-black uppercase tracking-wide text-[#222] mt-1">
-                  {totalExercises} Exercises
-                </p>
                 {(() => {
                   const tagLabel = (tag: string): string | null => {
                     const t = tag.toUpperCase();
@@ -1125,7 +1447,16 @@ function ViewWorkoutSessionContent() {
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
                   <button
-                    onClick={() => router.push("/location")}
+                    onClick={() => {
+                      // Same one-shot signal pattern as returningFromAthenaWorkout
+                      // — only set it if actually engaged already, otherwise
+                      // clicking Location before ever joining would wrongly
+                      // mark the next mount as engaged.
+                      if (isSessionEngaged) {
+                        localStorage.setItem("returningFromLocation", "true");
+                      }
+                      router.push("/location");
+                    }}
                     className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
                   >
                     <MapPin size={14} className="text-[#7c3aed]" />
@@ -1133,37 +1464,32 @@ function ViewWorkoutSessionContent() {
                     <span>{location || "None"}</span>
                   </button>
 
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={filterByLocation}
-                      disabled={locationFilterLoading}
-                      onChange={(e) => handleLocationFilter(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
-                    />
-                    <span className="text-[11px] font-semibold text-[#7c3aed]">
-                      {locationFilterLoading
-                        ? "Loading..."
-                        : "Show exercises based on default location"}
-                    </span>
-                  </label>
+                  {/* Once a session is active, its location is already locked
+                      in (see handleRejoin) — mirrors mobile, which hides this
+                      toggle rather than letting the exercise list diverge
+                      from what the session was actually created for. */}
+                  {!activeSession && (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={filterByLocation}
+                        disabled={locationFilterLoading}
+                        onChange={(e) => handleLocationFilter(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
+                      />
+                      <span className="text-[11px] font-semibold text-[#7c3aed]">
+                        {locationFilterLoading
+                          ? "Loading..."
+                          : "Show exercises based on default location"}
+                      </span>
+                    </label>
+                  )}
 
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-2">
                       {!isLocked ? (
                         <button
-                          onClick={() => {
-                            const code = (
-                              localStorage.getItem("workoutProgramCode") ||
-                              "unknown"
-                            ).toUpperCase();
-                            localStorage.setItem("pendingSessionCode", code);
-                            localStorage.setItem(
-                              "pendingWorkoutGroups",
-                              JSON.stringify(workoutGroups),
-                            );
-                            router.push("/workout/equipmentNeeded");
-                          }}
+                          onClick={startNewSession}
                           className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
                         >
                           {activeSession || incompleteSession
@@ -1207,6 +1533,8 @@ function ViewWorkoutSessionContent() {
             engaged with it — mirrors the mobile app's isSessionActive gate. */}
         {showRejoinBanner && (() => {
           const bannerSession = activeSession || incompleteSession;
+          const bannerIsHost = isHost(bannerSession);
+          const actionLabel = bannerIsHost ? "Rejoin" : "Join";
           return (
             <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
               <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
@@ -1215,7 +1543,7 @@ function ViewWorkoutSessionContent() {
                   <div className="min-w-0">
                     <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
                       {bannerSession
-                        ? `Rejoin Live Session: ${bannerSession.id.slice(0, 6)}`
+                        ? `${actionLabel} Live Session: ${bannerSession.id.slice(0, 6)}`
                         : "Active Session In Progress"}
                     </h3>
                     <p className="text-white/80 text-[10px] mt-1 font-medium">
@@ -1230,14 +1558,16 @@ function ViewWorkoutSessionContent() {
                     onClick={() => handleRejoin(bannerSession!)}
                     className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
                   >
-                    Rejoin
+                    {actionLabel}
                   </button>
-                  <button
-                    onClick={() => setShowRejoinModal(true)}
-                    className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
-                  >
-                    <ChevronRight size={16} className="text-white" />
-                  </button>
+                  {bannerIsHost && incompleteSessions.length > 0 && (
+                    <button
+                      onClick={() => setShowRejoinModal(true)}
+                      className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
+                    >
+                      <ChevronRight size={16} className="text-white" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1755,6 +2085,11 @@ function ViewWorkoutSessionContent() {
                               <button
                                 type="button"
                                 onClick={() => {
+                                  // Mirrors the Overview tab's rounds list — only
+                                  // navigate into the play screen once a session
+                                  // is actually active, matching mobile's
+                                  // isSessionActive gate on the round play button.
+                                  if (!isSessionActive) return;
                                   localStorage.setItem("sessionActive", "true");
                                   router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`);
                                 }}
@@ -1824,6 +2159,10 @@ function ViewWorkoutSessionContent() {
                                       key={exIdx}
                                       type="button"
                                       onClick={() => {
+                                        if (!isSessionActive) {
+                                          handleExerciseTapWithoutSession();
+                                          return;
+                                        }
                                         localStorage.setItem("sessionActive", "true");
                                         router.push(`/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${exIdx}`);
                                       }}
@@ -1964,7 +2303,9 @@ function ViewWorkoutSessionContent() {
                     ? locationFilteredGroups
                     : workoutGroups
                   ).map((group, groupIdx) => {
-                    const isGroupLocked = isLocked && groupIdx > 0;
+                    // Matches mobile's isRoundLocked = isLocked && index >= 2
+                    // — the first TWO rounds stay unlocked, not just one.
+                    const isGroupLocked = isLocked && groupIdx >= 2;
                     const previewItems = isGroupLocked
                       ? group.workouts.slice(0, 3)
                       : group.workouts;
@@ -1981,22 +2322,27 @@ function ViewWorkoutSessionContent() {
                           {isGroupLocked ? (
                             <Lock size={12} className="text-gray-300 ml-auto" />
                           ) : (
-                            <button
-                              disabled={!activeSession}
-                              onClick={() => {
-                                localStorage.setItem("sessionActive", "true");
-                                router.push(
-                                  `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`,
-                                );
-                              }}
-                              className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#7c3aed]"
-                            >
-                              <Play
-                                size={12}
-                                fill="white"
-                                className="text-white ml-0.5"
-                              />
-                            </button>
+                            // Matches mobile's SectionHeader — the play button
+                            // only renders once a session is actually
+                            // active (onPlayPress is undefined otherwise),
+                            // it's not just disabled/dimmed.
+                            isSessionActive && (
+                              <button
+                                onClick={() => {
+                                  localStorage.setItem("sessionActive", "true");
+                                  router.push(
+                                    `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`,
+                                  );
+                                }}
+                                className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition"
+                              >
+                                <Play
+                                  size={12}
+                                  fill="white"
+                                  className="text-white ml-0.5"
+                                />
+                              </button>
+                            )
                           )}
                         </div>
 
@@ -2009,7 +2355,7 @@ function ViewWorkoutSessionContent() {
                               sessionStarted={sessionStarted}
                               rounds={group.rounds}
                               onCardClick={
-                                activeSession
+                                isSessionActive
                                   ? () => {
                                       localStorage.setItem(
                                         "sessionActive",
@@ -2019,7 +2365,7 @@ function ViewWorkoutSessionContent() {
                                         `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`,
                                       );
                                     }
-                                  : undefined
+                                  : handleExerciseTapWithoutSession
                               }
                             />
                           ))}
@@ -2077,10 +2423,7 @@ function ViewWorkoutSessionContent() {
           </button>
         ))}
         <button
-          onClick={() => {
-            localStorage.setItem("sessionActive", "true");
-            router.push("/workout/athenaWorkout");
-          }}
+          onClick={handleStartWorkout}
           disabled={!activeSession}
           className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide transition
             ${activeSession ? "text-[#7c3aed]" : "text-gray-300 cursor-not-allowed"}`}
@@ -2548,6 +2891,63 @@ function ViewWorkoutSessionContent() {
         </div>
       )}
 
+      {/* READY TO START MODAL — shown when tapping an exercise before any
+          session exists, mirrors mobile's exercise-preview modal (free branch) */}
+      {showStartSessionPrompt && (
+        <div
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-3"
+          onClick={() => setShowStartSessionPrompt(false)}
+        >
+          <div
+            className="bg-white w-full max-w-[380px] rounded-[24px] shadow-2xl relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowStartSessionPrompt(false)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} />
+            </button>
+
+            <div className="px-6 py-7 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md">
+                  <Play size={22} fill="white" className="text-white ml-0.5" />
+                </div>
+              </div>
+
+              <h2 className="text-[19px] font-black text-gray-900 leading-snug">
+                Ready to Start?
+              </h2>
+              <p className="text-[13px] text-gray-500 mt-1 truncate">
+                {workoutTitle || "WORKOUT"}
+              </p>
+
+              <p className="text-gray-500 mt-4 text-[13px] leading-relaxed">
+                Click below to begin your workout session and start tracking your progress.
+              </p>
+
+              <button
+                onClick={() => {
+                  setShowStartSessionPrompt(false);
+                  startNewSession();
+                }}
+                className="w-full mt-5 bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <Play size={14} fill="white" />
+                Start Session Now
+              </button>
+              <button
+                onClick={() => setShowStartSessionPrompt(false)}
+                className="w-full mt-2.5 text-gray-400 font-bold text-[12px] py-2 hover:text-gray-600 transition"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AD DETAIL POPUP */}
       {selectedAd && (
         <div
@@ -2655,39 +3055,48 @@ function ViewWorkoutSessionContent() {
               </div>
 
               {(() => {
+                // Exact port of mobile's ExerciseTrackingModal suggested-weight
+                // logic. Two bugs fixed here: (1) the lift-max map (wMap) must
+                // NOT be unit-converted — mobile uses the raw r_back_squat/etc
+                // values directly, same fix already applied to
+                // PowerSetTrackingModal/swapExerciseModal/athenaWorkout
+                // earlier; (2) the no-lift-adjustment fallback previously
+                // just relabeled the raw weight with the unit string instead
+                // of actually converting it via convertToUserUnit.
                 const userUnit = (
                   userOtherDetail?.measurementUnit || "lbs"
-                ).toLowerCase();
-                const toUnit = (val: string) => {
-                  const n = parseFloat(val) || 0;
-                  return userUnit === "kg" ? n / 2.20462 : n;
+                ).toLowerCase().trim();
+                const wMap: Record<string, number> = {
+                  "of InputBarbellSquat": parseFloat(String(userOtherDetail?.r_back_squat || 0)) || 0,
+                  "of InputDeadlift": parseFloat(String(userOtherDetail?.r_deadlift || 0)) || 0,
+                  "of InputBenchPress": parseFloat(String(userOtherDetail?.r_bench_press || 0)) || 0,
+                  "of InputPowerClean": parseFloat(String(userOtherDetail?.r_power_clean || 0)) || 0,
+                  "of BodyWeight": parseFloat(String(userOtherDetail?.currentWeight || 0)) || 0,
                 };
-                const wMap: Record<string, number> = userOtherDetail
-                  ? {
-                      "of InputBarbellSquat": toUnit(
-                        userOtherDetail.r_back_squat,
-                      ),
-                      "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
-                      "of InputBenchPress": toUnit(
-                        userOtherDetail.r_bench_press,
-                      ),
-                      "of InputPowerClean": toUnit(
-                        userOtherDetail.r_power_clean,
-                      ),
-                      "of BodyWeight": toUnit(userOtherDetail.currentWeight),
-                    }
-                  : {};
                 const weightAdj = (trackingItem.weight_adj || "").trim();
-                const weightVal = trackingItem.weight || "0";
-                let displayWeight = "";
-                const base = wMap[weightAdj];
-                if (base !== undefined && base > 0) {
-                  const calc = Math.ceil(base * (parseFloat(weightVal) || 0));
-                  if (calc > 0) displayWeight = `${calc} ${userUnit}`;
-                } else {
-                  const n = parseFloat(weightVal) || 0;
-                  if (n > 0) displayWeight = `${weightVal} ${userUnit}`;
+                const weightValue = trackingItem.weight || "0";
+                const dWeight = trackingItem.calculated_weight ?? trackingItem.weight ?? null;
+                const msrmt = (trackingItem as unknown as { msrmt?: string }).msrmt;
+
+                let displaySuggestedWeight = "";
+                const hasAdj = weightAdj !== "" && wMap[weightAdj] !== undefined && wMap[weightAdj] > 0;
+                if (hasAdj) {
+                  const baseValue = wMap[weightAdj];
+                  const multiplier = parseFloat(String(weightValue)) || 0;
+                  const calculated = Math.ceil(baseValue * multiplier);
+                  displaySuggestedWeight = calculated > 0 ? `${calculated} ${userUnit}` : "";
+                } else if (dWeight != null) {
+                  const dWeightStr = String(dWeight).trim();
+                  const numericWeight = parseFloat(dWeightStr) || 0;
+                  if (numericWeight > 0) {
+                    displaySuggestedWeight = convertToUserUnit(dWeightStr, userUnit, msrmt || "lbs");
+                  }
                 }
+                const displayWeight =
+                  displaySuggestedWeight ||
+                  (weightValue && String(weightValue) !== "0"
+                    ? convertToUserUnit(weightValue, userUnit, "lbs")
+                    : "");
                 const cleanReps = (r: string | number | null | undefined) => {
                   const s = String(r ?? "").trim();
                   return (s.split("-").pop()?.trim() || "").replace(/\D/g, "");
@@ -2800,7 +3209,7 @@ function ViewWorkoutSessionContent() {
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">
-                          Weight (lbs)
+                          Weight ({(userOtherDetail?.measurementUnit || "lbs").toLowerCase()})
                         </p>
                         <input
                           type="number"
@@ -2846,14 +3255,18 @@ function ViewWorkoutSessionContent() {
                           const setNumber = i + 1;
                           const weightNum = parseFloat(set.weight) || 0;
                           const repsNum = parseInt(set.reps) || 0;
-                          const userWeight =
-                            parseFloat(userOtherDetail?.currentWeight || "0") ||
-                            0;
-                          const userHeight =
-                            parseFloat(userOtherDetail?.height || "0") || 0;
-                          const computedLoad = Math.ceil(
-                            (userWeight * userHeight + repsNum * weightNum) /
-                              2600,
+                          // Matches mobile's handleSaveSet validation — it
+                          // shows an alert and refuses to save rather than
+                          // silently persisting a 0/0 set.
+                          if (weightNum <= 0 || repsNum <= 0) {
+                            alert("Weight and reps must be greater than 0.");
+                            return;
+                          }
+                          const computedLoad = computeTrackingLoad(
+                            userOtherDetail,
+                            trackingItem,
+                            weightNum,
+                            repsNum,
                           );
                           const payload = {
                             title: `Set ${setNumber}`,
@@ -2943,17 +3356,35 @@ function ViewWorkoutSessionContent() {
                   }
                   setSavingLogs(true);
                   try {
+                    // Matches mobile's handleSave: a set is only included if
+                    // it has weight AND/OR reps typed in — a set left
+                    // completely blank is skipped rather than saved as 0/0.
+                    // Suggested-weight/defaultReps fill in whichever of the
+                    // two was left blank, same as mobile.
+                    const defaultReps =
+                      parseInt(
+                        (String(trackingItem.reps || "").split("-").pop() || "").replace(/\D/g, ""),
+                        10,
+                      ) || 15;
+                    const defaultWeight = parseFloat(String(userOtherDetail?.currentWeight || 0)) || 0;
                     const payloads = sets
                       .map((set, i) => ({ set, setNumber: i + 1 }))
-                      .filter(({ set }) => !set.saved)
-                      .map(({ set, setNumber }) => ({
-                        title: `Set ${setNumber}`,
-                        exerciseId: trackingItem.exercise_id,
-                        sessionId,
-                        workoutLibraryId: code,
-                        weight: parseFloat(set.weight) || 0,
-                        repetitions: parseInt(set.reps) || 0,
-                      }));
+                      .filter(({ set }) => !set.saved && (set.weight || set.reps))
+                      .map(({ set, setNumber }) => {
+                        const weightNum = parseFloat(set.weight) || defaultWeight;
+                        const repsNum = parseInt(set.reps) || defaultReps;
+                        return {
+                          title: `Set ${setNumber}`,
+                          exerciseId: trackingItem.exercise_id,
+                          sessionId,
+                          workoutLibraryId: code,
+                          weight: weightNum,
+                          repetitions: repsNum,
+                          status: true,
+                          tag: "/e",
+                          load: computeTrackingLoad(userOtherDetail, trackingItem, weightNum, repsNum),
+                        };
+                      });
                     console.log(
                       "[tracking] Saving",
                       payloads.length,

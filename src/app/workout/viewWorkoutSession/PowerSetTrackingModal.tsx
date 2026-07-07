@@ -12,6 +12,7 @@ import {
   getPowerSetDetails,
 } from "@/api/workouts/route";
 import { UserOtherDetail } from "@/api/dashboard/route";
+import { convertToUserUnit } from "@/lib/units";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,30 @@ function getLiftMax(weightAdjStr: string, detail: UserOtherDetail | null | undef
   else if (n.includes("clean"))    raw = parseFloat(String(detail.r_power_clean ?? 0)) || 0;
   else if (n.includes("bodyweight") || n.includes("body weight"))
     raw = parseFloat(String((detail as any).current_weight ?? (detail as any).currentWeight ?? 0)) || 0;
-  return raw / 2.20462; // always return kg
+  return raw;
+}
+
+function getLiftCategoryLabel(weightAdjStr: string): string | null {
+  if (!weightAdjStr) return null;
+  const n = weightAdjStr.toLowerCase().trim();
+  if (n.includes("squat")) return "Squat";
+  if (n.includes("deadlift")) return "Deadlift";
+  if (n.includes("bench")) return "Bench";
+  if (n.includes("clean")) return "Clean";
+  return null;
+}
+
+function parseHeightInches(heightStr: string | number | null | undefined): number {
+  if (!heightStr) return 0;
+  const str = String(heightStr).trim();
+  if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+  const match = str.match(/(\d+)\s*['’`‘ft]*\s*(\d+)?/);
+  if (match) {
+    const feet = parseInt(match[1], 10) || 0;
+    const inches = parseInt(match[2], 10) || 0;
+    return feet * 12 + inches;
+  }
+  return parseFloat(str) || 0;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -107,7 +131,7 @@ export default function PowerSetTrackingModal({
   const clearedSetIndexes = useRef<Record<number, boolean>>({});
   const hasInitialized = useRef(false);
 
-  const userUnit = "kg";
+  const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase().trim();
 
   // ── Suggested weight calculation ──────────────────────────────────────────
   const weightAdj = (exercise?.weight_adj || exercise?.exercise?.weight_adj || "").trim();
@@ -121,12 +145,50 @@ export default function PowerSetTrackingModal({
     const calc = Math.ceil(liftMaxGlobal * mult);
     if (calc > 0) finalSuggestedWeight = `${calc} ${userUnit}`;
   } else if (dWeight != null) {
-    const num = parseFloat(String(dWeight));
-    if (num > 0) finalSuggestedWeight = `${num} ${userUnit}`;
+    const dWeightStr = String(dWeight).trim();
+    const num = parseFloat(dWeightStr) || 0;
+    if (num > 0) {
+      finalSuggestedWeight = convertToUserUnit(
+        dWeightStr,
+        userUnit,
+        exercise?.msrmt || exercise?.exercise?.msrmt || "lbs",
+      );
+    }
   }
-  if (!finalSuggestedWeight) finalSuggestedWeight = "50–70%";
+  if (!finalSuggestedWeight) {
+    finalSuggestedWeight =
+      weightValue && String(weightValue) !== "0"
+        ? convertToUserUnit(weightValue, userUnit, "lbs")
+        : "50–70%";
+  }
 
   const suggestedReps = exercise?.reps || exercise?.exercise?.defaultReps || "12,8,6";
+
+  const getNonPowerSetMessage = (set: VelocitySet): string | null => {
+    const weightTyped = parseFloat(set.weight);
+    if (isNaN(weightTyped) || weightTyped <= 0) return null;
+
+    const weightAdjustStr = set.weight_adjust || weightAdj || "";
+    if (!weightAdjustStr) return null;
+
+    const liftMax = getLiftMax(weightAdjustStr, userOtherDetail);
+    if (liftMax <= 0) return null;
+
+    const opmAdjRaw = exercise?.opm_adjustor;
+    const opmAdjVal = opmAdjRaw != null ? (opmAdjRaw > 1 ? opmAdjRaw / 100 : opmAdjRaw) : 0.85;
+
+    const goalData = ((weightTyped * opmAdjVal) / liftMax) * 100;
+    const pmax = [100, 95, 93, 90, 87, 85, 83, 80, 77, 75, 73, 70, 65, 60, 57, 55, 53, 50, 47, 45, 43];
+
+    const closestPercent = pmax.reduce((prev, curr) =>
+      Math.abs(curr - goalData) < Math.abs(prev - goalData) ? curr : prev
+    );
+    const indexData = pmax.indexOf(closestPercent);
+
+    const cleanWeightAdjust = weightAdjustStr.replace(/^of\s+/i, "").trim();
+
+    return `New weight is equal to( ${closestPercent}% of your max of ${cleanWeightAdjust} , you should complete ${indexData} or more reps`;
+  };
 
   // ── Load tracking history ──────────────────────────────────────────────────
   const loadHistory = useCallback(async (currentSets?: VelocitySet[]) => {
@@ -217,11 +279,13 @@ export default function PowerSetTrackingModal({
     setSavingSetIndexes((p) => [...p, index]);
     try {
       // compute load
-      const bw = parseFloat(String((userOtherDetail as any)?.current_weight ?? (userOtherDetail as any)?.currentWeight ?? 0)) || 0;
-      const bh = parseFloat(String(userOtherDetail?.height ?? 0)) || 0;
+      const isKg = userUnit === "kg";
+      const rawWeight = parseFloat(String((userOtherDetail as any)?.current_weight ?? (userOtherDetail as any)?.currentWeight ?? 0)) || 0;
+      const bw = isKg ? rawWeight * 2.2046 : rawWeight;
+      const bh = parseHeightInches(userOtherDetail?.height);
       const E = parseInt(String(exercise?.exercise?.loadMeter ?? exercise?.loadMeter ?? 3)) || 3;
-      const e = parseFloat(String(exercise?.rep_variant ?? 1)) || 1;
-      const wt = weightNum * 2.20462;
+      const e = parseFloat(String(exercise?.repVariant ?? exercise?.rep_variant ?? 1)) || 1;
+      const wt = weightNum * 2.20462262;
       const computedLoad = Math.ceil((bw * bh + E * repsNum * e * wt) / 2600);
 
       const response = await createTrackingLog({
@@ -283,11 +347,23 @@ export default function PowerSetTrackingModal({
     if (onSave) {
       setIsSaving(true);
       try {
+        // Persist any set not yet saved via the per-set "Save Set" button —
+        // covers typed values, sets left at their suggested defaults, and
+        // sets marked "Unable" — mirrors mobile's safety-net save when
+        // returning to the workout, so nothing is silently dropped.
+        for (let i = 0; i < sets.length; i++) {
+          const s = sets[i];
+          if (!s.recorded && (s.unableToPerform || s.weight || s.reps || (s.suggestedWeight && s.suggestedReps))) {
+            await handleSaveSet(i);
+          }
+        }
+
         const finalSets = sets.map((s) => {
-          if (s.unableToPerform) return { ...s, weight: "0", reps: "0", load: 0 };
+          if (s.unableToPerform) return { ...s, weight: "0", reps: "0", load: 0, recorded: true };
           const w = parseFloat(s.weight) || parseFloat(s.suggestedWeight ?? "0") || 0;
           const r = parseInt(s.reps, 10) || parseInt(s.suggestedReps ?? "0", 10) || 0;
-          return { ...s, weight: String(w), reps: String(r) };
+          const recorded = s.recorded || !!(s.weight || s.reps) || !!(s.suggestedWeight && s.suggestedReps);
+          return { ...s, weight: String(w), reps: String(r), recorded };
         });
         await onSave(finalSets);
       } finally {
@@ -355,7 +431,7 @@ export default function PowerSetTrackingModal({
               <div className="flex-1 text-center">
                 <p className="text-[10px] text-gray-400 font-semibold">Weight</p>
                 <p className="text-[17px] font-black text-[#111827]">
-                  {apiSuggestedWeight || finalSuggestedWeight}
+                  {apiSuggestedWeight ? convertToUserUnit(apiSuggestedWeight, userUnit, "lbs") : finalSuggestedWeight}
                 </p>
               </div>
             </div>
@@ -418,17 +494,32 @@ export default function PowerSetTrackingModal({
                       <span className="text-[13px] font-black text-[#111827]">Set {index + 1}</span>
                   
                     </div>
-                    {/* Unable to perform */}
-                    <button
-                      onClick={() => onUpdateSet(index, "unableToPerform", !set.unableToPerform)}
-                      disabled={set.recorded}
-                      className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-600 transition disabled:opacity-40"
-                    >
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition ${set.unableToPerform ? "bg-gray-400 border-gray-400" : "border-gray-300"}`}>
-                        {set.unableToPerform && <div className="w-2 h-2 bg-white rounded-sm" />}
-                      </div>
-                      Unable
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {/* Unable to perform */}
+                      <button
+                        onClick={() => onUpdateSet(index, "unableToPerform", !set.unableToPerform)}
+                        disabled={set.recorded}
+                        className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-600 transition disabled:opacity-40"
+                      >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition ${set.unableToPerform ? "bg-gray-400 border-gray-400" : "border-gray-300"}`}>
+                          {set.unableToPerform && <div className="w-2 h-2 bg-white rounded-sm" />}
+                        </div>
+                        Unable
+                      </button>
+
+                      {/* Is Money Set (only for custom, unrecorded sets) */}
+                      {!set.recorded && set.isCustom && (
+                        <button
+                          onClick={() => onUpdateSet(index, "min_reps", isMainPowerSet ? null : 1)}
+                          className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-gray-600 transition"
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition ${isMainPowerSet ? "bg-[#7c3aed] border-[#7c3aed]" : "border-gray-300"}`}>
+                            {isMainPowerSet && <div className="w-2 h-2 bg-white rounded-sm" />}
+                          </div>
+                          Is Money Set
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Inputs */}
@@ -445,7 +536,7 @@ export default function PowerSetTrackingModal({
                         placeholder={set.suggestedWeight ?? "--"}
                         className="w-full h-11 rounded-xl border border-gray-200 text-center text-[15px] font-bold text-[#111827] outline-none focus:border-[#7c3aed] disabled:bg-gray-50 disabled:text-gray-400 transition"
                       />
-                      <p className="text-[10px] text-gray-400 text-center mt-1">Weight (kg)</p>
+                      <p className="text-[10px] text-gray-400 text-center mt-1">Weight ({userUnit})</p>
                     </div>
                     <div>
                       <input
@@ -459,6 +550,14 @@ export default function PowerSetTrackingModal({
                       <p className="text-[10px] text-gray-400 text-center mt-1">Repetitions</p>
                     </div>
                   </div>
+
+                  {/* 1RM feedback for non-power sets when weight is edited */}
+                  {!isMainPowerSet && editedWeights[index] && (() => {
+                    const msg = getNonPowerSetMessage(set);
+                    return msg ? (
+                      <p className="text-[11px] text-red-500 leading-snug text-center">{msg}</p>
+                    ) : null;
+                  })()}
 
                   {/* Edit button when recorded */}
                   {set.recorded && (
@@ -487,9 +586,11 @@ export default function PowerSetTrackingModal({
                     const key = set.power_id ?? String(index);
                     const rec = updatedRecord[key];
                     if (!rec) return null;
+                    const weightAdjustStr = set.weight_adjust || weightAdj || "";
+                    const powerTagLabel = getLiftCategoryLabel(weightAdjustStr) || "Power Set";
                     return (
                       <p className="text-[10px] text-center text-red-500 font-bold bg-red-50 rounded-lg px-3 py-2">
-                        New max (RMP): {rec.member_weight_rmp} · Acute max (AMP): {rec.amp}
+                        New max (RMP): {rec.member_weight_rmp} · Acute max (AMP): {rec.amp} of {powerTagLabel}
                         {rec.diff ? ` · ${rec.diff}` : ""}
                       </p>
                     );

@@ -282,6 +282,9 @@ export interface ChartPieDatum {
 export interface WorkoutStats {
   calories: string;
   power: number;
+  load?: number | string;
+  duration?: string;
+  movements?: number;
   charts?: {
     barData?: ChartBarDatum[];
     pieData?: ChartPieDatum[];
@@ -325,6 +328,11 @@ export interface WorkoutGroupItem {
   is_power_set: boolean;
   weight?: string;
   weight_adj?: string;
+  // Present when the backend has already substituted this exercise for the
+  // session's location/equipment — mobile's ExerciseCard uses this directly
+  // (isHome={!!exercise.swapped_exercise_id}) to show the "swapped" badge.
+  swapped_exercise_id?: string | null;
+  calculated_weight?: string | null;
 }
 
 export interface WorkoutGroup {
@@ -889,6 +897,10 @@ export interface ProgramOverviewResponse {
   stats?: WorkoutStats;
   preview: ProgramPreview | null;
   rejoinSessions?: Record<string, unknown>[];
+  // Backend's echo of whichever location it actually used to resolve this
+  // response (matches the locationId param, when passed) — mobile seeds its
+  // location display from this before a session/section fetch takes over.
+  selectedLocation?: { id?: string | number; name?: string; [key: string]: unknown } | null;
 }
 
 export const getProgramOverview = async (

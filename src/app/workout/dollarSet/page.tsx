@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, DollarSign, Loader2, Plus } from "lucide-react";
-import { getPowerSetDetails, PowerSetDetail } from "@/api/workouts/route";
+import { getPowerSetDetails, PowerSetDetail, createTrackingLog, createPowerSetLog } from "@/api/workouts/route";
+import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -32,6 +33,14 @@ function DollarSetContent() {
   const [powerSet, setPowerSet] = useState<PowerSetDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [sets, setSets] = useState<SetData[]>([]);
+  const [savingIndexes, setSavingIndexes] = useState<Set<number>>(new Set());
+  const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
+
+  useEffect(() => {
+    dashboardApi.getDashboardData()
+      .then((res) => setUserOtherDetail(res.user.OtherDetail))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!specializedWorkoutId) { setLoading(false); return; }
@@ -54,7 +63,71 @@ function DollarSetContent() {
   const updateSet = (idx: number, field: keyof SetData, value: string | boolean) =>
     setSets((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
 
-  const submitSet = (idx: number) => updateSet(idx, "submitted", true);
+  const submitSet = async (idx: number) => {
+    const set = sets[idx];
+    if (set.submitted || savingIndexes.has(idx)) return;
+    const apiSet = powerSet?.sets?.[idx] as (PowerSetDetail["sets"][number] & {
+      min_reps?: number | null;
+      power_id?: string;
+    }) | undefined;
+
+    const weightNum = set.unableToPerform ? 0 : parseFloat(set.weight) || 0;
+    const repsNum = set.unableToPerform ? 0 : parseInt(set.reps, 10) || 0;
+    const exerciseId = powerSet?.exercise?.exercise_uuid;
+    const workoutCode = localStorage.getItem("workoutProgramCode") || "";
+
+    setSavingIndexes((prev) => new Set(prev).add(idx));
+    try {
+      const bw = parseFloat(String(userOtherDetail?.currentWeight ?? 0)) || 0;
+      const bh = parseFloat(String(userOtherDetail?.height ?? 0)) || 0;
+      const E = parseInt(String((powerSet?.workout as unknown as Record<string, unknown>)?.loadMeter ?? 3)) || 3;
+      const e = parseFloat(String((powerSet?.workout as unknown as Record<string, unknown>)?.rep_variant ?? 1)) || 1;
+      const wt = weightNum * 2.20462;
+      const computedLoad = Math.ceil((bw * bh + E * repsNum * e * wt) / 2600);
+
+      const trackingResponse = await createTrackingLog({
+        title: `Set ${idx + 1}`,
+        exerciseId: exerciseId || "",
+        sessionId: sessionId || "",
+        workoutLibraryId: workoutCode,
+        weight: weightNum,
+        repetitions: repsNum,
+        status: true,
+        tag: "/e",
+        load: computedLoad,
+        specializedWorkoutId: specializedWorkoutId || undefined,
+      });
+      const trackingLogId = (trackingResponse as unknown as { id?: string; trackingLog?: { id?: string } })?.trackingLog?.id
+        ?? (trackingResponse as unknown as { id?: string })?.id;
+
+      const isMoneySet = (apiSet?.min_reps !== undefined && apiSet?.min_reps !== null) || (set.isUserAdded && set.isMoneySet);
+      if (isMoneySet) {
+        await createPowerSetLog({
+          new_weight: weightNum,
+          reps: repsNum,
+          unable_to_perform: set.unableToPerform,
+          power_id: apiSet?.power_id,
+          specialized_workout_id: specializedWorkoutId || undefined,
+          individual_exercise_id: exerciseId,
+          session_id: sessionId || undefined,
+          weight_adj: powerSet?.workout?.weight_adj,
+          tracking_log: trackingLogId,
+          old_weight: parseFloat(apiSet?.suggestedWeight || "0") || 0,
+          old_reps: apiSet?.min_reps ?? (parseInt(apiSet?.suggestedReps || "0", 10) || 0),
+        });
+      }
+
+      updateSet(idx, "submitted", true);
+    } catch (err) {
+      console.error("[dollarSet] Failed to save set:", err);
+    } finally {
+      setSavingIndexes((prev) => {
+        const next = new Set(prev);
+        next.delete(idx);
+        return next;
+      });
+    }
+  };
 
   const addSet = () =>
     setSets((prev) => [
@@ -242,14 +315,16 @@ function DollarSetContent() {
 
                     <button
                       onClick={() => submitSet(idx)}
-                      disabled={set.submitted}
-                      className={`w-full py-2.5 rounded-xl text-[13px] font-black uppercase tracking-widest transition ${
+                      disabled={set.submitted || savingIndexes.has(idx)}
+                      className={`w-full py-2.5 rounded-xl text-[13px] font-black uppercase tracking-widest transition flex items-center justify-center gap-2 ${
                         set.submitted
                           ? "bg-green-500 text-white cursor-default"
-                          : "bg-[#7c3aed] hover:bg-[#6d28d9] text-white"
+                          : "bg-[#7c3aed] hover:bg-[#6d28d9] text-white disabled:opacity-60"
                       }`}
                     >
-                      {set.submitted ? "Submitted ✓" : "Submit"}
+                      {set.submitted ? "Submitted ✓" : savingIndexes.has(idx) ? (
+                        <><Loader2 size={13} className="animate-spin" /> Saving...</>
+                      ) : "Submit"}
                     </button>
                   </div>
                 );

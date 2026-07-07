@@ -166,8 +166,20 @@ export default function LocationList() {
                         onChange={() => {
                           const next = defaultLocationId === location.id ? null : location.id;
                           setDefaultLocationId(next);
-                          if (next) localStorage.setItem("defaultLocationId", String(next));
-                          else localStorage.removeItem("defaultLocationId");
+                          if (next) {
+                            localStorage.setItem("defaultLocationId", String(next));
+                            localStorage.setItem("workoutLocationName", location.name);
+                            // Persist server-side too — without this, pages that
+                            // read the account's default location (e.g. the
+                            // "Show exercises based on default location" filter
+                            // on the workout session page) would keep seeing the
+                            // old value no matter how many times they refetch.
+                            equipmentApi.selectDefaultLocation(next).catch((err) => {
+                              console.error("Failed to set default location:", err);
+                            });
+                          } else {
+                            localStorage.removeItem("defaultLocationId");
+                          }
                         }}
                         className="w-4 h-4 accent-purple-600 cursor-pointer"
                       />

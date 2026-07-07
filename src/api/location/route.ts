@@ -82,6 +82,14 @@ export interface LocationDetailResponse {
   data: LocationItem;
 }
 
+export interface DefaultLocationResponse {
+  data?: {
+    id?: number | string;
+    name?: string;
+    [key: string]: unknown;
+  } | null;
+}
+
 // ===========================================
 // ERROR HANDLER
 // ===========================================
@@ -217,6 +225,29 @@ updateLocation: async (payload: {
   } catch (err) {
     throw new Error(
       extractErrorMessage(err, "Failed to update location.")
+    );
+  }
+},
+
+// Server-persisted default location — same endpoints mobile's
+// locationService.getDefaultLocation/selectDefaultLocation use.
+getDefaultLocation: async (): Promise<DefaultLocationResponse> => {
+  try {
+    const res = await apiClient.get<DefaultLocationResponse>("/default-location");
+    return res.data;
+  } catch (err) {
+    throw new Error(
+      extractErrorMessage(err, "Failed to fetch default location.")
+    );
+  }
+},
+
+selectDefaultLocation: async (id: number | string): Promise<void> => {
+  try {
+    await apiClient.post("/select-default-location", { id });
+  } catch (err) {
+    throw new Error(
+      extractErrorMessage(err, "Failed to set default location.")
     );
   }
 },

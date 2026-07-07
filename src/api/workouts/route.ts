@@ -40,6 +40,10 @@ export interface CreateLocationResponse {
 export interface CreateSessionPayload {
   workoutLibraryId: string;
   locationId?: string | null;
+  // Links this new session to the host's — same field mobile's
+  // programService.createWorkoutSession sends when a non-host joins
+  // someone else's shared session, so the backend can group them together.
+  refSessionId?: string;
 }
 
 export interface WorkoutSession {
@@ -207,6 +211,27 @@ export const createWorkoutSession = async (
   }
 };
 
+// Persists a location change on an in-progress session server-side — same
+// endpoint mobile's programService.updateSessionLocation uses. Exercises for
+// that session should be re-fetched afterward to reflect the new location's
+// equipment (the backend does the substitution, same as elsewhere in this file).
+export const updateSessionLocation = async (
+  sessionId: string,
+  locationId: string,
+): Promise<unknown> => {
+  try {
+    const { data } = await apiClient.post("/workouts/session/update-location", {
+      sessionId,
+      locationId,
+    });
+    return data;
+  } catch (error: unknown) {
+    throw new Error(
+      getErrorMessage(error, "Failed to update session location."),
+    );
+  }
+};
+
 export const createFeedPost = async (
   payload: CreateFeedPostPayload,
 ): Promise<CreateFeedPostResponse> => {
@@ -296,6 +321,10 @@ export interface GetSectionResponse {
   exercises: SectionExercise[];
   workouts: SectionExercise[];
   isCompleted?: boolean;
+  // Same endpoint mobile calls for this — its locationName field is the
+  // session's actual server-side location, source of truth once a session
+  // exists (see athenaWorkout.tsx's per-section override).
+  locationName?: string;
 }
 
 export const getWorkoutSection = async (params: {

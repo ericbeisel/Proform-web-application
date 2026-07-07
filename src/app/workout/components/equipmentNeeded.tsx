@@ -189,7 +189,6 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     const sessionId = sessionResult.session.id;
     console.log("[session] ✓ Session created — id:", sessionId);
     localStorage.setItem(`activeSessionId_${pendingSessionCode.toUpperCase()}`, sessionId);
-    localStorage.setItem(`sessionEngaged_${sessionId}`, "true");
     localStorage.setItem("workoutLocationName", selectedLocationName);
     localStorage.setItem("workoutLocationId", locationId);
     localStorage.removeItem("pendingSessionCode");
