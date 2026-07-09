@@ -178,7 +178,7 @@ export default function DashboardHeader({
 
           {/* Notifications */}
           <button
-            onClick={() => router.push("/checklist/missed-activity")}
+            onClick={() => router.push("/notifications")}
             className="hidden sm:flex relative w-9 h-9 rounded-full bg-[#f1eefe] items-center justify-center text-[#6c5ce7] hover:bg-[#e6e0fd] transition-all"
           >
             <Bell size={16} />

@@ -4,15 +4,27 @@ import { getAuthToken } from "@/lib/auth/session";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
+export interface NotificationActor {
+  id?: number;
+  name?: string;
+  username?: string;
+  image?: string | null;
+}
+
 export interface NotificationItem {
   id: number;
   title?: string;
   message?: string;
   body?: string;
+  description?: string;
   is_read?: boolean;
   read?: boolean;
   created_at?: string;
+  date?: string;
+  timestamp?: string;
   type?: string;
+  user?: NotificationActor | null;
+  player?: NotificationActor | null;
 }
 
 export interface NotificationsResponse {
