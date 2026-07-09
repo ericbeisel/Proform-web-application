@@ -11,6 +11,7 @@ import {
   PlayerCardType,
 } from "@/api/player-card/route";
 import { dashboardApi } from "@/api/dashboard/route";
+import { getAuthToken } from "@/lib/auth/session";
 
 interface ProgressItem {
   id: number;
@@ -81,6 +82,13 @@ export default function PlayerProgress() {
   } | null>(null);
 
   useEffect(() => {
+    // Guard: a copy-pasted share link can be opened by a logged-out
+    // browser — redirect to login instead of letting the fetch below fail.
+    if (!getAuthToken()) {
+      router.replace("/auth/login");
+      return;
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -182,7 +190,7 @@ export default function PlayerProgress() {
       }
     };
     fetchData();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (selectedType) {

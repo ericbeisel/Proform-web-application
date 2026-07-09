@@ -9,13 +9,11 @@ import {
   Pause,
   SkipForward,
   User,
-  Users,
   NotepadText,
   Settings,
   Share2,
   MapPin,
   Home,
-  BarChart2,
   BarChart3,
   Info,
   Pen,
@@ -27,16 +25,12 @@ import {
   Loader2,
   Pencil,
   Dumbbell,
-  Zap,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   CheckCircle2,
-  Link,
-  Check,
-  Copy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import WorkoutSidebar from "./WorkoutSidebar";
+import ShareSessionModal from "./ShareSessionModal";
 import {
   getWorkoutSectionFull,
   SectionExercise,
@@ -292,16 +286,13 @@ export default function AthenaWorkoutPage() {
   const [workoutCode, setWorkoutCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Share Session modal — mirrors mobile's ShareSessionModal, opened from
+  // Opens the shared ShareSessionModal (src/app/workout/components), from
   // the header's Share icon.
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareFollowerSearch, setShareFollowerSearch] = useState("");
-  const [shareLinkCopied, setShareLinkCopied] = useState(false);
 
   const [locationName, setLocationName] = useState<string>("Temporary Location");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [showSwapModal, setShowSwapModal] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarActiveView, setSidebarActiveView] = useState("Overview");
 
   // Location popup — mirrors mobile's LocationBottomSheet: browsing/selecting
@@ -743,11 +734,14 @@ export default function AthenaWorkoutPage() {
   const navigateToTab = (label: string) => {
     setSidebarActiveView(label);
     localStorage.setItem("returningFromAthenaWorkout", "true");
+    // Lateral tab-switch, not a forward "drill in" — replace so bouncing
+    // between sidebar tabs doesn't stack up browser history entries that
+    // turn the back button into a loop through both pages.
     if (label === "Session") {
-      router.push("/workout/viewWorkoutSession?openSession=true");
+      router.replace("/workout/viewWorkoutSession?openSession=true");
       return;
     }
-    router.push(`/workout/viewWorkoutSession?view=${encodeURIComponent(label)}`);
+    router.replace(`/workout/viewWorkoutSession?view=${encodeURIComponent(label)}`);
   };
 
   const openTracking = async (ex: SectionExercise) => {
@@ -995,82 +989,21 @@ export default function AthenaWorkoutPage() {
     // Changed h-screen to min-h-screen for mobile safety, but kept h-screen for desktop
     <div className="h-screen bg-[#fcfdfe] flex flex-row font-sans overflow-hidden">
 
-      {/* COLLAPSIBLE SIDEBAR — full height, flush far-left */}
-      <div className={`hidden lg:flex flex-col flex-shrink-0 transition-all duration-300 bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] text-white ${sidebarOpen ? "w-[220px]" : "w-12"} overflow-hidden`}>
-        {/* Toggle button */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex items-center justify-center w-full py-3 hover:bg-white/10 transition flex-shrink-0"
-        >
-          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-        </button>
-
-        {sidebarOpen && (
-          <>
-            {/* Workout card */}
-            <div className="px-4 pb-4">
-              <div className="bg-white/10 rounded-[20px] p-4 mb-6">
-                <h2 className="text-[11px] font-black leading-tight uppercase tracking-wide truncate">
-                  {workoutCode || "WORKOUT"}
-                </h2>
-                <p className="text-[10px] uppercase mt-1 opacity-70">Active Session</p>
-                <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
-                  <div
-                    className="h-full bg-white rounded-full transition-all duration-500"
-                    style={{ width: `${sections.length > 0 ? Math.round((currentSectionIndex / sections.length) * 100) : 0}%` }}
-                  />
-                </div>
-                <div className="text-right text-[10px] mt-2 font-bold">
-                  {sections.length > 0 ? Math.round((currentSectionIndex / sections.length) * 100) : 0}%
-                </div>
-              </div>
-              <div className="space-y-2">
-                {[
-                  { label: "Overview",  Icon: Home },
-                  { label: "Session",   Icon: Users },
-                  { label: "Results",   Icon: BarChart2 },
-                  { label: "Powersets", Icon: Zap },
-                  { label: "Map",       Icon: MapPin },
-                ].map(({ label, Icon }) => (
-                  <button
-                    key={label}
-                    onClick={() => navigateToTab(label)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                      sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
-                    }`}
-                  >
-                    <Icon size={16} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {!sidebarOpen && (
-          <div className="flex flex-col items-center gap-2 pt-2 px-1">
-            {[
-              { label: "Overview",  Icon: Home },
-              { label: "Session",   Icon: Users },
-              { label: "Results",   Icon: BarChart2 },
-              { label: "Powersets", Icon: Zap },
-              { label: "Map",       Icon: MapPin },
-            ].map(({ label, Icon }) => (
-              <button
-                key={label}
-                title={label}
-                onClick={() => { navigateToTab(label); setSidebarOpen(true); }}
-                className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${
-                  sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
-                }`}
-              >
-                <Icon size={16} />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Shared sidebar (also used by viewWorkoutSession's SessionViewsPanel)
+          — collapsible here since this is the in-workout play screen; the
+          bottom CTA always says "Overview" since that's the "go back"
+          action from inside an active workout. */}
+      <WorkoutSidebar
+        collapsible
+        title={workoutCode || "WORKOUT"}
+        subtitle="Active Session"
+        progressPercent={sections.length > 0 ? Math.round((currentSectionIndex / sections.length) * 100) : 0}
+        activeView={sidebarActiveView}
+        onNavClick={navigateToTab}
+        bottomLabel="Overview"
+        onBottomClick={() => navigateToTab("Overview")}
+        BottomIcon={Home}
+      />
 
       {/* MAIN COLUMN — headers + content + footer */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -1564,10 +1497,10 @@ export default function AthenaWorkoutPage() {
                     if (!badge) return null;
                     return (
                       <div className="text-center">
+                        <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Target</p>
                         <span className="text-xs font-black text-emerald-500">
                           {getBadgeLabel(badge)}
                         </span>
-                        <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Target</p>
                       </div>
                     );
                   })()}
@@ -1616,7 +1549,7 @@ export default function AthenaWorkoutPage() {
                   // self-sufficient (fetches its own data), not the separate
                   // /workout/workoutSummary page.
                   localStorage.setItem("returningFromAthenaWorkout", "true");
-                  router.push("/workout/viewWorkoutSession?view=Map");
+                  router.replace("/workout/viewWorkoutSession?view=Map");
                 }}
                 className="bg-[#0FCC91] hover:bg-[#0ab87e] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0"
               >
@@ -1653,7 +1586,7 @@ export default function AthenaWorkoutPage() {
                   // session was never joined and shows the rejoin banner
                   // instead of the Results view.
                   localStorage.setItem("returningFromAthenaWorkout", "true");
-                  router.push("/workout/viewWorkoutSession?view=Results");
+                  router.replace("/workout/viewWorkoutSession?view=Results");
                 }}
                 className="w-full text-left"
               >
@@ -1739,10 +1672,15 @@ export default function AthenaWorkoutPage() {
                   </div>
                 ) : (
                   exercisesForSidebar.map((ex, idx) => (
-                    <button
+                    <div
                       key={ex.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setCurrentExerciseIndex(idx)}
-                      className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-28 md:h-32 w-full ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setCurrentExerciseIndex(idx);
+                      }}
+                      className={`rounded-lg border p-1.5 flex flex-col items-center justify-center relative transition-all h-28 md:h-32 w-full cursor-pointer ${
                         ex.isCurrent
                           ? "border-[#6202AC] bg-[#f8f5ff] shadow-sm"
                           : "border-gray-200 hover:border-gray-300 bg-white"
@@ -1829,7 +1767,7 @@ export default function AthenaWorkoutPage() {
                           );
                         })()}
                       </div>
-                    </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -2216,132 +2154,11 @@ export default function AthenaWorkoutPage() {
         />
       )}
 
-      {/* SHARE SESSION MODAL — mirrors mobile's ShareSessionModal */}
-      {showShareModal && (
-        <div
-          className="fixed inset-0 z-[500] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
-          onClick={() => setShowShareModal(false)}
-        >
-          <div
-            className="w-full max-w-[380px] flex flex-col bg-white rounded-[24px] overflow-hidden shadow-2xl"
-            style={{ height: "520px" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-[18px] font-black text-[#7c3aed]">
-                    Share This Session:
-                  </h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Session ID: {sessionId?.slice(0, 6) || "pending"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowShareModal(false)}
-                  className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition mt-0.5"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-              <div className="bg-[#f5f5f7] rounded-2xl p-5 flex flex-col items-center">
-                <div className="border-2 border-[#7c3aed] rounded-xl p-3 bg-white mb-3">
-                  <svg width="100" height="100" viewBox="0 0 100 100" className="text-[#1e1e22]">
-                    <rect x="0" y="0" width="40" height="40" rx="4" fill="currentColor" />
-                    <rect x="60" y="0" width="40" height="40" rx="4" fill="currentColor" />
-                    <rect x="0" y="60" width="40" height="40" rx="4" fill="currentColor" />
-                    <rect x="8" y="8" width="24" height="24" rx="2" fill="white" />
-                    <rect x="68" y="8" width="24" height="24" rx="2" fill="white" />
-                    <rect x="8" y="68" width="24" height="24" rx="2" fill="white" />
-                    <rect x="16" y="16" width="8" height="8" fill="currentColor" />
-                    <rect x="76" y="16" width="8" height="8" fill="currentColor" />
-                    <rect x="16" y="76" width="8" height="8" fill="currentColor" />
-                    <rect x="52" y="4" width="6" height="6" fill="currentColor" />
-                    <rect x="62" y="4" width="6" height="6" fill="currentColor" />
-                    <rect x="52" y="14" width="6" height="6" fill="currentColor" />
-                    <rect x="4" y="52" width="6" height="6" fill="currentColor" />
-                    <rect x="14" y="52" width="6" height="6" fill="currentColor" />
-                    <rect x="24" y="52" width="6" height="6" fill="currentColor" />
-                    <rect x="52" y="52" width="6" height="6" fill="currentColor" />
-                    <rect x="62" y="62" width="6" height="6" fill="currentColor" />
-                    <rect x="74" y="52" width="6" height="6" fill="currentColor" />
-                    <rect x="84" y="62" width="6" height="6" fill="currentColor" />
-                    <rect x="52" y="74" width="6" height="6" fill="currentColor" />
-                    <rect x="64" y="84" width="6" height="6" fill="currentColor" />
-                    <rect x="84" y="84" width="6" height="6" fill="currentColor" />
-                  </svg>
-                </div>
-                <p className="text-[11px] text-gray-400 font-medium">
-                  Scan this code to join the session
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[13px] font-black text-[#222] mb-3">
-                  Share with Followers:
-                </p>
-                <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-4 py-2.5 mb-3">
-                  <Search size={14} className="text-gray-400 flex-shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Search Followers"
-                    value={shareFollowerSearch}
-                    onChange={(e) => setShareFollowerSearch(e.target.value)}
-                    className="flex-1 text-[12px] outline-none text-gray-700 placeholder-gray-400 bg-transparent"
-                  />
-                </div>
-                <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-                  {[
-                    { initials: "JD", name: "johndoe", color: "bg-[#7c3aed]" },
-                    { initials: "SK", name: "sarahk", color: "bg-blue-500" },
-                    { initials: "AM", name: "alexm", color: "bg-orange-400" },
-                    { initials: "LW", name: "lisawong", color: "bg-teal-400" },
-                    { initials: "RG", name: "robg", color: "bg-green-500" },
-                    { initials: "TP", name: "tompark", color: "bg-yellow-400" },
-                    { initials: "MK", name: "marykay", color: "bg-red-400" },
-                  ].map((u) => (
-                    <div key={u.initials} className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <div className={`w-10 h-10 rounded-full ${u.color} flex items-center justify-center text-white text-[11px] font-black`}>
-                        {u.initials}
-                      </div>
-                      <span className="text-[9px] text-gray-400 font-medium">{u.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[13px] font-black text-[#222] mb-3">Invite via Link</p>
-                <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Link size={12} className="text-gray-400 flex-shrink-0" />
-                    <p className="text-[11px] text-gray-400 truncate">
-                      {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId || "pending"}`}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (!sessionId) return;
-                    const url = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId}`;
-                    navigator.clipboard.writeText(url);
-                    setShareLinkCopied(true);
-                    setTimeout(() => setShareLinkCopied(false), 2000);
-                  }}
-                  disabled={!sessionId}
-                  className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {shareLinkCopied ? <Check size={14} /> : <Copy size={14} />}
-                  {shareLinkCopied ? "Copied!" : "Copy URL"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ShareSessionModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        sessionId={sessionId || ""}
+      />
 
       {/* AD DETAIL POPUP */}
       {selectedAd && (

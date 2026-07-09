@@ -29,7 +29,7 @@ export function TeamInviteQrModal({ team, onClose }: TeamInviteQrModalProps) {
     setLoadingInvite(true);
     coachApi.getTeamInvite(team.id)
       .then((info) => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
+        const origin = "https://paxlete.com";
         const extractCode = (link?: string | null) => (link ? link.split("/").filter(Boolean).pop() ?? "" : "");
         const code =
           info.unique_code ||
@@ -47,7 +47,7 @@ export function TeamInviteQrModal({ team, onClose }: TeamInviteQrModalProps) {
         setInviteUrl(`${origin}/player/team-invite?${params.toString()}`);
       })
       .catch(() => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://proformapp-web.onrender.com";
+        const origin = "https://paxlete.com";
         const extractCode = (link?: string | null) => (link ? link.split("/").filter(Boolean).pop() ?? "" : "");
         const params = new URLSearchParams({
           code: team.unique_code || extractCode(team.invite_link) || "",

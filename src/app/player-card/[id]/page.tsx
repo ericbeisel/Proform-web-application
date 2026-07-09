@@ -18,6 +18,7 @@ import {
   PlayerCardDetail,
 } from "@/api/player-card/route";
 import { dashboardApi } from "@/api/dashboard/route"; // Add this import
+import { getAuthToken } from "@/lib/auth/session";
 
 type MetricsState = {
   currentWeight: string;
@@ -159,6 +160,13 @@ export default function PlayerCardDetailView() {
   };
 
   useEffect(() => {
+    // Guard: a copy-pasted share link can be opened by a logged-out
+    // browser — redirect to login instead of letting the fetch below fail.
+    if (!getAuthToken()) {
+      router.replace("/auth/login");
+      return;
+    }
+
     if (parsedId === null) {
       setLoading(false);
       return;
@@ -167,7 +175,7 @@ export default function PlayerCardDetailView() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch both card details and dashboard data in parallel
         const [cardResponse, dashboardResponse] = await Promise.allSettled([
           getAdminPlayerCardById(parsedId),
@@ -218,7 +226,7 @@ export default function PlayerCardDetailView() {
     };
 
     void fetchData();
-  }, [parsedId]);
+  }, [parsedId, router]);
 
   const scanDate = cardData?.date ? cardData.date.split(" ")[0] : "N/A";
   const playerName = cardData?.name || "Player";

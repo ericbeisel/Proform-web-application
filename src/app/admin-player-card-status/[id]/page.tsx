@@ -18,6 +18,7 @@ import {
   PlayerCardDetail,
   rejectAdminPlayerCard,
 } from "@/api/player-card/route";
+import { getAuthToken } from "@/lib/auth/session";
 
 type ToastType = "success" | "error";
 
@@ -183,6 +184,13 @@ export default function AdminPlayerCardDetail() {
   };
 
 useEffect(() => {
+  // Guard: a copy-pasted share link can be opened by a logged-out
+  // browser — redirect to login instead of letting the fetch below fail.
+  if (!getAuthToken()) {
+    router.replace("/auth/login");
+    return;
+  }
+
   if (parsedId === null) {
     setLoading(false);
     setToast({ type: "error", message: "Invalid player card id." });
@@ -243,7 +251,7 @@ useEffect(() => {
   };
 
   void fetchCard();
-}, [parsedId]);
+}, [parsedId, router]);
 
   useEffect(() => {
     if (!toast) return;

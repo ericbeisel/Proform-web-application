@@ -93,6 +93,15 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-[520px] mx-auto">
+      {/* Logo */}
+      <div className="flex justify-center mb-6">
+        <img
+          src="/images/proform-logo.jpg"
+          alt="Proform"
+          className="h-14 w-auto rounded-lg"
+        />
+      </div>
+
       {/* Welcome Text */}
       <div className="text-center mb-12 px-4">
         <h1 className="text-4xl font-bold text-black mb-3">Welcome Back!</h1>

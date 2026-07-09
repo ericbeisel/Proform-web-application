@@ -278,6 +278,8 @@ export default function PowerSetTrackingModal({
 
     setSavingSetIndexes((p) => [...p, index]);
     try {
+      console.log("[PowerSetModal debug] saving set:", { index, set, exerciseId, sessionId, workoutLibraryId });
+
       // compute load
       const isKg = userUnit === "kg";
       const rawWeight = parseFloat(String((userOtherDetail as any)?.current_weight ?? (userOtherDetail as any)?.currentWeight ?? 0)) || 0;
@@ -300,12 +302,14 @@ export default function PowerSetTrackingModal({
         load: set.unableToPerform ? 0 : computedLoad,
         specializedWorkoutId: exercise?.id || exercise?.exercise?.id,
       });
+      console.log("[PowerSetModal debug] createTrackingLog response:", response);
 
       const savedLoad = (response as any)?.load ?? computedLoad;
       const trackingLogId = (response as any)?.id ?? (response as any)?.trackingLog?.id;
+      console.log("[PowerSetModal debug] resolved trackingLogId:", trackingLogId, "| set.min_reps:", set.min_reps);
 
       if (set.min_reps != null) {
-        const res = await createPowerSetLog({
+        const powerSetPayload = {
           new_weight: set.unableToPerform ? 0 : weightNum,
           reps: set.unableToPerform ? 0 : repsNum,
           unable_to_perform: set.unableToPerform,
@@ -317,13 +321,18 @@ export default function PowerSetTrackingModal({
           tracking_log: trackingLogId,
           old_weight: parseFloat(set.suggestedWeight ?? "0") || 0,
           old_reps: set.min_reps ?? (parseInt(set.suggestedReps ?? "0", 10) || 0),
-        });
+        };
+        console.log("[PowerSetModal debug] createPowerSetLog payload:", powerSetPayload);
+        const res = await createPowerSetLog(powerSetPayload);
+        console.log("[PowerSetModal debug] createPowerSetLog response:", res);
         if (res?.powerSetLog) {
           setUpdatedRecord((p) => ({
             ...p,
             [set.power_id ?? String(index)]: res.powerSetLog,
           }));
         }
+      } else {
+        console.log("[PowerSetModal debug] set.min_reps is null — skipping createPowerSetLog (this set will never turn green on the Map tab).");
       }
 
       onUpdateSet(index, "weight", set.unableToPerform ? "0" : String(weightNum));

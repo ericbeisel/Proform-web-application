@@ -878,7 +878,21 @@ export const completeActivity = async (payload: {
   workoutLibraryId: string;
   workoutName?: string;
 }): Promise<void> => {
-  await apiClient.post("/workouts/complete-activity", payload);
+  try {
+    await apiClient.post("/workouts/complete-activity", payload);
+  } catch (error: unknown) {
+    console.error("[completeActivity] raw error response:", axios.isAxiosError(error) ? error.response?.data : error);
+    throw new Error(getErrorMessage(error, "Failed to complete workout activity."));
+  }
+};
+
+// Exact port of mobile's programService.inviteToSession.
+export const inviteToSession = async (sessionId: string, email: string): Promise<void> => {
+  try {
+    await apiClient.post(`/workouts/session/${sessionId}/invite`, { email });
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to send invite email. Please try again."));
+  }
 };
 
 export const getDropdownOptions = async (): Promise<DropdownOptions> => {

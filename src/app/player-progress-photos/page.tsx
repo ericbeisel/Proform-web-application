@@ -8,10 +8,11 @@ import {
   ChevronRight,
   Activity
 } from "lucide-react";
-import { 
-  getPlayerCardList, 
-  PlayerCardDetail 
+import {
+  getPlayerCardList,
+  PlayerCardDetail
 } from "@/api/player-card/route";
+import { getAuthToken } from "@/lib/auth/session";
 
 interface PhotoItem {
   id: number;
@@ -45,6 +46,13 @@ export default function PlayerProgressPhotos() {
   const [playerName, setPlayerName] = useState("");
 
   useEffect(() => {
+    // Guard: a copy-pasted share link can be opened by a logged-out
+    // browser — redirect to login instead of letting the fetch below fail.
+    if (!getAuthToken()) {
+      router.replace("/auth/login");
+      return;
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -74,7 +82,7 @@ export default function PlayerProgressPhotos() {
     };
 
     void fetchData();
-  }, []);
+  }, [router]);
 
   if (loading) {
     return (

@@ -4,7 +4,12 @@
     "details": [
       {
         "appID": "QJ9P4ALZUM.com.paxlete.app",
-        "paths": ["/join-team/*", "/view-session/*", "/workout-preview/*"]
+        "paths": [
+          "/join-team/*",
+          "/view-session/*",
+          "/workout-preview/*",
+          "/signup*"
+        ]
       }
     ]
   }
