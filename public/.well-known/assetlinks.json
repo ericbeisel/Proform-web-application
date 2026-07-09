@@ -1,16 +1,13 @@
 [
-    {
-        "relation": [
-            "delegate_permission/common.handle_all_urls"
-        ],
-        "target": {
-            "namespace": "android_app",
-            "package_name": "com.paxlete.app",
-            "sha256_cert_fingerprints": [
-                "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
-                "51:5B:D6:00:C7:74:8D:B8:8D:B7:06:01:44:09:80:63:FE:F8:C2:77:39:A6:2C:FA:B6:01:80:15:56:13:7F:83",
-                "D5:D0:CA:20:28:84:A8:53:88:6D:7F:C2:4C:CF:B5:C6:47:D7:EE:8B:2C:21:3E:62:89:AB:D9:BF:B9:DC:2E:6C"
-            ]
-        }
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.paxlete.app",
+      "sha256_cert_fingerprints": [
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+        "D5:D0:CA:20:28:84:A8:53:88:6D:7F:C2:4C:CF:B5:C6:47:D7:EE:8B:2C:21:3E:62:89:AB:D9:BF:B9:DC:2E:6C"
+      ]
     }
+  }
 ]

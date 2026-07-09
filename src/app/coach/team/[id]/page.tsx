@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
-import { CreatePlayerModal } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
+import { CreatePlayerModal, type CreatePlayerFormValues } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
@@ -97,14 +97,38 @@ function TeamDetailContent() {
     }
   }, []);
 
-  useEffect(() => {
+  function refetchPlayers() {
     if (!id) return;
     setPlayersLoading(true);
-    coachApi.getTeamPlayers({ team_id: id, limit: 20 })
+    coachApi.getTeamPlayers({ team_id: id, search: playerSearch, limit: 20 })
       .then(({ players }) => setPlayers(players))
       .catch(console.error)
       .finally(() => setPlayersLoading(false));
+  }
+
+  useEffect(() => {
+    refetchPlayers();
   }, [id]);
+
+  async function handleCreatePlayer(values: CreatePlayerFormValues) {
+    const response = await coachApi.invitePlayer({ team_id: id, name: values.name, email: values.email });
+    if (response.status === "added") {
+      refetchPlayers();
+    } else {
+      setPlayers((prev) => [
+        ...prev,
+        {
+          id: Math.floor(Math.random() * 1_000_000) + 100_000,
+          name: values.name,
+          email: values.email,
+          username: values.email.split("@")[0],
+          profile_picture: values.image ? URL.createObjectURL(values.image) : null,
+          pendingSignup: true,
+          inviteLink: response.inviteLink,
+        },
+      ]);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -499,10 +523,9 @@ function TeamDetailContent() {
 
       {showCreateModal && (
         <CreatePlayerModal
-          teamId={id}
           teamName={teamName}
           onClose={() => setShowCreateModal(false)}
-          onPlayerCreated={(newPlayer) => setPlayers((prev) => [...prev, newPlayer])}
+          onSave={handleCreatePlayer}
         />
       )}
     </div>

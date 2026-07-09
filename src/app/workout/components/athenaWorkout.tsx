@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Award,
   Clock,
   Play,
   Pause,
@@ -15,6 +14,7 @@ import {
   Settings,
   Share2,
   MapPin,
+  Home,
   BarChart2,
   BarChart3,
   Info,
@@ -25,7 +25,6 @@ import {
   DollarSign,
   TrendingUp,
   Loader2,
-  Home,
   Pencil,
   Dumbbell,
   Zap,
@@ -33,6 +32,9 @@ import {
   PanelLeftOpen,
   Search,
   CheckCircle2,
+  Link,
+  Check,
+  Copy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -40,18 +42,19 @@ import {
   SectionExercise,
   getTrackingLogs,
   createTrackingLog,
-  getWorkoutLoads,
   getWorkoutLoadRecords,
   createWorkoutLoad,
-  WorkoutLoadSummary,
   WorkoutLoadRecord,
   updateSessionLocation,
   getPowerSetDetails,
 } from "@/api/workouts/route";
-import { getProgramGroupedWorkouts, WorkoutGroup } from "@/api/programs/route";
+import { getProgramGroupedWorkouts, WorkoutGroup, getProgramPowerSets, PowerSet } from "@/api/programs/route";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { equipmentApi, LocationItem, Equipment } from "@/api/location/route";
 import SwapExerciseModal from "./swapExerciseModal";
+import PowerSetTrackingModal, { type VelocitySet } from "../viewWorkoutSession/PowerSetTrackingModal";
+import { convertToUserUnit } from "@/lib/units";
+import { feedApi, Advertisement } from "@/api/feed/route";
 
 function parseHeightInches(h: string | number | null | undefined): number {
   if (!h) return 0;
@@ -67,6 +70,105 @@ function parseRepsVal(repsStr: string | number | null | undefined): number {
   const cleaned = String(repsStr).trim().split("-").pop()?.trim() || "";
   const val = parseInt(cleaned.replace(/\D/g, ""), 10);
   return isNaN(val) ? 0 : val;
+}
+
+function cleanReps(repsStr: string | number | null | undefined): string {
+  if (repsStr === null || repsStr === undefined) return "";
+  const str = String(repsStr).trim();
+  const part = str.split("-").pop()?.trim() || "";
+  return part.replace(/\D/g, "");
+}
+
+type ExerciseBadge = "UES" | "LES" | "CCS" | "HHP" | null;
+
+// Ported exactly from mobile's getExerciseBadge/getBadgeLabel
+// (WorkoutSessionScreen.tsx) — the "Target" chip shown beside Reps.
+function getExerciseBadge(exercise: any): ExerciseBadge {
+  if (!exercise) return null;
+  const ex = exercise.exercise || exercise;
+  const name = (ex.name || ex.exercise_name || ex.title || "").toLowerCase();
+
+  if (name.includes("clean")) return "CCS";
+  if (name.includes("deadlift")) return "HHP";
+
+  const upperBody =
+    (parseFloat(ex.chest) || 0) +
+    (parseFloat(ex.biceps) || 0) +
+    (parseFloat(ex.triceps) || 0) +
+    (parseFloat(ex.frontDelts) || 0) +
+    (parseFloat(ex.lateralDelts) || 0) +
+    (parseFloat(ex.rearDelts) || 0) +
+    (parseFloat(ex.traps) || 0) +
+    (parseFloat(ex.forearms) || 0) +
+    (parseFloat(ex.scaps) || 0) +
+    (parseFloat(ex.latsUpperBack) || 0);
+
+  const lowerBody =
+    (parseFloat(ex.glutes) || 0) +
+    (parseFloat(ex.calves) || 0) +
+    (parseFloat(ex.hamstrings) || 0) +
+    (parseFloat(ex.adductors) || 0) +
+    (parseFloat(ex.abuductorsHips) || 0) +
+    (parseFloat(ex.quads) || 0);
+
+  if (upperBody > 0 || lowerBody > 0) {
+    return upperBody >= lowerBody ? "UES" : "LES";
+  }
+
+  const lowerKeywords = [
+    "squat", "leg", "glute", "calf", "hamstring", "quad", "lunge",
+    "toe", "heel", "hip", "knee", "adductor", "abductor", "thrust", "step up",
+  ];
+  const upperKeywords = [
+    "chest", "bench", "press", "pushup", "pullup", "chinup", "row", "fly",
+    "bicep", "tricep", "arm", "curl", "delt", "shoulder", "trap", "shrug",
+    "raise", "pulldown", "dip", "apart", "wrist",
+  ];
+
+  for (const kw of lowerKeywords) if (name.includes(kw)) return "LES";
+  for (const kw of upperKeywords) if (name.includes(kw)) return "UES";
+  return null;
+}
+
+function getBadgeLabel(badge: ExerciseBadge): string {
+  switch (badge) {
+    case "UES": return "$Bench";
+    case "LES": return "$Squat";
+    case "CCS": return "$Clean";
+    case "HHP": return "$Deadlift";
+    default: return "";
+  }
+}
+
+// Ported exactly from mobile's getExerciseWeightToDisplay
+// (WorkoutSessionScreen.tsx) — prefers the backend's pre-computed
+// calculated_weight, else falls back to the raw weight field (labeled with
+// its own msrmt unit), then converts the result to the user's actual unit.
+function getExerciseWeightToDisplay(exercise: any, userDetail: UserOtherDetail | null): string | null {
+  if (!exercise) return null;
+  let weightVal = "";
+  if (exercise.calculated_weight) {
+    weightVal = exercise.calculated_weight;
+  } else {
+    const rawWeight = exercise.weight;
+    if (rawWeight && rawWeight !== "0" && rawWeight !== "0.0" && String(rawWeight).trim() !== "") {
+      const unit = exercise.msrmt || "lbs";
+      if (String(rawWeight).toLowerCase().includes("lbs") || String(rawWeight).toLowerCase().includes("kg")) {
+        weightVal = rawWeight;
+      } else {
+        weightVal = `${rawWeight} ${unit}`;
+      }
+    }
+  }
+  const userUnit = (userDetail?.measurementUnit || "lbs").toLowerCase().trim();
+  return weightVal ? convertToUserUnit(weightVal, userUnit, exercise.msrmt || "lbs") : null;
+}
+
+// Backend's section-exercises response isn't reliably pre-sorted — mobile
+// always re-sorts by `.order` before rendering (WorkoutSessionScreen.tsx),
+// so this must match exactly or exercises show in the wrong sequence.
+function sortByOrder(exercises: SectionExercise[]): SectionExercise[] {
+  return [...exercises].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function computeExerciseLoad(
@@ -111,13 +213,6 @@ function computeExerciseLoad(
   const load  = Math.ceil((data1 + data2) / 2600);
   const power = Math.ceil((userWeight + data2) / 1300);
   const kcal  = Math.ceil((66 + userWeight * 6.2 + userHeight * 12.7 * load) / 4000);
-
-  console.log("[load-calc] exercise:", exercise.exercise_name,
-    "| userWeight:", userWeight, "userHeight:", userHeight,
-    "| E:", E, "reps:", value, "e:", e, "sets:", setsCount,
-    "| weightAdj:", weightAdj, "baseWeight:", baseWeight, "exWt:", exWt, "wt:", wt,
-    "| data1:", data1, "data2:", data2,
-    "| → load:", load, "power:", power, "kcal:", kcal);
 
   return { load, power, kcal };
 }
@@ -196,20 +291,34 @@ export default function AthenaWorkoutPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [workoutCode, setWorkoutCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Share Session modal — mirrors mobile's ShareSessionModal, opened from
+  // the header's Share icon.
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareFollowerSearch, setShareFollowerSearch] = useState("");
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+
   const [locationName, setLocationName] = useState<string>("Temporary Location");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarActiveView, setSidebarActiveView] = useState("Overview");
 
-  // Location popup
+  // Location popup — mirrors mobile's LocationBottomSheet: browsing/selecting
+  // a row only stages it locally (tempSelectedLocationId); the change isn't
+  // applied (session update + exercise refetch) until "Select Location" is
+  // confirmed. setAsDefaultLocation mirrors its "Set as Default" checkbox.
   const [showLocationPopup, setShowLocationPopup] = useState(false);
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [swappingLocation, setSwappingLocation] = useState(false);
   const [locationEquipments, setLocationEquipments] = useState<Map<number, string[]>>(new Map());
+  const [tempSelectedLocationId, setTempSelectedLocationId] = useState<string | null>(null);
+  const [setAsDefaultLocation, setSetAsDefaultLocation] = useState(false);
+  const [confirmingLocation, setConfirmingLocation] = useState(false);
 
-  // Create location popup
+  // Create/Edit location popup — reused for both, mirrors mobile's
+  // "CreateLocation" screen being navigated to with locationData for edits.
   const [showCreateLocationPopup, setShowCreateLocationPopup] = useState(false);
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
   const [allEquipLoading, setAllEquipLoading] = useState(false);
@@ -217,9 +326,9 @@ export default function AthenaWorkoutPage() {
   const [createSelectedIds, setCreateSelectedIds] = useState<Set<number>>(new Set());
   const [createTitle, setCreateTitle] = useState("");
   const [createSubmitting, setCreateSubmitting] = useState(false);
-
-  // Workout loads
-  const [workoutLoads, setWorkoutLoads] = useState<WorkoutLoadSummary>({ load: 0, power: 0, kcal: 0 });
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
+  const [editingLocationLoading, setEditingLocationLoading] = useState(false);
+  const [createSetAsDefault, setCreateSetAsDefault] = useState(false);
 
   // Round completion — mirrors mobile's handleToggleComplete/verifyPowerSetsCompletion
   const [isCurrentRoundCompleted, setIsCurrentRoundCompleted] = useState(false);
@@ -233,17 +342,18 @@ export default function AthenaWorkoutPage() {
   const [isCountingRoundStats, setIsCountingRoundStats] = useState(false);
   const [loadRecords, setLoadRecords] = useState<WorkoutLoadRecord[]>([]);
 
-  const refreshLoads = async (sid: string | null) => {
-    if (!sid) return;
-    const loads = await getWorkoutLoads(sid);
-    setWorkoutLoads(loads);
-  };
-
   const refreshLoadRecords = async (sid: string | null) => {
     if (!sid) return;
     const records = await getWorkoutLoadRecords(sid);
     setLoadRecords(records);
   };
+
+  // Sponsored ad banner — mirrors mobile's BannerFittedSlider/SponsoredSlider
+  // at the top of WorkoutSessionScreen (adType "Workout Banner").
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [adIndex, setAdIndex] = useState(0);
+  const [selectedAd, setSelectedAd] = useState<Advertisement | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Exercise tracking
   const [trackingExercise, setTrackingExercise] = useState<SectionExercise | null>(null);
@@ -254,6 +364,42 @@ export default function AthenaWorkoutPage() {
   const [savingLogs, setSavingLogs] = useState(false);
   const [savingSetIndex, setSavingSetIndex] = useState<number | null>(null);
   const [userOtherDetail, setUserOtherDetail] = useState<UserOtherDetail | null>(null);
+
+  // "Complete the $ Set" modal — mirrors mobile's
+  // selectedExerciseForVelocity/isVelocityModalVisible when opened for a
+  // power-set exercise (PowerSetTrackingModal branch).
+  const [moneySetExercise, setMoneySetExercise] = useState<SectionExercise | null>(null);
+  const [moneySetSets, setMoneySetSets] = useState<VelocitySet[]>([]);
+
+  const openMoneySetModal = useCallback((exercise: SectionExercise) => {
+    setMoneySetExercise(exercise);
+    setMoneySetSets([
+      { weight: "", reps: cleanReps(exercise?.reps || "8-12"), unit: "", recorded: false },
+    ]);
+  }, []);
+
+  const addMoneySetSet = useCallback(() => {
+    setMoneySetSets((prev) => [
+      ...prev,
+      { weight: "", reps: "", unit: "", recorded: false, isCustom: true },
+    ]);
+  }, []);
+
+  const updateMoneySetSet = useCallback((index: number, field: string, value: any) => {
+    setMoneySetSets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }, []);
+
+  const toggleRecordMoneySetSet = useCallback((index: number) => {
+    setMoneySetSets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], recorded: !next[index].recorded };
+      return next;
+    });
+  }, []);
 
   // Keep ref in sync so the interval always reads fresh values
   useEffect(() => {
@@ -314,7 +460,6 @@ export default function AthenaWorkoutPage() {
 
         const sid = localStorage.getItem(`activeSessionId_${code?.toUpperCase()}`);
         setSessionId(sid);
-        refreshLoads(sid);
         refreshLoadRecords(sid);
         const loc = localStorage.getItem("workoutLocationName");
         if (loc) setLocationName(loc);
@@ -343,7 +488,7 @@ export default function AthenaWorkoutPage() {
             programCode: code,
             section: groups[startIdx]?.label || groups[0].label,
           });
-          const exercises = sectionRes.exercises || sectionRes.workouts || [];
+          const exercises = sortByOrder(sectionRes.exercises || sectionRes.workouts || []);
           setSectionExercises(exercises);
           setIsCurrentRoundCompleted(!!sectionRes.isCompleted);
           // The session's own location is the source of truth once it
@@ -381,7 +526,7 @@ export default function AthenaWorkoutPage() {
           programCode: code,
           section: groups[sectionIndex].label,
         });
-        const exercises = sectionRes.exercises || sectionRes.workouts || [];
+        const exercises = sortByOrder(sectionRes.exercises || sectionRes.workouts || []);
         setSectionExercises(exercises);
         setIsCurrentRoundCompleted(!!sectionRes.isCompleted);
         if (sectionRes.locationName) {
@@ -405,6 +550,27 @@ export default function AthenaWorkoutPage() {
 
   const currentSection = sections[currentSectionIndex];
   const currentExercise = sectionExercises[currentExerciseIndex];
+
+  // "Power Sets (if any)" inline cards shown while a power-set exercise is
+  // active — mirrors mobile's inlinePowerSets fetch/match exactly.
+  const [inlinePowerSets, setInlinePowerSets] = useState<PowerSet[]>([]);
+  useEffect(() => {
+    const powerSetExercises = sectionExercises.filter((ex) => ex.is_power_set);
+    if (powerSetExercises.length === 0 || !workoutCode) {
+      setInlinePowerSets([]);
+      return;
+    }
+    getProgramPowerSets(workoutCode, sessionId || undefined)
+      .then((allPowerSets) => {
+        const matched = (allPowerSets || []).filter((ps) =>
+          powerSetExercises.some(
+            (ex) => ps.id === ex.id || (ps as unknown as { exercise_uuid?: string }).exercise_uuid === ex.exercise_id,
+          ),
+        );
+        setInlinePowerSets(matched.length > 0 ? matched : allPowerSets || []);
+      })
+      .catch(() => setInlinePowerSets([]));
+  }, [sectionExercises, workoutCode, sessionId]);
 
   // Sum of this round's exercises — mirrors mobile's currentRoundStats
   const currentRoundStats = useMemo(() => {
@@ -438,6 +604,28 @@ export default function AthenaWorkoutPage() {
     return { load: 0, power: 0, kcal: 0 };
   }, [sections, currentSectionIndex, loadRecords]);
 
+  // The saved record for the CURRENT round specifically (whether or not it's
+  // complete) — mirrors mobile's currentSavedStats.
+  const currentSavedStats = useMemo(() => {
+    if (!currentSection) return null;
+    const label = currentSection.label;
+    const match = loadRecords.find((r) => r.title === label);
+    if (match) return { load: match.load || 0, power: match.power || 0, kcal: match.kcal || 0 };
+    return null;
+  }, [currentSection, loadRecords]);
+
+  // What the "This Workout" tiles actually show — mirrors mobile's
+  // displayStats exactly: once the current round is saved/completed, show
+  // its own (already-cumulative) record; otherwise show the nearest
+  // previously-completed round's cumulative record. Each saved record is
+  // already a running total (see loadToSave below), so summing every record
+  // together (the old workoutLoads/getWorkoutLoads approach) double-counted
+  // as soon as more than one round was completed.
+  const displayStats = useMemo(() => {
+    if (isCurrentRoundCompleted && currentSavedStats) return currentSavedStats;
+    return previousRoundStats;
+  }, [isCurrentRoundCompleted, currentSavedStats, previousRoundStats]);
+
   const handleToggleRoundComplete = async (checked: boolean) => {
     if (checked && !powerSetsCompleted) {
       setShowMoneySetModal(true);
@@ -462,7 +650,7 @@ export default function AthenaWorkoutPage() {
         kcal: kcalToSave,
       });
       setIsCurrentRoundCompleted(checked);
-      await Promise.all([refreshLoads(sessionId), refreshLoadRecords(sessionId)]);
+      await refreshLoadRecords(sessionId);
     } catch (err) {
       console.error("[athena] Failed to save round completion:", err);
     } finally {
@@ -491,16 +679,23 @@ export default function AthenaWorkoutPage() {
         .then(setPowerSetsCompleted)
         .finally(() => setVerifyingPowerSets(false));
       refreshLoadRecords(sessionId);
-      refreshLoads(sessionId);
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [sectionExercises, sessionId]);
 
+  // Matches mobile's cardRepsTextNew formatting exactly: "{rounds}x {reps}"
+  // (e.g. "3x 8-12"), not reps alone.
+  const roundsForSidebar = currentSection?.rounds || "1";
+  const roundsFormattedForSidebar = String(roundsForSidebar).toLowerCase().includes("x")
+    ? String(roundsForSidebar).toLowerCase()
+    : `${roundsForSidebar}x`;
   const exercisesForSidebar = sectionExercises.map((ex, i) => ({
     id: i + 1,
     title: ex.exercise_name || ex.title,
-    subtitle: ex.reps,
+    subtitle: `${roundsFormattedForSidebar} ${ex.reps || "8-12"}`,
+    supplemental: ex.supplemental,
+    weightDisplay: getExerciseWeightToDisplay(ex, userOtherDetail),
     isCurrent: i === currentExerciseIndex,
     gifUrl: resolveMediaUrl(ex.demo_gif || ex.demoGif),
     isPowerSet: ex.is_power_set,
@@ -520,7 +715,40 @@ export default function AthenaWorkoutPage() {
     dashboardApi.getDashboardData()
       .then((res) => setUserOtherDetail(res.user.OtherDetail))
       .catch(() => {});
+
+    feedApi
+      .getAdvertisements("Workout Banner")
+      .then((all) => {
+        const shuffled = [...all].sort(() => Math.random() - 0.5).slice(0, 4);
+        setAds(shuffled);
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (ads.length === 0) return;
+    const timer = setInterval(() => setAdIndex((i) => (i + 1) % ads.length), 4500);
+    return () => clearInterval(timer);
+  }, [ads]);
+
+  // Sidebar tab navigation — mirrors mobile's WorkoutTabNavigator, where
+  // Overview/Session/Results/Powersets/Map are all tabs within one screen.
+  // Web splits "Session" (this active-workout page) out into its own route,
+  // while the other four are tabs inside viewWorkoutSession/page.tsx;
+  // router.push is a client-side transition in the Next.js App Router (no
+  // full page reload), so this is the closest equivalent without merging
+  // the two pages into one. Uses the same one-shot "still engaged" signal
+  // as "Return to Workout" — without it, viewWorkoutSession's mount effect
+  // shows the rejoin banner instead of the requested tab.
+  const navigateToTab = (label: string) => {
+    setSidebarActiveView(label);
+    localStorage.setItem("returningFromAthenaWorkout", "true");
+    if (label === "Session") {
+      router.push("/workout/viewWorkoutSession?openSession=true");
+      return;
+    }
+    router.push(`/workout/viewWorkoutSession?view=${encodeURIComponent(label)}`);
+  };
 
   const openTracking = async (ex: SectionExercise) => {
     setTrackingExercise(ex);
@@ -567,6 +795,8 @@ export default function AthenaWorkoutPage() {
 
   const openLocationPopup = async () => {
     setShowLocationPopup(true);
+    setTempSelectedLocationId(locationId);
+    setSetAsDefaultLocation(false);
     if (locations.length === 0) {
       setLocationsLoading(true);
       try {
@@ -596,9 +826,11 @@ export default function AthenaWorkoutPage() {
   const openCreateLocationPopup = async () => {
     setShowLocationPopup(false);
     setShowCreateLocationPopup(true);
+    setEditingLocationId(null);
     setCreateTitle("");
     setCreateSelectedIds(new Set());
     setCreateSearch("");
+    setCreateSetAsDefault(false);
     if (allEquipment.length === 0) {
       setAllEquipLoading(true);
       try {
@@ -612,23 +844,84 @@ export default function AthenaWorkoutPage() {
     }
   };
 
+  // Mirrors mobile's onEditLocation — reuses the same create-location screen
+  // pre-filled with the location's existing name/equipment, in edit mode.
+  const openEditLocationPopup = async (loc: LocationItem) => {
+    setShowLocationPopup(false);
+    setShowCreateLocationPopup(true);
+    setEditingLocationId(loc.id);
+    setCreateTitle(loc.name);
+    setCreateSearch("");
+    setCreateSelectedIds(new Set((loc.equipmentList || []).map((e) => e.id)));
+    setCreateSetAsDefault(loc.default_location === "1" || Number(loc.default_location) === 1);
+    if (allEquipment.length === 0) {
+      setAllEquipLoading(true);
+      try {
+        const eq = await equipmentApi.getAllEquipment();
+        setAllEquipment(eq);
+      } catch (err) {
+        console.error("[edit-location] Failed to load equipment:", err);
+      } finally {
+        setAllEquipLoading(false);
+      }
+    }
+    // Refresh from the full location detail in case the list's cached
+    // equipmentList is stale/partial.
+    setEditingLocationLoading(true);
+    try {
+      const detail = await equipmentApi.getLocationDetail(loc.id);
+      setCreateSelectedIds(new Set((detail.equipmentList || []).map((e) => e.id)));
+    } catch (err) {
+      console.error("[edit-location] Failed to load location detail:", err);
+    } finally {
+      setEditingLocationLoading(false);
+    }
+  };
+
   const handleCreateLocation = async () => {
     if (!createTitle.trim()) return;
     setCreateSubmitting(true);
     try {
-      const data = await equipmentApi.createLocation({
-        location_name: createTitle.trim(),
-        equipments: Array.from(createSelectedIds).join(","),
-      });
-      // Auto-select newly created location
-      setLocationName(createTitle.trim());
-      setLocationId(String(data.id));
-      localStorage.setItem("workoutLocationName", createTitle.trim());
-      localStorage.setItem("workoutLocationId", String(data.id));
+      let savedLocationId: number | null = null;
+      if (editingLocationId != null) {
+        await equipmentApi.updateLocation({
+          id: editingLocationId,
+          location_name: createTitle.trim(),
+          equipments: Array.from(createSelectedIds).join(","),
+        });
+        savedLocationId = editingLocationId;
+        // If the edited location is the one currently in use, refresh its
+        // displayed name too.
+        if (String(editingLocationId) === locationId) {
+          setLocationName(createTitle.trim());
+          localStorage.setItem("workoutLocationName", createTitle.trim());
+        }
+      } else {
+        const data = await equipmentApi.createLocation({
+          location_name: createTitle.trim(),
+          equipments: Array.from(createSelectedIds).join(","),
+        });
+        savedLocationId = data.id;
+        // Auto-select newly created location
+        setLocationName(createTitle.trim());
+        setLocationId(String(data.id));
+        localStorage.setItem("workoutLocationName", createTitle.trim());
+        localStorage.setItem("workoutLocationId", String(data.id));
+      }
+
+      // Mirrors mobile's CreateLocationScreen: applies to both create and
+      // edit, fires after the location itself is saved.
+      if (createSetAsDefault && savedLocationId != null) {
+        await equipmentApi.selectDefaultLocation(savedLocationId).catch((err) => {
+          console.error("[create-location] Failed to set default location:", err);
+        });
+      }
+
       // Reset location list cache so it refreshes next time
       setLocations([]);
       setLocationEquipments(new Map());
       setShowCreateLocationPopup(false);
+      setEditingLocationId(null);
     } catch (err) {
       console.error("[create-location] Failed:", err);
     } finally {
@@ -641,24 +934,32 @@ export default function AthenaWorkoutPage() {
   // so its exercises come back already substituted for the new location's
   // equipment — not a per-exercise swapExercise loop (that's the unrelated
   // manual single-exercise-swap feature, same mistake fixed in
-  // viewWorkoutSession's handleLocationFilter).
-  const handleLocationSelect = async (loc: LocationItem) => {
+  // viewWorkoutSession's handleLocationFilter). loc === null clears the
+  // session's location (mobile's "None (No Location)" option).
+  const handleLocationSelect = async (loc: LocationItem | null) => {
     setShowLocationPopup(false);
-    setLocationName(loc.name);
-    setLocationId(String(loc.id));
-    localStorage.setItem("workoutLocationName", loc.name);
-    localStorage.setItem("workoutLocationId", String(loc.id));
+    const newLocName = loc ? loc.name : "No Location";
+    const newLocId = loc ? String(loc.id) : "";
+    setLocationName(newLocName);
+    setLocationId(loc ? newLocId : null);
+    if (loc) {
+      localStorage.setItem("workoutLocationName", newLocName);
+      localStorage.setItem("workoutLocationId", newLocId);
+    } else {
+      localStorage.removeItem("workoutLocationName");
+      localStorage.removeItem("workoutLocationId");
+    }
 
     if (!sessionId || !workoutCode || !currentSection) return;
     setSwappingLocation(true);
     try {
-      await updateSessionLocation(sessionId, String(loc.id));
+      await updateSessionLocation(sessionId, newLocId);
       const sectionRes = await getWorkoutSectionFull({
         sessionId,
         programCode: workoutCode,
         section: currentSection.label,
       });
-      setSectionExercises(sectionRes.exercises || sectionRes.workouts || []);
+      setSectionExercises(sortByOrder(sectionRes.exercises || sectionRes.workouts || []));
       if (sectionRes.locationName) {
         setLocationName(sectionRes.locationName);
         localStorage.setItem("workoutLocationName", sectionRes.locationName);
@@ -667,6 +968,26 @@ export default function AthenaWorkoutPage() {
       console.error("[location] Failed to update session location:", err);
     } finally {
       setSwappingLocation(false);
+    }
+  };
+
+  // Confirm button in the location modal — mirrors mobile's handleConfirm:
+  // persists "set as default" first (if checked), then commits the staged
+  // selection via handleLocationSelect.
+  const handleConfirmLocationSelect = async () => {
+    const loc = tempSelectedLocationId != null
+      ? locations.find((l) => String(l.id) === tempSelectedLocationId) ?? null
+      : null;
+    setConfirmingLocation(true);
+    try {
+      if (loc && setAsDefaultLocation) {
+        await equipmentApi.selectDefaultLocation(loc.id).catch((err) => {
+          console.error("[location] Failed to set default location:", err);
+        });
+      }
+      await handleLocationSelect(loc);
+    } finally {
+      setConfirmingLocation(false);
     }
   };
 
@@ -713,7 +1034,7 @@ export default function AthenaWorkoutPage() {
                 ].map(({ label, Icon }) => (
                   <button
                     key={label}
-                    onClick={() => setSidebarActiveView(label)}
+                    onClick={() => navigateToTab(label)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
                       sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
                     }`}
@@ -739,7 +1060,7 @@ export default function AthenaWorkoutPage() {
               <button
                 key={label}
                 title={label}
-                onClick={() => { setSidebarActiveView(label); setSidebarOpen(true); }}
+                onClick={() => { navigateToTab(label); setSidebarOpen(true); }}
                 className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${
                   sidebarActiveView === label ? "bg-white text-[#7c3aed]" : "bg-white/10 hover:bg-white/20"
                 }`}
@@ -777,6 +1098,23 @@ export default function AthenaWorkoutPage() {
             <span className="inline sm:hidden">Back</span>
           </button>
 
+          {/* Compact location badge — matches mobile's locationBadgeGreen
+              exactly (small icon + text, no banner), replacing the old
+              "Exercises customized to your location" banner mobile doesn't have. */}
+          <button
+            onClick={openLocationPopup}
+            className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 hover:opacity-80 transition"
+          >
+            <MapPin size={14} />
+            {swappingLocation ? (
+              <span>Updating...</span>
+            ) : (
+              <span>
+                Location: <span className="font-bold">{locationName || "No Location"}</span>
+              </span>
+            )}
+          </button>
+
           <div className="flex items-center gap-3">
             <button className="p-1 hover:opacity-80">
               <User size={18} />
@@ -790,39 +1128,59 @@ export default function AthenaWorkoutPage() {
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-bold border border-white/30">
               AM
             </div>
-            <button className="p-1 hover:opacity-80">
+            <button className="p-1 hover:opacity-80" onClick={() => setShowShareModal(true)}>
               <Share2 size={18} />
             </button>
           </div>
         </header>
 
-        <div className="bg-white border-b border-gray-100 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-gray-700" />
-            <h2 className="font-bold text-sm md:text-base tracking-tight">
-              {dataLoading && !currentSection ? (
-                <Loader2 size={14} className="animate-spin inline mr-1" />
-              ) : null}
-              {currentSection
-                ? `${currentSection.label} (${currentSection.rounds}x)`
-                : "Loading..."}
-            </h2>
+        <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-700" />
+              <h2 className="font-bold text-sm md:text-base tracking-tight">
+                {dataLoading && !currentSection ? (
+                  <Loader2 size={14} className="animate-spin inline mr-1" />
+                ) : null}
+                {currentSection
+                  ? `${currentSection.label} (${currentSection.rounds}x)`
+                  : "Loading..."}
+              </h2>
+            </div>
+            <p className="text-gray-500 text-[10px] md:text-[11px] mt-0.5">
+              Complete the following sets in order
+            </p>
           </div>
-          <p className="text-gray-500 text-[10px] md:text-[11px] mt-0.5">
-            Complete the following sets in order
-          </p>
-        </div>
 
-        <button
-          onClick={openLocationPopup}
-          className="w-full bg-[#0FCC91] hover:bg-[#0ab87e] text-white text-[9px] md:text-[10px] font-bold py-1.5 px-4 flex items-center justify-center gap-1.5 text-center transition"
-        >
-          {swappingLocation ? (
-            <><Loader2 size={12} className="animate-spin shrink-0" /><span>Updating exercises for new location...</span></>
-          ) : (
-            <><Award size={14} className="shrink-0" /><span className="truncate">Exercises customized to your location: {locationName}</span></>
+          {/* Sponsored ad banner — mirrors mobile's BannerFittedSlider,
+              shrunk to a compact inline banner beside the round title. */}
+          {ads.length > 0 && (
+            <button
+              onClick={() => setSelectedAd(ads[adIndex])}
+              className="hidden sm:block relative w-40 md:w-48 h-10 rounded-xl overflow-hidden shrink-0"
+            >
+              <img
+                src={ads[adIndex].image}
+                alt="ad"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/20" />
+              <span className="absolute top-1 left-1.5 bg-black/55 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest">
+                Ad
+              </span>
+              {ads.length > 1 && (
+                <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
+                  {ads.map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-0.5 rounded-full transition-all ${i === adIndex ? "bg-white w-2" : "bg-white/50 w-0.5"}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
       {/* SECTION 2: Main Content Area */}
@@ -902,22 +1260,6 @@ export default function AthenaWorkoutPage() {
                   ) : null;
                 })()}
               </button>
-            )}
-
-            {/* Bottom-right: Dollar icon — only for power sets */}
-            {currentExercise?.is_power_set && (
-              <div className="absolute bottom-2 right-2">
-                <DollarSign
-                  size={32}
-                  onClick={() => {
-                    const params = new URLSearchParams();
-                    if (currentExercise?.id) params.set("specializedWorkoutId", String(currentExercise.id));
-                    if (sessionId) params.set("sessionId", sessionId);
-                    router.push(`/workout/dollarSet?${params.toString()}`);
-                  }}
-                  className="text-white bg-gradient-to-br from-green-400 to-green-600 p-2 md:p-3 md:w-10 md:h-10 rounded-full shadow-xl hover:scale-110 transition-transform cursor-pointer"
-                />
-              </div>
             )}
 
             {/* Bottom-left icons - scaled for mobile */}
@@ -1214,16 +1556,37 @@ export default function AthenaWorkoutPage() {
                   <div className="text-center">
                     <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Weight</p>
                     <span className="text-xs font-black text-gray-700">
-                      {currentExercise?.weight && currentExercise.weight !== "0" ? `${currentExercise.weight} ${(userOtherDetail?.measurementUnit || "lbs").toLowerCase()}` : "—"}
+                      {getExerciseWeightToDisplay(currentExercise, userOtherDetail) || "—"}
                     </span>
                   </div>
+                  {(() => {
+                    const badge = getExerciseBadge(currentExercise);
+                    if (!badge) return null;
+                    return (
+                      <div className="text-center">
+                        <span className="text-xs font-black text-emerald-500">
+                          {getBadgeLabel(badge)}
+                        </span>
+                        <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Target</p>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-1 md:gap-2">
-                    <button
-                      onClick={() => currentExercise && openTracking(currentExercise)}
-                      className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition"
-                    >
-                      <Pen size={14} />
-                    </button>
+                    {currentExercise?.is_power_set ? (
+                      <button
+                        onClick={() => currentExercise && openMoneySetModal(currentExercise)}
+                        className="bg-emerald-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition"
+                      >
+                        <DollarSign size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => currentExercise && openTracking(currentExercise)}
+                        className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition"
+                      >
+                        <Pen size={14} />
+                      </button>
+                    )}
                     <button className="bg-gray-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition">
                       <Info size={14} />
                     </button>
@@ -1247,10 +1610,13 @@ export default function AthenaWorkoutPage() {
             {currentSectionIndex >= sections.length - 1 && sections.length > 0 ? (
               <button
                 onClick={() => {
-                  localStorage.setItem("summarySessionId", sessionId || "");
-                  localStorage.setItem("summaryWorkoutCode", workoutCode || "");
-                  localStorage.setItem("summaryWorkoutTitle", sections[0]?.label || "");
-                  router.push("/workout/workoutSummary");
+                  // Mirrors mobile's handleFinalizeWorkout ->
+                  // navigation.navigate('Map') — viewWorkoutSession's own
+                  // Map tab is the equivalent "Workout Map" view, already
+                  // self-sufficient (fetches its own data), not the separate
+                  // /workout/workoutSummary page.
+                  localStorage.setItem("returningFromAthenaWorkout", "true");
+                  router.push("/workout/viewWorkoutSession?view=Map");
                 }}
                 className="bg-[#0FCC91] hover:bg-[#0ab87e] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0"
               >
@@ -1263,7 +1629,6 @@ export default function AthenaWorkoutPage() {
                   if (next < sections.length) {
                     setCurrentSectionIndex(next);
                     loadSectionExercises(next, workoutCode, sessionId, sections);
-                    refreshLoads(sessionId);
                   }
                 }}
                 className="bg-[#6202AC] hover:bg-[#4d0187] text-white font-black uppercase tracking-widest px-6 py-3 rounded-lg text-[11px] shadow transition shrink-0"
@@ -1278,21 +1643,83 @@ export default function AthenaWorkoutPage() {
         {/* Hidden on very small screens or shown as a bottom section */}
         <aside className="w-full lg:flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col overflow-hidden h-[300px] lg:h-full">
           <div className="flex flex-col h-full">
-            {/* This Workout stats */}
+            {/* This Workout stats — clicking navigates to Live Results,
+                mirrors mobile's topStatsRowHeader -> navigation.navigate('Results') */}
             <div className="px-3 pt-3 pb-2 shrink-0">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">This Workout</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { label: "Load", value: workoutLoads.load },
-                  { label: "Power", value: workoutLoads.power },
-                  { label: "Kcal", value: workoutLoads.kcal },
-                ].map((stat) => (
-                  <div key={stat.label} className="bg-[#f8f5ff] rounded-xl p-2 text-center border border-[#ede9fe]">
-                    <p className="text-[18px] font-black text-[#6202AC] leading-none">{stat.value}</p>
-                    <p className="text-[8px] font-bold text-gray-400 mt-0.5 uppercase tracking-wide">{stat.label}</p>
+              <button
+                onClick={() => {
+                  // Same one-shot signal as the "Return to Workout" button —
+                  // without it, viewWorkoutSession's mount effect thinks the
+                  // session was never joined and shows the rejoin banner
+                  // instead of the Results view.
+                  localStorage.setItem("returningFromAthenaWorkout", "true");
+                  router.push("/workout/viewWorkoutSession?view=Results");
+                }}
+                className="w-full text-left"
+              >
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">This Workout</p>
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { label: "Load", value: displayStats.load },
+                    { label: "Power", value: displayStats.power },
+                    { label: "Kcal", value: displayStats.kcal },
+                  ].map((stat) => (
+                    <div key={stat.label} className="bg-[#f8f5ff] rounded-lg p-1.5 text-center border border-[#ede9fe]">
+                      <p className="text-[13px] font-black text-[#6202AC] leading-none">{stat.value}</p>
+                      <p className="text-[7px] font-bold text-gray-400 mt-0.5 uppercase tracking-wide">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </button>
+
+              {/* Power Sets (if any) inline cards — mirrors mobile's
+                  inlinePowerSets section, shown only while a power-set
+                  exercise is active. */}
+              {inlinePowerSets.length > 0 && currentExercise?.is_power_set && (
+                <div className="mt-2">
+                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wide mb-1">
+                    Power Sets (if any):
+                  </p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {inlinePowerSets.flatMap((ps) => {
+                      const sortedSets = [...(ps.child_sets || [])].sort((a, b) => {
+                        const aIsMoney = a.min_reps != null ? 1 : 0;
+                        const bIsMoney = b.min_reps != null ? 1 : 0;
+                        return aIsMoney - bIsMoney;
+                      });
+                      const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                      return sortedSets.map((s, idx) => {
+                        const isMoneySet = s.min_reps != null;
+                        const sourceUnit = (s.msrmt || "lbs").toLowerCase();
+                        let displayWeight = s.calculated_weight || 0;
+                        if (sourceUnit === "lbs" && targetUnit === "kg") {
+                          displayWeight = Math.round(displayWeight * 0.45359237);
+                        } else if (sourceUnit === "kg" && targetUnit === "lbs") {
+                          displayWeight = Math.round(displayWeight / 0.45359237);
+                        }
+                        return (
+                          <button
+                            key={`${ps.id}-${idx}`}
+                            onClick={() => currentExercise && openMoneySetModal(currentExercise)}
+                            className={`relative shrink-0 min-w-[62px] rounded-lg border px-2 pt-2.5 pb-1.5 text-center ${
+                              isMoneySet ? "bg-[#FEF9C3] border-[#FDE68A]" : "bg-gray-100 border-gray-200"
+                            }`}
+                          >
+                            {isMoneySet && (
+                              <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white text-[8px] font-black flex items-center justify-center">
+                                $
+                              </span>
+                            )}
+                            <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide">Set {idx + 1}</p>
+                            <p className="text-[11px] font-bold text-gray-900 mt-0.5">{displayWeight} {targetUnit}</p>
+                            <p className="text-[9px] font-medium text-gray-600">{s.reps || "8-12"}</p>
+                          </button>
+                        );
+                      });
+                    })}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="p-3 pb-2 shrink-0">
@@ -1331,8 +1758,18 @@ export default function AthenaWorkoutPage() {
                         {idx + 1}
                       </div>
                       {ex.isPowerSet && (
-                        <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openMoneySetModal(sectionExercises[idx]); }}
+                          className="absolute top-1 left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm hover:bg-green-600 transition"
+                        >
                           <DollarSign size={9} className="text-white" />
+                        </button>
+                      )}
+                      {/* Mobile hardcodes this to the 3rd card (index 2) —
+                          not tied to any exercise data field, ported as-is. */}
+                      {idx === 2 && (
+                        <div className="absolute top-1 left-1 bg-[#7C3AED] text-white text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded z-10">
+                          ELITE
                         </div>
                       )}
                       {ex.isSwapped && (
@@ -1340,12 +1777,14 @@ export default function AthenaWorkoutPage() {
                           <Home size={9} className="text-white" />
                         </div>
                       )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openTracking(sectionExercises[idx]); }}
-                        className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-gray-400 flex items-center justify-center shadow-sm hover:bg-gray-600 transition"
-                      >
-                        <Pencil size={8} className="text-white" />
-                      </button>
+                      {!ex.isPowerSet && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openTracking(sectionExercises[idx]); }}
+                          className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-gray-400 flex items-center justify-center shadow-sm hover:bg-gray-600 transition"
+                        >
+                          <Pencil size={8} className="text-white" />
+                        </button>
+                      )}
                       {ex.gifUrl ? (
                         <div className="w-full h-16 md:h-20 mb-1 rounded-md flex items-center justify-center overflow-hidden">
                           <img
@@ -1367,19 +1806,32 @@ export default function AthenaWorkoutPage() {
                         <p className="font-bold text-[9px] md:text-[10px] leading-tight tracking-tight line-clamp-1">
                           {ex.title}
                         </p>
+                        {ex.supplemental && (
+                          <p className="text-[7px] md:text-[8px] font-bold text-gray-500 uppercase line-clamp-1">
+                            {ex.supplemental}
+                          </p>
+                        )}
                         <p className="text-[8px] md:text-[9px] mt-0.5 font-medium text-gray-400">
                           {ex.subtitle}
                         </p>
+                        {ex.weightDisplay && (
+                          <p className="text-[8px] md:text-[9px] font-bold text-red-500 mt-0.5">
+                            @ {ex.weightDisplay}
+                          </p>
+                        )}
+                        {ex.isPowerSet && (() => {
+                          const badge = getExerciseBadge(sectionExercises[idx]);
+                          if (!badge) return null;
+                          return (
+                            <p className="text-[8px] md:text-[9px] font-black text-emerald-500 mt-0.5">
+                              {getBadgeLabel(badge)}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </button>
                   ))
                 )}
-              </div>
-            </div>
-
-            <div className="shrink-0 bg-white border-t border-gray-100 px-3 pt-2 pb-3 hidden lg:block">
-              <div className="bg-[#6202AC] text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg inline-block w-fit">
-                ELITE
               </div>
             </div>
           </div>
@@ -1467,7 +1919,7 @@ export default function AthenaWorkoutPage() {
           onClick={() => setShowLocationPopup(false)}
         >
           <div
-            className="bg-white w-full sm:max-w-[400px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[70vh] flex flex-col"
+            className="bg-white w-full sm:max-w-[460px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
@@ -1498,48 +1950,113 @@ export default function AthenaWorkoutPage() {
                 <div className="flex justify-center py-10">
                   <Loader2 className="animate-spin text-[#7c3aed]" size={24} />
                 </div>
-              ) : locations.length === 0 ? (
-                <p className="text-center text-sm text-gray-400 py-10">No locations found</p>
               ) : (
                 <div className="space-y-2">
-                  {locations.map((loc) => {
-                    const isActive = String(loc.id) === locationId;
-                    const eqNames = locationEquipments.get(loc.id) ?? [];
-                    return (
-                      <button
-                        key={loc.id}
-                        onClick={() => handleLocationSelect(loc)}
-                        className={`w-full flex items-start gap-3 px-4 py-3.5 rounded-2xl border transition-all text-left ${
-                          isActive
-                            ? "bg-purple-50 border-[#7c3aed]"
-                            : "bg-gray-50 border-gray-100 hover:border-[#7c3aed]/40 hover:bg-purple-50/40"
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isActive ? "bg-[#7c3aed] text-white" : "bg-gray-200 text-gray-500"}`}>
-                          <MapPin size={14} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-semibold text-sm ${isActive ? "text-[#7c3aed]" : "text-gray-800"}`}>{loc.name}</span>
-                            {isActive && (
-                              <span className="text-[10px] font-bold text-[#7c3aed] bg-purple-100 px-2 py-0.5 rounded-full flex-shrink-0">Active</span>
+                  {/* "None (No Location)" — mirrors mobile's LocationBottomSheet */}
+                  <button
+                    onClick={() => setTempSelectedLocationId(null)}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-all text-left ${
+                      tempSelectedLocationId === null
+                        ? "bg-purple-50 border-[#7c3aed]"
+                        : "bg-gray-50 border-gray-100 hover:border-[#7c3aed]/40 hover:bg-purple-50/40"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${tempSelectedLocationId === null ? "bg-[#7c3aed] text-white" : "bg-gray-200 text-gray-500"}`}>
+                      <MapPin size={14} />
+                    </div>
+                    <span className={`font-semibold text-sm ${tempSelectedLocationId === null ? "text-[#7c3aed]" : "text-gray-800"}`}>
+                      None (No Location)
+                    </span>
+                  </button>
+
+                  {locations.length === 0 ? (
+                    <p className="text-center text-sm text-gray-400 py-6">No locations found</p>
+                  ) : (
+                    locations.map((loc) => {
+                      const isSelected = String(loc.id) === tempSelectedLocationId;
+                      const isDefault = loc.default_location === "1" || Number(loc.default_location) === 1;
+                      const eqNames = locationEquipments.get(loc.id) ?? [];
+                      return (
+                        <div
+                          key={loc.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setTempSelectedLocationId(String(loc.id))}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setTempSelectedLocationId(String(loc.id)); }}
+                          className={`w-full flex items-start gap-3 px-4 py-3.5 rounded-2xl border transition-all text-left cursor-pointer ${
+                            isSelected
+                              ? "bg-purple-50 border-[#7c3aed]"
+                              : "bg-gray-50 border-gray-100 hover:border-[#7c3aed]/40 hover:bg-purple-50/40"
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isSelected ? "bg-[#7c3aed] text-white" : "bg-gray-200 text-gray-500"}`}>
+                            <MapPin size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-semibold text-sm ${isSelected ? "text-[#7c3aed]" : "text-gray-800"}`}>{loc.name}</span>
+                              {isDefault && (
+                                <span className="text-[10px] font-bold text-[#7c3aed] bg-purple-100 px-2 py-0.5 rounded-full flex-shrink-0">Default</span>
+                              )}
+                            </div>
+                            {eqNames.length > 0 ? (
+                              <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${isSelected ? "text-purple-400" : "text-gray-400"}`}>
+                                {eqNames.join(" · ")}
+                              </p>
+                            ) : locationEquipments.size === 0 ? (
+                              <p className="text-[10px] text-gray-300 mt-0.5">Loading equipment...</p>
+                            ) : (
+                              <p className="text-[10px] text-gray-300 mt-0.5">No equipment listed</p>
                             )}
                           </div>
-                          {eqNames.length > 0 ? (
-                            <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${isActive ? "text-purple-400" : "text-gray-400"}`}>
-                              {eqNames.join(" · ")}
-                            </p>
-                          ) : locationEquipments.size === 0 ? (
-                            <p className="text-[10px] text-gray-300 mt-0.5">Loading equipment...</p>
-                          ) : (
-                            <p className="text-[10px] text-gray-300 mt-0.5">No equipment listed</p>
-                          )}
+                          {/* Edit pencil — mirrors mobile's LocationBottomSheet editButton */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditLocationPopup(loc); }}
+                            className="w-7 h-7 rounded-full bg-purple-100 hover:bg-purple-200 flex items-center justify-center flex-shrink-0 transition"
+                          >
+                            <Pen size={12} className="text-[#7c3aed]" />
+                          </button>
                         </div>
-                      </button>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               )}
+            </div>
+
+            {/* Footer — mirrors mobile's footer/confirmButton exactly: a
+                "Set as Default" checkbox (only for a non-default selected
+                location) plus the confirm button that actually commits the
+                staged selection. */}
+            <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
+              {(() => {
+                if (tempSelectedLocationId === null) return null;
+                const loc = locations.find((l) => String(l.id) === tempSelectedLocationId);
+                if (!loc) return null;
+                const isDefault = loc.default_location === "1" || Number(loc.default_location) === 1;
+                if (isDefault) return null;
+                return (
+                  <button
+                    onClick={() => setSetAsDefaultLocation((v) => !v)}
+                    className="w-full flex items-center gap-2.5 mb-3"
+                  >
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${setAsDefaultLocation ? "bg-[#7c3aed] border-[#7c3aed]" : "border-gray-300"}`}>
+                      {setAsDefaultLocation && <CheckCircle2 size={12} className="text-white" />}
+                    </div>
+                    <span className="text-[13px] font-semibold text-gray-700">
+                      Set &quot;{loc.name}&quot; as Default Location
+                    </span>
+                  </button>
+                );
+              })()}
+              <button
+                onClick={handleConfirmLocationSelect}
+                disabled={confirmingLocation}
+                className="w-full h-[50px] rounded-2xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-sm transition disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {confirmingLocation ? <Loader2 size={16} className="animate-spin" /> : null}
+                Select Location
+              </button>
             </div>
           </div>
         </div>
@@ -1549,21 +2066,21 @@ export default function AthenaWorkoutPage() {
       {showCreateLocationPopup && (
         <div
           className="fixed inset-0 z-[450] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onClick={() => { setShowCreateLocationPopup(false); setShowLocationPopup(true); }}
+          onClick={() => { setShowCreateLocationPopup(false); setEditingLocationId(null); setShowLocationPopup(true); }}
         >
           <div
-            className="bg-white w-full sm:max-w-[480px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col"
-            style={{ maxHeight: "90vh" }}
+            className="bg-white w-full sm:max-w-[560px] rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col"
+            style={{ maxHeight: "92vh" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="px-5 pt-5 pb-4 flex items-start justify-between border-b border-gray-100 flex-shrink-0">
               <div>
-                <h2 className="text-[16px] font-black text-gray-900">Create Location</h2>
+                <h2 className="text-[16px] font-black text-gray-900">{editingLocationId != null ? "Edit Location" : "Create Location"}</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5">Select equipment and give it a title</p>
               </div>
               <button
-                onClick={() => { setShowCreateLocationPopup(false); setShowLocationPopup(true); }}
+                onClick={() => { setShowCreateLocationPopup(false); setEditingLocationId(null); setShowLocationPopup(true); }}
                 className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
               >
                 <X size={14} />
@@ -1594,7 +2111,7 @@ export default function AthenaWorkoutPage() {
 
             {/* Equipment grid */}
             <div className="flex-1 overflow-y-auto px-5 pb-3 min-h-0">
-              {allEquipLoading ? (
+              {allEquipLoading || editingLocationLoading ? (
                 <div className="flex justify-center py-10">
                   <Loader2 className="animate-spin text-[#7c3aed]" size={28} />
                 </div>
@@ -1652,15 +2169,25 @@ export default function AthenaWorkoutPage() {
                 onChange={(e) => setCreateTitle(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] mb-3 mt-3"
               />
+              {/* Set as default location — mirrors mobile's CreateLocationScreen checkbox, applies to both create and edit */}
+              <button
+                onClick={() => setCreateSetAsDefault((v) => !v)}
+                className="w-full flex items-center gap-2.5 mb-3"
+              >
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${createSetAsDefault ? "bg-[#7c3aed] border-[#7c3aed]" : "border-gray-300"}`}>
+                  {createSetAsDefault && <CheckCircle2 size={12} className="text-white" />}
+                </div>
+                <span className="text-[13px] font-semibold text-gray-700">Set as Default Location</span>
+              </button>
               <button
                 onClick={handleCreateLocation}
                 disabled={createSubmitting || !createTitle.trim()}
                 className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-sm py-3.5 rounded-full flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {createSubmitting ? (
-                  <><Loader2 size={15} className="animate-spin" /> Creating...</>
+                  <><Loader2 size={15} className="animate-spin" /> {editingLocationId != null ? "Saving..." : "Creating..."}</>
                 ) : createTitle.trim() ? (
-                  "Create Location"
+                  editingLocationId != null ? "Save Changes" : "Create Location"
                 ) : (
                   "Select Equipment & Add Title"
                 )}
@@ -1686,6 +2213,216 @@ export default function AthenaWorkoutPage() {
               loadSectionExercises(currentSectionIndex, workoutCode, sessionId, sections, currentExerciseIndex);
             }
           }}
+        />
+      )}
+
+      {/* SHARE SESSION MODAL — mirrors mobile's ShareSessionModal */}
+      {showShareModal && (
+        <div
+          className="fixed inset-0 z-[500] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          onClick={() => setShowShareModal(false)}
+        >
+          <div
+            className="w-full max-w-[380px] flex flex-col bg-white rounded-[24px] overflow-hidden shadow-2xl"
+            style={{ height: "520px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-[18px] font-black text-[#7c3aed]">
+                    Share This Session:
+                  </h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Session ID: {sessionId?.slice(0, 6) || "pending"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition mt-0.5"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+              <div className="bg-[#f5f5f7] rounded-2xl p-5 flex flex-col items-center">
+                <div className="border-2 border-[#7c3aed] rounded-xl p-3 bg-white mb-3">
+                  <svg width="100" height="100" viewBox="0 0 100 100" className="text-[#1e1e22]">
+                    <rect x="0" y="0" width="40" height="40" rx="4" fill="currentColor" />
+                    <rect x="60" y="0" width="40" height="40" rx="4" fill="currentColor" />
+                    <rect x="0" y="60" width="40" height="40" rx="4" fill="currentColor" />
+                    <rect x="8" y="8" width="24" height="24" rx="2" fill="white" />
+                    <rect x="68" y="8" width="24" height="24" rx="2" fill="white" />
+                    <rect x="8" y="68" width="24" height="24" rx="2" fill="white" />
+                    <rect x="16" y="16" width="8" height="8" fill="currentColor" />
+                    <rect x="76" y="16" width="8" height="8" fill="currentColor" />
+                    <rect x="16" y="76" width="8" height="8" fill="currentColor" />
+                    <rect x="52" y="4" width="6" height="6" fill="currentColor" />
+                    <rect x="62" y="4" width="6" height="6" fill="currentColor" />
+                    <rect x="52" y="14" width="6" height="6" fill="currentColor" />
+                    <rect x="4" y="52" width="6" height="6" fill="currentColor" />
+                    <rect x="14" y="52" width="6" height="6" fill="currentColor" />
+                    <rect x="24" y="52" width="6" height="6" fill="currentColor" />
+                    <rect x="52" y="52" width="6" height="6" fill="currentColor" />
+                    <rect x="62" y="62" width="6" height="6" fill="currentColor" />
+                    <rect x="74" y="52" width="6" height="6" fill="currentColor" />
+                    <rect x="84" y="62" width="6" height="6" fill="currentColor" />
+                    <rect x="52" y="74" width="6" height="6" fill="currentColor" />
+                    <rect x="64" y="84" width="6" height="6" fill="currentColor" />
+                    <rect x="84" y="84" width="6" height="6" fill="currentColor" />
+                  </svg>
+                </div>
+                <p className="text-[11px] text-gray-400 font-medium">
+                  Scan this code to join the session
+                </p>
+              </div>
+
+              <div>
+                <p className="text-[13px] font-black text-[#222] mb-3">
+                  Share with Followers:
+                </p>
+                <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-4 py-2.5 mb-3">
+                  <Search size={14} className="text-gray-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search Followers"
+                    value={shareFollowerSearch}
+                    onChange={(e) => setShareFollowerSearch(e.target.value)}
+                    className="flex-1 text-[12px] outline-none text-gray-700 placeholder-gray-400 bg-transparent"
+                  />
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+                  {[
+                    { initials: "JD", name: "johndoe", color: "bg-[#7c3aed]" },
+                    { initials: "SK", name: "sarahk", color: "bg-blue-500" },
+                    { initials: "AM", name: "alexm", color: "bg-orange-400" },
+                    { initials: "LW", name: "lisawong", color: "bg-teal-400" },
+                    { initials: "RG", name: "robg", color: "bg-green-500" },
+                    { initials: "TP", name: "tompark", color: "bg-yellow-400" },
+                    { initials: "MK", name: "marykay", color: "bg-red-400" },
+                  ].map((u) => (
+                    <div key={u.initials} className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div className={`w-10 h-10 rounded-full ${u.color} flex items-center justify-center text-white text-[11px] font-black`}>
+                        {u.initials}
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-medium">{u.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[13px] font-black text-[#222] mb-3">Invite via Link</p>
+                <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Link size={12} className="text-gray-400 flex-shrink-0" />
+                    <p className="text-[11px] text-gray-400 truncate">
+                      {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId || "pending"}`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!sessionId) return;
+                    const url = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId}`;
+                    navigator.clipboard.writeText(url);
+                    setShareLinkCopied(true);
+                    setTimeout(() => setShareLinkCopied(false), 2000);
+                  }}
+                  disabled={!sessionId}
+                  className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {shareLinkCopied ? <Check size={14} /> : <Copy size={14} />}
+                  {shareLinkCopied ? "Copied!" : "Copy URL"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AD DETAIL POPUP */}
+      {selectedAd && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+        >
+          <div
+            className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setSelectedAd(null); setLinkCopied(false); }}
+              className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+            >
+              <X size={14} className="text-gray-600" />
+            </button>
+            <div className="p-5">
+              <p className="font-bold text-gray-800 text-sm mb-3">Ad Details:</p>
+              <div className="rounded-2xl overflow-hidden mb-4 bg-gray-100 h-44">
+                <img src={selectedAd.image} alt="ad" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="bg-yellow-300 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded shrink-0">
+                  Link :
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedAd.link);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="text-blue-500 text-[12px] underline truncate max-w-[180px] text-left"
+                >
+                  {selectedAd.link}
+                </button>
+                {linkCopied && (
+                  <span className="text-[10px] text-green-600 font-semibold shrink-0">Copied!</span>
+                )}
+              </div>
+              <button
+                onClick={() => window.open(selectedAd.link, "_blank", "noopener,noreferrer")}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-2xl text-[14px] transition mb-3"
+              >
+                Redirect
+              </button>
+              <p className="text-center text-[12px] font-semibold text-gray-700 mb-3">
+                Go Ad-Free and Get 2x Points
+              </p>
+              <button className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-3 rounded-2xl text-[13px] transition">
+                Only $8.95/mo →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETE THE $ SET MODAL */}
+      {moneySetExercise && (
+        <PowerSetTrackingModal
+          exercise={moneySetExercise}
+          sets={moneySetSets}
+          sessionId={sessionId || undefined}
+          workoutLibraryId={workoutCode || undefined}
+          userOtherDetail={userOtherDetail}
+          onClose={() => {
+            setMoneySetExercise(null);
+            // Mirrors mobile's onClose, called after every save (or on a
+            // bare close) — re-verify so the round can auto-complete the
+            // moment its money sets are all recorded.
+            setVerifyingPowerSets(true);
+            verifyPowerSetsCompletedFor(sectionExercises, sessionId)
+              .then(setPowerSetsCompleted)
+              .finally(() => setVerifyingPowerSets(false));
+            refreshLoadRecords(sessionId);
+          }}
+          onAddSet={addMoneySetSet}
+          onUpdateSet={updateMoneySetSet}
+          onToggleRecordSet={toggleRecordMoneySetSet}
+          onSetSets={setMoneySetSets}
+          onSave={async () => {}}
         />
       )}
 
@@ -1744,27 +2481,31 @@ export default function AthenaWorkoutPage() {
               {/* Last / Best / Suggested */}
               {(() => {
                 const userUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
-                const toUnit = (val: string) => {
-                  const n = parseFloat(val) || 0;
-                  return userUnit === "kg" ? n / 2.20462 : n;
-                };
+                // Exact port of mobile's ExerciseTrackingModal suggested-weight
+                // logic: the lift-max map (wMap) must use RAW reference values
+                // (no unit conversion) — same fix already applied to
+                // PowerSetTrackingModal/swapExerciseModal/page.tsx elsewhere
+                // this session.
                 const wMap: Record<string, number> = userOtherDetail ? {
-                  "of InputBarbellSquat": toUnit(userOtherDetail.r_back_squat),
-                  "of InputDeadlift": toUnit(userOtherDetail.r_deadlift),
-                  "of InputBenchPress": toUnit(userOtherDetail.r_bench_press),
-                  "of InputPowerClean": toUnit(userOtherDetail.r_power_clean),
-                  "of BodyWeight": toUnit(userOtherDetail.currentWeight),
+                  "of InputBarbellSquat": parseFloat(String(userOtherDetail.r_back_squat || 0)) || 0,
+                  "of InputDeadlift": parseFloat(String(userOtherDetail.r_deadlift || 0)) || 0,
+                  "of InputBenchPress": parseFloat(String(userOtherDetail.r_bench_press || 0)) || 0,
+                  "of InputPowerClean": parseFloat(String(userOtherDetail.r_power_clean || 0)) || 0,
+                  "of BodyWeight": parseFloat(String(userOtherDetail.currentWeight || 0)) || 0,
                 } : {};
                 const weightAdj = (trackingExercise.weight_adj || "").trim();
                 const weightVal = trackingExercise.weight || "0";
+                const dWeight = (trackingExercise as unknown as { calculated_weight?: string }).calculated_weight ?? trackingExercise.weight ?? null;
+                const msrmt = (trackingExercise as unknown as { msrmt?: string }).msrmt || "lbs";
                 let displayWeight = "";
-                const base = wMap[weightAdj];
-                if (base !== undefined && base > 0) {
+                const hasAdj = weightAdj !== "" && wMap[weightAdj] !== undefined && wMap[weightAdj] > 0;
+                if (hasAdj) {
+                  const base = wMap[weightAdj];
                   const calc = Math.ceil(base * (parseFloat(weightVal) || 0));
                   if (calc > 0) displayWeight = `${calc} ${userUnit}`;
-                } else {
-                  const n = parseFloat(weightVal) || 0;
-                  if (n > 0) displayWeight = `${weightVal} ${userUnit}`;
+                } else if (dWeight != null) {
+                  const numericWeight = parseFloat(String(dWeight)) || 0;
+                  if (numericWeight > 0) displayWeight = convertToUserUnit(dWeight, userUnit, msrmt);
                 }
                 const cleanReps = (r: string | number | null | undefined) =>
                   (String(r ?? "").trim().split("-").pop()?.trim() || "").replace(/\D/g, "");
@@ -1831,7 +2572,7 @@ export default function AthenaWorkoutPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Weight (lbs)</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Weight ({(userOtherDetail?.measurementUnit || "lbs").toLowerCase()})</p>
                         <input
                           type="number"
                           value={set.weight}
@@ -1864,9 +2605,26 @@ export default function AthenaWorkoutPage() {
                           const setNumber = i + 1;
                           const weightNum = parseFloat(set.weight) || 0;
                           const repsNum = parseInt(set.reps) || 0;
-                          const userWeight = parseFloat(userOtherDetail?.currentWeight || "0") || 0;
-                          const userHeight = parseFloat(userOtherDetail?.height || "0") || 0;
-                          const computedLoad = Math.ceil(((userWeight * userHeight) + repsNum * weightNum) / 2600);
+
+                          // Matches mobile's handleSaveSet validation — it
+                          // shows an alert and refuses to save rather than
+                          // silently persisting a 0/0 set.
+                          if (weightNum <= 0 || repsNum <= 0) {
+                            alert("Weight and reps must be greater than 0.");
+                            return;
+                          }
+
+                          // Exact port of mobile's load formula.
+                          const isKg = (userOtherDetail?.measurementUnit || "lbs").toLowerCase() === "kg";
+                          const rawWeight = parseFloat(String(userOtherDetail?.currentWeight ?? 0)) || 0;
+                          const userWeight = isKg ? rawWeight * 2.2046 : rawWeight;
+                          const userHeight = parseHeightInches(userOtherDetail?.height);
+                          const E = parseInt(String((trackingExercise as unknown as { loadMeter?: number }).loadMeter ?? 3)) || 3;
+                          const e = parseFloat(String((trackingExercise as unknown as { rep_variant?: number; repVariant?: number }).repVariant ?? (trackingExercise as unknown as { rep_variant?: number }).rep_variant ?? 1)) || 1;
+                          const wt = weightNum * 2.20462262;
+                          const data1 = userWeight * userHeight;
+                          const data2 = E * (repsNum * e) * 1 * wt;
+                          const computedLoad = Math.ceil((data1 + data2) / 2600);
                           setSavingSetIndex(i);
                           try {
                             const result = await createTrackingLog({

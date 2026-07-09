@@ -206,6 +206,17 @@ async function fetchOnce(): Promise<DashboardResponse> {
     .get<DashboardResponse>("/dashboard")
     .then((res) => {
       _cache = res.data;
+      // The backend actually sends measurement_unit (snake_case) on
+      // OtherDetail, not measurementUnit — mobile defensively checks both
+      // everywhere it reads this field. Normalizing here means every web
+      // consumer of getDashboardData()/OtherDetail.measurementUnit gets the
+      // real value instead of silently defaulting to "lbs".
+      const otherDetail = _cache?.user?.OtherDetail as
+        | (UserOtherDetail & { measurement_unit?: string })
+        | undefined;
+      if (otherDetail && !otherDetail.measurementUnit && otherDetail.measurement_unit) {
+        otherDetail.measurementUnit = otherDetail.measurement_unit;
+      }
       _cachePromise = null;
       return _cache;
     })

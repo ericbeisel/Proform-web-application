@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Dumbbell,
   CheckCircle2,
+  Star,
   Lock,
   Loader2,
   Plus,
@@ -66,6 +67,35 @@ import { feedApi, Advertisement } from "@/api/feed/route";
 import { equipmentApi } from "@/api/location/route";
 import { getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
 import { convertToUserUnit } from "@/lib/units";
+
+// Exact port of mobile's ResultsScreen.tsx MUSCLE_LABEL_MAP — several keys
+// need slashes ("MID/LOW BACK") or a typo correction ("abuductorsHips" ->
+// "ABDUCTORS/HIPS") that a generic camelCase-split can't produce, and
+// "chest" is explicitly mapped to "ADDUCTORS" (a backend key-collision
+// workaround per mobile's own comment, not a mistake to fix here).
+const MUSCLE_LABEL_MAP: Record<string, string> = {
+  chest: "ADDUCTORS",
+  midLowBack: "MID/LOW BACK",
+  lateralDelts: "LATERAL DELTS",
+  rearDelts: "REAR DELTS",
+  traps: "TRAPS",
+  forearms: "FOREARMS",
+  calves: "CALVES",
+  hamstrings: "HAMSTRINGS",
+  abuductorsHips: "ABDUCTORS/HIPS",
+  quads: "QUADS",
+  vmo: "VMO",
+  neck: "NECK",
+  oblique: "OBLIQUE",
+  scaps: "SCAPS",
+  adductors: "ADDUCTORS",
+  latsUpperBack: "LATS/UPPER BACK",
+  frontDelts: "FRONT DELTS",
+  glutes: "GLUTES",
+  abdominals: "ABDOMINALS",
+  biceps: "BICEPS",
+  triceps: "TRICEPS",
+};
 
 // Exact port of mobile's sortedRounds comparator (OverviewScreen.tsx:947-965)
 // plus its per-round exercise sort (OverviewScreen.tsx:1377) — the raw
@@ -166,11 +196,16 @@ function ViewWorkoutSessionContent() {
 
   // Existing state
   const [location, setLocation] = useState<string | null>(null);
-  const [showSessionModal, setShowSessionModal] = useState(false);
+  // Supports deep-linking straight to the Session Details modal — e.g.
+  // athenaWorkout.tsx's sidebar "Session" item links to ?openSession=true.
+  const [showSessionModal, setShowSessionModal] = useState(searchParams.get("openSession") === "true");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [followerSearch, setFollowerSearch] = useState("");
-  const [activeView, setActiveView] = useState("Overview");
+  // Supports deep-linking straight into a tab — e.g. athenaWorkout.tsx's
+  // "This Workout" stats panel links to ?view=Results (mobile's
+  // topStatsRowHeader navigates directly to the Results tab the same way).
+  const [activeView, setActiveView] = useState(searchParams.get("view") || "Overview");
   const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<number>>(new Set());
   const [selectedExercises, setSelectedExercises] = useState<Set<number>>(
@@ -319,7 +354,18 @@ function ViewWorkoutSessionContent() {
 
   useEffect(() => {
     if (activeView !== "Map") return;
-    const sid = activeSession?.id ?? (activeSession as any)?.session_id;
+    // activeSession is only populated by matching against the *incomplete*
+    // sessions list — once every round is done and Finalize is tapped, the
+    // backend may no longer report this session as incomplete, so that
+    // match can legitimately come back empty. Fall back to the same
+    // localStorage session id every other flow (athenaWorkout.tsx etc.)
+    // already relies on, so the Map view's data still loads for a just-
+    // completed session.
+    const code = localStorage.getItem("workoutProgramCode")?.toUpperCase();
+    const sid =
+      activeSession?.id ??
+      (activeSession as any)?.session_id ??
+      (code ? localStorage.getItem(`activeSessionId_${code}`) : null);
     if (!sid) return;
     setMapLoading(true);
     Promise.all([
@@ -562,12 +608,33 @@ function ViewWorkoutSessionContent() {
     router.push("/workout/equipmentNeeded");
   };
 
+  // workoutGroups is already stored pre-sorted via sortWorkoutGroups (warmup
+  // first, then ROUND numerically, then alphabetical) — re-sorting here
+  // alphabetically-only, as an earlier version of this did, both duplicates
+  // that work and gets the order wrong.
   const getRoundLabel = (roundValue: number | string | undefined): string => {
     if (!workoutGroups || workoutGroups.length === 0) return `ROUND ${roundValue ?? 1}`;
-    const alphaSorted = [...workoutGroups].sort((a, b) =>
-      (a.label || "").localeCompare(b.label || "")
-    );
-    return alphaSorted[Number(roundValue ?? 1) - 1]?.label || `ROUND ${roundValue ?? 1}`;
+    return workoutGroups[Number(roundValue ?? 1) - 1]?.label || `ROUND ${roundValue ?? 1}`;
+  };
+
+  // The power-sets API's own `round` field is unreliable (mobile's own
+  // PowersetsScreen comment) — resolve the true round by matching this power
+  // set's exercise against the actual workout structure instead, falling
+  // back to the (unreliable) round-index lookup only if no match is found.
+  const getRoundLabelForSet = (set: any): string => {
+    if (workoutGroups && workoutGroups.length > 0) {
+      const matchedGroup = workoutGroups.find((g) =>
+        (g.workouts || []).some(
+          (w: any) =>
+            w.id === set.id ||
+            w.exercise_id === set.exercise_uuid ||
+            w.exercise_id === set.exercise_id ||
+            w.exercise?.exercise_uuid === set.exercise_uuid,
+        ),
+      );
+      if (matchedGroup) return matchedGroup.label;
+    }
+    return getRoundLabel(set.round || 1);
   };
 
   const handleRejoin = async (session: IncompleteSession) => {
@@ -761,17 +828,32 @@ function ViewWorkoutSessionContent() {
       );
       if (storedSessionId) {
         setSessionStarted(true);
-        getWorkoutStats(storedSessionId)
-          .then(setWorkoutStats)
-          .catch(console.error);
 
-        // Fetch load records and compute per-round totals
-        getWorkoutLoadRecords(storedSessionId)
-          .then((records) => {
-            setLoadRecords(records);
-            console.log("[viewWorkout] load records:", records);
-          })
-          .catch(console.error);
+        // Fetch stats + load records together, then override
+        // thisWorkout.load/power/cals with the locally-computed max from the
+        // session's actual load records — mirrors mobile's ResultsScreen
+        // exactly, which never trusts getWorkoutStats' own thisWorkout
+        // numbers outright (falling back to them only if the local max is 0).
+        Promise.all([
+          getWorkoutStats(storedSessionId).catch(() => null),
+          getWorkoutLoadRecords(storedSessionId).catch(() => []),
+        ]).then(([stats, records]) => {
+          setLoadRecords(records);
+          console.log("[viewWorkout] load records:", records);
+          if (!stats) return;
+          const totalLoad = records.length ? Math.max(...records.map((r) => r.load || 0)) : 0;
+          const totalPower = records.length ? Math.max(...records.map((r) => r.power || 0)) : 0;
+          const totalCals = records.length ? Math.max(...records.map((r) => r.kcal || 0)) : 0;
+          setWorkoutStats({
+            ...stats,
+            thisWorkout: {
+              ...stats.thisWorkout,
+              load: totalLoad || stats.thisWorkout?.load || 0,
+              power: totalPower || stats.thisWorkout?.power || 0,
+              cals: totalCals || stats.thisWorkout?.cals || 0,
+            },
+          });
+        });
       } else {
         console.warn("[viewWorkout] no sessionId found — stats will not load");
       }
@@ -1267,7 +1349,6 @@ function ViewWorkoutSessionContent() {
 
           <div className="space-y-3">
             {[
-              { label: "Overview", Icon: Home },
               { label: "Session", Icon: Users },
               { label: "Results", Icon: BarChart2 },
               { label: "Powersets", Icon: Zap },
@@ -1673,7 +1754,7 @@ function ViewWorkoutSessionContent() {
                             label: "Load",
                             value: workoutStats.thisWorkout.load,
                             color: "#3B82F6",
-                            icon: <Activity size={18} />,
+                            icon: <TrendingUp size={18} />,
                           },
                           {
                             label: "Power",
@@ -1752,7 +1833,7 @@ function ViewWorkoutSessionContent() {
                       {/* Muscles Used */}
                       {workoutStats.thisWorkout.muscleTracking.length > 0 && (() => {
                         const formatLabel = (muscle: string) =>
-                          muscle.replace(/([A-Z])/g, " $1").trim().toUpperCase();
+                          MUSCLE_LABEL_MAP[muscle] || muscle.replace(/([A-Z])/g, " $1").trim().toUpperCase();
                         const sortedMuscles = [...workoutStats.thisWorkout.muscleTracking].sort(
                           (a, b) => Object.values(b)[0] - Object.values(a)[0],
                         );
@@ -1887,7 +1968,7 @@ function ViewWorkoutSessionContent() {
                       {powerSets.map((ps, gi) => {
                         const isCollapsed = !expandedPowerSets.has(gi);
                         const thumb = resolveWixImage(ps.demo_gif);
-                        const roundLabel = getRoundLabel(ps.round);
+                        const roundLabel = getRoundLabelForSet(ps);
                         const isGray = ps.is_gray;
                         const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
                         return (
@@ -1917,12 +1998,13 @@ function ViewWorkoutSessionContent() {
                               <div className="flex-1 min-w-0">
                                 {/* Tags row */}
                                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                                  <span className="bg-[#7c3aed] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                  <span className="bg-[#3B82F6] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                                     {roundLabel}
                                   </span>
                                   {ps.is_money_set && (
-                                    <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
-                                      ★ MONEY SET
+                                    <span className="bg-[#8B5CF6] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                      <Star size={10} className="fill-white" />
+                                      MONEY SET
                                     </span>
                                   )}
                                 </div>
@@ -1958,9 +2040,10 @@ function ViewWorkoutSessionContent() {
                                     } else if (sourceUnit === "kg" && targetUnit === "lbs") {
                                       displayWeight = Math.round(displayWeight / 0.45359237);
                                     }
-                                    const weightText = displayWeight
-                                      ? `${displayWeight} ${targetUnit}`
-                                      : s.label || "—";
+                                    // Mobile's SetRow always shows the computed
+                                    // weight unconditionally — no fallback to
+                                    // s.label, which isn't a real weight label.
+                                    const weightText = `${displayWeight} ${targetUnit}`;
                                     return (
                                       <div
                                         key={s.id || si}
@@ -1978,7 +2061,7 @@ function ViewWorkoutSessionContent() {
                                         </div>
 
                                         {isMainPowerSet && (
-                                          <span className="text-[9px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shrink-0">
+                                          <span className="text-[9px] font-black bg-[#00BDD6] text-white px-1.5 py-0.5 rounded-full shrink-0">
                                             $
                                           </span>
                                         )}
@@ -2017,6 +2100,36 @@ function ViewWorkoutSessionContent() {
                       <p className="text-[12px] text-white/70">Complete overview</p>
                     </div>
                   </div>
+
+                  {/* Completed-rounds Load/Power/Kcal — mirrors mobile's
+                      completedRoundsStats, shown right below the banner. */}
+                  {(() => {
+                    const completedLoads = mapLoadRecords.filter(
+                      (l) => l.workout_complete === true || (l as any).workoutComplete === true,
+                    );
+                    if (completedLoads.length === 0) return null;
+                    const maxLoad = Math.max(...completedLoads.map((r) => r.load || 0));
+                    const maxPower = Math.max(...completedLoads.map((r) => r.power || 0));
+                    const maxKcal = Math.max(...completedLoads.map((r) => r.kcal || 0));
+                    return (
+                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl px-4 py-3 flex items-center justify-around">
+                        <div className="text-center">
+                          <p className="text-[11px] font-semibold text-[#64748B] mb-0.5">Load</p>
+                          <p className="text-[18px] font-black" style={{ color: "#EF4444" }}>{maxLoad}</p>
+                        </div>
+                        <div className="w-px h-6 bg-[#CBD5E1]" />
+                        <div className="text-center">
+                          <p className="text-[11px] font-semibold text-[#64748B] mb-0.5">Power</p>
+                          <p className="text-[18px] font-black" style={{ color: "#8E5DF5" }}>{maxPower}</p>
+                        </div>
+                        <div className="w-px h-6 bg-[#CBD5E1]" />
+                        <div className="text-center">
+                          <p className="text-[11px] font-semibold text-[#64748B] mb-0.5">Cal</p>
+                          <p className="text-[18px] font-black" style={{ color: "#10B981" }}>{maxKcal}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Title */}
                   <div className="px-1">
@@ -2062,7 +2175,7 @@ function ViewWorkoutSessionContent() {
                           <div
                             key={gi}
                             className="bg-white rounded-[20px] overflow-hidden"
-                            style={{ border: `1.5px solid ${isRoundComplete ? "#10B981" : isExpanded ? roundColor : "#E5E7EB"}` }}
+                            style={{ border: `1.5px solid ${isRoundComplete ? "#10B981" : "#E5E7EB"}` }}
                           >
                             {/* Stats row — only shown when API returned a load record for this round */}
                             {roundLoad && (
@@ -2151,7 +2264,14 @@ function ViewWorkoutSessionContent() {
 
                                   const plannedSets = parseInt(String(ex.sets || group.rounds || "1").replace(/\D/g, ""), 10) || 1;
                                   const plannedWeight = anyEx.calculated_weight ?? anyEx.member_weight ?? ex.weight;
-                                  const weightUnit = anyEx.msrmt || "lbs";
+                                  // Matches mobile's ExerciseRow exactly: logged
+                                  // sets are labeled with the user's actual unit
+                                  // (they were entered in that unit already),
+                                  // while the planned/fallback weight must be
+                                  // converted from the exercise's own storage
+                                  // unit via convertToUserUnit — not shown raw.
+                                  const weightSourceUnit = anyEx.msrmt || "lbs";
+                                  const mapUserUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
                                   const slotCount = Math.max(powerSetChips?.length || plannedSets || 1, sortedLogs.length);
 
                                   return (
@@ -2218,7 +2338,7 @@ function ViewWorkoutSessionContent() {
                                                 key={log.id || i}
                                                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${pillClass}`}
                                               >
-                                                <span>{logTitle}: {reps} @ {parseFloat(String(weight)) || weight} {weightUnit}</span>
+                                                <span>{logTitle}: {reps} @ {parseFloat(String(weight)) || weight} {mapUserUnit}</span>
                                                 {isPowerSetLog && <span className="text-emerald-500 font-black ml-0.5">$</span>}
                                               </div>
                                             );
@@ -2231,7 +2351,10 @@ function ViewWorkoutSessionContent() {
                                               </div>
                                             );
                                           }
-                                          const weightDisplay = plannedWeight ? ` @ ${plannedWeight} ${weightUnit}` : "";
+                                          const plannedWeightNum = parseFloat(String(plannedWeight || "0"));
+                                          const weightDisplay = plannedWeightNum > 0
+                                            ? ` @ ${convertToUserUnit(String(plannedWeightNum), mapUserUnit, weightSourceUnit)}`
+                                            : "";
                                           return (
                                             <div key={i} className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-400">
                                               Set {i + 1}: {ex.reps || "8–12"}{weightDisplay}
@@ -2272,14 +2395,33 @@ function ViewWorkoutSessionContent() {
                     );
                   })()}
 
-                  {/* Complete Workout button */}
+                  {/* Complete Workout button — mirrors mobile's MapScreen
+                      "Complete Workout": warn about incomplete rounds first,
+                      then hand off to the full completion flow (activity
+                      picker + congrats screen), which already lives at
+                      /workout/workoutSummary reading these exact keys. */}
                   <button
                     disabled={isLocked}
                     className={`w-full h-12 rounded-2xl font-black text-[14px] text-white transition ${isLocked ? "bg-gray-400 cursor-not-allowed" : "bg-[#7c3aed] hover:bg-[#6d28d9]"}`}
                     onClick={() => {
+                      const incompleteRounds = workoutGroups.filter((g) =>
+                        !(g.isCompleted || mapLoadRecords.some((l) =>
+                          (l.workout_complete === true || (l as any).workoutComplete === true) &&
+                          (l.title === g.label || (l as any).workoutId === (g.workouts?.[0] as any)?.id || l.workout_id === (g.workouts?.[0] as any)?.id)
+                        ))
+                      );
+                      if (incompleteRounds.length > 0) {
+                        const roundNames = incompleteRounds.map((g) => g.label).join(", ");
+                        const proceed = window.confirm(
+                          `The following rounds are not yet completed:\n\n${roundNames}\n\nAre you sure you want to finish the workout?`
+                        );
+                        if (!proceed) return;
+                      }
                       const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
-                      localStorage.setItem("pendingSessionCode", code);
-                      localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
+                      localStorage.setItem("summarySessionId", activeSession?.id ?? activeSession?.session_id ?? "");
+                      localStorage.setItem("summaryWorkoutCode", code);
+                      localStorage.setItem("workoutTitle", workoutTitle || "");
+                      router.push("/workout/workoutSummary");
                     }}
                   >
                     Complete Workout
@@ -2935,7 +3077,7 @@ function ViewWorkoutSessionContent() {
                 className="w-full mt-5 bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2"
               >
                 <Play size={14} fill="white" />
-                Start Session Now
+                Train Session
               </button>
               <button
                 onClick={() => setShowStartSessionPrompt(false)}

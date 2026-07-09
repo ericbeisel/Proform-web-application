@@ -81,6 +81,7 @@ export interface TeamPlayer {
   score?: string;
   completion_pct?: string | number;
   pendingSignup?: boolean;
+  inviteLink?: string;
 }
 
 export interface GetTeamPlayersParams {
@@ -420,37 +421,53 @@ export const addPlayerToTeam = async (
   return { message: "Player added (dummy — backend endpoint pending)." };
 };
 
-// TODO(backend): no endpoint exists yet to create a brand-new player account from the
-// coach roster ("Create Player" modal). Confirm route/method/body with backend, then
-// replace this stub. Currently simulates success so the UI flow can be tested end-to-end.
-export const createPlayer = async (
-  payload: { team_id: number | string; name: string; email: string; image?: File | null },
-): Promise<TeamPlayer> => {
-  console.warn("[coachApi] createPlayer → backend endpoint pending, simulating success", {
-    ...payload,
-    image: payload.image?.name,
-  });
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return {
-    id: Math.floor(Math.random() * 1_000_000) + 100_000,
-    name: payload.name,
-    username: payload.email.split("@")[0],
-    email: payload.email,
-    profile_picture: payload.image ? URL.createObjectURL(payload.image) : null,
-    score: "0/4",
-    completion_pct: 0,
-    pendingSignup: true,
-  };
-};
+export interface InvitePlayerPayload {
+  team_id: number | string;
+  email: string;
+  name: string;
+}
 
-// TODO(backend): no endpoint exists yet to email a sign-up invite to a coach-created
-// player. Confirm route/body with backend, then replace this stub.
-export const sendPlayerInvite = async (
-  payload: { team_id: number | string; player_id: number; email: string },
-): Promise<{ message: string }> => {
-  console.warn("[coachApi] sendPlayerInvite → backend endpoint pending, simulating success", payload);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { message: `Invite sent to ${payload.email} (dummy — backend endpoint pending).` };
+export interface InvitePlayerAddedResult {
+  status: "added";
+  teamMemberId: number;
+  playerId: number;
+  joinedAt: string;
+}
+
+export interface InvitePlayerPendingResult {
+  status: "invited";
+  message?: string;
+  inviteLink?: string;
+}
+
+export type InvitePlayerResponse = InvitePlayerAddedResult | InvitePlayerPendingResult;
+
+// Creating a player and inviting one are the same backend call. When the email already
+// has an account, the backend adds them to the team directly and responds with the raw
+// team-membership row (no `status` field). Only the pending-invite path returns an
+// explicit `status: "invited"` with an inviteLink to share.
+export const invitePlayer = async (
+  payload: InvitePlayerPayload,
+): Promise<InvitePlayerResponse> => {
+  const body = { ...payload, team_id: Number(payload.team_id) };
+  console.log("[coachApi] invitePlayer → POST /coach-team/invite-player", body);
+  try {
+    const { data } = await apiClient.post<any>("/coach-team/invite-player", body);
+    const raw = (data as any)?.data ?? data;
+    console.log("[coachApi] invitePlayer ✅", raw);
+    if (raw?.status === "invited") {
+      return { status: "invited", message: raw.message, inviteLink: raw.inviteLink ?? raw.invite_link };
+    }
+    return {
+      status: "added",
+      teamMemberId: raw?.id,
+      playerId: raw?.player_id,
+      joinedAt: raw?.joined_at,
+    };
+  } catch (error: unknown) {
+    console.error("[coachApi] invitePlayer ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to invite player."));
+  }
 };
 
 // ─── Activity Logs ────────────────────────────────────────────────────────────
@@ -524,8 +541,7 @@ export const coachApi = {
   getTeamPlayers,
   searchAllPlayers,
   addPlayerToTeam,
-  createPlayer,
-  sendPlayerInvite,
+  invitePlayer,
   getPresignedUrl,
   uploadFileToS3,
   getActivityLogs,

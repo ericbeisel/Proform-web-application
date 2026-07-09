@@ -2,21 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { X, UserPlus, Camera } from "lucide-react";
-import { coachApi, type TeamPlayer } from "@/api/coach/route";
 
-interface CreatePlayerModalProps {
-  teamId: string;
-  teamName: string;
-  onClose: () => void;
-  onPlayerCreated: (player: TeamPlayer) => void;
+export interface CreatePlayerFormValues {
+  name: string;
+  email: string;
+  image: File | null;
 }
 
-export function CreatePlayerModal({ teamId, teamName, onClose, onPlayerCreated }: CreatePlayerModalProps) {
+interface CreatePlayerModalProps {
+  teamName: string;
+  onClose: () => void;
+  // Pure form — the caller owns the API call (invite/create are the same backend call,
+  // branched by response status) and rethrows on failure so the modal can surface it.
+  onSave: (values: CreatePlayerFormValues) => Promise<void>;
+}
+
+export function CreatePlayerModal({ teamName, onClose, onSave }: CreatePlayerModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,27 +39,21 @@ export function CreatePlayerModal({ teamId, teamName, onClose, onPlayerCreated }
     setError(null);
   }
 
-  async function handleCreate(closeAfter: boolean) {
+  async function handleSave(closeAfter: boolean) {
     if (!name.trim() || !email.trim()) {
       setError("Please enter both a name and an email.");
       return;
     }
-    setCreating(true);
+    setSaving(true);
     setError(null);
     try {
-      const newPlayer = await coachApi.createPlayer({
-        team_id: teamId,
-        name: name.trim(),
-        email: email.trim(),
-        image,
-      });
-      onPlayerCreated(newPlayer);
+      await onSave({ name: name.trim(), email: email.trim(), image });
       resetForm();
       if (closeAfter) onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create player.");
+      setError(err instanceof Error ? err.message : "Failed to invite player.");
     } finally {
-      setCreating(false);
+      setSaving(false);
     }
   }
 
@@ -136,18 +136,18 @@ export function CreatePlayerModal({ teamId, teamName, onClose, onPlayerCreated }
 
         <div className="flex flex-col gap-2.5 mt-1">
           <button
-            onClick={() => handleCreate(true)}
-            disabled={creating}
+            onClick={() => handleSave(true)}
+            disabled={saving}
             className="h-12 rounded-2xl bg-[#8B5CF6] text-white text-sm font-semibold hover:bg-[#7C3AED] transition shadow-[0_6px_16px_rgba(139,92,246,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {creating ? "Saving…" : "Save"}
+            {saving ? "Saving…" : "Save"}
           </button>
           <button
-            onClick={() => handleCreate(false)}
-            disabled={creating}
+            onClick={() => handleSave(false)}
+            disabled={saving}
             className="h-12 rounded-2xl border border-[#8B5CF6] text-[#8B5CF6] text-sm font-semibold hover:bg-[#f5f0ff] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {creating ? "Saving…" : "Save & Add Another"}
+            {saving ? "Saving…" : "Save & Add Another"}
           </button>
         </div>
       </div>

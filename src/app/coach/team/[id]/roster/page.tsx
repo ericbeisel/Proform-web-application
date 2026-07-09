@@ -6,7 +6,7 @@ import { ArrowLeft, X, ShieldCheck, ChevronDown, CheckCircle2, Menu, FolderPlus,
 import { coachApi, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { TeamInviteQrModal } from "@/app/coach/coach-dashboard/components/TeamInviteQrModal";
-import { CreatePlayerModal } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
+import { CreatePlayerModal, type CreatePlayerFormValues } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
@@ -68,7 +68,6 @@ function RosterContent() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [addToGroupOpen, setAddToGroupOpen] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [sendingInviteId, setSendingInviteId] = useState<number | null>(null);
   const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -91,13 +90,17 @@ function RosterContent() {
     }
   }, []);
 
-  useEffect(() => {
+  function refetchPlayers() {
     if (!id) return;
     setLoading(true);
     coachApi.getTeamPlayers({ team_id: id, limit: 50 })
       .then(({ players }) => setPlayers(players.map(decoratePlayer)))
       .catch(console.error)
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    refetchPlayers();
   }, [id]);
 
   const visiblePlayers = useMemo(
@@ -137,8 +140,7 @@ function RosterContent() {
     setPlayers((prev) => prev.filter((p) => p.id !== playerId));
   }
 
-  // TODO(backend): no real invite-token/sign-up-link endpoint exists yet for a
-  // coach-created player. This builds a placeholder link until one is added.
+  // Fallback in case the backend didn't return an inviteLink for this pending player.
   function buildSignLink(p: RosterPlayer): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const params = new URLSearchParams({
@@ -150,21 +152,36 @@ function RosterContent() {
     return `${origin}/auth/signup?${params.toString()}`;
   }
 
-  async function handleSendInvite(p: RosterPlayer) {
+  function handleSendInvite(p: RosterPlayer) {
     if (!p.email) return;
-    setSendingInviteId(p.id);
-    try {
-      const { message } = await coachApi.sendPlayerInvite({ team_id: id, player_id: p.id, email: p.email });
-      alert(message);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to send invite.");
-    } finally {
-      setSendingInviteId(null);
+    const link = p.inviteLink ?? buildSignLink(p);
+    const subject = encodeURIComponent(`You're invited to join ${teamName}`);
+    const body = encodeURIComponent(`Hi ${p.name ?? ""},\n\nJoin ${teamName} using this link:\n${link}`);
+    window.location.href = `mailto:${p.email}?subject=${subject}&body=${body}`;
+  }
+
+  async function handleCreatePlayer(values: CreatePlayerFormValues) {
+    const response = await coachApi.invitePlayer({ team_id: id, name: values.name, email: values.email });
+    if (response.status === "added") {
+      // Email already had an account — backend added them to the team directly.
+      refetchPlayers();
+    } else {
+      // No account yet — pending invite. Show a local card with the invite link to share.
+      const pendingPlayer: TeamPlayer = {
+        id: Math.floor(Math.random() * 1_000_000) + 100_000,
+        name: values.name,
+        email: values.email,
+        username: values.email.split("@")[0],
+        profile_picture: values.image ? URL.createObjectURL(values.image) : null,
+        pendingSignup: true,
+        inviteLink: response.inviteLink,
+      };
+      setPlayers((prev) => [...prev, decoratePlayer(pendingPlayer, prev.length)]);
     }
   }
 
   function handleCopySignLink(p: RosterPlayer) {
-    navigator.clipboard.writeText(buildSignLink(p));
+    navigator.clipboard.writeText(p.inviteLink ?? buildSignLink(p));
     setCopiedLinkId(p.id);
     setTimeout(() => setCopiedLinkId((current) => (current === p.id ? null : current)), 2000);
   }
@@ -465,10 +482,9 @@ function RosterContent() {
                             <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
                               <button
                                 onClick={() => handleSendInvite(p)}
-                                disabled={sendingInviteId === p.id}
-                                className="h-8 px-4 rounded-full border border-[#8B5CF6] text-[#8B5CF6] text-xs font-semibold hover:bg-[#f5f0ff] transition disabled:opacity-60"
+                                className="h-8 px-4 rounded-full border border-[#8B5CF6] text-[#8B5CF6] text-xs font-semibold hover:bg-[#f5f0ff] transition"
                               >
-                                {sendingInviteId === p.id ? "Sending…" : "Send Invite"}
+                                Send Invite
                               </button>
                               <button
                                 onClick={() => handleCopySignLink(p)}
@@ -519,12 +535,9 @@ function RosterContent() {
       {/* Create Player modal — shared with the team detail page */}
       {showCreateModal && (
         <CreatePlayerModal
-          teamId={id}
           teamName={teamName}
           onClose={() => setShowCreateModal(false)}
-          onPlayerCreated={(newPlayer) =>
-            setPlayers((prev) => [...prev, decoratePlayer(newPlayer, prev.length)])
-          }
+          onSave={handleCreatePlayer}
         />
       )}
     </div>
