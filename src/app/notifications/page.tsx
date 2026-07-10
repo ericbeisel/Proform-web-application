@@ -149,6 +149,10 @@ function getNotificationView(n: NotificationItem): NotificationView {
   };
 }
 
+function formatClockTime(date: Date): string {
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 function formatRelative(dateStr?: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -158,10 +162,17 @@ function formatRelative(dateStr?: string): string {
   if (diffMin < 1) return "Just now";
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (diffHr < 10) return `${diffHr}h ago`;
+
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86400000);
+  const time = formatClockTime(date);
+
+  if (diffDays === 0) return `Today ${time}`;
+  if (diffDays === 1) return `Yesterday ${time}`;
+  if (diffDays < 7) return `${date.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
+  return `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
 }
 
 function groupLabel(dateStr?: string): string {
