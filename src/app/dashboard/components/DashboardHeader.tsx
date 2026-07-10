@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart2, User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
+import { User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
@@ -93,7 +93,7 @@ export default function DashboardHeader({
         </div>
 
         {/* Center: Logo — absolutely centered */}
-        <div className="absolute left-1/2 -translate-x-1/2">
+        <div className="absolute left-1/2 -translate-x-1/2 bg-white">
           <img
             src="/images/proform-logo.jpg"
             alt="Proform"
@@ -132,9 +132,9 @@ export default function DashboardHeader({
           </button>
 
           {/* Analytics */}
-          <button className="hidden sm:flex w-9 h-9 rounded-[10px] border border-[#e8e6f0] bg-white items-center justify-center text-[#8b879e] hover:border-[#a29bfe] hover:text-[#6c5ce7] transition-all">
+          {/* <button className="hidden sm:flex w-9 h-9 rounded-[10px] border border-[#e8e6f0] bg-white items-center justify-center text-[#8b879e] hover:border-[#a29bfe] hover:text-[#6c5ce7] transition-all">
             <BarChart2 size={18} />
-          </button>
+          </button> */}
 
   <button
     onClick={() => router.push("/coach/coach-onboarding")}
@@ -144,7 +144,7 @@ export default function DashboardHeader({
     Switch to Coach
   </button>
           {/* Logout Button - Desktop */}
-          <button
+          {/* <button
             onClick={handleLogout}
             disabled={isLoggingOut}
             className="hidden sm:flex items-center gap-1 px-3 h-9 rounded-[10px] border border-[#e8e6f0] text-[#8b879e] hover:border-red-300 hover:text-red-500 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -163,7 +163,7 @@ export default function DashboardHeader({
                 Logout
               </>
             )}
-          </button>
+          </button> */}
 
           {/* Calendar */}
           <button
