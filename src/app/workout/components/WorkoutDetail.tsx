@@ -589,7 +589,7 @@ const filteredExercises = exercises;
                 >
                   {filteredExercises.map((ex, i) => (
                     <div
-                      key={ex.id || i}
+                      key={`${ex.id ?? "ex"}-${i}`}
                       className="bg-slate-50/60 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center hover:bg-slate-50 hover:border-slate-200 transition-colors"
                     >
                       <div className="w-12 h-12 rounded-xl mb-2.5 overflow-hidden bg-white border border-slate-100 shrink-0 flex items-center justify-center">

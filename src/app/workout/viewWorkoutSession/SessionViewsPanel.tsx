@@ -33,6 +33,7 @@ import {
   CupSoda,
   Droplet,
   AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 
 import WorkoutSidebar from "../components/WorkoutSidebar";
@@ -682,7 +683,7 @@ export default function SessionViewsPanel({
                         const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
                         return (
                           <div
-                            key={ps.id || gi}
+                            key={`${ps.id || "ps"}-${gi}`}
                             onClick={() => openVelocityModal(ps)}
                             className={`rounded-[20px] border-2 overflow-hidden cursor-pointer ${
                               isGray
@@ -757,7 +758,7 @@ export default function SessionViewsPanel({
                                     const weightText = `${displayWeight} ${targetUnit}`;
                                     return (
                                       <div
-                                        key={s.id || si}
+                                        key={`${s.id || "s"}-${si}`}
                                         className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0"
                                       >
                                         {/* Set number circle */}
@@ -1046,7 +1047,7 @@ export default function SessionViewsPanel({
                                               : "bg-gray-900 text-white";
                                             return (
                                               <div
-                                                key={log.id || i}
+                                                key={`${log.id || "log"}-${i}`}
                                                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${pillClass}`}
                                               >
                                                 <span>{logTitle}: {reps} @ {parseFloat(String(weight)) || weight} {mapUserUnit}</span>
@@ -1194,7 +1195,7 @@ export default function SessionViewsPanel({
                         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                           {previewItems.map((item, i) => (
                             <DynamicExerciseCard
-                              key={item.exercise_id || i}
+                              key={`${item.exercise_id || "item"}-${i}`}
                               item={item}
                               locked={isGroupLocked}
                               sessionStarted={sessionStarted}
@@ -1221,26 +1222,25 @@ export default function SessionViewsPanel({
                           ))}
                         </div>
 
-                        {isGroupLocked && groupIdx === 1 && (
+                        {isGroupLocked && groupIdx === 2 && (
                           <div className="flex justify-center mt-8">
-                            <div className="bg-white shadow-2xl border border-purple-100 rounded-3xl px-5 sm:px-10 py-8 sm:py-10 text-center max-w-xl w-full">
-                              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-100 to-violet-200 flex items-center justify-center">
-                                <Lock size={28} className="text-purple-700" />
-                              </div>
-                              <h2 className="text-xl sm:text-2xl font-black text-purple-700 mb-2">
-                                Unlock Full Program
+                            <div className="bg-white shadow-lg border border-gray-100 rounded-3xl px-6 py-7 text-center max-w-sm w-full">
+                              <Lock size={26} className="text-[#7c3aed] mx-auto mb-3" />
+                              <h2 className="text-[17px] font-black text-gray-900 mb-2">
+                                Unlock Full Workout
                               </h2>
-                              <p className="text-sm text-gray-500 leading-relaxed mb-5">
-                                Get access to all exercises, detailed form
-                                videos, progression systems, and advanced
-                                athlete coaching tools.
+                              <p className="text-[13px] text-gray-500 leading-relaxed mb-5">
+                                This is a premium workout session. Pay $1.00 via
+                                Stripe to get full access to all rounds,
+                                exercises, and interactive set logging for the
+                                next 24 hours.
                               </p>
                               <button
                                 onClick={() => setShowPurchaseModal(true)}
-                                className="bg-gradient-to-r from-purple-600 to-violet-600 text-white font-black px-8 py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition flex items-center gap-3 mx-auto text-sm"
+                                className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-[14px] py-3 rounded-full shadow-md transition flex items-center justify-center gap-2"
                               >
-                                Buy Workout
-                                <Lock size={16} />
+                                <CreditCard size={16} />
+                                Unlock for $1.00
                               </button>
                             </div>
                           </div>

@@ -22,7 +22,7 @@ import {
   Lock,
   Loader2,
   Plus,
-  FileText,
+  CreditCard,
 } from "lucide-react";
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
@@ -970,6 +970,13 @@ function ViewWorkoutSessionContent() {
           if (overview.preview?.free) {
             localStorage.setItem("workoutIsFree", "true");
             setHasPurchased(true);
+          } else {
+            // Otherwise a stale "true" left over from a previously-viewed
+            // *different* free program would leak in via the early
+            // localStorage read above and incorrectly hide this paid
+            // program's paywall.
+            localStorage.removeItem("workoutIsFree");
+            setHasPurchased(false);
           }
 
           const groups = sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []);
@@ -1310,40 +1317,42 @@ function ViewWorkoutSessionContent() {
               )}
 
               {/* Session info + Share in a box */}
-              <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-400">Session</p>
-                  {activeSession ? (
-                    <>
+              {!isLocked && (
+                <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400">Session</p>
+                    {activeSession ? (
+                      <>
+                        <p className="text-[12px] font-black text-[#222]">
+                          {activeSession.id.slice(0, 8)}
+                        </p>
+                        <p className="text-[9px] text-gray-400">
+                          {new Date(activeSession.created_at)
+                            .toLocaleString("en-US", {
+                              month: "numeric",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                            .replace(",", "")}
+                        </p>
+                      </>
+                    ) : (
                       <p className="text-[12px] font-black text-[#222]">
-                        {activeSession.id.slice(0, 8)}
+                        {incompleteSession ? `In Progress` : "Not Started"}
                       </p>
-                      <p className="text-[9px] text-gray-400">
-                        {new Date(activeSession.created_at)
-                          .toLocaleString("en-US", {
-                            month: "numeric",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                            hour12: true,
-                          })
-                          .replace(",", "")}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[12px] font-black text-[#222]">
-                      {incompleteSession ? `In Progress` : "Not Started"}
-                    </p>
-                  )}
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+                  >
+                    <Share2 size={15} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
-                >
-                  <Share2 size={15} />
-                </button>
-              </div>
+              )}
 
               <button className="w-9 h-9 rounded-full bg-[#f3f3f6] text-gray-500 flex items-center justify-center">
                 <ClipboardList size={16} />
@@ -1360,34 +1369,42 @@ function ViewWorkoutSessionContent() {
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
-                  <button
-                    onClick={() => {
-                      // Same one-shot signal pattern as returningFromAthenaWorkout
-                      // — only set it if actually engaged already, otherwise
-                      // clicking Location before ever joining would wrongly
-                      // mark the next mount as engaged.
-                      if (isSessionEngaged) {
-                        localStorage.setItem("returningFromLocation", "true");
-                      }
-                      router.push("/location");
-                    }}
-                    className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
-                  >
-                    <MapPin size={14} className="text-[#7c3aed]" />
-                    <span className="text-[#7c3aed]">Location :</span>
-                    <span>{location || "None"}</span>
-                  </button>
+                  {isLocked ? (
+                    <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-400">
+                      <MapPin size={14} className="text-gray-400" />
+                      <span className="text-gray-400">Location :</span>
+                      <span>{location || "None"}</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Same one-shot signal pattern as returningFromAthenaWorkout
+                        // — only set it if actually engaged already, otherwise
+                        // clicking Location before ever joining would wrongly
+                        // mark the next mount as engaged.
+                        if (isSessionEngaged) {
+                          localStorage.setItem("returningFromLocation", "true");
+                        }
+                        router.push("/location");
+                      }}
+                      className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
+                    >
+                      <MapPin size={14} className="text-[#7c3aed]" />
+                      <span className="text-[#7c3aed]">Location :</span>
+                      <span>{location || "None"}</span>
+                    </button>
+                  )}
 
                   {/* Once a session is active, its location is already locked
                       in (see handleRejoin) — mirrors mobile, which hides this
                       toggle rather than letting the exercise list diverge
                       from what the session was actually created for. */}
                   {!activeSession && (
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <label className={`flex items-center gap-1.5 select-none ${isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
                       <input
                         type="checkbox"
                         checked={filterByLocation}
-                        disabled={locationFilterLoading}
+                        disabled={locationFilterLoading || isLocked}
                         onChange={(e) => handleLocationFilter(e.target.checked)}
                         className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
                       />
@@ -1414,22 +1431,24 @@ function ViewWorkoutSessionContent() {
                       ) : (
                         <button
                           onClick={() => setShowPurchaseModal(true)}
-                          className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                          className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
                         >
                           Buy Session <Lock size={12} />
                         </button>
                       )}
-                      <button
-                        onClick={() => setShowInviteModal(true)}
-                        className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                      >
-                        <UserPlus size={14} />
-                        Invite User
-                      </button>
+                      {!isLocked && (
+                        <button
+                          onClick={() => setShowInviteModal(true)}
+                          className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                        >
+                          <UserPlus size={14} />
+                          Invite User
+                        </button>
+                      )}
                     </div>
 
                     <p
-                      className={`text-[11px] font-semibold ${isLocked ? "text-red-500" : "text-emerald-500"}`}
+                      className={`text-[11px] font-semibold ${isLocked ? "text-yellow-600" : "text-emerald-500"}`}
                     >
                       {isLocked
                         ? "• This workout requires purchase"
@@ -1937,114 +1956,126 @@ function ViewWorkoutSessionContent() {
         </div>
       )}
 
-      {/* PURCHASE MODAL (from 1st code) */}
+      {/* PURCHASE MODAL — "Premium Session" paywall, mirrors mobile's spec
+          exactly (purple header band with decorative clipped circles, amber
+          lock badge, price row, included-with-purchase list). */}
       {showPurchaseModal && (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-3">
-          <div className="bg-white w-full max-w-[420px] rounded-[24px] shadow-2xl relative overflow-hidden">
-            <button
-              onClick={() => setShowPurchaseModal(false)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-            >
-              <X size={14} />
-            </button>
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-6"
+          onClick={() => setShowPurchaseModal(false)}
+        >
+          <div
+            className="bg-white w-full max-w-[380px] rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.2)] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header band */}
+            <div className="relative overflow-hidden bg-[#7C3AED] pt-[22px] pb-[18px] px-6">
+              <div className="absolute w-[120px] h-[120px] rounded-full bg-white/[0.07] -left-[30px] -bottom-[30px]" />
+              <div className="absolute w-[160px] h-[160px] rounded-full bg-white/[0.07] -right-[60px] -top-[40px]" />
 
-            <div className="px-5 py-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-14 h-14 rounded-[18px] bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md relative">
-                  <FileText size={22} className="text-white" />
-                  <div className="absolute -right-1 -bottom-1 w-6 h-6 rounded-full bg-blue-500 border-[3px] border-white" />
+              <div className="relative flex flex-col items-center">
+                <div className="w-16 h-16 rounded-full bg-white/[0.18] flex items-center justify-center mb-3">
+                  <div className="w-12 h-12 rounded-full bg-[#F59E0B] flex items-center justify-center">
+                    <Lock size={22} className="text-white" />
+                  </div>
                 </div>
+                <h2 className="text-[20px] font-bold text-white">Premium Session</h2>
+                <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
+                  {workoutTitle || "WORKOUT"}
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 flex flex-col items-center gap-[10px]">
+              <div className="flex items-end gap-1">
+                <span className="text-[32px] font-bold text-[#111827] leading-none">$19.95</span>
+                <span className="text-[13px] font-semibold text-[#6B7280] mb-0.5 ml-1">USD</span>
               </div>
 
-              <h2 className="text-[19px] font-black text-center text-gray-900 leading-snug">
-                You don't have access to this
-                <br />
-                workout or program
-              </h2>
-
-              <p className="text-center text-gray-500 mt-3 text-[13px]">
-                Purchase this Workout / Program
+              <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
+                This is a premium session. Purchase to unlock full access and start your workout.
               </p>
 
-              <p className="text-center text-gray-400 text-[11px] mt-1">
-                (Expires in 30 days)
-              </p>
-
-              <div className="flex justify-center mt-5">
-                <button
-                  onClick={() => {
-                    setHasPurchased(true);
-                    setShowPurchaseModal(false);
-                  }}
-                  className="bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] px-6 py-2.5 rounded-xl shadow-md transition"
-                >
-                  Purchase for $19.95
-                </button>
+              <div className="w-full bg-[#F9FAFB] rounded-xl p-[10px] flex flex-col gap-1.5">
+                <p className="text-[14px] font-bold text-[#111827]">Included with purchase:</p>
+                {["Full workout access", "Set tracking", "Unlimited Sessions"].map((label) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
+                    <span className="text-[13px] font-medium text-[#374151]">{label}</span>
+                  </div>
+                ))}
               </div>
 
-              <div className="border-t border-gray-200 my-5" />
+              <p className="text-[14px] font-bold text-[#111827] text-center">View Purchase Options:</p>
 
-              <div className="bg-[#faf7ff] border border-purple-100 rounded-[20px] p-4 text-center">
-                <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-[#ff6b2c] text-white font-black text-[11px] mb-4">
-                  OPM
-                </div>
-                <p className="text-gray-500 leading-relaxed text-[12px]">
-                  You can access this program and all other workouts/programs in
-                  this package by purchasing a Franchise License.
-                </p>
-                <p className="text-gray-400 text-[11px] mt-5">
-                  View details and options below:
-                </p>
-                <button className="mt-4 text-[#00b7ff] font-black hover:opacity-80 transition inline-flex items-center gap-1.5 text-[13px]">
-                  Other options
-                  <ChevronRight size={14} />
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setHasPurchased(true);
+                  setShowPurchaseModal(false);
+                }}
+                className="w-full bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold text-[14px] py-3 rounded-[14px] flex items-center justify-center gap-2 transition"
+              >
+                <CreditCard size={16} />
+                Purchase for $19.95
+              </button>
 
-              <div className="text-center mt-5">
-                <button className="text-[#3b82f6] font-black hover:opacity-80 transition inline-flex items-center gap-1.5 text-[13px]">
-                  View Franchise Details
-                  <ChevronRight size={14} />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowPurchaseModal(false)}
+                className="w-full py-2 text-[15px] font-semibold text-[#6B7280] hover:text-gray-700 transition"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* READY TO START MODAL — shown when tapping an exercise before any
-          session exists, mirrors mobile's exercise-preview modal (free branch) */}
+          session exists (free branch), mirrors mobile's spec: same header
+          band shell as the Premium Session modal, with a play-icon badge,
+          close button, and a green "FREE" banner. */}
       {showStartSessionPrompt && (
         <div
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[3px] flex items-center justify-center p-3"
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-6"
           onClick={() => setShowStartSessionPrompt(false)}
         >
           <div
-            className="bg-white w-full max-w-[380px] rounded-[24px] shadow-2xl relative overflow-hidden"
+            className="bg-white w-full max-w-[380px] rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.2)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => setShowStartSessionPrompt(false)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-            >
-              <X size={14} />
-            </button>
+            {/* Header band */}
+            <div className="relative overflow-hidden bg-[#7C3AED] pt-[22px] pb-[18px] px-6">
+              <div className="absolute w-[120px] h-[120px] rounded-full bg-white/[0.07] -left-[30px] -bottom-[30px]" />
+              <div className="absolute w-[160px] h-[160px] rounded-full bg-white/[0.07] -right-[60px] -top-[40px]" />
 
-            <div className="px-6 py-7 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md">
-                  <Play size={22} fill="white" className="text-white ml-0.5" />
+              <button
+                onClick={() => setShowStartSessionPrompt(false)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition z-10"
+              >
+                <X size={14} className="text-white" />
+              </button>
+
+              <div className="relative flex flex-col items-center">
+                <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                  <div className="w-[60px] h-[60px] rounded-full bg-white/20 flex items-center justify-center">
+                    <Play size={24} fill="white" className="text-white ml-1" />
+                  </div>
                 </div>
+                <h2 className="text-[20px] font-bold text-white">Ready to Start?</h2>
+                <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
+                  {workoutTitle || "WORKOUT"}
+                </p>
               </div>
+            </div>
 
-              <h2 className="text-[19px] font-black text-gray-900 leading-snug">
-                Ready to Start?
-              </h2>
-              <p className="text-[13px] text-gray-500 mt-1 truncate">
-                {workoutTitle || "WORKOUT"}
+            {/* Body */}
+            <div className="p-4 flex flex-col items-center gap-[10px]">
+              <p className="text-[15px] font-bold text-[#10B981] text-center">
+                ✦ This session is FREE! ✦
               </p>
 
-              <p className="text-gray-500 mt-4 text-[13px] leading-relaxed">
+              <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
                 Click below to begin your workout session and start tracking your progress.
               </p>
 
@@ -2053,14 +2084,14 @@ function ViewWorkoutSessionContent() {
                   setShowStartSessionPrompt(false);
                   startNewSession();
                 }}
-                className="w-full mt-5 bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                className="w-full bg-[#4C1D95] hover:bg-[#3b1573] text-white font-bold text-[14px] py-4 rounded-2xl flex items-center justify-center gap-2 transition"
               >
-                <Play size={14} fill="white" />
-                Train Session
+                <Play size={16} fill="white" />
+                Start Session Now
               </button>
               <button
                 onClick={() => setShowStartSessionPrompt(false)}
-                className="w-full mt-2.5 text-gray-400 font-bold text-[12px] py-2 hover:text-gray-600 transition"
+                className="w-full bg-[#F3F4F6] hover:bg-gray-200 text-[#6B7280] font-semibold text-[15px] py-3.5 rounded-2xl transition"
               >
                 Maybe Later
               </button>
