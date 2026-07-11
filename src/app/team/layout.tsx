@@ -31,8 +31,45 @@ export default function TeamsLayout({
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
 
-          {/* Row 1: Title + Action Buttons + Hamburger */}
-          <div className="flex items-center justify-between gap-4 relative">
+          {/* Row 1 (mobile): Title | Centered Logo | Icon-only actions, no overlap */}
+          <div className="grid grid-cols-3 sm:hidden items-center gap-2">
+            <h1 className="justify-self-start text-lg font-bold text-gray-900 leading-tight">My Teams</h1>
+
+            <button onClick={() => router.push("/dashboard")} className="justify-self-center">
+              <img
+                src="/images/proform-logo.jpg"
+                alt="Proform"
+                className="w-8 h-8 rounded-xl object-contain"
+              />
+            </button>
+
+            <div className="justify-self-end flex items-center gap-2">
+              <button
+                onClick={() => router.push('/team/joiningCode')}
+                aria-label="Join a team"
+                className="flex items-center justify-center w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm active:bg-gray-50 transition-all"
+              >
+                <Key size={16} />
+              </button>
+              <button
+                onClick={() => router.push('/team/createTeam')}
+                aria-label="Create a team"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-purple-600 text-white shadow-sm active:bg-purple-700 transition-all"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => setIsMenuOpen(true)}
+                aria-label="Open menu"
+                className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-600 transition-colors"
+              >
+                <Menu size={22} />
+              </button>
+            </div>
+          </div>
+
+          {/* Row 1 (desktop): Title + Action Buttons + Hamburger */}
+          <div className="hidden sm:flex items-center justify-between gap-4 relative">
             {/* Centered Proform logo */}
             <button
               onClick={() => router.push("/dashboard")}
@@ -51,21 +88,21 @@ export default function TeamsLayout({
             </div>
 
             <div className="flex items-center gap-2">
-              <button 
-                onClick={() => router.push('/team/joiningCode')} 
+              <button
+                onClick={() => router.push('/team/joiningCode')}
                 className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-2 px-3 sm:px-4 text-xs sm:text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-all"
               >
                 <Key size={16} /> <span>Join</span>
               </button>
-              <button 
-                onClick={() => router.push('/team/createTeam')} 
+              <button
+                onClick={() => router.push('/team/createTeam')}
                 className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 py-2 px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-purple-700 transition-all"
               >
                 <Plus size={16} /> <span>Create</span>
               </button>
-              
+
               {/* Hamburger Menu Button */}
-              <button 
+              <button
                 onClick={() => setIsMenuOpen(true)}
                 className="p-2 ml-1 hover:bg-gray-100 rounded-xl text-gray-600 transition-colors border border-transparent hover:border-gray-200"
               >

@@ -64,7 +64,7 @@ export default function DashboardHeader({
     { label: "Next",      icon: ChevronRight, href: null },
     { label: "Itinerary", icon: Calendar,     href: "/itinerary/itinerary-page" },
     { label: "Metrics",   icon: Activity,     href: "/metrics" },
-    { label: "Teams",     icon: Users,        href: "/team-dashboard" },
+    { label: "Teams",     icon: Users,        href: "/team/teams" },
   ];
 
   const isNavItemActive = (href: string | null): boolean => {
