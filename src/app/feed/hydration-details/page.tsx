@@ -44,7 +44,6 @@ export default function FeedHydrationDetailsPage() {
   };
 
   const ozNum = oz ? parseFloat(oz) : null;
-  const liters = ozNum ? (ozNum * 0.0295735).toFixed(2) : null;
 
   return (
     <div className="min-h-screen bg-[#f4f4f8] pb-10">
@@ -88,12 +87,6 @@ export default function FeedHydrationDetailsPage() {
                 <p className="text-[26px] font-extrabold">{ozNum}</p>
                 <p className="text-[10px] opacity-80 font-semibold">oz</p>
               </div>
-              {liters && (
-                <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
-                  <p className="text-[26px] font-extrabold">{liters}</p>
-                  <p className="text-[10px] opacity-80 font-semibold">liters</p>
-                </div>
-              )}
             </div>
           )}
         </div>
