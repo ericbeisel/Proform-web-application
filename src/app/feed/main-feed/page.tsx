@@ -574,8 +574,92 @@ const [creatingHighlight, setCreatingHighlight] =
    <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
-    {/* HEADER ROW */}
-    <div className="relative flex items-center justify-between gap-4">
+    {/* HEADER ROW — MOBILE ONLY (desktop/web untouched below) */}
+    <div className="flex sm:hidden relative items-center justify-between gap-2">
+
+      {/* CENTER LOGO */}
+      <div className="absolute left-1/2 -translate-x-1/2 flex">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="flex items-center justify-center"
+        >
+          <img
+            src="/images/proform-logo.jpg"
+            alt="Proform Logo"
+            className="w-10 h-10 object-contain rounded-xl shadow-sm"
+          />
+        </button>
+      </div>
+
+      {/* LEFT */}
+      <div className="flex items-center gap-1">
+
+        {/* SEARCH */}
+        <button
+          onClick={() => router.push("/profile/components/UserList")}
+          className="p-2 transition-all group"
+        >
+          <Search size={20} className="text-[#6c3fef] group-hover:scale-110 transition-transform" />
+        </button>
+
+        {/* CREATE */}
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="p-2 transition-all group"
+          title="Create"
+        >
+          <Plus size={20} className="text-[#6c3fef] group-hover:scale-110 transition-transform" />
+        </button>
+
+        {/* SETTINGS */}
+        <button
+          onClick={() => setShowSettingsModal(true)}
+          className="p-2 transition-all group"
+          title="Feed Settings"
+        >
+          <Settings size={20} className="text-[#6c3fef] group-hover:scale-110 transition-transform" />
+        </button>
+
+      </div>
+
+      {/* RIGHT */}
+      <div className="flex items-center gap-2">
+
+        {/* CALENDAR / TODAY'S CHECKLIST */}
+        <button
+          onClick={() => router.push("/checklist")}
+          className="relative p-2 transition-all group"
+          title="Today's Checklist"
+        >
+          <CalendarDays size={20} className="text-[#6c3fef] group-hover:scale-110 transition-transform" />
+          {pendingCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+              {pendingCount > 99 ? "99+" : pendingCount}
+            </span>
+          )}
+        </button>
+
+        {/* USER AVATAR */}
+        <button
+          onClick={() => router.push("/account")}
+          className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-200 shadow-sm hover:border-purple-400 transition-all shrink-0"
+          title="My Profile"
+        >
+          {currentUser?.image ? (
+            <img src={currentUser.image} alt="profile" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">
+                {(currentUser?.username || currentUser?.name || "U").charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+        </button>
+      </div>
+    </div>
+
+    {/* HEADER ROW — DESKTOP/WEB ONLY (unchanged) */}
+    <div className="relative hidden sm:flex items-center justify-between gap-4">
 
       {/* CENTER LOGO */}
       <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex">
@@ -679,7 +763,7 @@ const [creatingHighlight, setCreatingHighlight] =
 
         {/* USER AVATAR */}
         <button
-          onClick={() => router.push("/profile")}
+          onClick={() => router.push("/account")}
           className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-200 shadow-sm hover:border-purple-400 transition-all shrink-0"
           title="My Profile"
         >

@@ -3,9 +3,9 @@
 import { User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
-import { invalidateDashboardCache } from "@/api/dashboard/route";
+import { invalidateDashboardCache, getLiveSessions } from "@/api/dashboard/route";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   userName?: string;
@@ -23,6 +23,13 @@ export default function DashboardHeader({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const [liveSessionsCount, setLiveSessionsCount] = useState(0);
+
+  useEffect(() => {
+    getLiveSessions({ limit: 1 })
+      .then((res) => setLiveSessionsCount(res.totalCount || 0))
+      .catch(() => setLiveSessionsCount(0));
+  }, []);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -92,6 +99,33 @@ export default function DashboardHeader({
           ))}
         </div>
 
+        {/* Left: mobile-only compact Watch/Live/Points (desktop nav above is untouched) */}
+        <div className="flex sm:hidden items-center gap-1">
+          <button
+            onClick={() => setShowComingSoon(true)}
+            className="w-7 h-7 rounded-full bg-[#6c5ce7] flex items-center justify-center text-white hover:opacity-90 transition-all"
+          >
+            <Tv size={13} />
+          </button>
+          <button
+            onClick={() => router.push("/live-sessions")}
+            className="relative w-7 h-7 rounded-full bg-[#00c896] flex items-center justify-center text-white hover:opacity-90 transition-all"
+          >
+            <Play size={13} fill="currentColor" />
+            {liveSessionsCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                {liveSessionsCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => router.push("/points")}
+            className="flex items-center px-1.5 h-7 rounded-full bg-[#ffb020] text-white text-[9px] font-bold hover:opacity-90 transition-all whitespace-nowrap"
+          >
+            {pfPoints.toLocaleString()} pts
+          </button>
+        </div>
+
         {/* Center: Logo — absolutely centered */}
         <div className="absolute left-1/2 -translate-x-1/2 bg-white">
           <img
@@ -103,7 +137,32 @@ export default function DashboardHeader({
         </div>
 
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex items-center gap-1 sm:gap-3">
+
+          {/* Mobile-only compact Calendar/Notifications, right of the logo (desktop row below is untouched) */}
+          <div className="flex sm:hidden items-center gap-1 mr-1">
+            <button
+              onClick={() => router.push("/checklist")}
+              className="relative w-7 h-7 rounded-full bg-[#f1eefe] flex items-center justify-center text-[#6c5ce7] hover:bg-[#e6e0fd] transition-all"
+            >
+              <Calendar size={13} />
+              <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                9
+              </span>
+            </button>
+            <button
+              onClick={() => router.push("/notifications")}
+              className="relative w-7 h-7 rounded-full bg-[#f1eefe] flex items-center justify-center text-[#6c5ce7] hover:bg-[#e6e0fd] transition-all"
+            >
+              <Bell size={13} />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                  {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+          </div>
+
           {/* Highlights / Watch */}
           <button
             onClick={() => setShowComingSoon(true)}
@@ -118,9 +177,11 @@ export default function DashboardHeader({
             className="hidden sm:flex relative w-9 h-9 rounded-full bg-[#00c896] items-center justify-center text-white hover:opacity-90 transition-all"
           >
             <Play size={16} fill="currentColor" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-              188
-            </span>
+            {liveSessionsCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {liveSessionsCount}
+              </span>
+            )}
           </button>
 
           {/* Points */}

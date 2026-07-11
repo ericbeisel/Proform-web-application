@@ -47,17 +47,25 @@ export default function LiveSessionsPage() {
     <div className="min-h-screen bg-[#f0eff4] text-[#1a1825]">
 
       {/* Header */}
-      <div className="bg-white border-b border-[#e8e6f0] px-5 py-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
+      <div className="relative bg-white px-4 sm:px-5 py-4 flex items-center gap-1.5 sm:gap-3 sticky top-0 z-10 shadow-sm">
         <button
           onClick={() => router.back()}
-          className="w-8 h-8 rounded-full bg-[#f0eff4] flex items-center justify-center text-gray-500 hover:bg-[#e8e6f0] transition"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#f0eff4] flex items-center justify-center text-gray-500 hover:bg-[#e8e6f0] transition shrink-0"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={16} className="sm:hidden" />
+          <ArrowLeft size={18} className="hidden sm:block" />
         </button>
-        <div className="flex-1">
-          <h1 className="font-black text-lg text-[#1a1825] leading-none">Live Sessions</h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">{totalCount} sessions total</p>
+        <div className="flex-1 min-w-0 pr-14 sm:pr-0">
+          <h1 className="font-black text-sm sm:text-lg text-[#1a1825] leading-none truncate">Live Sessions</h1>
+          <p className="text-[11px] sm:text-[12px] text-gray-400 mt-0.5 truncate">{totalCount} sessions total</p>
         </div>
+        <button
+          onClick={() => router.push("/feed/main-feed")}
+          className="absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition-opacity"
+          title="Go to Feed"
+        >
+          <img src="/images/proform-logo.jpg" alt="Proform" className="h-7 sm:h-8 w-auto rounded-md" />
+        </button>
       </div>
 
       {/* Filter + Pagination bar */}

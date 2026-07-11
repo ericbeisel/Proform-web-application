@@ -172,42 +172,53 @@ export default function TodaysChecklist() {
       <div className="bg-white w-full overflow-hidden">
 
         {/* ── Top bar ── */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-purple-700 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <Calendar size={20} className="text-white" />
+        <div className="relative flex items-center justify-between px-3 sm:px-4 py-4 border-b border-gray-100 gap-2">
+          <button
+            onClick={() => router.push("/feed/main-feed")}
+            className="absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition-opacity"
+            title="Go to Feed"
+          >
+            <img src="/images/proform-logo.jpg" alt="Proform" className="h-7 sm:h-8 w-auto rounded-md" />
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-purple-700 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <Calendar size={18} className="sm:hidden text-white" />
+              <Calendar size={20} className="hidden sm:block text-white" />
             </div>
-            <div>
-              <p className="text-[11px] text-gray-500 font-medium">Daily Progress</p>
-              <p className="text-2xl font-extrabold text-gray-900 leading-tight">{progress}%</p>
+            <div className="min-w-0">
+              <p className="text-[11px] text-gray-500 font-medium whitespace-nowrap">Daily Progress</p>
+              <p className="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight">{progress}%</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => router.push("/itinerary/itinerary-page")}
-              className="flex items-center gap-1.5 border border-purple-200 bg-purple-50 text-purple-700 text-[11px] font-semibold px-3 py-1.5 rounded-full hover:bg-purple-100 transition-colors"
+              className="flex items-center gap-1.5 border border-purple-200 bg-purple-50 text-purple-700 text-[11px] font-semibold px-2 sm:px-3 py-1.5 rounded-full hover:bg-purple-100 transition-colors"
             >
               <ListChecks size={13} />
-              Itinerary
+              <span className="hidden sm:inline">Itinerary</span>
             </button>
             {overdueCount > 0 && (
               <button
                 onClick={() => router.push("/checklist/missed-activity")}
-                className="flex items-center gap-1 border border-red-200 bg-red-50 text-red-500 text-[11px] font-semibold px-2.5 py-1.5 rounded-full"
+                className="flex items-center gap-1 border border-red-200 bg-red-50 text-red-500 text-[11px] font-semibold px-2 sm:px-2.5 py-1.5 rounded-full"
               >
                 <AlertCircle size={12} />
-                {overdueCount} Missed
+                {overdueCount}<span className="hidden sm:inline">&nbsp;Missed</span>
               </button>
             )}
-            <button className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">
-              <Settings size={17} />
+            <button className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0">
+              <Settings size={16} className="sm:hidden" />
+              <Settings size={17} className="hidden sm:block" />
             </button>
             <button
               onClick={() => router.back()}
-              className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0"
             >
-              <X size={17} />
+              <X size={16} className="sm:hidden" />
+              <X size={17} className="hidden sm:block" />
             </button>
           </div>
         </div>

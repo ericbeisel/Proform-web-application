@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Info, X, BarChart2, Activity, Percent, Award, Dumbbell, Star, Pen, Shirt, Scale, UserRound, Ruler } from "lucide-react";
 import {
   getMetrics,
@@ -16,6 +17,7 @@ import { AdjusterModal } from "./components/AdjusterModal";
 import { BulkEditModal } from "./components/BulkEditModal";
 
 export default function MetricsPage() {
+  const router = useRouter();
   const [metricsData, setMetricsData] = useState<UserMetrics | null>(null);
   const [cardData, setCardData] = useState<PlayerCardData | null>(null);
   const [otherDetail, setOtherDetail] = useState<OtherDetail | null>(null);
@@ -239,31 +241,49 @@ export default function MetricsPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#F8F9FA" }}>
       {/* ── Sticky top bar: title + tabs only ── */}
+      {/* Flat color matching the wellness section's gradient start (not its own gradient) so the two blocks meet with no visible seam */}
       <div
-        className="relative overflow-hidden sticky top-0 z-20 px-6 pt-5 pb-4"
-        style={{ background: "linear-gradient(135deg, #9B59D4 0%, #7C3AED 100%)" }}
+        className="relative overflow-hidden sticky top-0 z-20 px-4 sm:px-6 pt-5 pb-4"
+        style={{ backgroundColor: "#9B59D4" }}
       >
-        <div className="relative flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-white shrink-0">My Metrics!</h1>
-          <div className="flex flex-1 gap-2">
-            {iconTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.title}
-                  title={tab.title}
-                  onClick={tab.onClick}
-                  className="flex-1 h-12 rounded-2xl flex items-center justify-center transition-opacity hover:opacity-80"
-                  style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
-                >
-                  <Icon size={20} color="#ffffff" />
-                </button>
-              );
-            })}
-          </div>
-          <button className="shrink-0 w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70">
+        {/* Row 1: title (left), logo (center), close (right) — grid instead of absolute+transform so mix-blend-mode composites against the real background, no box */}
+        <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold text-white shrink-0 justify-self-start">My Metrics!</h1>
+
+          <button
+            onClick={() => router.push("/feed/main-feed")}
+            className="justify-self-center hover:opacity-80 transition-opacity"
+            title="Go to Feed"
+          >
+            <img
+              src="/images/proform-logo.jpg"
+              alt="Proform"
+              className="h-9 sm:h-10 w-auto"
+              style={{ filter: "invert(1)", mixBlendMode: "screen" }}
+            />
+          </button>
+
+          <button className="justify-self-end shrink-0 w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70">
             <X size={20} color="rgba(255,255,255,0.85)" />
           </button>
+        </div>
+
+        {/* Row 2: icon tabs — full width, equal size, never squished */}
+        <div className="relative flex gap-2 mt-4">
+          {iconTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.title}
+                title={tab.title}
+                onClick={tab.onClick}
+                className="flex-1 h-12 sm:h-14 rounded-2xl flex items-center justify-center transition-opacity hover:opacity-80"
+                style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+              >
+                <Icon size={20} color="#ffffff" />
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -278,8 +298,8 @@ export default function MetricsPage() {
         <div className="absolute rounded-full pointer-events-none"
           style={{ width: 180, height: 180, backgroundColor: "rgba(255,255,255,0.07)", bottom: -80, left: 40 }} />
 
-        {/* Wellness score (left) + Stat cards (right) */}
-        <div className="relative flex items-stretch gap-5">
+        {/* Wellness score (left) + Stat cards (right) — stacked on mobile so the stat cards get full width instead of overflowing */}
+        <div className="relative flex flex-col sm:flex-row items-stretch gap-5">
           <div className="flex flex-col justify-between shrink-0" style={{ minWidth: 170 }}>
             <div className="flex items-center gap-1.5">
               <Award size={15} color="rgba(255,255,255,0.85)" />
@@ -302,21 +322,22 @@ export default function MetricsPage() {
             </p>
           </div>
 
-          <div className="flex flex-1 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-1 sm:gap-3">
             {statCards.map((stat) => (
-              <div key={stat.label} className="flex-1 bg-white rounded-3xl px-5 py-4 flex flex-col justify-between">
-                <div className="flex items-center gap-2.5 mb-3">
+              <div key={stat.label} className="min-w-0 sm:flex-1 bg-white rounded-2xl sm:rounded-3xl px-2.5 py-3 sm:px-5 sm:py-4 flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 mb-2 sm:mb-3">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0"
                     style={{ backgroundColor: stat.iconBg }}
                   >
-                    <stat.Icon size={18} color={stat.color} />
+                    <stat.Icon size={14} className="sm:hidden" color={stat.color} />
+                    <stat.Icon size={18} className="hidden sm:block" color={stat.color} />
                   </div>
-                  <span className="text-sm font-medium" style={{ color: "#94A3B8" }}>
+                  <span className="text-[10px] sm:text-sm font-medium truncate" style={{ color: "#94A3B8" }}>
                     {stat.label}
                   </span>
                 </div>
-                <span className="text-4xl font-bold" style={{ color: stat.color }}>
+                <span className="text-xl sm:text-4xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </span>
               </div>
