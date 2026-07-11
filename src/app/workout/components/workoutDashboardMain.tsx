@@ -15,6 +15,17 @@ const WORKOUT_TYPE_TO_TARGET_FIELD: Record<string, "workout" | "conditioning" | 
   "Supplemental": "supplement",
 };
 
+// The actual program code lives in `code`/`program_code` — mirrors mobile's
+// PowerTagsRow usage `(workout as any).code || (workout as any).program_code`
+// (same fix applied to the itinerary page's cards). `title` is a display name
+// only; using it as the code is why Supplemental cards' power tags/badges
+// came up empty — getProgramTags(title) was looking up a nonexistent code.
+const getWorkoutProgramCode = (w: ActivityWorkoutQueueItem): string =>
+  (w as unknown as { code?: string; program_code?: string }).code ||
+  (w as unknown as { code?: string; program_code?: string }).program_code ||
+  w.title ||
+  "";
+
 interface ActivityWorkoutQueueItem {
   id: string;
   title: string;
@@ -46,6 +57,7 @@ interface ActivityWorkoutQueueItem {
   activity_day: string;
   activity_status: number;
   completed_activity: boolean;
+  franchiseCode?: string;
 }
 
 interface Session {
@@ -62,6 +74,7 @@ interface Session {
   cover_photo?: string;
   type?: string;
   programCode?: string;
+  franchiseCode?: string;
 }
 
 export default function WorkoutDashboard() {
@@ -112,10 +125,23 @@ export default function WorkoutDashboard() {
 
   // Map to sessions with new fields
   useEffect(() => {
+    // Some queue items only carry a generic placeholder (e.g. "Supplementals")
+    // as both their type-label source and their title/workout_title — showing
+    // it as the card title just duplicates the type badge above it. Skip a
+    // generic value and fall through to a more specific candidate instead.
+    const GENERIC_TITLES = ["supplemental", "supplementals", "workout", "field workout", "conditioning", "reconditioning"];
+    // Bare program codes (e.g. "SP08", "RC1") aren't a readable title either —
+    // short alphanumeric strings containing a digit.
+    const isCodeLike = (t?: string) => !!t && /^[A-Za-z0-9]{2,6}$/.test(t.trim()) && /\d/.test(t);
+    const isGenericTitle = (t?: string) => !!t && (GENERIC_TITLES.includes(t.trim().toLowerCase()) || isCodeLike(t));
+    const resolveTitle = (workout: ActivityWorkoutQueueItem) =>
+      [workout.workout_title, workout.title, workout.muscles_used].find((t) => t && !isGenericTitle(t))
+        || workout.workout_title || workout.title || workout.muscles_used || "";
+
     const mappedSessions: Session[] = workouts.map((workout) => ({
       id: workout.id,
       day: workout.day || workout.activity_day || "",
-      title: workout.workout_title || workout.title,
+      title: resolveTitle(workout),
       programName: workout.program_name,
       week: workout.week,
       calories: 0,
@@ -125,7 +151,8 @@ export default function WorkoutDashboard() {
       muscles_used: workout.muscles_used,
       cover_photo: workout.cover_photo,
       type: workout.type,
-      programCode: workout.title,
+      programCode: getWorkoutProgramCode(workout),
+      franchiseCode: workout.franchiseCode,
     }));
 
     setSessions(mappedSessions);
@@ -140,6 +167,7 @@ export default function WorkoutDashboard() {
     ).then((results) => {
       const map: Record<string, string[]> = {};
       results.forEach(({ code, tags }) => { map[code] = tags; });
+      console.log("[workoutDashboardMain] resolved program codes -> tags:", results);
       setTagsMap(map);
     });
   }, [workouts]);
@@ -355,43 +383,55 @@ export default function WorkoutDashboard() {
                 
                 {/* Content */}
                 <div className="relative p-4 sm:p-5 flex flex-col h-full min-h-[220px]">
-                  {/* Top Row - Type Badge */}
-                  <div className="flex justify-end">
-                    <div className="px-3 py-1.5 rounded-lg bg-green-600/80 backdrop-blur-sm text-white text-xs font-medium whitespace-nowrap border border-green-400/30">
-                      {session.type || "Workout"}
-                    </div>
-                  </div>
-                  
-                  {/* Middle Content */}
-                  <div className="flex-1 mt-2">
-                    <p className="text-xs mb-1 flex items-center gap-1.5">
+                  {/* Top Row - franchise tag + schedule time */}
+                  <div className="flex justify-between items-start gap-2">
+                    {session.franchiseCode ? (
+                      <span className="bg-[#724693] text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">
+                        {session.franchiseCode}
+                      </span>
+                    ) : <span />}
+                    <p className="text-xs flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-lg px-2.5 py-1 shrink-0">
                       <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
                       <span className="text-blue-400 text-xs">
                         By {session.activityDay || session.day} @ {formatTime(session.activityTime)}
                       </span>
                     </p>
+                  </div>
 
-                    {session.programName && (
-                      <p className="text-[11px] text-purple-400 font-medium mb-0.5 line-clamp-1 uppercase tracking-wide">
-                        {session.programName}
-                      </p>
-                    )}
-
-                    <p className="font-bold text-base sm:text-lg text-white m-0 mb-1 line-clamp-2">
+                  {/* Middle Content — exact same sequence/styling as the
+                      itinerary page's activity popup image card: type,
+                      violet title, cyan power tag, muscles_used. */}
+                  <div className="flex-1 mt-2 flex flex-col justify-end">
+                    <p className="text-white/80 text-[11px] font-bold uppercase tracking-wide">
+                      {session.type || "Workout"}
+                    </p>
+                    <p className="text-violet-400 font-extrabold text-lg leading-snug mb-1.5 line-clamp-2">
                       {session.title}
                     </p>
-    {session.programCode && tagsMap[session.programCode]?.length > 0 && (() => {
-                      const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
-                      const badges = tagsMap[session.programCode]
-                        .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
-                        .filter(Boolean) as string[];
+                    {session.week && (
+                      <p className="text-white/80 text-[11px] font-medium mb-1.5">
+                        {session.week}
+                      </p>
+                    )}
+                    {session.programCode && tagsMap[session.programCode]?.length > 0 && (() => {
+                      const tagLabel = (tag: string): string | null => {
+                        const t = tag.toUpperCase();
+                        if (t.includes("UES")) return "Bench";
+                        if (t.includes("LES")) return "Squat";
+                        if (t.includes("CCS")) return "Clean";
+                        if (t.includes("HHP")) return "Deadlift";
+                        return null;
+                      };
+                      const badges = Array.from(
+                        new Set(tagsMap[session.programCode].map(tagLabel).filter(Boolean) as string[]),
+                      ).slice(0, 1);
                       if (!badges.length) return null;
                       return (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {badges.map((name) => (
+                        <div className="flex flex-wrap gap-1.5 mb-1.5">
+                          {badges.map((name, idx) => (
                             <span
-                              key={name}
-                              className="px-2 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-semibold backdrop-blur-sm"
+                              key={`${name}-${idx}`}
+                              className="bg-cyan-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full"
                             >
                               ${name}
                             </span>
@@ -399,13 +439,12 @@ export default function WorkoutDashboard() {
                         </div>
                       );
                     })()}
-                    {session.muscles_used && (
-                      <p className="text-xs text-white flex items-center gap-1.5 mt-1 line-clamp-1">
+                    {session.muscles_used && session.muscles_used.trim().toLowerCase() !== session.title.trim().toLowerCase() && (
+                      <p className="text-white text-sm font-semibold line-clamp-1">
                         {session.muscles_used}
                       </p>
                     )}
 
-                
                   </div>
                   
                   {/* Bottom Row - Checkbox */}

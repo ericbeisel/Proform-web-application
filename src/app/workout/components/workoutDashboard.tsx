@@ -35,7 +35,16 @@ interface WorkoutQueueItem {
   created_date_2: string;
   team_id: string | null;
   archive: boolean;
+  code?: string;
+  program_code?: string;
+  franchiseCode?: string;
 }
+
+// The actual program code lives in `code`/`program_code` — `title`/`workout_title`
+// are display names only, and using them as the code is why power tags could
+// silently come up empty (getProgramTags(title) looking up a nonexistent code).
+const getWorkoutProgramCode = (w: WorkoutQueueItem): string =>
+  w.code || w.program_code || w.title || "";
 
 interface Activity {
   id: number;
@@ -74,6 +83,7 @@ interface Session {
   group?: string;
   order?: number;
   programCode?: string;
+  franchiseCode?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -151,6 +161,17 @@ export default function WorkoutDashboard() {
   // ── Derived sessions ───────────────────────────────────────────────────────
 
   useEffect(() => {
+    // Some queue items only carry a generic placeholder (e.g. "Supplementals")
+    // as both their type-label source and their title/workout_title — showing
+    // it as the row title just duplicates other generic labels nearby. Skip a
+    // generic/code-like value and fall through to a more specific candidate.
+    const GENERIC_TITLES = ["supplemental", "supplementals", "workout", "field workout", "conditioning", "reconditioning"];
+    const isCodeLike = (t?: string) => !!t && /^[A-Za-z0-9]{2,6}$/.test(t.trim()) && /\d/.test(t);
+    const isGenericTitle = (t?: string) => !!t && (GENERIC_TITLES.includes(t.trim().toLowerCase()) || isCodeLike(t));
+    const resolveTitle = (workout: WorkoutQueueItem) =>
+      [workout.workout_title, workout.title, workout.muscles_used].find((t) => t && !isGenericTitle(t))
+        || workout.workout_title || workout.title || workout.muscles_used || "";
+
     const mapped: Session[] = workouts.map((workout, index) => {
       const matchingActivity =
         activities[index] ||
@@ -159,7 +180,7 @@ export default function WorkoutDashboard() {
       return {
         id: workout.id,
         day: workout.day || matchingActivity?.day || "",
-        title: workout.workout_title || workout.title,
+        title: resolveTitle(workout),
         programName: workout.program_name,
         week: workout.week,
         calories: 0,
@@ -170,7 +191,8 @@ export default function WorkoutDashboard() {
         activityDay: matchingActivity?.day,
         group: workout.group,
         order: workout.order || index + 1,
-        programCode: workout.title,
+        programCode: getWorkoutProgramCode(workout),
+        franchiseCode: workout.franchiseCode,
       };
     });
 
@@ -413,14 +435,13 @@ export default function WorkoutDashboard() {
 
                 {/* ── Main content ── */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {session.group && (
-                      <span className="text-[10px] text-gray-400">{session.group}</span>
-                    )}
-                    {session.day && (
-                      <span className="text-[10px] text-gray-400">{session.day}</span>
-                    )}
-                  </div>
+                  {session.franchiseCode && (
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="bg-[#724693] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
+                        {session.franchiseCode}
+                      </span>
+                    </div>
+                  )}
 
                   {session.activityTime && (
                     <p className="text-xs text-blue-400 mt-0.5">
@@ -438,23 +459,38 @@ export default function WorkoutDashboard() {
                     {session.title}
                   </p>
 
-                  {session.muscles_used && (
-                    <p className="text-xs text-white mt-0.5 truncate">{session.muscles_used}</p>
+                  {(session.group || session.day) && (
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                      {session.group && (
+                        <span className="text-[10px] text-gray-400">{session.group}</span>
+                      )}
+                      {session.day && (
+                        <span className="text-[10px] text-gray-400">{session.day}</span>
+                      )}
+                    </div>
                   )}
 
-                  {/* Power set tags */}
+                  {/* Power set tags — same sequence as the other queue/schedule
+                      cards: tag comes before muscles_used, deduped to one. */}
                   {(() => {
-                    const BADGE_MAP: Record<string, string> = { UES: "Bench", LES: "Squat", CCS: "Clean", HHP: "Deadlift" };
-                    const badges = (tagsMap[session.programCode || ""] || [])
-                      .map((tag) => BADGE_MAP[tag.replace("$", "").toUpperCase()])
-                      .filter(Boolean) as string[];
+                    const tagLabel = (tag: string): string | null => {
+                      const t = tag.toUpperCase();
+                      if (t.includes("UES")) return "Bench";
+                      if (t.includes("LES")) return "Squat";
+                      if (t.includes("CCS")) return "Clean";
+                      if (t.includes("HHP")) return "Deadlift";
+                      return null;
+                    };
+                    const badges = Array.from(
+                      new Set((tagsMap[session.programCode || ""] || []).map(tagLabel).filter(Boolean) as string[]),
+                    ).slice(0, 1);
                     if (!badges.length) return null;
                     return (
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        {badges.map((name) => (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {badges.map((name, idx) => (
                           <span
-                            key={name}
-                            className="px-2 py-0.5 rounded-full bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-[10px] font-semibold"
+                            key={`${name}-${idx}`}
+                            className="bg-cyan-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full"
                           >
                             ${name}
                           </span>
@@ -462,6 +498,10 @@ export default function WorkoutDashboard() {
                       </div>
                     );
                   })()}
+
+                  {session.muscles_used && session.muscles_used.trim().toLowerCase() !== session.title.trim().toLowerCase() && (
+                    <p className="text-xs text-white mt-1 truncate">{session.muscles_used}</p>
+                  )}
                 </div>
 
                 {/* ── Right-side controls ── */}

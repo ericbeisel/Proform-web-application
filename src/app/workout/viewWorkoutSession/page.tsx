@@ -390,6 +390,12 @@ function ViewWorkoutSessionContent() {
     }
   };
 
+  useEffect(() => {
+    equipmentApi.getLocationList()
+      .then((list) => console.log("[viewWorkoutSession] location list:", list))
+      .catch(() => {});
+  }, []);
+
   // Track the server-persisted default location and re-run the location
   // filter if it changes while this tab has focus — mirrors mobile's
   // getDefaultLocation-on-focus re-sync in OverviewScreen. Web has no
@@ -1370,7 +1376,7 @@ function ViewWorkoutSessionContent() {
         {showRejoinBanner && activeView === "Overview" && (() => {
           const bannerSession = activeSession || incompleteSession;
           const bannerIsHost = isHost(bannerSession);
-          const actionLabel = bannerIsHost ? "Rejoin" : "Join";
+          const actionLabel = isLocked ? "Unlock" : bannerIsHost ? "Rejoin" : "Join";
           return (
             <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
               <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
@@ -1391,12 +1397,15 @@ function ViewWorkoutSessionContent() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => handleRejoin(bannerSession!)}
+                    onClick={() => isLocked ? setShowPurchaseModal(true) : handleRejoin(bannerSession!)}
                     className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
                   >
                     {actionLabel}
                   </button>
-                  {bannerIsHost && incompleteSessions.length > 0 && (
+                  {/* Hidden while locked — otherwise a user without access
+                      could join a different incomplete session from this
+                      list instead of purchasing. */}
+                  {!isLocked && bannerIsHost && incompleteSessions.length > 0 && (
                     <button
                       onClick={() => setShowRejoinModal(true)}
                       className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"

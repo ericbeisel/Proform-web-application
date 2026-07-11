@@ -37,6 +37,7 @@ export interface ItineraryWorkout {
   activity_status: number;
   completed_activity: boolean;
   day_number: number;
+  franchiseCode?: string;
 }
 
 export interface CustomActivity {

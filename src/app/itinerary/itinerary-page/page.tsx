@@ -525,11 +525,18 @@ const totalWorkouts = (() => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
                 {/* Colored Dot */}
-                <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-full ${getDotColor(w.type)}`} />
-                  <span className="text-white text-[11px] sm:text-[12px] font-bold">
-                    By {w.activity_day} @ {formatTime(w.activity_time)}
-                  </span>
+                <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2.5 h-2.5 rounded-full ${getDotColor(w.type)}`} />
+                    <span className="text-white text-[11px] sm:text-[12px] font-bold">
+                      By {w.activity_day} @ {formatTime(w.activity_time)}
+                    </span>
+                  </div>
+                  {w.franchiseCode && (
+                    <span className="bg-[#724693] text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
+                      {w.franchiseCode}
+                    </span>
+                  )}
                 </div>
 
                 {/* Completed indicator - Top Right (read-only, reflects real backend state) */}
@@ -664,6 +671,11 @@ const totalWorkouts = (() => {
                   />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                {selectedWorkout.franchiseCode && (
+                  <span className="absolute top-3 left-3 bg-[#724693] text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">
+                    {selectedWorkout.franchiseCode}
+                  </span>
+                )}
                 <div className="absolute bottom-0 left-0 right-0 p-3">
                   <p className="text-white/80 text-[11px] font-bold uppercase tracking-wide">{selectedWorkout.type}</p>
                   <p className="text-violet-400 font-extrabold text-lg leading-snug mb-1.5">{selectedWorkout.workout_title}</p>
