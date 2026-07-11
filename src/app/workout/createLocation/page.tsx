@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Search, CheckCircle2, Dumbbell, Loader2 } from "lucide-react";
 import { equipmentApi, Equipment } from "@/api/location/route";
+import { getProgramEquipment, Equipment as ProgramEquipment } from "@/api/programs/route";
 
 export default function CreateLocationPage() {
   const router = useRouter();
@@ -14,6 +15,10 @@ export default function CreateLocationPage() {
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [makeDefault, setMakeDefault] = useState(false);
+  // Equipment required by whichever workout the user is currently setting up
+  // (if any) — drives the "outlined" indicator, independent of "selected".
+  const [requiredEquipment, setRequiredEquipment] = useState<ProgramEquipment[]>([]);
 
   useEffect(() => {
     equipmentApi
@@ -21,7 +26,19 @@ export default function CreateLocationPage() {
       .then(setAllEquipment)
       .catch(console.error)
       .finally(() => setLoadingEquip(false));
+
+    const programCode = localStorage.getItem("workoutProgramCode");
+    if (programCode) {
+      getProgramEquipment(programCode)
+        .then((equip) => setRequiredEquipment(Array.isArray(equip) ? equip : []))
+        .catch(() => setRequiredEquipment([]));
+    }
   }, []);
+
+  const isRequiredEquipment = (eq: Equipment) =>
+    requiredEquipment.some(
+      (req) => req.id === eq.id || req.name?.toLowerCase() === eq.name?.toLowerCase(),
+    );
 
   const toggleEquip = (id: number) =>
     setSelectedIds((prev) => {
@@ -42,6 +59,9 @@ export default function CreateLocationPage() {
         location_name: title.trim(),
         equipments: Array.from(selectedIds).join(","),
       });
+      if (makeDefault) {
+        await equipmentApi.selectDefaultLocation(data.id).catch(() => {});
+      }
       // Store new location ID so equipmentNeeded auto-selects it
       localStorage.setItem("newLocationId", String(data.id));
       localStorage.setItem("newLocationName", title.trim());
@@ -107,7 +127,12 @@ export default function CreateLocationPage() {
         ) : (
           <div className="grid grid-cols-3 gap-3">
             {filtered.map((eq) => {
+              // Two fully independent indicators: `isSelected` = added to
+              // this location (purple fill + checkmark), `isRequired` =
+              // needed by the workout currently being set up (amber ring) —
+              // an item can be either, both, or neither.
               const isSelected = selectedIds.has(eq.id);
+              const isRequired = isRequiredEquipment(eq);
               return (
                 <button
                   key={eq.id}
@@ -117,12 +142,19 @@ export default function CreateLocationPage() {
                     isSelected
                       ? "border-[#7c3aed] bg-purple-50 ring-2 ring-[#7c3aed]/10"
                       : "border-gray-200 bg-white"
+                  } ${
+                    isRequired ? "outline outline-2 outline-offset-2 outline-amber-400" : ""
                   }`}
                 >
                   {isSelected && (
                     <div className="absolute top-1.5 right-1.5 text-[#7c3aed]">
                       <CheckCircle2 size={14} fill="white" />
                     </div>
+                  )}
+                  {isRequired && (
+                    <span className="absolute -top-1.5 -left-1.5 bg-amber-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide shadow-sm">
+                      Req
+                    </span>
                   )}
                   <div className="h-10 w-10 mb-2 flex items-center justify-center bg-gray-50 rounded-xl p-1.5">
                     {eq.icon ? (
@@ -164,6 +196,17 @@ export default function CreateLocationPage() {
           onChange={(e) => setTitle(e.target.value)}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] mb-4"
         />
+
+        <label className="flex items-center gap-2.5 mb-4 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={makeDefault}
+            onChange={(e) => setMakeDefault(e.target.checked)}
+            className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer"
+          />
+          <span className="text-sm font-medium text-gray-700">Make this my default location</span>
+        </label>
+
         <button
           onClick={handleCreate}
           disabled={submitting}

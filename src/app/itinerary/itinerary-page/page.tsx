@@ -51,6 +51,17 @@ const getFilterFromType = (type: string): FilterTab => {
   }
 };
 
+// The actual program code lives in `code`/`program_code` — mirrors mobile's
+// PowerTagsRow usage `(workout as any).code || (workout as any).program_code`.
+// `title` is a display name only; it happens to equal the code for some
+// "Workout" records but not for Supplemental ones, which is why power-set
+// tags previously only ever showed up for the Workout popup.
+const getWorkoutProgramCode = (w: ItineraryWorkout): string =>
+  (w as unknown as { code?: string; program_code?: string }).code ||
+  (w as unknown as { code?: string; program_code?: string }).program_code ||
+  w.title ||
+  "";
+
 // Get dot color based on type
 // Get dot color based on type
 const getDotColor = (type: string): string => {
@@ -258,13 +269,12 @@ const totalWorkouts = (() => {
 
   useEffect(() => {
     if (!itineraryData.length) return;
-    const uniqueCodes = [...new Set(itineraryData.map((w) => w.title).filter(Boolean))];
+    const uniqueCodes = [...new Set(itineraryData.map(getWorkoutProgramCode).filter(Boolean))];
     uniqueCodes.forEach((code) => {
       const cleanCode = code.trim().split(" ")[0];
       if (!cleanCode) return;
       getProgramTags(cleanCode.toLowerCase())
         .then((tags) => {
-          console.log("[itinerary] schedule card tags for", code, ":", tags);
           setTagsMap((prev) => ({ ...prev, [code]: tags }));
         })
         .catch(() => {});
@@ -272,12 +282,12 @@ const totalWorkouts = (() => {
   }, [itineraryData]);
 
   useEffect(() => {
-    if (!selectedWorkout?.title) { setSelectedWorkoutTags([]); return; }
-    const cleanCode = selectedWorkout.title.trim().split(" ")[0];
+    if (!selectedWorkout) { setSelectedWorkoutTags([]); return; }
+    const code = getWorkoutProgramCode(selectedWorkout);
+    const cleanCode = code.trim().split(" ")[0];
     if (!cleanCode) { setSelectedWorkoutTags([]); return; }
     getProgramTags(cleanCode.toLowerCase())
       .then((tags) => {
-        console.log("[itinerary] tags for", selectedWorkout.title, ":", tags);
         setSelectedWorkoutTags(tags);
       })
       .catch(() => setSelectedWorkoutTags([]));
@@ -549,12 +559,6 @@ const totalWorkouts = (() => {
                     </span>
                   </div>
 
-                  {w.muscles_used && (
-                    <p className="text-white text-[10px] sm:text-[11px] mt-1 line-clamp-1">
-                      {w.muscles_used}
-                    </p>
-                  )}
-
                   {(() => {
                     const tagLabel = (tag: string): string | null => {
                       const t = tag.toUpperCase();
@@ -564,9 +568,9 @@ const totalWorkouts = (() => {
                       if (t.includes("HHP")) return "Deadlift";
                       return null;
                     };
-                    const badges = (tagsMap[w.title] || [])
-                      .map(tagLabel)
-                      .filter(Boolean) as string[];
+                    const badges = Array.from(
+                      new Set((tagsMap[getWorkoutProgramCode(w)] || []).map(tagLabel).filter(Boolean) as string[]),
+                    ).slice(0, 1);
                     if (!badges.length) return null;
                     return (
                       <div className="flex flex-wrap gap-1 mt-1.5">
@@ -581,6 +585,12 @@ const totalWorkouts = (() => {
                       </div>
                     );
                   })()}
+
+                  {w.muscles_used && (
+                    <p className="text-white text-[10px] sm:text-[11px] mt-1 line-clamp-1">
+                      {w.muscles_used}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -613,9 +623,9 @@ const totalWorkouts = (() => {
           if (t.includes("HHP")) return "Deadlift";
           return null;
         };
-        const powerTags = selectedWorkoutTags
-          .map(tagLabel)
-          .filter(Boolean) as string[];
+        const powerTags = Array.from(
+          new Set(selectedWorkoutTags.map(tagLabel).filter(Boolean) as string[]),
+        ).slice(0, 1);
 
         const EDIT_TIME_SECTIONS: Record<string, string> = {
           workout: "workout",

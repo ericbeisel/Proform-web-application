@@ -1,3 +1,37 @@
+import { WorkoutGroup } from "@/api/programs/route";
+
+// Exact port of mobile's sortedRounds comparator (OverviewScreen.tsx:947-965)
+// plus its per-round exercise sort (OverviewScreen.tsx:1377) — the raw
+// backend order isn't trusted for display there either. Priority: WARM
+// first, then ROUND ordered numerically by the digit in the label,
+// everything else alphabetically; exercises within each round by `.order`.
+// Shared by viewWorkoutSession/page.tsx and athenaWorkout.tsx so both screens
+// agree on section order (a round like "Warm Up" must always play before
+// "Round 1", not after — a plain "ROUND N" numeric sort pushes anything
+// non-"ROUND"-labeled to the end instead of the front).
+export function sortWorkoutGroups(groups: WorkoutGroup[]): WorkoutGroup[] {
+  const sorted = [...groups].sort((a, b) => {
+    const aLabel = (a.label || "").toUpperCase();
+    const bLabel = (b.label || "").toUpperCase();
+    const isAWarmup = aLabel.includes("WARM");
+    const isBWarmup = bLabel.includes("WARM");
+    if (isAWarmup && !isBWarmup) return -1;
+    if (!isAWarmup && isBWarmup) return 1;
+    const isARound = aLabel.includes("ROUND");
+    const isBRound = bLabel.includes("ROUND");
+    if (isARound && !isBRound) return -1;
+    if (!isARound && isBRound) return 1;
+    const aNum = parseInt(aLabel.match(/\d+/)?.[0] || "999", 10);
+    const bNum = parseInt(bLabel.match(/\d+/)?.[0] || "999", 10);
+    if (aNum !== bNum) return aNum - bNum;
+    return aLabel.localeCompare(bLabel);
+  });
+  sorted.forEach((g) => {
+    g.workouts = [...(g.workouts || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  });
+  return sorted;
+}
+
 // Exact port of mobile's ResultsScreen.tsx MUSCLE_LABEL_MAP — several keys
 // need slashes ("MID/LOW BACK") or a typo correction ("abuductorsHips" ->
 // "ABDUCTORS/HIPS") that a generic camelCase-split can't produce, and

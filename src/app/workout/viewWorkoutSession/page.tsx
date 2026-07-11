@@ -56,35 +56,7 @@ import { feedApi, Advertisement } from "@/api/feed/route";
 import { equipmentApi } from "@/api/location/route";
 import { getAuthToken, getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
 import { convertToUserUnit } from "@/lib/units";
-import { resolveWixImage } from "./helpers";
-
-// Exact port of mobile's sortedRounds comparator (OverviewScreen.tsx:947-965)
-// plus its per-round exercise sort (OverviewScreen.tsx:1377) — the raw
-// backend order isn't trusted for display there either. Priority: WARM
-// first, then ROUND ordered numerically by the digit in the label,
-// everything else alphabetically; exercises within each round by `.order`.
-function sortWorkoutGroups(groups: WorkoutGroup[]): WorkoutGroup[] {
-  const sorted = [...groups].sort((a, b) => {
-    const aLabel = (a.label || "").toUpperCase();
-    const bLabel = (b.label || "").toUpperCase();
-    const isAWarmup = aLabel.includes("WARM");
-    const isBWarmup = bLabel.includes("WARM");
-    if (isAWarmup && !isBWarmup) return -1;
-    if (!isAWarmup && isBWarmup) return 1;
-    const isARound = aLabel.includes("ROUND");
-    const isBRound = bLabel.includes("ROUND");
-    if (isARound && !isBRound) return -1;
-    if (!isARound && isBRound) return 1;
-    const aNum = parseInt(aLabel.match(/\d+/)?.[0] || "999", 10);
-    const bNum = parseInt(bLabel.match(/\d+/)?.[0] || "999", 10);
-    if (aNum !== bNum) return aNum - bNum;
-    return aLabel.localeCompare(bLabel);
-  });
-  sorted.forEach((g) => {
-    g.workouts = [...(g.workouts || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  });
-  return sorted;
-}
+import { resolveWixImage, sortWorkoutGroups } from "./helpers";
 
 // Exact port of mobile's ExerciseTrackingModal parseHeightInches — handles
 // both a plain number and a "5'10"" style string.
@@ -328,19 +300,15 @@ function ViewWorkoutSessionContent() {
       // exact log id; previously every power-set log was unconditionally
       // pushed in as its own entry, which could color/duplicate sets that
       // mobile's basis would not.
-      console.log("[MapScreen debug] raw psLogs:", JSON.stringify(psLogs, null, 2));
-      console.log("[MapScreen debug] raw stdLogs:", JSON.stringify(stdLogs, null, 2));
       const powerSetTrackingLogIds = new Set<string>(
         (psLogs as any[])
           .map((l: any) => String(l.tracking_log || ""))
           .filter(Boolean)
       );
-      console.log("[MapScreen debug] powerSetTrackingLogIds:", Array.from(powerSetTrackingLogIds));
       const allLogs = (stdLogs as any[]).map((log: any) => {
         const logId = String(log.id || "");
         return logId && powerSetTrackingLogIds.has(logId) ? { ...log, isPowerSetLog: true } : log;
       });
-      console.log("[MapScreen debug] allLogs with isPowerSetLog flags:", allLogs.map((l: any) => ({ id: l.id, title: l.title, isPowerSetLog: !!l.isPowerSetLog })));
       setMapSessionLogs(allLogs);
       setMapLoadRecords(loads as WorkoutLoadRecord[]);
     }).finally(() => setMapLoading(false));
@@ -415,8 +383,7 @@ function ViewWorkoutSessionContent() {
         locationId: locationId != null ? String(locationId) : undefined,
       });
       setLocationFilteredGroups(sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []));
-    } catch (err) {
-      console.error("[location filter] Failed:", err);
+    } catch {
       setFilterByLocation(false);
     } finally {
       setLocationFilterLoading(false);
@@ -446,8 +413,7 @@ function ViewWorkoutSessionContent() {
         if (changed && filterByLocation) {
           handleLocationFilter(true);
         }
-      } catch (err) {
-        console.warn("[location filter] Failed to check default location:", err);
+      } catch {
       }
     };
 
@@ -477,17 +443,7 @@ function ViewWorkoutSessionContent() {
     const sessionId = code
       ? localStorage.getItem(`activeSessionId_${code}`)
       : null;
-    console.log(
-      "[tracking] openTracking — code:",
-      code,
-      "sessionId:",
-      sessionId,
-      "exerciseId:",
-      item.exercise_id,
-    );
-
     if (!item.exercise_id) {
-      console.warn("[tracking] ✗ No exercise_id on item — skipping fetch");
       return;
     }
 
@@ -495,7 +451,6 @@ function ViewWorkoutSessionContent() {
     try {
       // 1. All-time records for Last / Best (no sessionId filter — matches mobile)
       const allLogs = await getTrackingLogs({ exercise_id: item.exercise_id });
-      console.log("[tracking] All-time logs:", allLogs.length);
       if (allLogs.length > 0) {
         // API returns desc by date — index 0 is most recent
         setLastRecord({
@@ -515,11 +470,6 @@ function ViewWorkoutSessionContent() {
           sessionId,
           exercise_id: item.exercise_id,
         });
-        console.log(
-          "[tracking] Session logs:",
-          sessionLogs.length,
-          sessionLogs,
-        );
         if (sessionLogs.length > 0) {
           const sorted = [...sessionLogs].sort((a, b) => {
             const numA = parseInt(a.title?.replace(/\D/g, "") || "0");
@@ -536,8 +486,7 @@ function ViewWorkoutSessionContent() {
           );
         }
       }
-    } catch (err) {
-      console.error("[tracking] ✗ Failed to fetch logs:", err);
+    } catch {
     } finally {
       setLogsLoading(false);
     }
@@ -667,8 +616,7 @@ function ViewWorkoutSessionContent() {
         if (newSessionId) {
           try {
             await createFeedPost({ sessionId: newSessionId, workoutLibraryId: code || "" });
-          } catch (postErr) {
-            console.warn("[startWorkout] Failed to create feed post for joined session:", postErr);
+          } catch {
           }
           if (code) {
             localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, newSessionId);
@@ -678,12 +626,10 @@ function ViewWorkoutSessionContent() {
       } else {
         try {
           await createFeedPost({ sessionId: activeSession.id, workoutLibraryId: code || "" });
-        } catch (postErr) {
-          console.warn("[startWorkout] Failed to create feed post:", postErr);
+        } catch {
         }
       }
-    } catch (err) {
-      console.error("[startWorkout] Failed to prepare session:", err);
+    } catch {
     } finally {
       localStorage.setItem("sessionActive", "true");
       // Lateral tab-switch (the sidebar's Train Session/Start Workout CTA),
@@ -792,8 +738,7 @@ function ViewWorkoutSessionContent() {
               session.id,
             );
           }
-        } catch (err) {
-          console.error("[viewWorkout] failed to resolve session for shared link:", err);
+        } catch {
         }
       }
 
@@ -815,12 +760,6 @@ function ViewWorkoutSessionContent() {
         searchParams.get("sessionId") ??
         localStorage.getItem(`activeSessionId_${programCode?.toUpperCase()}`) ??
         localStorage.getItem("summarySessionId");
-      console.log(
-        "[viewWorkout] programCode:",
-        programCode,
-        "| storedSessionId:",
-        storedSessionId,
-      );
       if (storedSessionId) {
         setSessionStarted(true);
 
@@ -834,7 +773,6 @@ function ViewWorkoutSessionContent() {
           getWorkoutLoadRecords(storedSessionId).catch(() => []),
         ]).then(([stats, records]) => {
           setLoadRecords(records);
-          console.log("[viewWorkout] load records:", records);
           if (!stats) return;
           const totalLoad = records.length ? Math.max(...records.map((r) => r.load || 0)) : 0;
           const totalPower = records.length ? Math.max(...records.map((r) => r.power || 0)) : 0;
@@ -849,8 +787,6 @@ function ViewWorkoutSessionContent() {
             },
           });
         });
-      } else {
-        console.warn("[viewWorkout] no sessionId found — stats will not load");
       }
 
       if (!programCode) {
@@ -866,11 +802,6 @@ function ViewWorkoutSessionContent() {
       // entries have identical id/owner_id/member_id/session_id/location_id
       // fields to getIncompleteSessions' response).
       const applyIncompleteSessions = (allSessions: IncompleteSession[]) => {
-        console.log(
-          "[mount] incompleteSessions returned:",
-          allSessions.length,
-          allSessions.map((s) => s.id),
-        );
         // The API returns incomplete sessions for the whole program, not
         // scoped to the caller — filter to sessions this account actually
         // owns/started, otherwise viewing someone else's shared session
@@ -879,7 +810,6 @@ function ViewWorkoutSessionContent() {
         // decoding the JWT, since not every token here is guaranteed to
         // carry a usable sub/id claim.
         const myUserId = getAuthUser()?.id ?? getUserIdFromToken();
-        console.log("[rejoin] current user id:", myUserId);
         setMyUserId(myUserId ?? null);
         const sessions = myUserId
           ? allSessions.filter(
@@ -901,12 +831,6 @@ function ViewWorkoutSessionContent() {
           const matched = storedId
             ? sessions.find((s) => s.id === storedId)
             : null;
-          console.log(
-            "[mount] storedId:",
-            storedId,
-            "| matched:",
-            matched?.id ?? "none",
-          );
           if (matched) {
             setActiveSession(matched);
             // isSessionEngaged otherwise stays false here — mirrors mobile:
@@ -936,30 +860,8 @@ function ViewWorkoutSessionContent() {
       // grouped-workouts requests — the backend returns everything needed
       // for this view (optionally scoped to storedSessionId) in one response.
       setPowerSetsLoading(true);
-      console.log(
-        "[overview] fetching with code:",
-        programCode.toLowerCase(),
-        "| sessionId:",
-        storedSessionId,
-      );
       getProgramOverview(programCode.toLowerCase(), { sessionId: storedSessionId })
         .then((overview) => {
-          console.log(
-            "[overview] RAW rounds from backend:",
-            JSON.stringify(
-              (overview.rounds || []).map((g) => ({
-                label: g.label,
-                exercises: (g.workouts || []).map((w) => ({
-                  order: w.order,
-                  name: w.exercise_name,
-                  supplemental: w.supplemental,
-                })),
-              })),
-              null,
-              2,
-            ),
-          );
-          console.log("[overview] preview.title/code:", overview.preview?.title, overview.preview?.code);
           setProgramTags(Array.isArray(overview.tags) ? overview.tags : []);
           setPreviewData(overview.preview ?? null);
           setPowerSets(Array.isArray(overview.powerSets) ? overview.powerSets : []);
@@ -967,6 +869,7 @@ function ViewWorkoutSessionContent() {
           // A shared-link visitor never goes through the "browse program"
           // flow that normally sets workoutIsFree in localStorage, so a
           // free program would otherwise show a "requires purchase" paywall.
+          console.log("[viewWorkout] Workout is", overview.preview?.free ? "FREE" : "PAID");
           if (overview.preview?.free) {
             localStorage.setItem("workoutIsFree", "true");
             setHasPurchased(true);
@@ -1000,10 +903,10 @@ function ViewWorkoutSessionContent() {
           } else {
             getIncompleteSessions(normalizedCode)
               .then(applyIncompleteSessions)
-              .catch((err) => console.error("[rejoin] API error:", err));
+              .catch(() => {});
           }
         })
-        .catch((err) => console.error("Failed to fetch program overview:", err))
+        .catch(() => {})
         .finally(() => {
           setPowerSetsLoading(false);
           setLoading(false);
@@ -1038,27 +941,10 @@ function ViewWorkoutSessionContent() {
       }
       const sessionActive = localStorage.getItem("sessionActive") === "true";
 
-      console.log(
-        "[mount] justCreated:",
-        justCreated,
-        "| sessionActive:",
-        sessionActive,
-        "| normalizedCode:",
-        normalizedCode,
-      );
-
       // Load saved swaps on first visit after session creation OR when returning from athenaWorkout
       if (justCreated || sessionActive) {
         const savedSwaps = localStorage.getItem(
           `swappedExercises_${normalizedCode}`,
-        );
-        console.log(
-          "[mount] loading swaps from localStorage (justCreated:",
-          justCreated,
-          "| sessionActive:",
-          sessionActive,
-          "):",
-          savedSwaps ? "found" : "not found",
         );
         if (savedSwaps) {
           try {
@@ -1108,14 +994,21 @@ function ViewWorkoutSessionContent() {
       return Math.max(0, cumulative - prev);
     });
 
-    console.log("[viewWorkout] cumulative roundRecords:", roundRecords);
-    console.log("[viewWorkout] individual roundLoads:", computed);
     setRoundLoads(computed);
   }, [loadRecords, workoutGroups]);
 
   useEffect(() => {
-    const sid = activeSession?.id;
     const code = localStorage.getItem("workoutProgramCode");
+    // activeSessionId_${code} first, matching athenaWorkout.tsx's resolution
+    // exactly — activeSession is derived FROM this same localStorage value
+    // (see applyIncompleteSessions), but if that match against the freshly
+    // fetched incomplete-sessions list ever fails/races, activeSession can end
+    // up stale while athenaWorkout always reads localStorage fresh, which was
+    // making this round-completion check disagree with what it showed there.
+    const sid =
+      (code ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`) : null) ??
+      activeSession?.id ??
+      (activeSession as any)?.session_id;
     if (!sid || !code || workoutGroups.length === 0) return;
     let cancelled = false;
     Promise.all(
@@ -1129,7 +1022,16 @@ function ViewWorkoutSessionContent() {
           .catch(() => false),
       ),
     ).then((results) => {
-      if (!cancelled) setCompletedSectionsCount(results.filter(Boolean).length);
+      if (cancelled) return;
+      setCompletedSectionsCount(results.filter(Boolean).length);
+      // Feed the same authoritative per-round completion flag athenaWorkout.tsx
+      // reads back into workoutGroups, so the Powersets/Map round check marks
+      // match what you see when you actually open that round.
+      setWorkoutGroups((prev) => {
+        const changed = prev.some((g, i) => g.isCompleted !== results[i]);
+        if (!changed) return prev;
+        return prev.map((g, i) => (g.isCompleted === results[i] ? g : { ...g, isCompleted: results[i] }));
+      });
     });
     return () => {
       cancelled = true;
@@ -1238,6 +1140,16 @@ function ViewWorkoutSessionContent() {
                 <ArrowLeft size={20} />
               </button>
               <div>
+                {/* Franchise name — shown first, above program name. */}
+                {(() => {
+                  const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
+                  if (!franchiseName) return null;
+                  return (
+                    <span className="inline-block px-2 py-0.5 bg-[#7C3AED] text-white text-[9px] font-black rounded-full uppercase mb-1">
+                      {franchiseName}
+                    </span>
+                  );
+                })()}
                 {/* Program name (e.g. "Reconditioning") — mobile shows this
                     as a subtitle above the main workout title, sourced from
                     the active/incomplete session's program_name. */}
@@ -1249,11 +1161,6 @@ function ViewWorkoutSessionContent() {
                 <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase mt-0.5">
                   {workoutTitle || "Formula-1"}
                 </h1>
-                {workoutName && (
-                  <p className="text-[11px] font-black uppercase tracking-widest text-[#6c5ce7] mt-0.5">
-                    {workoutName}
-                  </p>
-                )}
                 {(() => {
                   const tagLabel = (tag: string): string | null => {
                     const t = tag.toUpperCase();
@@ -1264,17 +1171,11 @@ function ViewWorkoutSessionContent() {
                     return null;
                   };
                   const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
-                  const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
 
-                  if (!powerSetTags.length && !franchiseName) return null;
+                  if (!powerSetTags.length) return null;
 
                   return (
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {franchiseName && (
-                        <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[9px] font-black rounded-full uppercase">
-                          {franchiseName}
-                        </span>
-                      )}
                       {powerSetTags.map((label, idx) => (
                         <span
                           key={idx}
@@ -2431,20 +2332,9 @@ function ViewWorkoutSessionContent() {
                             tag: "/e",
                             load: computedLoad,
                           };
-                          console.log(
-                            "[tracking] Saving set",
-                            setNumber,
-                            payload,
-                          );
                           setSavingSetIndex(i);
                           try {
                             const result = await createTrackingLog(payload);
-                            console.log(
-                              "[tracking] Set",
-                              setNumber,
-                              "saved:",
-                              result,
-                            );
                             setSets((prev) =>
                               prev.map((s, idx) =>
                                 idx === i
@@ -2456,12 +2346,7 @@ function ViewWorkoutSessionContent() {
                                   : s,
                               ),
                             );
-                          } catch (err) {
-                            console.error(
-                              "[tracking] Failed to save set",
-                              setNumber,
-                              err,
-                            );
+                          } catch {
                           } finally {
                             setSavingSetIndex(null);
                           }
@@ -2537,20 +2422,12 @@ function ViewWorkoutSessionContent() {
                           load: computeTrackingLoad(userOtherDetail, trackingItem, weightNum, repsNum),
                         };
                       });
-                    console.log(
-                      "[tracking] Saving",
-                      payloads.length,
-                      "unsaved set(s):",
-                      payloads,
-                    );
                     if (payloads.length > 0) {
-                      const results = await Promise.all(
+                      await Promise.all(
                         payloads.map((p) => createTrackingLog(p)),
                       );
-                      console.log("[tracking] Saved successfully:", results);
                     }
-                  } catch (err) {
-                    console.error("[tracking] Failed to save logs:", err);
+                  } catch {
                   } finally {
                     setSavingLogs(false);
                     setTrackingItem(null);

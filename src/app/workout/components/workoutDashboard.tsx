@@ -214,7 +214,8 @@ export default function WorkoutDashboard() {
     localStorage.removeItem("workoutProgramId");
     localStorage.setItem("workoutProgramCode", code);
     localStorage.setItem("workoutTitle", session.title);
-    router.push(`/workout/detail?code=${code}&workoutKey=${encodeURIComponent(session.title)}`);
+    localStorage.setItem("workoutProgramName", session.programName || "");
+    router.push(`/workout/detail?code=${code}&workoutKey=${encodeURIComponent(session.title)}&programName=${encodeURIComponent(session.programName || "")}`);
   };
 
   const completeActivity = (sessionId: string) => {

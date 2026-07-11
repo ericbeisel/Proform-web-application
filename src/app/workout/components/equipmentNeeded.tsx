@@ -62,6 +62,31 @@ export default function EquipmentNeededPage() {
           } catch (e) {
             console.error("Failed to fetch new location detail:", e);
           }
+        } else {
+          // Pre-select the user's saved default location (mirrors mobile's
+          // OverviewScreen showBasedOnDefaultLocation) — this only pre-fills
+          // the selection so the confirmation flow below still runs as
+          // normal, it never auto-starts the session.
+          try {
+            const defaultLoc = await equipmentApi.getDefaultLocation();
+            const defaultId = defaultLoc?.data?.id;
+            if (defaultId && locData.some((l: LocationItem) => String(l.id) === String(defaultId))) {
+              const locName = locData.find((l: LocationItem) => String(l.id) === String(defaultId))?.name || "Selected Location";
+              setSelectedLocation(String(defaultId));
+              setDisplayLocationName(locName);
+              const detail = await equipmentApi.getLocationDetail(defaultId);
+              const fetchedList = detail.equipmentList || [];
+              setEquipments(fetchedList);
+              const matchedIds = fetchedList
+                .filter((eq: EquipmentItem) =>
+                  (programEquip || []).some((req: Equipment) => req.id === eq.id || req.name?.toLowerCase() === eq.name?.toLowerCase()),
+                )
+                .map((eq: EquipmentItem) => eq.id);
+              setSelectedEquipIds(new Set(matchedIds));
+            }
+          } catch {
+            // no default location set — leave the dropdown on "Select location..."
+          }
         }
       } catch (err) {
         console.error("Initialization failed:", err);
@@ -483,12 +508,14 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 </div>
               )}
 
-              {/* OTHER EQUIPMENT — full catalog, optional extras beyond required/location gear */}
+              {/* OTHER EQUIPMENT — full catalog, optional extras beyond required/location
+                  gear. Hidden entirely with no location selected: we assume the user has
+                  everything, so only Required (pre-checked) should show. */}
               {allEquipmentLoading ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="animate-spin text-[#7c3aed]" size={24} />
                 </div>
-              ) : otherEquipment.length > 0 && (
+              ) : selectedLocation && otherEquipment.length > 0 && (
                 <div>
                   <div className="mb-3 px-2">
                     <h2 className="text-lg font-bold text-gray-900">Other Equipment</h2>

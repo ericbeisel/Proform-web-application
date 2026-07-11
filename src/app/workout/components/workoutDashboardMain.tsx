@@ -2,8 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Check, Calendar, Loader2, RefreshCw, Settings } from "lucide-react";
+import { Plus, Check, Calendar, Loader2, RefreshCw, Settings, X, Dumbbell, Flame, Sparkles, Droplet, ChevronRight } from "lucide-react";
 import { getActivityWorkoutQueue, getProgramTags } from "@/api/programs/route";
+import { preferenceApi } from "@/api/preferences/route";
+
+// Maps this page's workoutType dropdown value to the matching weekly-target
+// field — mirrors mobile's per-category target lookup (target_supplement_week
+// etc.) in useDashboard/useActivityStats.
+const WORKOUT_TYPE_TO_TARGET_FIELD: Record<string, "workout" | "conditioning" | "supplement"> = {
+  "Workout": "workout",
+  "Field Workout": "conditioning",
+  "Supplemental": "supplement",
+};
 
 interface ActivityWorkoutQueueItem {
   id: string;
@@ -64,6 +74,19 @@ export default function WorkoutDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [workoutType, setWorkoutType] = useState(searchParams.get("tab") || "Workout");
   const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
+  const [weeklyTargets, setWeeklyTargets] = useState<{ workout: number; supplement: number; conditioning: number } | null>(null);
+  const [showQuickLogModal, setShowQuickLogModal] = useState(false);
+
+  // Weekly targets rarely change — fetch once, independent of workoutType.
+  useEffect(() => {
+    preferenceApi.getWeeklyTarget()
+      .then((target) => setWeeklyTargets({
+        workout: target.workout ?? 0,
+        supplement: target.supplement ?? 0,
+        conditioning: target.conditioning ?? 0,
+      }))
+      .catch(() => setWeeklyTargets(null));
+  }, []);
 
   // Fetch workouts
   useEffect(() => {
@@ -122,6 +145,8 @@ export default function WorkoutDashboard() {
   }, [workouts]);
 
   const completedSessions = sessions.filter((s) => s.completed).length;
+  const targetField = WORKOUT_TYPE_TO_TARGET_FIELD[workoutType];
+  const weeklyTarget = weeklyTargets && targetField ? weeklyTargets[targetField] : null;
 
   const handleSessionClick = (session: Session) => {
     const code = session.programCode?.toLowerCase()?.trim();
@@ -130,7 +155,8 @@ export default function WorkoutDashboard() {
     localStorage.removeItem("workoutProgramId");
     localStorage.setItem("workoutProgramCode", code);
     localStorage.setItem("workoutTitle", session.title);
-    router.push(`/workout/detail?code=${code}&workoutKey=${workoutKey}`);
+    localStorage.setItem("workoutProgramName", session.programName || "");
+    router.push(`/workout/detail?code=${code}&workoutKey=${workoutKey}&programName=${encodeURIComponent(session.programName || "")}`);
   };
 
   const completeActivity = (sessionId: string) => {
@@ -168,18 +194,19 @@ export default function WorkoutDashboard() {
       <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 border-b border-[#e8e8f0] sticky top-0 z-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3.5">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] rounded-full flex items-center justify-center font-extrabold text-base sm:text-lg text-white flex-shrink-0">
-              4
-            </div>
             <div>
               <h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">
-                {workoutType === "Workout" ? "Workout Queue" : 
-                 workoutType === "Field Workout" ? "Field Workout Queue" : 
+                {workoutType === "Workout" ? "Workout Queue" :
+                 workoutType === "Field Workout" ? "Field Workout Queue" :
                  "Supplemental Queue"}
               </h1>
-              <p className="text-[10px] sm:text-xs text-[#999] m-0">
-                {completedSessions}/{sessions.length} sessions completed • Track your weekly progress
-              </p>
+              <button
+                onClick={() => router.push("/preferences?openWeeklyTargets=true")}
+                className="text-[10px] sm:text-xs text-[#999] m-0 hover:text-[#7c3aed] hover:underline transition-colors text-left"
+              >
+                <span className="font-bold text-[#7c3aed]">{completedSessions}</span>
+                /{weeklyTarget ?? sessions.length} sessions completed
+              </button>
             </div>
           </div>
 
@@ -235,7 +262,10 @@ export default function WorkoutDashboard() {
                 Edit Queue
               </button>
 
-              <button className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] border-none rounded-lg text-white p-1.5 sm:p-2 cursor-pointer flex items-center justify-center shadow-sm hover:opacity-90 transition-all">
+              <button
+                onClick={() => setShowQuickLogModal(true)}
+                className="bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] border-none rounded-lg text-white p-1.5 sm:p-2 cursor-pointer flex items-center justify-center shadow-sm hover:opacity-90 transition-all"
+              >
                 <Plus size={18} />
               </button>
             </div>
@@ -400,6 +430,95 @@ export default function WorkoutDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Log bottom sheet — mirrors mobile's SupplementalWorkoutsScreen
+          "+" button: purely a UI router into one of four logging flows, no
+          API call of its own. */}
+      {showQuickLogModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center"
+          onClick={() => setShowQuickLogModal(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">Log Activity</h3>
+              <button
+                onClick={() => setShowQuickLogModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={15} className="text-gray-600" />
+              </button>
+            </div>
+
+            <div className="p-3">
+              {[
+                {
+                  key: "workout",
+                  label: "Workout",
+                  sub: "Log from your workout queue",
+                  icon: Dumbbell,
+                  color: "bg-violet-50 text-[#6d28d9]",
+                  onSelect: () => {
+                    setShowQuickLogModal(false);
+                    setWorkoutType("Workout");
+                  },
+                },
+                {
+                  key: "cardio",
+                  label: "Cardio",
+                  sub: "Quick log a cardio session",
+                  icon: Flame,
+                  color: "bg-red-50 text-red-500",
+                  onSelect: () => {
+                    setShowQuickLogModal(false);
+                    router.push("/todays-focus-cardio/cardio-entry");
+                  },
+                },
+                {
+                  key: "recovery",
+                  label: "Recovery",
+                  sub: "Log a recovery session",
+                  icon: Sparkles,
+                  color: "bg-purple-50 text-purple-600",
+                  onSelect: () => {
+                    setShowQuickLogModal(false);
+                    router.push("/recovery/suggestedRecovery");
+                  },
+                },
+                {
+                  key: "hydrate",
+                  label: "Hydrate",
+                  sub: "Log your water intake",
+                  icon: Droplet,
+                  color: "bg-sky-50 text-sky-500",
+                  onSelect: () => {
+                    setShowQuickLogModal(false);
+                    router.push("/hydration/submitHydration");
+                  },
+                },
+              ].map(({ key, label, sub, icon: Icon, color, onSelect }) => (
+                <button
+                  key={key}
+                  onClick={onSelect}
+                  className="w-full flex items-center gap-3.5 px-3 py-3.5 rounded-2xl hover:bg-gray-50 transition text-left"
+                >
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+                    <Icon size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-bold text-gray-900">{label}</p>
+                    <p className="text-[12px] text-gray-400">{sub}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-gray-300 shrink-0" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

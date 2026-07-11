@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { ArrowLeft, Plus, MapPin, Check, Loader2, Save } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { equipmentApi, Equipment } from "@/api/location/route";
+import { getProgramEquipment, Equipment as ProgramEquipment } from "@/api/programs/route";
 
 function SelectEquipContent() {
   const router = useRouter();
@@ -14,8 +15,17 @@ function SelectEquipContent() {
   const [newLocationName, setNewLocationName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [makeDefault, setMakeDefault] = useState(false);
+  // Equipment required by whichever workout is currently being set up — drives
+  // the "outlined" indicator, independent of "selected" (added to location).
+  const [requiredEquipment, setRequiredEquipment] = useState<ProgramEquipment[]>([]);
 
   const selectedCount = equipments.filter(eq => eq.selected).length;
+
+  const isRequiredEquipment = (eq: Equipment) =>
+    requiredEquipment.some(
+      (req) => req.id === eq.id || req.name?.toLowerCase() === eq.name?.toLowerCase(),
+    );
 
   useEffect(() => {
     const init = async () => {
@@ -30,6 +40,13 @@ function SelectEquipContent() {
           setEquipments(allEquip.map(eq => ({ ...eq, selected: activeIds.includes(eq.id) })));
         } else {
           setEquipments(allEquip.map(eq => ({ ...eq, selected: false })));
+        }
+
+        const programCode = localStorage.getItem("workoutProgramCode");
+        if (programCode) {
+          getProgramEquipment(programCode)
+            .then((equip) => setRequiredEquipment(Array.isArray(equip) ? equip : []))
+            .catch(() => setRequiredEquipment([]));
         }
       } catch (err) { console.error(err); } finally { setInitialLoading(false); }
     };
@@ -46,12 +63,17 @@ function SelectEquipContent() {
 
     setIsSubmitting(true);
     try {
-      await equipmentApi.createLocation({
+      const created = await equipmentApi.createLocation({
         location_name: newLocationName,
         equipments: equipments.filter(eq => eq.selected).map(eq => eq.id).join(","),
         default_location: 0,
       });
-      router.push("/workout/viewWorkout");
+      if (makeDefault) {
+        await equipmentApi.selectDefaultLocation(created.id).catch(() => {});
+      }
+      // /workout/viewWorkout is a stale, mostly non-functional duplicate of
+      // this program's actual current hub — route to the real one instead.
+      router.push("/workout/viewWorkoutSession");
     } catch (err: any) { alert(err.message || "Failed to save"); } finally { setIsSubmitting(false); }
   };
 
@@ -97,26 +119,48 @@ function SelectEquipContent() {
           <MapPin size={18} className="text-gray-300 ml-auto group-hover:text-[#7c3aed] transition-colors" />
         </button> */}
 
-        {/* EQUIPMENT GRID */}
+        {/* EQUIPMENT GRID — two independent indicators per item: `selected`
+            (added to this location) and `isRequiredEquipment` (needed by the
+            workout currently being set up). An item can be either, both, or
+            neither. */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {equipments.map((eq: any) => (
-            <div
-              key={eq.id}
-              onClick={() => toggleEquipment(eq.id)}
-              className={`relative cursor-pointer rounded-2xl border p-6 flex flex-col items-center justify-center transition-all
-                ${eq.selected ? "border-[#7c3aed] bg-[#7c3aed]/5 ring-1 ring-[#7c3aed] scale-[1.02]" : "border-gray-100 bg-white hover:border-gray-200"}`}
-            >
-              {eq.selected && <div className="absolute top-2 right-2 bg-[#7c3aed] text-white rounded-full p-1"><Check size={10} strokeWidth={4} /></div>}
-              <div className="h-12 w-12 mb-3"><img src={eq.icon} alt={eq.name} className="h-full w-full object-contain" /></div>
-              <p className={`text-[10px] font-bold uppercase tracking-wide text-center ${eq.selected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{eq.name}</p>
-            </div>
-          ))}
+          {equipments.map((eq: any) => {
+            const required = isRequiredEquipment(eq);
+            return (
+              <div
+                key={eq.id}
+                onClick={() => toggleEquipment(eq.id)}
+                className={`relative cursor-pointer rounded-2xl border p-6 flex flex-col items-center justify-center transition-all
+                  ${eq.selected ? "border-[#7c3aed] bg-[#7c3aed]/5 ring-1 ring-[#7c3aed] scale-[1.02]" : "border-gray-100 bg-white hover:border-gray-200"}
+                  ${required ? "outline outline-2 outline-offset-2 outline-amber-400" : ""}`}
+              >
+                {eq.selected && <div className="absolute top-2 right-2 bg-[#7c3aed] text-white rounded-full p-1"><Check size={10} strokeWidth={4} /></div>}
+                {required && (
+                  <span className="absolute -top-1.5 -left-1.5 bg-amber-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide shadow-sm">
+                    Req
+                  </span>
+                )}
+                <div className="h-12 w-12 mb-3"><img src={eq.icon} alt={eq.name} className="h-full w-full object-contain" /></div>
+                <p className={`text-[10px] font-bold uppercase tracking-wide text-center ${eq.selected ? 'text-[#7c3aed]' : 'text-gray-900'}`}>{eq.name}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* STICKY FOOTER ACTION BAR */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 sm:p-6 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.04)]">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-4">
+        <div className="max-w-4xl mx-auto">
+          <label className="flex items-center gap-2.5 mb-3 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={makeDefault}
+              onChange={(e) => setMakeDefault(e.target.checked)}
+              className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer"
+            />
+            <span className="text-sm font-medium text-gray-700">Make this my default location</span>
+          </label>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
           <div className="relative flex-1 w-full">
             <Save size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -134,6 +178,7 @@ function SelectEquipContent() {
           >
             {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Start Session"}
           </button>
+          </div>
         </div>
       </div>
     </div>

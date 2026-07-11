@@ -49,7 +49,7 @@ const MAIN_MENU: MenuItem[] = [
   { label: "My Metrics", icon: Activity, href: "/metrics" },
   { label: "My Teams", icon: Users, href: "/team/teams" },
   { label: "My Preferences", icon: Settings, href: "/preferences" },
-  { label: "Payments", icon: CreditCard },
+  { label: "Payments", icon: CreditCard, href: "/payments" },
   { label: "Connect TV", icon: Monitor, isHighlight: true },
   { label: "Feed", icon: Rss, href: "/feed/main-feed" },
   {

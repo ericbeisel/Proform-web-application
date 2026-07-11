@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api/feed/route";
 import { getTodayActivities } from "@/api/checklist/route";
-import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
+import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, createWorkoutSession, createFeedPost, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup } from "@/api/programs/route";
 import FeedComments from "@/components/FeedComments";
 import FeedSettingsModal from "@/components/FeedSettingsModal";
@@ -205,6 +205,7 @@ const [creatingHighlight, setCreatingHighlight] =
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [joiningSession, setJoiningSession] = useState(false);
 
   useEffect(() => {
     if (!selectedSessionFeed) {
@@ -277,16 +278,6 @@ const [creatingHighlight, setCreatingHighlight] =
       getWorkoutLoadRecords(activityId).then(setPopupLoadRecords).catch(() => setPopupLoadRecords([]));
     }
   }, [selectedSessionFeed]);
-
-  const getSessionTypeLabel = (type: string): string => {
-    switch (type) {
-      case "CompleteWorkout": return "Primary Training";
-      case "CompleteCardio": return "Cardio Training";
-      case "CompleteSupplemental": return "Supplemental";
-      case "CompleteConditioning": return "Conditioning";
-      default: return type.replace("Complete", "");
-    }
-  };
 
   const formatSessionDate = (dateStr?: string | null): string => {
     if (!dateStr) return "";
@@ -1699,7 +1690,8 @@ const [creatingHighlight, setCreatingHighlight] =
               const rawCardTitle = sessionData?.title || sessionData?.workoutTitle || selectedSessionFeed.title || selectedSessionFeed.description || "Workout Session";
               const cardTitle = rawCardTitle.replace(/started a session/gi, "").trim() || "Workout Session";
 
-              const handleJoinSession = () => {
+              const handleJoinSession = async () => {
+                if (joiningSession) return;
                 if (selectedSessionFeed.type === "CompleteCardio") {
                   const params = new URLSearchParams({
                     feedId: String(selectedSessionFeed.id),
@@ -1710,17 +1702,53 @@ const [creatingHighlight, setCreatingHighlight] =
                     date: selectedSessionFeed.date || selectedSessionFeed.created_at || "",
                   });
                   router.push(`/feed/cardio-session?${params.toString()}`);
-                } else {
-                  const code = sessionData?.program_id || sessionData?.workout_code || "";
-                  const activeId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
-                  localStorage.setItem("workoutProgramCode", code);
-                  localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
-                  localStorage.setItem("workoutName", sessionData?.programName || "");
-                  localStorage.setItem("workoutIsFree", "true");
-                  if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, activeId);
-                  localStorage.setItem("sessionActive", "true");
-                  router.push("/workout/viewWorkoutSession");
+                  return;
                 }
+
+                const code = sessionData?.program_id || sessionData?.workout_code || "";
+                const hostSessionId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
+                localStorage.setItem("workoutProgramCode", code);
+                localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
+                localStorage.setItem("workoutName", sessionData?.programName || "");
+                localStorage.setItem("workoutIsFree", "true");
+
+                // Mirrors mobile's handleJoinSession: a non-host joining a still-live
+                // session gets their own linked session (referencing the host's via
+                // refSessionId) before landing on the workout hub. A host reopening
+                // their own session, or any already-completed session, just reopens
+                // the existing session id — no new session is created.
+                if (!isOwnWorkout && !isCompleted) {
+                  setJoiningSession(true);
+                  try {
+                    const created = await createWorkoutSession({
+                      workoutLibraryId: code,
+                      refSessionId: hostSessionId,
+                    });
+                    const newSessionId = created.session?.id;
+                    if (newSessionId) {
+                      await createFeedPost({ sessionId: newSessionId, workoutLibraryId: code }).catch(() => {});
+                      if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, newSessionId);
+                      localStorage.setItem("sessionActive", "true");
+                      // One-shot signal viewWorkoutSession's mount effect already
+                      // checks (same one athenaWorkout's "Return to Workout" uses) —
+                      // marks you as already engaged so the rejoin banner is skipped
+                      // and you land directly in the joined session, matching mobile.
+                      localStorage.setItem("returningFromAthenaWorkout", "true");
+                      router.push("/workout/viewWorkoutSession");
+                      return;
+                    }
+                  } catch {
+                    // Fall through to reopening the host's session below if creating
+                    // a linked session failed, rather than leaving the button inert.
+                  } finally {
+                    setJoiningSession(false);
+                  }
+                }
+
+                if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, hostSessionId);
+                localStorage.setItem("sessionActive", "true");
+                localStorage.setItem("returningFromAthenaWorkout", "true");
+                router.push("/workout/viewWorkoutSession");
               };
 
               return (
@@ -1772,9 +1800,18 @@ const [creatingHighlight, setCreatingHighlight] =
                       <Dumbbell size={80} className="absolute inset-0 m-auto text-white/20 rotate-[-20deg]" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+                    {/* Top-right franchise code pill — same sequence as mobile's
+                        FeedWorkoutSessionScreen workout card overlay. */}
+                    <div className="absolute top-3 right-3">
+                      <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide truncate max-w-[120px] inline-block">
+                        {((sessionData as any)?.franchiseCode || (selectedSessionFeed as any)?.franchiseCode || selectedSessionFeed.type || "WORKOUT").toUpperCase()}
+                      </span>
+                    </div>
+
                     <div className="absolute bottom-0 left-0 right-0 p-4">
                       <p className="text-white/80 text-[11px] font-bold uppercase tracking-wide mb-1">
-                        {getSessionTypeLabel(selectedSessionFeed.type)}
+                        {sessionData?.programName || selectedSessionFeed.type}
                       </p>
                       <p className="text-white font-bold text-base leading-snug mb-2 line-clamp-2">
                         {cardTitle}
@@ -1964,9 +2001,10 @@ const [creatingHighlight, setCreatingHighlight] =
                   {(!isCompleted || !isOwnWorkout) && (
                     <button
                       onClick={handleJoinSession}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
+                      disabled={joiningSession}
+                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
                     >
-                      View / Join Session
+                      {joiningSession ? "Joining..." : "View / Join Session"}
                     </button>
                   )}
 

@@ -43,6 +43,7 @@ import {
   getPowerSetDetails,
 } from "@/api/workouts/route";
 import { getProgramGroupedWorkouts, WorkoutGroup, getProgramPowerSets, PowerSet } from "@/api/programs/route";
+import { sortWorkoutGroups } from "../viewWorkoutSession/helpers";
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { equipmentApi, LocationItem, Equipment } from "@/api/location/route";
 import SwapExerciseModal from "./swapExerciseModal";
@@ -244,8 +245,7 @@ async function verifyPowerSetsCompletedFor(
       }
     }
     return true;
-  } catch (err) {
-    console.warn("[athena] Failed to verify power sets completion:", err);
+  } catch {
     return true;
   }
 }
@@ -457,11 +457,7 @@ export default function AthenaWorkoutPage() {
         const locId = localStorage.getItem("workoutLocationId");
         if (locId) setLocationId(locId);
         const rawGroups = await getProgramGroupedWorkouts(code);
-        const getRoundNum = (label: string) => {
-          const m = label.match(/^ROUND\s+(\d+)/i);
-          return m ? parseInt(m[1], 10) : Infinity;
-        };
-        const groups = [...rawGroups].sort((a, b) => getRoundNum(a.label) - getRoundNum(b.label));
+        const groups = sortWorkoutGroups(rawGroups);
         setSections(groups);
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -497,8 +493,7 @@ export default function AthenaWorkoutPage() {
             setCurrentExerciseIndex(startExerciseIdx);
           }
         }
-      } catch (err) {
-        console.error("[athena] Failed to load workout data:", err);
+      } catch {
       } finally {
         setDataLoading(false);
       }
@@ -530,8 +525,7 @@ export default function AthenaWorkoutPage() {
           .finally(() => setVerifyingPowerSets(false));
         refreshLoadRecords(sid);
         if (preserveIndex !== undefined) setCurrentExerciseIndex(preserveIndex);
-      } catch (err) {
-        console.error("[athena] Failed to load section exercises:", err);
+      } catch {
       } finally {
         setDataLoading(false);
       }
@@ -541,6 +535,11 @@ export default function AthenaWorkoutPage() {
 
   const currentSection = sections[currentSectionIndex];
   const currentExercise = sectionExercises[currentExerciseIndex];
+
+  useEffect(() => {
+    if (!currentSection) return;
+    console.log(`[athena] Round "${currentSection.label}" completed:`, isCurrentRoundCompleted);
+  }, [currentSection, isCurrentRoundCompleted]);
 
   // "Power Sets (if any)" inline cards shown while a power-set exercise is
   // active — mirrors mobile's inlinePowerSets fetch/match exactly.
@@ -642,8 +641,7 @@ export default function AthenaWorkoutPage() {
       });
       setIsCurrentRoundCompleted(checked);
       await refreshLoadRecords(sessionId);
-    } catch (err) {
-      console.error("[athena] Failed to save round completion:", err);
+    } catch {
     } finally {
       setIsCountingRoundStats(false);
     }
@@ -774,8 +772,7 @@ export default function AthenaWorkoutPage() {
           })));
         }
       }
-    } catch (err) {
-      console.error("[tracking] Failed to fetch logs:", err);
+    } catch {
     } finally {
       setLogsLoading(false);
     }
@@ -809,8 +806,7 @@ export default function AthenaWorkoutPage() {
           }
         });
         setLocationEquipments(eqMap);
-      } catch (err) {
-        console.error("[location] Failed to load locations:", err);
+      } catch {
       } finally {
         setLocationsLoading(false);
       }
@@ -830,8 +826,7 @@ export default function AthenaWorkoutPage() {
       try {
         const eq = await equipmentApi.getAllEquipment();
         setAllEquipment(eq);
-      } catch (err) {
-        console.error("[create-location] Failed to load equipment:", err);
+      } catch {
       } finally {
         setAllEquipLoading(false);
       }
@@ -853,8 +848,7 @@ export default function AthenaWorkoutPage() {
       try {
         const eq = await equipmentApi.getAllEquipment();
         setAllEquipment(eq);
-      } catch (err) {
-        console.error("[edit-location] Failed to load equipment:", err);
+      } catch {
       } finally {
         setAllEquipLoading(false);
       }
@@ -865,8 +859,7 @@ export default function AthenaWorkoutPage() {
     try {
       const detail = await equipmentApi.getLocationDetail(loc.id);
       setCreateSelectedIds(new Set((detail.equipmentList || []).map((e) => e.id)));
-    } catch (err) {
-      console.error("[edit-location] Failed to load location detail:", err);
+    } catch {
     } finally {
       setEditingLocationLoading(false);
     }
@@ -906,9 +899,7 @@ export default function AthenaWorkoutPage() {
       // Mirrors mobile's CreateLocationScreen: applies to both create and
       // edit, fires after the location itself is saved.
       if (createSetAsDefault && savedLocationId != null) {
-        await equipmentApi.selectDefaultLocation(savedLocationId).catch((err) => {
-          console.error("[create-location] Failed to set default location:", err);
-        });
+        await equipmentApi.selectDefaultLocation(savedLocationId).catch(() => {});
       }
 
       // Reset location list cache so it refreshes next time
@@ -916,8 +907,7 @@ export default function AthenaWorkoutPage() {
       setLocationEquipments(new Map());
       setShowCreateLocationPopup(false);
       setEditingLocationId(null);
-    } catch (err) {
-      console.error("[create-location] Failed:", err);
+    } catch {
     } finally {
       setCreateSubmitting(false);
     }
@@ -958,8 +948,7 @@ export default function AthenaWorkoutPage() {
         setLocationName(sectionRes.locationName);
         localStorage.setItem("workoutLocationName", sectionRes.locationName);
       }
-    } catch (err) {
-      console.error("[location] Failed to update session location:", err);
+    } catch {
     } finally {
       setSwappingLocation(false);
     }
@@ -975,9 +964,7 @@ export default function AthenaWorkoutPage() {
     setConfirmingLocation(true);
     try {
       if (loc && setAsDefaultLocation) {
-        await equipmentApi.selectDefaultLocation(loc.id).catch((err) => {
-          console.error("[location] Failed to set default location:", err);
-        });
+        await equipmentApi.selectDefaultLocation(loc.id).catch(() => {});
       }
       await handleLocationSelect(loc);
     } finally {
@@ -1021,8 +1008,11 @@ export default function AthenaWorkoutPage() {
               // unmount crossing this route boundary, so this signals
               // "still engaged" for the very next viewWorkoutSession mount,
               // as opposed to genuinely backing out of the workout entirely.
+              // Navigates to an explicit route rather than router.back() —
+              // browser history can land elsewhere (e.g. /workout/detail)
+              // depending on how this screen was reached.
               localStorage.setItem("returningFromAthenaWorkout", "true");
-              router.back();
+              router.replace("/workout/viewWorkoutSession");
             }}
             className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider hover:opacity-80 transition"
           >
@@ -1068,7 +1058,7 @@ export default function AthenaWorkoutPage() {
         </header>
 
         <div className="bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between gap-3">
-          <div>
+          <div className="shrink-0">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-gray-700" />
               <h2 className="font-bold text-sm md:text-base tracking-tight">
@@ -1076,7 +1066,7 @@ export default function AthenaWorkoutPage() {
                   <Loader2 size={14} className="animate-spin inline mr-1" />
                 ) : null}
                 {currentSection
-                  ? `${currentSection.label} (${currentSection.rounds}x)`
+                  ? `${currentSection.label} ${currentSection.rounds || ""}`
                   : "Loading..."}
               </h2>
             </div>
@@ -1090,7 +1080,7 @@ export default function AthenaWorkoutPage() {
           {ads.length > 0 && (
             <button
               onClick={() => setSelectedAd(ads[adIndex])}
-              className="hidden sm:block relative w-40 md:w-48 h-10 rounded-xl overflow-hidden shrink-0"
+              className="hidden sm:block relative flex-1 h-10 rounded-xl overflow-hidden"
             >
               <img
                 src={ads[adIndex].image}
@@ -1507,8 +1497,11 @@ export default function AthenaWorkoutPage() {
                   <div className="flex items-center gap-1 md:gap-2">
                     {currentExercise?.is_power_set ? (
                       <button
-                        onClick={() => currentExercise && openMoneySetModal(currentExercise)}
-                        className="bg-emerald-500 text-white p-1.5 md:p-2 rounded-full shadow hover:shadow-md transition"
+                        disabled={isCurrentRoundCompleted}
+                        onClick={() => currentExercise && !isCurrentRoundCompleted && openMoneySetModal(currentExercise)}
+                        className={`bg-emerald-500 text-white p-1.5 md:p-2 rounded-full shadow transition ${
+                          isCurrentRoundCompleted ? "opacity-40 cursor-not-allowed" : "hover:shadow-md"
+                        }`}
                       >
                         <DollarSign size={14} />
                       </button>
@@ -1527,15 +1520,63 @@ export default function AthenaWorkoutPage() {
                 </div>
               </div>
 
-              {/* $ set message — only for power sets */}
+              {/* $ set message + Power Sets (if any) — side by side, only for power sets */}
               {currentExercise?.is_power_set && (
-                <div className="bg-purple-50 rounded-lg px-3 py-2 flex flex-col gap-0.5 w-fit">
-                  <p className="text-[11px] font-semibold text-purple-600">
-                    complete the <span className="text-green-500 font-bold">$</span> set to continue
-                  </p>
-                  <p className="text-[11px] font-semibold text-green-500">
-                    Complete the required set-tracking
-                  </p>
+                <div className="flex items-start gap-2.5 flex-wrap">
+                  <div className="bg-purple-50 rounded-lg px-3 py-2 flex flex-col gap-0.5 w-fit shrink-0">
+                    <p className="text-[11px] font-semibold text-purple-600">
+                      complete the <span className="text-green-500 font-bold">$</span> set to continue
+                    </p>
+                    <p className="text-[11px] font-semibold text-green-500">
+                      Complete the required set-tracking
+                    </p>
+                  </div>
+
+                  {inlinePowerSets.length > 0 && (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-wide mb-1">
+                        Power Sets (if any):
+                      </p>
+                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                        {inlinePowerSets.flatMap((ps) => {
+                          const sortedSets = [...(ps.child_sets || [])].sort((a, b) => {
+                            const aIsMoney = a.min_reps != null ? 1 : 0;
+                            const bIsMoney = b.min_reps != null ? 1 : 0;
+                            return aIsMoney - bIsMoney;
+                          });
+                          const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                          return sortedSets.map((s, idx) => {
+                            const isMoneySet = s.min_reps != null;
+                            const sourceUnit = (s.msrmt || "lbs").toLowerCase();
+                            let displayWeight = s.calculated_weight || 0;
+                            if (sourceUnit === "lbs" && targetUnit === "kg") {
+                              displayWeight = Math.round(displayWeight * 0.45359237);
+                            } else if (sourceUnit === "kg" && targetUnit === "lbs") {
+                              displayWeight = Math.round(displayWeight / 0.45359237);
+                            }
+                            return (
+                              <button
+                                key={`${ps.id}-${idx}`}
+                                onClick={() => currentExercise && openMoneySetModal(currentExercise)}
+                                className={`relative shrink-0 min-w-[62px] rounded-lg border px-2 pt-2.5 pb-1.5 text-center ${
+                                  isMoneySet ? "bg-[#FEF9C3] border-[#FDE68A]" : "bg-gray-100 border-gray-200"
+                                }`}
+                              >
+                                {isMoneySet && (
+                                  <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white text-[8px] font-black flex items-center justify-center">
+                                    $
+                                  </span>
+                                )}
+                                <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide">Set {idx + 1}</p>
+                                <p className="text-[11px] font-bold text-gray-900 mt-0.5">{displayWeight} {targetUnit}</p>
+                                <p className="text-[9px] font-medium text-gray-600">{s.reps || "8-12"}</p>
+                              </button>
+                            );
+                          });
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1605,54 +1646,6 @@ export default function AthenaWorkoutPage() {
                 </div>
               </button>
 
-              {/* Power Sets (if any) inline cards — mirrors mobile's
-                  inlinePowerSets section, shown only while a power-set
-                  exercise is active. */}
-              {inlinePowerSets.length > 0 && currentExercise?.is_power_set && (
-                <div className="mt-2">
-                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wide mb-1">
-                    Power Sets (if any):
-                  </p>
-                  <div className="flex gap-1.5 overflow-x-auto pb-1">
-                    {inlinePowerSets.flatMap((ps) => {
-                      const sortedSets = [...(ps.child_sets || [])].sort((a, b) => {
-                        const aIsMoney = a.min_reps != null ? 1 : 0;
-                        const bIsMoney = b.min_reps != null ? 1 : 0;
-                        return aIsMoney - bIsMoney;
-                      });
-                      const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
-                      return sortedSets.map((s, idx) => {
-                        const isMoneySet = s.min_reps != null;
-                        const sourceUnit = (s.msrmt || "lbs").toLowerCase();
-                        let displayWeight = s.calculated_weight || 0;
-                        if (sourceUnit === "lbs" && targetUnit === "kg") {
-                          displayWeight = Math.round(displayWeight * 0.45359237);
-                        } else if (sourceUnit === "kg" && targetUnit === "lbs") {
-                          displayWeight = Math.round(displayWeight / 0.45359237);
-                        }
-                        return (
-                          <button
-                            key={`${ps.id}-${idx}`}
-                            onClick={() => currentExercise && openMoneySetModal(currentExercise)}
-                            className={`relative shrink-0 min-w-[62px] rounded-lg border px-2 pt-2.5 pb-1.5 text-center ${
-                              isMoneySet ? "bg-[#FEF9C3] border-[#FDE68A]" : "bg-gray-100 border-gray-200"
-                            }`}
-                          >
-                            {isMoneySet && (
-                              <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 text-white text-[8px] font-black flex items-center justify-center">
-                                $
-                              </span>
-                            )}
-                            <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide">Set {idx + 1}</p>
-                            <p className="text-[11px] font-bold text-gray-900 mt-0.5">{displayWeight} {targetUnit}</p>
-                            <p className="text-[9px] font-medium text-gray-600">{s.reps || "8-12"}</p>
-                          </button>
-                        );
-                      });
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="p-3 pb-2 shrink-0">
@@ -1697,18 +1690,17 @@ export default function AthenaWorkoutPage() {
                       </div>
                       {ex.isPowerSet && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); openMoneySetModal(sectionExercises[idx]); }}
-                          className="absolute top-1 left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm hover:bg-green-600 transition"
+                          disabled={isCurrentRoundCompleted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isCurrentRoundCompleted) openMoneySetModal(sectionExercises[idx]);
+                          }}
+                          className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm transition ${
+                            isCurrentRoundCompleted ? "opacity-40 cursor-not-allowed" : "hover:bg-green-600"
+                          }`}
                         >
                           <DollarSign size={9} className="text-white" />
                         </button>
-                      )}
-                      {/* Mobile hardcodes this to the 3rd card (index 2) —
-                          not tied to any exercise data field, ported as-is. */}
-                      {idx === 2 && (
-                        <div className="absolute top-1 left-1 bg-[#7C3AED] text-white text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded z-10">
-                          ELITE
-                        </div>
                       )}
                       {ex.isSwapped && (
                         <div className="absolute bottom-1 left-1 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
@@ -1741,14 +1733,14 @@ export default function AthenaWorkoutPage() {
                         </div>
                       )}
                       <div className="text-center">
-                        <p className="font-bold text-[9px] md:text-[10px] leading-tight tracking-tight line-clamp-1">
-                          {ex.title}
-                        </p>
                         {ex.supplemental && (
                           <p className="text-[7px] md:text-[8px] font-bold text-gray-500 uppercase line-clamp-1">
                             {ex.supplemental}
                           </p>
                         )}
+                        <p className="font-bold text-[9px] md:text-[10px] leading-tight tracking-tight line-clamp-1">
+                          {ex.title}
+                        </p>
                         <p className="text-[8px] md:text-[9px] mt-0.5 font-medium text-gray-400">
                           {ex.subtitle}
                         </p>
@@ -1832,23 +1824,6 @@ export default function AthenaWorkoutPage() {
           </button>
         </div>
       </footer>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #d1d5db;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
-        }
-      `}</style>
 
       {/* LOCATION PICKER POPUP */}
       {showLocationPopup && (
@@ -2456,8 +2431,7 @@ export default function AthenaWorkoutPage() {
                               load: computedLoad,
                             });
                             setTrackingSets((prev) => prev.map((s, idx) => idx === i ? { ...s, saved: true, load: result.load ?? computedLoad } : s));
-                          } catch (err) {
-                            console.error("[tracking] Failed to save set:", err);
+                          } catch {
                           } finally {
                             setSavingSetIndex(null);
                           }
@@ -2503,8 +2477,7 @@ export default function AthenaWorkoutPage() {
                         repetitions: parseInt(s.reps) || 0,
                       })));
                     }
-                  } catch (err) {
-                    console.error("[tracking] Failed to save logs:", err);
+                  } catch {
                   } finally {
                     setSavingLogs(false);
                     setTrackingExercise(null);

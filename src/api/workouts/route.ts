@@ -799,8 +799,45 @@ export interface PowerSetLog {
 
 export const getPowerSetLogs = async (sessionId: string): Promise<PowerSetLog[]> => {
   try {
-    const { data } = await apiClient.get<PowerSetLog[]>(`/workouts/power-set-logs?sessionId=${sessionId}`);
-    return Array.isArray(data) ? data : [];
+    // Mirrors mobile's programService.getPowerSetLogs — the backend wraps
+    // the array in `{ records: [...] }`, it's never a bare array.
+    const { data } = await apiClient.get<{ records?: PowerSetLog[] } | PowerSetLog[]>(
+      `/workouts/power-set-logs?sessionId=${sessionId}`,
+    );
+    if (Array.isArray(data)) return data;
+    return data?.records || [];
+  } catch {
+    return [];
+  }
+};
+
+// A user's public "Accomplishments" (MoneySet/TrophySet power-set records) —
+// same /workouts/power-set-logs endpoint as getPowerSetLogs above, but scoped
+// by username instead of sessionId, mirroring mobile's
+// preferenceService.getPowerSetLogs(undefined, username).
+export interface PowerSetAccomplishment {
+  id: string;
+  type?: string;
+  exercise?: string;
+  title?: string;
+  exerciseInfo?: { name?: string; supplemental?: string };
+  new_weight?: number;
+  reps?: number;
+  amp?: number;
+  member_weight_rmp?: number;
+  diff?: string;
+  [key: string]: unknown;
+}
+
+export const getPowerSetLogsByUsername = async (
+  username: string,
+): Promise<PowerSetAccomplishment[]> => {
+  try {
+    const { data } = await apiClient.get<{ records?: PowerSetAccomplishment[] } | PowerSetAccomplishment[]>(
+      `/workouts/power-set-logs?username=${encodeURIComponent(username)}`,
+    );
+    if (Array.isArray(data)) return data;
+    return data?.records || [];
   } catch {
     return [];
   }

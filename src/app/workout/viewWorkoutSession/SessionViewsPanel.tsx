@@ -213,6 +213,14 @@ function DynamicExerciseCard({
         )}
       </div>
 
+      {actualItem.supplemental && (
+        <div className="flex gap-2 justify-center mb-1 flex-wrap">
+          <div className="px-2 py-0.5 rounded-md bg-[#f4f4f5] text-[9px] font-bold text-gray-500 uppercase">
+            {actualItem.supplemental}
+          </div>
+        </div>
+      )}
+
       <h3 className="text-[12px] font-semibold text-center text-[#222] leading-tight min-h-[22px] flex items-center justify-center">
         {actualItem.exercise_name}
       </h3>
@@ -254,14 +262,6 @@ function DynamicExerciseCard({
                 {s.reps} @ {Math.round((s.multiplier || 0) * 100)}%
               </span>
             ))}
-        </div>
-      )}
-
-      {actualItem.supplemental && (
-        <div className="flex gap-2 justify-center mt-1 flex-wrap">
-          <div className="px-2 py-0.5 rounded-md bg-[#f4f4f5] text-[7px] font-bold text-gray-500 uppercase">
-            {actualItem.supplemental}
-          </div>
         </div>
       )}
     </div>
@@ -393,7 +393,6 @@ export default function SessionViewsPanel({
       });
       setShowCompleteCongrats(true);
     } catch (err) {
-      console.error("[completeWorkout] Failed:", err);
       window.alert(`Error\n${err instanceof Error ? err.message : "Failed to complete workout. Please try again."}`);
     } finally {
       setCompletingWorkout(false);
@@ -1017,15 +1016,15 @@ export default function SessionViewsPanel({
                                           )}
                                         </div>
                                         <div className="flex-1 min-w-0">
+                                          {ex.supplemental && (
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase truncate">{ex.supplemental}</p>
+                                          )}
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <p className="text-[12px] font-black text-[#111] truncate">{ex.exercise_name}</p>
                                             {isMoneySet && (
                                               <span className="text-[9px] font-black bg-emerald-500 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">$</span>
                                             )}
                                           </div>
-                                          {ex.supplemental && (
-                                            <p className="text-[9px] font-bold text-gray-400 uppercase truncate">{ex.supplemental}</p>
-                                          )}
                                         </div>
                                         {ex.is_power_set && (
                                           <span className="text-[9px] font-black bg-emerald-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0">$</span>

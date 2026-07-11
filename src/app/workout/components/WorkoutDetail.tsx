@@ -146,6 +146,8 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const searchParams = useSearchParams();
   const programUuid = searchParams.get('code');
   const workoutKey = searchParams.get('workoutKey');
+  const queueProgramName = searchParams.get('programName') ||
+    (typeof window !== 'undefined' ? localStorage.getItem('workoutProgramName') : null) || '';
   
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -358,6 +360,28 @@ const filteredExercises = exercises;
 
   const displayTitle = workoutTitle || (workoutKey ? workoutKey.split(',')[0] : 'RECONDITIONING');
 
+  const displayProgramName = useMemo(() => {
+    // Some programs only have a raw code (e.g. "BRC7") in `program_name` with no
+    // human-readable name — skip code-like values and fall through to a real name.
+    const isCodeLike = (t?: string) => !!t && /^[A-Z0-9]{2,6}$/i.test(t.trim()) && /\d/.test(t);
+    const candidates = [
+      // Carried over from the workout queue/dashboard the user navigated from —
+      // mirrors mobile's `workoutData?.program_name` (a richer object passed via
+      // navigation params, which web has no direct equivalent of).
+      queueProgramName,
+      previewData?.program_name,
+      previewData?.workout_title as string | undefined,
+      previewData?.description,
+      previewData?.title,
+    ];
+    return candidates.find((t) => t && !isCodeLike(t) && t !== displayTitle) || '';
+  }, [queueProgramName, previewData, displayTitle]);
+
+  // The API only ever returns `franchiseCode` (e.g. "OPM") for this program —
+  // franchise_name/franchise are kept as fallbacks in case other programs
+  // return a full name instead.
+  const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
+
   // Loading state
   if (loading) {
     return (
@@ -421,6 +445,16 @@ const filteredExercises = exercises;
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8">
           <div>
             <p className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">This Workout:</p>
+            {!!franchiseName && (
+              <span className="inline-block px-3 py-1 mb-1.5 bg-[#7C3AED] text-white text-[10px] font-black rounded-full tracking-wide uppercase">
+                {franchiseName}
+              </span>
+            )}
+            {!!displayProgramName && (
+              <p className="text-[11px] font-semibold text-violet-400 uppercase tracking-wide mb-0.5">
+                {displayProgramName}
+              </p>
+            )}
             {(() => {
               const [firstWord, ...rest] = displayTitle.split(' ');
               return (
@@ -442,20 +476,11 @@ const filteredExercises = exercises;
               };
               const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
               const hasMoneySet = powerSets.some((ps) => ps.is_money_set);
-              // The API only ever returns `franchiseCode` (e.g. "OPM") for this
-              // program — franchise_name/franchise are kept as fallbacks in case
-              // other programs return a full name instead.
-              const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
 
-              if (!powerSetTags.length && !hasMoneySet && !franchiseName) return null;
+              if (!powerSetTags.length && !hasMoneySet) return null;
 
               return (
                 <div className="flex flex-wrap gap-1.5 mt-1.5 mb-0.5">
-                  {franchiseName && (
-                    <span className="px-3 py-1 bg-[#7C3AED] text-white text-[10px] font-black rounded-full tracking-wide uppercase">
-                      {franchiseName}
-                    </span>
-                  )}
                   {hasMoneySet && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-full tracking-wide">
                       ★ MONEY SET
@@ -598,7 +623,7 @@ const filteredExercises = exercises;
                       <p className="text-[8px] font-bold leading-tight mb-1 uppercase line-clamp-2 text-slate-700">
                         {ex.name}
                       </p>
-                      <p className="text-[7px] font-bold text-slate-300 uppercase">
+                      <p className="text-[7px] font-bold text-slate-400 uppercase">
                         {ex.supplemental || 'Exercise'}
                       </p>
                     </div>

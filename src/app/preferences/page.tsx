@@ -374,6 +374,15 @@ export default function PreferencesPage() {
     }
   }, [preferencesData, searchParams]);
 
+  // Deep link support — mirrors mobile's route.params.openWeeklyTargets: the
+  // workout dashboard's header count navigates here with this param to
+  // auto-open the Weekly Targets modal.
+  useEffect(() => {
+    if (searchParams.get("openWeeklyTargets") === "true") {
+      setShowWeeklyTargetModal(true);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (isError) {
       showToast(
