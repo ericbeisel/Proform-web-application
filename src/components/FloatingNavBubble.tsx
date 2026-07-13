@@ -110,12 +110,15 @@ export default function FloatingNavBubble() {
   // (at every size, since that button isn't mobile-only) instead of the
   // default bottom-5.
   const isOnWorkoutDetailPage = pathname?.startsWith("/workout/detail");
+  // The active-session play screen (athenaWorkout) has its own fixed mobile
+  // timer bar at the bottom — same overlap problem as isOnSessionNavPage.
+  const isOnAthenaWorkoutPage = pathname?.startsWith("/workout/athenaWorkout");
 
   return (
     <div
       ref={containerRef}
       className={`fixed z-[100] right-5 select-none ${
-        isOnSessionNavPage
+        isOnSessionNavPage || isOnAthenaWorkoutPage
           ? "bottom-20 lg:bottom-5"
           : isOnWorkoutDetailPage
             ? "bottom-8"
