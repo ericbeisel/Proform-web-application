@@ -640,11 +640,11 @@ const filteredExercises = exercises;
                       <div className="w-12 h-12 rounded-xl mb-2.5 overflow-hidden bg-white border border-slate-100 shrink-0 flex items-center justify-center">
                         <ExerciseThumb ex={ex} />
                       </div>
-                      <p className="text-[8px] font-bold leading-tight mb-1 uppercase line-clamp-2 text-slate-700">
-                        {ex.name}
-                      </p>
-                      <p className="text-[7px] font-bold text-slate-400 uppercase">
+                      <p className="text-[7px] font-bold text-slate-400 uppercase mb-1">
                         {ex.supplemental || 'Exercise'}
+                      </p>
+                      <p className="text-[8px] font-bold leading-tight uppercase line-clamp-2 text-slate-700">
+                        {ex.name}
                       </p>
                     </div>
                   ))}

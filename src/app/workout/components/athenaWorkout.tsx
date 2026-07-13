@@ -995,6 +995,12 @@ export default function AthenaWorkoutPage() {
       {/* MAIN COLUMN — headers + content + footer */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
+      {/* Scrolls as one column on mobile (header scrolls away with content);
+          on desktop (lg:) this is a no-op wrapper — overflow-hidden here plus
+          SECTION 2's own overflow-hidden reproduce the original fixed two-pane layout.
+          pb-16 keeps content clear of the fixed timer bar below (lg: it's static, no offset needed). */}
+      <div className="flex-1 flex flex-col overflow-y-auto lg:overflow-hidden pb-16 lg:pb-0">
+
       {/* SECTION 1: Fixed Headers */}
       <div className="flex flex-col shrink-0">
         <header className="bg-[#6202AC] text-white py-2 px-4 flex items-center justify-between">
@@ -1104,12 +1110,38 @@ export default function AthenaWorkoutPage() {
             </button>
           )}
         </div>
+
+        {/* This Workout stats — mobile only, sits directly below the round
+            location row (aside's copy is hidden on mobile so it isn't shown twice) */}
+        <div className="lg:hidden px-4 pt-2 pb-2 bg-white border-b border-gray-100">
+          <button
+            onClick={() => {
+              localStorage.setItem("returningFromAthenaWorkout", "true");
+              router.replace("/workout/viewWorkoutSession?view=Results");
+            }}
+            className="w-full text-left"
+          >
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">This Workout</p>
+            <div className="grid grid-cols-3 gap-1">
+              {[
+                { label: "Load", value: displayStats.load },
+                { label: "Power", value: displayStats.power },
+                { label: "Kcal", value: displayStats.kcal },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-[#f8f5ff] rounded-lg p-1.5 text-center border border-[#ede9fe]">
+                  <p className="text-[13px] font-black text-[#6202AC] leading-none">{stat.value}</p>
+                  <p className="text-[7px] font-bold text-gray-400 mt-0.5 uppercase tracking-wide">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* SECTION 2: Main Content Area */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden">
         {/* Left: Main Exercise */}
-        <div className="w-full lg:w-[58%] overflow-hidden p-3 md:p-4 flex flex-col gap-3">
+        <div className="w-full lg:w-[58%] lg:overflow-hidden p-3 md:p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             {/* Title + Star */}
             <div className="flex items-center gap-2">
@@ -1127,7 +1159,7 @@ export default function AthenaWorkoutPage() {
           </div>
 
           {/* Adjusted aspect ratio for mobile vs desktop */}
-          <div className="relative flex-1 min-h-0 rounded-md flex items-center justify-center overflow-hidden">
+          <div className="relative h-64 lg:h-auto lg:flex-1 lg:min-h-0 rounded-md flex items-center justify-center overflow-hidden">
             {resolveMediaUrl(currentExercise?.demo_gif || currentExercise?.demoGif) ? (
               <img
                 src={resolveMediaUrl(currentExercise.demo_gif || currentExercise.demoGif)!}
@@ -1520,10 +1552,12 @@ export default function AthenaWorkoutPage() {
                 </div>
               </div>
 
-              {/* $ set message + Power Sets (if any) — side by side, only for power sets */}
+              {/* $ set message + Power Sets (if any) — stacked full-width on mobile so the
+                  power set cards get enough row width to sit side by side instead of stacking
+                  vertically one-per-row; side by side (desktop's original layout) from sm: up */}
               {currentExercise?.is_power_set && (
-                <div className="flex items-start gap-2.5 flex-wrap">
-                  <div className="bg-purple-50 rounded-lg px-3 py-2 flex flex-col gap-0.5 w-fit shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-2.5">
+                  <div className="bg-purple-50 rounded-lg px-3 py-2 flex flex-col gap-0.5 w-full sm:w-fit sm:shrink-0">
                     <p className="text-[11px] font-semibold text-purple-600">
                       complete the <span className="text-green-500 font-bold">$</span> set to continue
                     </p>
@@ -1533,11 +1567,11 @@ export default function AthenaWorkoutPage() {
                   </div>
 
                   {inlinePowerSets.length > 0 && (
-                    <div className="flex-1 min-w-0">
+                    <div className="w-full sm:flex-1 sm:min-w-0">
                       <p className="text-[8px] font-black text-gray-500 uppercase tracking-wide mb-1">
                         Power Sets (if any):
                       </p>
-                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 pb-1">
                         {inlinePowerSets.flatMap((ps) => {
                           const sortedSets = [...(ps.child_sets || [])].sort((a, b) => {
                             const aIsMoney = a.min_reps != null ? 1 : 0;
@@ -1615,11 +1649,12 @@ export default function AthenaWorkoutPage() {
 
         {/* Right Panel: Exercise Overview */}
         {/* Hidden on very small screens or shown as a bottom section */}
-        <aside className="w-full lg:flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col overflow-hidden h-[300px] lg:h-full">
-          <div className="flex flex-col h-full">
+        <aside className="w-full lg:flex-1 border-t lg:border-t-0 lg:border-l border-gray-100 bg-white flex flex-col lg:overflow-hidden h-auto lg:h-full">
+          <div className="flex flex-col h-auto lg:h-full">
             {/* This Workout stats — clicking navigates to Live Results,
-                mirrors mobile's topStatsRowHeader -> navigation.navigate('Results') */}
-            <div className="px-3 pt-3 pb-2 shrink-0">
+                mirrors mobile's topStatsRowHeader -> navigation.navigate('Results').
+                Hidden on mobile since it now renders above, below the round location row. */}
+            <div className="hidden lg:block px-3 pt-3 pb-2 shrink-0">
               <button
                 onClick={() => {
                   // Same one-shot signal as the "Return to Workout" button —
@@ -1657,7 +1692,7 @@ export default function AthenaWorkoutPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 custom-scrollbar">
+            <div className="lg:flex-1 lg:overflow-y-auto px-3 custom-scrollbar">
               <div className="grid grid-cols-3 gap-1.5 pt-3 pb-2">
                 {dataLoading && exercisesForSidebar.length === 0 ? (
                   <div className="col-span-3 flex justify-center py-6">
@@ -1768,8 +1803,12 @@ export default function AthenaWorkoutPage() {
         </aside>
       </div>{/* end SECTION 2 */}
 
-      {/* SECTION 3: Sticky Timer Bar */}
-      <footer className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-1px_6px_rgba(0,0,0,0.04)] z-50">
+      </div>{/* end mobile-scroll wrapper */}
+
+      {/* SECTION 3: Sticky Timer Bar — truly fixed to the viewport bottom on
+          mobile so it can't drift as the browser address bar shows/hides
+          during scroll; desktop keeps it as a normal flex-flow footer. */}
+      <footer className="fixed inset-x-0 bottom-0 lg:static lg:inset-auto shrink-0 bg-white border-t border-gray-200 shadow-[0_-1px_6px_rgba(0,0,0,0.04)] z-50">
         <div className="max-w-[1440px] mx-auto px-2 py-1.5 flex items-center gap-2">
           <button
             onClick={() => setIsRunning(!isRunning)}
