@@ -34,6 +34,7 @@ import {
   Droplet,
   AlertTriangle,
   CreditCard,
+  BarChart3,
 } from "lucide-react";
 
 import WorkoutSidebar from "../components/WorkoutSidebar";
@@ -423,7 +424,7 @@ export default function SessionViewsPanel({
       )}
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-hidden pb-16 lg:pb-0">
+      <div className={`flex-1 flex flex-col overflow-hidden ${isSessionActive ? "pb-16 lg:pb-0" : ""}`}>
         {children}
 
         {/* SCROLLABLE CONTENT AREA */}
@@ -1254,33 +1255,74 @@ export default function SessionViewsPanel({
         </div>
       </div>
 
-      {/* MOBILE BOTTOM NAV */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 flex items-center">
-        {["Results", "Session", "Powersets", "Map"].map((item) => (
-          <button
-            key={item}
-            onClick={() => {
-              if (item === "Session") setShowSessionModal(true);
-              else setActiveView(item);
-            }}
-            className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors ${
-              activeView === item ? "text-[#7c3aed]" : "text-gray-400"
-            }`}
-          >
-            <Activity size={18} />
-            {item}
-          </button>
-        ))}
-        <button
-          onClick={handleStartWorkout}
-          disabled={!activeSession}
-          className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[9px] font-bold uppercase tracking-wide transition
-            ${activeSession ? "text-[#7c3aed]" : "text-gray-300 cursor-not-allowed"}`}
-        >
-          <Play size={18} fill="currentColor" />
-          Start
-        </button>
-      </div>
+      {/* MOBILE BOTTOM NAV — only once the user has actually started or
+          rejoined a session; before that there's nothing for it to navigate.
+          Center "Train" action is the same handleStartWorkout button as
+          before, just restyled as a raised circular FAB overlapping the bar. */}
+      {isSessionActive && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30">
+          <div className="relative bg-white rounded-t-3xl border-t border-gray-100 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] flex items-center">
+            <button
+              onClick={() => setActiveView("Results")}
+              className={`flex-1 flex flex-col items-center py-2.5 gap-1 text-[11px] font-bold transition-colors ${
+                activeView === "Results" ? "text-[#7c3aed]" : "text-gray-400"
+              }`}
+            >
+              <BarChart3 size={20} strokeWidth={activeView === "Results" ? 2.5 : 2} />
+              Results
+            </button>
+            <button
+              onClick={() => setShowSessionModal(true)}
+              className={`flex-1 flex flex-col items-center py-2.5 gap-1 text-[11px] font-bold transition-colors ${
+                activeView === "Session" ? "text-[#7c3aed]" : "text-gray-400"
+              }`}
+            >
+              <Users size={20} strokeWidth={activeView === "Session" ? 2.5 : 2} />
+              Session
+            </button>
+
+            {/* Center spacer — leaves room under the raised circle for its label */}
+            <div
+              className={`flex-1 flex flex-col items-center py-2.5 gap-1 text-[11px] font-bold transition-colors ${
+                activeSession ? "text-[#7c3aed]" : "text-gray-400"
+              }`}
+            >
+              <div className="h-5" />
+              Train
+            </div>
+
+            <button
+              onClick={() => setActiveView("Powersets")}
+              className={`flex-1 flex flex-col items-center py-2.5 gap-1 text-[11px] font-bold transition-colors ${
+                activeView === "Powersets" ? "text-[#7c3aed]" : "text-gray-400"
+              }`}
+            >
+              <Zap size={20} strokeWidth={activeView === "Powersets" ? 2.5 : 2} />
+              Powersets
+            </button>
+            <button
+              onClick={() => setActiveView("Map")}
+              className={`flex-1 flex flex-col items-center py-2.5 gap-1 text-[11px] font-bold transition-colors ${
+                activeView === "Map" ? "text-[#7c3aed]" : "text-gray-400"
+              }`}
+            >
+              <MapPin size={20} strokeWidth={activeView === "Map" ? 2.5 : 2} />
+              Map
+            </button>
+
+            {/* Raised circular Train button — same handleStartWorkout as before */}
+            <button
+              onClick={handleStartWorkout}
+              disabled={!activeSession}
+              className={`absolute left-1/2 -translate-x-1/2 -top-8 w-14 h-14 rounded-full flex items-center justify-center shadow-lg ring-[6px] ring-white transition active:scale-95 ${
+                activeSession ? "bg-[#3b82f6] hover:bg-[#2563eb]" : "bg-gray-300 cursor-not-allowed"
+              }`}
+            >
+              <Play size={22} className="text-white ml-0.5" fill="currentColor" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* INCOMPLETE ROUNDS WARNING — mirrors mobile's MapScreen Alert:
           "Go Back" dismisses, "Complete Anyway" proceeds to the activity

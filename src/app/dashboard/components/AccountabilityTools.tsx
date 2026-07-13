@@ -1,17 +1,35 @@
 // app/dashboard/components/AccountabilityTools.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { getItinerary, ItineraryWorkout } from "@/api/itinerary/route";
 import CircleProgress from "./CircleProgress";
 
-interface AccountabilityToolsProps {
-  repSetProgress?: number;
-  recoveryProgress?: number;
-  overallProgress?: number;
-}
+const REP_SET_TYPES = ["workout", "supplemental"];
 
-export default function AccountabilityTools({
-  repSetProgress = 0,
-  recoveryProgress = 0,
-  overallProgress = 0,
-}: AccountabilityToolsProps) {
+const isCompleted = (w: ItineraryWorkout) => Boolean(w.completed_activity || w.completed);
+
+export default function AccountabilityTools() {
+  const [data, setData] = useState<ItineraryWorkout[]>([]);
+
+  useEffect(() => {
+    getItinerary()
+      .then(setData)
+      .catch(() => setData([]));
+  }, []);
+
+  const pctFor = (items: ItineraryWorkout[]) =>
+    items.length > 0
+      ? Math.round((items.filter(isCompleted).length / items.length) * 100)
+      : 0;
+
+  const repSet = data.filter((w) => REP_SET_TYPES.includes(w.type?.toLowerCase()));
+  const recovery = data.filter((w) => w.type?.toLowerCase() === "recovery");
+
+  const repSetProgress = pctFor(repSet);
+  const recoveryProgress = pctFor(recovery);
+  const overallProgress = pctFor(data);
+
   return (
     <div className="bg-white rounded-2xl p-5 shadow border border-[#e8e6f0]">
       <h3 className="font-bold text-sm mb-4">Accountability Tools</h3>

@@ -396,6 +396,26 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// The backend sends the free/paid flag as `free`, not `free_is_program` —
+// normalize it here so every consumer of Program/ProgramDetail can keep
+// reading `free_is_program` without silently getting `undefined`.
+type RawFreeFlag = { free?: unknown; free_is_program?: unknown };
+
+function normalizeFreeFlag<T extends RawFreeFlag>(
+  program: T,
+): T & { free_is_program: boolean } {
+  return {
+    ...program,
+    free_is_program: Boolean(program.free ?? program.free_is_program),
+  };
+}
+
+function normalizeFreeFlags<T extends RawFreeFlag>(
+  programs: T[],
+): (T & { free_is_program: boolean })[] {
+  return programs.map(normalizeFreeFlag);
+}
+
 // ===========================================
 // AXIOS CLIENT
 // ===========================================
@@ -429,7 +449,13 @@ export const getWorkoutPageData = async (): Promise<WorkoutPageResponse> => {
       "/discovery/workout-page",
     );
     console.log("📋 Workout page data response:", data);
-    return data;
+    return {
+      ...data,
+      featuredPrograms: normalizeFreeFlag(data.featuredPrograms),
+      popularPrograms: normalizeFreeFlags(data.popularPrograms ?? []),
+      freePrograms: normalizeFreeFlags(data.freePrograms ?? []),
+      suggestedPrograms: normalizeFreeFlags(data.suggestedPrograms ?? []),
+    };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch workout page data."),
@@ -473,7 +499,7 @@ export const getAllPrograms = async (): Promise<Program[]> => {
     }
 
     console.log("📋 Total programs fetched:", allPrograms.length);
-    return allPrograms;
+    return normalizeFreeFlags(allPrograms);
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch programs."));
   }
@@ -500,7 +526,7 @@ export const getProgramDetail = async (
       `/discovery/program/${programId}`,
     );
     console.log("📋 Program detail response:", data);
-    return data;
+    return normalizeFreeFlag(data);
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch program details."));
   }
@@ -624,7 +650,7 @@ export const getProgramsBySport = async (
       `/programs/by-sport?sport=${encodeURIComponent(sport)}&page=${page}`,
     );
     console.log("📋 Programs by sport response:", data);
-    return data;
+    return { ...data, data: normalizeFreeFlags(data.data ?? []) };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch programs by sport."),
@@ -641,7 +667,7 @@ export const getProgramsByTrainer = async (
       `/programs/by-trainer?trainer=${encodeURIComponent(trainer)}&page=${page}`,
     );
     console.log("📋 Programs by trainer response:", data);
-    return data;
+    return { ...data, data: normalizeFreeFlags(data.data ?? []) };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch programs by trainer."),
@@ -658,7 +684,7 @@ export const getProgramsByFocus = async (
       `/programs/by-focus?focusId=${focusId}&page=${page}`,
     );
     console.log("📋 Programs by focus response:", data);
-    return data;
+    return { ...data, data: normalizeFreeFlags(data.data ?? []) };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch programs by focus."),
@@ -675,7 +701,7 @@ export const getProgramsByAgeGroup = async (
       `/programs/by-age-group?ageGroupId=${ageGroupId}&page=${page}`,
     );
     console.log("📋 Programs by age group response:", data);
-    return data;
+    return { ...data, data: normalizeFreeFlags(data.data ?? []) };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch programs by age group."),
@@ -692,7 +718,7 @@ export const getProgramsBySetting = async (
       `/programs/by-setting?settingId=${settingId}&page=${page}`,
     );
     console.log("📋 Programs by setting response:", data);
-    return data;
+    return { ...data, data: normalizeFreeFlags(data.data ?? []) };
   } catch (error: unknown) {
     throw new Error(
       getErrorMessage(error, "Failed to fetch programs by setting."),

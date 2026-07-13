@@ -100,10 +100,27 @@ export default function FloatingNavBubble() {
 
   if (pathname?.startsWith("/coach")) return null;
 
+  // The workout session view has its own fixed mobile bottom nav bar
+  // (Results/Session/Powersets/Map/Start) once a session is active — sitting
+  // at the default bottom-5 would overlap its rightmost "Start" tab. Raise the
+  // bubble clear of that bar on mobile only; desktop never shows that bar.
+  const isOnSessionNavPage = pathname?.startsWith("/workout/viewWorkoutSession");
+  // The workout detail page has its own fixed centered "View Workout" pill
+  // at bottom-6 — line the bubble's vertical center up with that button
+  // (at every size, since that button isn't mobile-only) instead of the
+  // default bottom-5.
+  const isOnWorkoutDetailPage = pathname?.startsWith("/workout/detail");
+
   return (
     <div
       ref={containerRef}
-      className="fixed z-[100] bottom-5 right-5 select-none"
+      className={`fixed z-[100] right-5 select-none ${
+        isOnSessionNavPage
+          ? "bottom-20 lg:bottom-5"
+          : isOnWorkoutDetailPage
+            ? "bottom-8"
+            : "bottom-5"
+      }`}
       style={style}
     >
       {isOpen && (

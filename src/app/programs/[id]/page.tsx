@@ -325,8 +325,8 @@ useEffect(() => {
 }, [programId]);
 
   const handleStartProgram = () => {
-    const isFree = program?.free_is_program === true;
-    
+    const isFree = Boolean(program?.free_is_program);
+
     if (isFree) {
       // Show popup for free program
       setIsModalOpen(true);
@@ -396,7 +396,7 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
     );
   }
 
-  const isFree = program.free_is_program === true;
+  const isFree = Boolean(program.free_is_program);
   const buttonText = isFree ? "Start Program" : "See Pricing Plans";
   const buttonIcon = isFree ? <ChevronRight size={14} /> : <Lock size={14} />;
   const buttonGradient = isFree 
