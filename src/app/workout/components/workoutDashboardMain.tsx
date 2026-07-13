@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Check, Calendar, Loader2, RefreshCw, Settings, X, Dumbbell, Flame, Sparkles, Droplet, ChevronRight } from "lucide-react";
+import { Plus, Calendar, Loader2, RefreshCw, Settings, X, Dumbbell, Flame, Sparkles, Droplet, ChevronRight } from "lucide-react";
 import { getActivityWorkoutQueue, getProgramTags } from "@/api/programs/route";
 import { preferenceApi } from "@/api/preferences/route";
 
@@ -185,15 +185,6 @@ export default function WorkoutDashboard() {
     localStorage.setItem("workoutTitle", session.title);
     localStorage.setItem("workoutProgramName", session.programName || "");
     router.push(`/workout/detail?code=${code}&workoutKey=${workoutKey}&programName=${encodeURIComponent(session.programName || "")}`);
-  };
-
-  const completeActivity = (sessionId: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, completed: true } : s))
-    );
-    setWorkouts((prev) =>
-      prev.map((w) => (w.id === sessionId ? { ...w, completed: true, completed_activity: true } : w))
-    );
   };
 
   // Helper to format time (08:30:00 → 8:30 AM)
@@ -445,26 +436,6 @@ export default function WorkoutDashboard() {
                       </p>
                     )}
 
-                  </div>
-                  
-                  {/* Bottom Row - Checkbox */}
-                  <div className="flex justify-end mt-2">
-                    <label className="relative flex items-center cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={session.completed}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (!session.completed) {
-                            completeActivity(session.id);
-                          }
-                        }}
-                        className="peer sr-only"
-                      />
-                      <div className="w-5 h-5 rounded-md border-2 border-white/50 bg-white/10 backdrop-blur-sm flex items-center justify-center transition-all peer-checked:bg-green-500 peer-checked:border-green-500 peer-hover:border-white/80">
-                        {session.completed && <Check size={12} className="text-white" />}
-                      </div>
-                    </label>
                   </div>
                 </div>
               </div>
