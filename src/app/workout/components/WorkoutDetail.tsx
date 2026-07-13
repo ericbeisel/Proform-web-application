@@ -336,6 +336,18 @@ useEffect(() => {
 // Filter exercises for specific workout if workoutKey is provided
 const filteredExercises = exercises;
 
+  // The exercises grid below uses gridAutoFlow: "column" with 2 rows, so each
+  // consecutive pair (2n, 2n+1) lands in the same column as (top, bottom).
+  // Swap each pair here to flip which one displays on top vs. bottom.
+  const displayExercises = filteredExercises.reduce<typeof filteredExercises>((acc, ex, i) => {
+    if (i % 2 === 1) {
+      acc.push(ex, filteredExercises[i - 1]);
+    } else if (i === filteredExercises.length - 1) {
+      acc.push(ex);
+    }
+    return acc;
+  }, []);
+
   // Get unique equipment names
   const uniqueEquipment = [...new Map(equipment.map(item => [item.name, item])).values()];
 
@@ -426,6 +438,14 @@ const filteredExercises = exercises;
           </button>
 
           <div className="flex gap-2">
+            {/* Mobile-only: Add to Queue lives here (top-right) instead of the
+                full-width button under the title — desktop keeps that button. */}
+            <button
+              onClick={() => setShowAddToQueueModal(true)}
+              className="flex md:hidden h-10 items-center justify-center gap-1 px-3.5 bg-violet-600 hover:bg-violet-700 rounded-full shadow-sm text-white text-[11px] font-bold uppercase tracking-wide whitespace-nowrap transition-all active:scale-90"
+            >
+              <Plus className="w-[14px] h-[14px]" strokeWidth={3} /> Add to Queue
+            </button>
             <button className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90">
               <Bookmark className="w-[18px] h-[18px]" />
             </button>
@@ -502,7 +522,7 @@ const filteredExercises = exercises;
     console.log("localStorage now:", localStorage.getItem("workoutProgramId"));
     setShowAddToQueueModal(true);
   }}
-  className="w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-violet-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+  className="hidden md:flex w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-violet-200 transition-all active:scale-95 items-center justify-center gap-2"
 >
   <Plus size={14} strokeWidth={3} /> Add to Queue
 </button>
@@ -612,7 +632,7 @@ const filteredExercises = exercises;
                   className="grid gap-3 overflow-x-auto pb-2"
                   style={{ gridTemplateRows: "repeat(2, auto)", gridAutoFlow: "column", gridAutoColumns: "120px", scrollbarWidth: "none" }}
                 >
-                  {filteredExercises.map((ex, i) => (
+                  {displayExercises.map((ex, i) => (
                     <div
                       key={`${ex.id ?? "ex"}-${i}`}
                       className="bg-slate-50/60 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center hover:bg-slate-50 hover:border-slate-200 transition-colors"
