@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Plus, Pencil, Trash2, Dumbbell, Check, X, BarChart2, Loader2,
-  Calendar, CheckCircle, ArrowUp, ArrowDown
+  Plus, Pencil, Trash2, Dumbbell, X, BarChart2, Loader2,
+  Calendar, ArrowUp, ArrowDown
 } from "lucide-react";
 import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue, getProgramTags } from "@/api/programs/route";
 
@@ -289,7 +289,17 @@ export default function WorkoutDashboard() {
     <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-white px-3 sm:px-6 lg:px-7 py-3 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10 gap-2">
+      <div className="relative bg-white px-3 sm:px-6 lg:px-7 py-3 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10 gap-2">
+
+        {/* Center: Logo — absolutely centered */}
+        <div className="absolute left-1/2 -translate-x-1/2 bg-white">
+          <img
+            src="/images/proform-logo.jpg"
+            alt="Proform"
+            onClick={() => router.push("/workout")}
+            className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity"
+          />
+        </div>
 
         {/* Left: avatar + title */}
         <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
@@ -333,11 +343,10 @@ export default function WorkoutDashboard() {
             <option value="Supplemental">Supplemental</option>
           </select>
 
-          {/* Completed button */}
-          <button className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer flex items-center gap-1.5 font-bold text-xs sm:text-sm whitespace-nowrap hover:bg-emerald-100 transition-all h-9 sm:h-10">
-            <CheckCircle size={16} />
-            <span className="inline">Completed</span>
-          </button>
+          {/* Completed count */}
+          <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 font-bold text-xs sm:text-sm whitespace-nowrap h-9 sm:h-10 flex items-center">
+            {completedSessions} completed
+          </span>
         </div>
       </div>
 
@@ -517,26 +526,8 @@ export default function WorkoutDashboard() {
                     </span>
                   </div>
 
-                  {/* Checkbox + delete */}
+                  {/* Delete */}
                   <div className="flex items-center gap-1.5 sm:gap-2">
-                    <label
-                      className="relative flex items-center cursor-pointer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={session.completed}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (!session.completed) completeActivity(session.id);
-                        }}
-                        className="peer sr-only"
-                      />
-                      <div className="w-5 h-5 rounded-md border-2 border-white/50 bg-white/10 flex items-center justify-center transition-all peer-checked:bg-green-500 peer-checked:border-green-500">
-                        {session.completed && <Check size={12} className="text-white" />}
-                      </div>
-                    </label>
-
                     <button
                       onClick={(e) => deleteSession(session.id, session.title, e)}
                       className="bg-[#2a2a3e] border-none rounded-lg text-[#888] cursor-pointer p-1.5 sm:p-2 flex items-center justify-center hover:text-red-400 transition-colors"

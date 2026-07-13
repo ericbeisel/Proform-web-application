@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
+  ArrowRightLeft,
   Calendar,
   ChevronRight,
   Coins,
@@ -99,6 +100,7 @@ export default function AccountPage() {
 
   const [roleId, setRoleId] = useState(1);
   const [accountName, setAccountName] = useState("Account");
+  const [accountImage, setAccountImage] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [totalPoints, setTotalPoints] = useState<number | null>(null);
 
@@ -111,6 +113,10 @@ export default function AccountPage() {
 
         if (parsed?.name && typeof parsed.name === "string") {
           setAccountName(parsed.name.trim());
+        }
+
+        if (parsed?.image && typeof parsed.image === "string") {
+          setAccountImage(parsed.image);
         }
 
         const localRole = parsed?.role ?? parsed?.role_id;
@@ -133,6 +139,10 @@ export default function AccountPage() {
 
         if (user?.name && typeof user.name === "string") {
           setAccountName(user.name.trim());
+        }
+
+        if (user?.image && typeof user.image === "string") {
+          setAccountImage(user.image);
         }
 
         const apiRole = user?.role ?? user?.role_id;
@@ -208,8 +218,12 @@ export default function AccountPage() {
         {/* Header */}
         <header className="pt-6 pb-8 border-b border-gray-200">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md">
-              <User size={26} className="text-white" />
+            <div className="flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md overflow-hidden">
+              {accountImage ? (
+                <img src={accountImage} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <User size={26} className="text-white" />
+              )}
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900">
@@ -355,9 +369,10 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={() => router.push("/coach/coach-onboarding")}
-              className="h-14 rounded-xl bg-cyan-600 text-base md:text-lg font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+              className="flex h-14 items-center justify-center gap-2.5 rounded-xl bg-cyan-600 text-base md:text-lg font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
             >
-              Coach Login
+              <ArrowRightLeft size={18} />
+              Switch to Coach
             </button>
 
             <button

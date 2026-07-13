@@ -102,6 +102,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#f0eff4] text-[#1a1825] antialiased">
       <DashboardHeader
         userName={dashboardData?.userName}
+        userImage={dashboardData?.userImage}
         unreadNotificationsCount={dashboardData?.unreadNotificationsCount}
         pfPoints={dashboardData?.pfPoints}
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { User, LogOut, Menu, X, ArrowRightLeft, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
+import { User, LogOut, Menu, X, Rss, ChevronRight, Calendar, Activity, Users, Tv, Play, Bell } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth/session";
 import { invalidateDashboardCache, getLiveSessions } from "@/api/dashboard/route";
@@ -9,12 +9,14 @@ import { useEffect, useState } from "react";
 
 type Props = {
   userName?: string;
+  userImage?: string | null;
   unreadNotificationsCount?: number;
   pfPoints?: number;
 };
 
 export default function DashboardHeader({
   userName,
+  userImage,
   unreadNotificationsCount = 0,
   pfPoints = 0,
 }: Props) {
@@ -197,13 +199,6 @@ export default function DashboardHeader({
             <BarChart2 size={18} />
           </button> */}
 
-  <button
-    onClick={() => router.push("/coach/coach-onboarding")}
-    className="hidden sm:flex items-center gap-1.5 px-3 h-9 rounded-[10px] bg-gradient-to-r from-[#6c5ce7] to-[#8e7dff] text-white hover:opacity-90 transition-all text-sm font-medium shadow-sm"
-  >
-    <ArrowRightLeft size={15} />
-    Switch to Coach
-  </button>
           {/* Logout Button - Desktop */}
           {/* <button
             onClick={handleLogout}
@@ -254,9 +249,15 @@ export default function DashboardHeader({
           <Link href="/account">
             <div
               title="Go to Account"
-              className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fd7b4d] to-[#fdcb6e] flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:scale-105 transition-transform active:scale-95"
+              className="w-9 h-9 rounded-full bg-gradient-to-br from-[#fd7b4d] to-[#fdcb6e] flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:scale-105 transition-transform active:scale-95 overflow-hidden"
             >
-              {userName ? userName.charAt(0).toUpperCase() : <User size={18} />}
+              {userImage ? (
+                <img src={userImage} alt="" className="w-full h-full object-cover" />
+              ) : userName ? (
+                userName.charAt(0).toUpperCase()
+              ) : (
+                <User size={18} />
+              )}
             </div>
           </Link>
 

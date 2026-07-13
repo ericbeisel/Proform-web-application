@@ -80,6 +80,7 @@ export interface DashboardResponse {
 export interface DashboardSummary {
   userName: string;
   userEmail: string;
+  userImage: string | null;
   currentWeight: number;
   goalWeight: number;
   height: number;
@@ -372,6 +373,7 @@ export const dashboardApi = {
     return {
       userName: user?.name || "User",
       userEmail: user?.email || "",
+      userImage: user?.image || null,
       accountSetupComplete,
       currentWeight: parseFloat(details.currentWeight) || 0,
       goalWeight: parseFloat(details.goalWeight) || 0,

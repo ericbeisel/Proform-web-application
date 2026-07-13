@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/providers/query-provider";
 import ScrollRestoration from "@/components/ScrollRestoration"; // Add this import
+import FloatingNavBubble from "@/components/FloatingNavBubble";
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,7 @@ export default function RootLayout({
         <Providers>
           <ScrollRestoration /> {/* Add this line */}
           {children}
+          <FloatingNavBubble />
         </Providers>
       </body>
     </html>
