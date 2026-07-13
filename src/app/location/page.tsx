@@ -114,41 +114,41 @@ export default function LocationList() {
                 Manage equipment for your saved gyms
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {locations.map((location) => (
                   <div
                     key={location.id}
                     onClick={() => router.push(`/location/${location.id}`)}
-                    className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-[#7c3aed] hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between cursor-pointer group"
+                    className="bg-white rounded-[1.25rem] border border-gray-100 p-4 shadow-sm hover:shadow-md hover:border-[#7c3aed] hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between cursor-pointer group"
                   >
                     <div>
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-14 h-14 rounded-full bg-[#7c3aed] flex items-center justify-center text-white flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
-                          <MapPin size={24}  />
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center text-white flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform">
+                          <MapPin size={18}  />
                         </div>
                         <div>
-                          <h3 className="font-bold text-xl text-gray-900 leading-tight">
+                          <h3 className="font-bold text-base text-gray-900 leading-tight">
                             {location.name}
                           </h3>
-                          <p className="text-sm text-gray-400 font-medium tracking-wide">
+                          <p className="text-xs text-gray-400 font-medium tracking-wide">
                             {location.equipmentList?.length || 0} equipment items
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2 mb-8 items-center">
+                      <div className="flex flex-wrap gap-1.5 mb-4 items-center">
                         {location.equipmentList?.slice(0, 3).map((eq: any) => (
                           <span
                             key={eq.id}
-                            className="px-4 py-2 text-[10px] font-bold bg-[#f3f0ff] text-[#7c3aed] rounded-full flex items-center gap-1.5 uppercase tracking-wider"
+                            className="px-2.5 py-1 text-[9px] font-bold bg-[#f3f0ff] text-[#7c3aed] rounded-full flex items-center gap-1 uppercase tracking-wider"
                           >
-                            <Dumbbell size={12} />
+                            <Dumbbell size={10} />
                             {eq.name}
                           </span>
                         ))}
 
                         {location.equipmentList?.length > 3 && (
-                          <span className="text-[10px] font-bold text-gray-400 ml-1 uppercase tracking-tight">
+                          <span className="text-[9px] font-bold text-gray-400 ml-1 uppercase tracking-tight">
                             + {location.equipmentList.length - 3} more
                           </span>
                         )}
@@ -181,38 +181,38 @@ export default function LocationList() {
                             localStorage.removeItem("defaultLocationId");
                           }
                         }}
-                        className="w-4 h-4 accent-purple-600 cursor-pointer"
+                        className="w-3.5 h-3.5 accent-purple-600 cursor-pointer"
                       />
                       <label
                         htmlFor={`default-${location.id}`}
-                        className="text-[11px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none"
+                        className="text-[10px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none"
                       >
                         Default
                       </label>
                     </div>
 
-                    <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-3">
+                    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-2">
                         <button
                           onClick={() => router.push(`/location/edit/${location.id}`)}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#fff7ed] text-[#f97316] text-xs font-bold py-3.5 rounded-2xl hover:bg-orange-100 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-[#fff7ed] text-[#f97316] text-[11px] font-bold py-2.5 rounded-xl hover:bg-orange-100 transition-colors"
                         >
-                          <Pencil size={16} /> Edit
+                          <Pencil size={13} /> Edit
                         </button>
 
                         <button
                           onClick={() => setDeleteTarget(location.id)}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#fef2f2] text-[#ef4444] text-xs font-bold py-3.5 rounded-2xl hover:bg-red-100 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-[#fef2f2] text-[#ef4444] text-[11px] font-bold py-2.5 rounded-xl hover:bg-red-100 transition-colors"
                         >
-                          <Trash2 size={16} /> Delete
+                          <Trash2 size={13} /> Delete
                         </button>
                       </div>
 
                       <button
                         onClick={() => router.push(`/location/${location.id}`)}
-                        className="w-full text-[11px] font-bold uppercase tracking-widest text-[#7c3aed] bg-[#f8faff] py-4 rounded-2xl hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
+                        className="w-full text-[10px] font-bold uppercase tracking-widest text-[#7c3aed] bg-[#f8faff] py-2.5 rounded-xl hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
                       >
-                        View Full Details <span className="text-lg leading-none">›</span>
+                        View Full Details <span className="text-base leading-none">›</span>
                       </button>
                     </div>
                   </div>
