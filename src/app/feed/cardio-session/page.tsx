@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Heart, Loader2 } from "lucide-react";
+import { ArrowLeft, Flame, CalendarDays, User, Heart, CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FeedComments from "@/components/FeedComments";
 import { feedApi } from "@/api/feed/route";
@@ -12,8 +12,8 @@ export default function FeedCardioSessionPage() {
   const searchParams = useSearchParams();
 
   const feedId = searchParams.get("feedId") || "";
+  const userName = searchParams.get("userName") || "";
   const userUsername = searchParams.get("userUsername") || "user";
-  const userImage = searchParams.get("userImage") || "";
   const title = searchParams.get("title") || "Completed a cardio workout";
   const feedDate = searchParams.get("date") || "";
   const initialLikeCount = parseInt(searchParams.get("likeCount") || "0", 10);
@@ -40,84 +40,115 @@ export default function FeedCardioSessionPage() {
     load();
   }, [feedId]);
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return (
-      d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" }) +
-      " " +
-      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase()
-    );
+  const formatDate = (d: string) => {
+    if (!d) return "";
+    try {
+      return new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    } catch {
+      return d;
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="min-h-screen bg-[#f4f4f8] pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4">
+      <div className="bg-white sticky top-0 z-40 border-b px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="text-gray-700 hover:text-gray-900 transition-colors"
+          className="w-9 h-9 bg-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 transition"
         >
-          <X size={22} />
+          <ArrowLeft size={18} className="text-white" />
         </button>
-        <span className="text-xs text-gray-400">{formatDate(feedDate)}</span>
+        <div className="w-8 h-8 bg-red-50 rounded-full flex items-center justify-center">
+          <Flame size={16} className="text-red-500" />
+        </div>
+        <h1 className="font-bold text-[16px] text-gray-900 truncate flex-1">Cardio Details</h1>
       </div>
 
-      <div className="px-4">
-        {/* Avatar / completed / title / like row */}
-        <div className="flex gap-3 mb-6">
-          <div className="flex flex-col items-center flex-shrink-0 w-11">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center">
-              {userImage ? (
-                <img src={userImage} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-white text-sm font-bold">{userUsername.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1 text-center truncate w-full" title={`@${userUsername}`}>
-              @{userUsername}
-            </p>
-          </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="w-6 h-6 animate-spin text-red-400" />
+        </div>
+      ) : (
+        <div className="px-4 py-5 space-y-4 max-w-xl mx-auto">
 
-          <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 mb-0.5">completed</p>
-              <p className="font-bold text-gray-900 text-[15px] leading-snug line-clamp-2">{title}</p>
-            </div>
+          {/* Completion + likes */}
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1.5 rounded-full">
+              <CheckCircle2 size={12} /> Completed
+            </span>
             <button
               onClick={toggleLike}
-              className="flex flex-col items-center text-red-400 flex-shrink-0 pt-0.5"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-500"
             >
-              <Heart size={18} className={liked ? "fill-red-400" : ""} />
-              <span className="text-[11px] text-gray-400 mt-0.5">{likeCount}</span>
+              <Heart size={15} className={liked ? "fill-red-500" : ""} />
+              {likeCount}
             </button>
           </div>
-        </div>
 
-        {/* Results */}
-        <p className="font-bold text-gray-900 mb-3">Results:</p>
-        <div className="grid grid-cols-2 gap-3 mb-8">
-          <div className="border border-gray-200 rounded-2xl py-5 text-center">
-            <p className="text-3xl font-bold text-gray-900">{minutes ?? "—"}</p>
-            <p className="text-xs text-gray-400 mt-1">Minutes</p>
+          {/* Banner */}
+          <div className="bg-gradient-to-br from-red-400 to-orange-500 rounded-3xl p-5 text-white">
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1 block">Cardio Workout</span>
+            <h2 className="text-[20px] font-extrabold leading-tight mb-3">{title}</h2>
+            {(minutes != null || calories != null) && (
+              <div className="flex items-center gap-3">
+                {minutes != null && (
+                  <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
+                    <p className="text-[22px] font-extrabold">{minutes}</p>
+                    <p className="text-[10px] opacity-80 font-semibold">minutes</p>
+                  </div>
+                )}
+                {calories != null && (
+                  <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
+                    <p className="text-[22px] font-extrabold">{calories}</p>
+                    <p className="text-[10px] opacity-80 font-semibold">calories</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div className="border border-gray-200 rounded-2xl py-5 text-center">
-            <p className="text-3xl font-bold text-gray-900">{calories ?? "—"}</p>
-            <p className="text-xs text-gray-400 mt-1">Calories</p>
-          </div>
-        </div>
 
-        {/* Comments */}
-        {feedId && <FeedComments feedId={feedId} />}
-      </div>
+          {/* Info card */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 space-y-3">
+            {(userName || userUsername) && (
+              <div className="flex items-center gap-3 pb-3 border-b border-gray-50">
+                <button
+                  onClick={() => userUsername && router.push(`/profile/${encodeURIComponent(userUsername)}`)}
+                  className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0"
+                >
+                  <User size={16} className="text-red-500" />
+                </button>
+                <div>
+                  <p className="text-[13px] font-bold text-gray-900">{userName}</p>
+                  {userUsername && (
+                    <button
+                      onClick={() => router.push(`/profile/${encodeURIComponent(userUsername)}`)}
+                      className="text-[11px] text-red-500 hover:underline"
+                    >
+                      @{userUsername}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {feedDate && (
+              <div className="flex items-center gap-2 text-gray-500">
+                <CalendarDays size={14} className="text-gray-400" />
+                <span className="text-[13px]">{formatDate(feedDate)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Comments */}
+          {feedId && (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+              <FeedComments feedId={feedId} />
+            </div>
+          )}
+
+        </div>
+      )}
     </div>
   );
 }

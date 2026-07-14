@@ -18,15 +18,10 @@ import {
   Home,
   MessageCircle,
   Dumbbell,
-  CheckCircle2,
-  ArrowRight,
   Settings,
 } from "lucide-react";
 import { feedApi, CurrentUser, Feed, HighlightGroup, Advertisement } from "@/api/feed/route";
 import { getTodayActivities } from "@/api/checklist/route";
-import { getWorkoutSessionById, getWorkoutStats, getPowerSetLogs, getTrackingLogs, getWorkoutLoadRecords, createWorkoutSession, createFeedPost, WorkoutStats, PowerSetLog, TrackingLog, WorkoutLoadRecord } from "@/api/workouts/route";
-import { getProgramGroupedWorkouts, getProgramTags, WorkoutGroup } from "@/api/programs/route";
-import FeedComments from "@/components/FeedComments";
 import FeedSettingsModal from "@/components/FeedSettingsModal";
 import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
@@ -48,15 +43,6 @@ interface ExtendedFeed extends Feed {
   media_url?: string | null;
   title2?: string | null;
 }
-
-const getPowerSetLabel = (tag: string): string | null => {
-  const t = tag.toUpperCase();
-  if (t.includes("UES")) return "$Bench";
-  if (t.includes("LES")) return "$Squat";
-  if (t.includes("CCS")) return "$Clean";
-  if (t.includes("HHP")) return "$Deadlift";
-  return null;
-};
 
 function getDateLabel(date: Date): string {
   const now = new Date();
@@ -189,114 +175,11 @@ const [creatingHighlight, setCreatingHighlight] =
   const [showMyWorkoutsOnly, setShowMyWorkoutsOnly] =
     useState(false);
 
-  const [selectedSessionFeed, setSelectedSessionFeed] =
-    useState<ExtendedFeed | null>(null);
-  const [sessionProgramImage, setSessionProgramImage] = useState<string | null>(null);
-  const [sessionWorkoutCategory, setSessionWorkoutCategory] = useState<string | null>(null);
-  const [sessionData, setSessionData] = useState<import("@/api/workouts/route").WorkoutSession | null>(null);
-  const [popupPowerTags, setPopupPowerTags] = useState<string[]>([]);
-  const [popupWorkoutStats, setPopupWorkoutStats] = useState<WorkoutStats | null>(null);
-  const [popupPowerSetLogs, setPopupPowerSetLogs] = useState<PowerSetLog[]>([]);
-  const [popupTrackingLogs, setPopupTrackingLogs] = useState<TrackingLog[]>([]);
-  const [popupRoundGroups, setPopupRoundGroups] = useState<WorkoutGroup[]>([]);
-  const [popupLoadRecords, setPopupLoadRecords] = useState<WorkoutLoadRecord[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [joiningSession, setJoiningSession] = useState(false);
-
-  useEffect(() => {
-    if (!selectedSessionFeed) {
-      setSessionProgramImage(null);
-      setSessionWorkoutCategory(null);
-      setSessionData(null);
-      setPopupWorkoutStats(null);
-      setPopupPowerSetLogs([]);
-      setPopupTrackingLogs([]);
-      setPopupRoundGroups([]);
-      setPopupLoadRecords([]);
-      setPopupPowerTags([]);
-      return;
-    }
-    const activityId = selectedSessionFeed.activity_id;
-    if (!activityId) return;
-    getWorkoutSessionById(activityId)
-      .then((session) => {
-        setSessionProgramImage(session.workoutImage || null);
-        setSessionWorkoutCategory(session.workoutCategory || null);
-        setSessionData(session);
-
-        // The chart needs every round the workout defines, not just the ones
-        // with logged data — that structure lives on the program, not the session.
-        const programCode = session.program_id || session.workout_code;
-        if (programCode) {
-          getProgramTags(programCode)
-            .then((rawTags) => {
-              const labels = (rawTags || []).map(getPowerSetLabel).filter(Boolean) as string[];
-              setPopupPowerTags(labels);
-            })
-            .catch(() => setPopupPowerTags([]));
-
-          getProgramGroupedWorkouts(programCode)
-            .then((groups) => {
-              // Warm-up-like sections (e.g. RE-GEN) lead, ROUND N run ascending in the
-              // middle, and a finisher-like section trails last — the API returns groups
-              // in an arbitrary order, so sort explicitly to match the real workout flow.
-              const getSortKey = (label: string) => {
-                const upper = (label || "").toUpperCase();
-                const m = upper.match(/^ROUND\s+(\d+)/);
-                if (m) return 1000 + parseInt(m[1], 10);
-                if (upper.includes("FINISH")) return Infinity;
-                return 0;
-              };
-              const sorted = [...groups].sort((a, b) => getSortKey(a.label) - getSortKey(b.label));
-              setPopupRoundGroups(sorted);
-            })
-            .catch(() => setPopupRoundGroups([]));
-        } else {
-          setPopupRoundGroups([]);
-          setPopupPowerTags([]);
-        }
-      })
-      .catch(() => {
-        setSessionProgramImage(null);
-        setSessionWorkoutCategory(null);
-        setSessionData(null);
-        setPopupRoundGroups([]);
-        setPopupPowerTags([]);
-      });
-
-    const isCompleted = selectedSessionFeed.type?.includes("Complete");
-    if (isCompleted) {
-      getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
-      getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
-      getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
-      // /workouts/stats returns 0 for thisWorkout even when real data exists — the
-      // per-round load/power/kcal breakdown (and its sum) actually lives here instead.
-      getWorkoutLoadRecords(activityId).then(setPopupLoadRecords).catch(() => setPopupLoadRecords([]));
-    }
-  }, [selectedSessionFeed]);
-
-  const formatSessionDate = (dateStr?: string | null): string => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return (
-      d.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }) +
-      " @ " +
-      d.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }).toLowerCase()
-    );
-  };
 
   useEffect(() => {
     loadData();
@@ -440,7 +323,6 @@ const [creatingHighlight, setCreatingHighlight] =
     // Optimistic update
     setFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, isLiked)));
     setFollowingFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, isLiked)));
-    setSelectedSessionFeed((prev) => (prev ? applyLikeToggle(prev, feed.id, userId, isLiked) : prev));
 
     setLikingFeedId(feed.id);
 
@@ -454,7 +336,6 @@ const [creatingHighlight, setCreatingHighlight] =
       // Revert on failure
       setFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, !isLiked)));
       setFollowingFeeds((prev) => prev.map((f) => applyLikeToggle(f, feed.id, userId, !isLiked)));
-      setSelectedSessionFeed((prev) => (prev ? applyLikeToggle(prev, feed.id, userId, !isLiked) : prev));
       console.error("Failed to toggle like:", err);
     } finally {
       setLikingFeedId(null);
@@ -1048,7 +929,12 @@ const [creatingHighlight, setCreatingHighlight] =
                               } else if (!feed.type?.includes("Complete") && feed.type?.toLowerCase().includes("cardio")) {
                                 router.push("/todays-focus-cardio/cardio-entry");
                               } else {
-                                setSelectedSessionFeed(feed);
+                                p.set("activityId", feed.activity_id || "");
+                                p.set("type", feed.type || "");
+                                p.set("memberId", String(feed.member_id ?? ""));
+                                p.set("title2", feed.title2 || "");
+                                p.set("joinedCount", String(feed.joined_count || 0));
+                                router.push(`/feed/session-details?${p.toString()}`);
                               }
                             }}
                             className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#6c3fef] bg-purple-50 hover:bg-purple-100 border border-purple-100 px-4 py-2 rounded-xl transition"
@@ -1735,417 +1621,27 @@ const [creatingHighlight, setCreatingHighlight] =
         </div>
       )}
 
-      {/* SESSION DETAIL POPUP */}
-      {selectedSessionFeed && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setSelectedSessionFeed(null)}
-        >
-          <div
-            className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* HEADER BAR */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-              <div className="w-8" />
-              <p className="text-[15px] font-bold text-gray-900">Session Details</p>
-              <button
-                onClick={() => setSelectedSessionFeed(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-              >
-                <X size={15} className="text-gray-600" />
-              </button>
-            </div>
-
-            {(() => {
-              const isCompleted = selectedSessionFeed.type?.includes("Complete");
-              const isOwnWorkout = String(selectedSessionFeed.member_id) === String(currentUser?.id);
-              const stripPrefix = (val: string | number | undefined, prefix: string) => {
-                const s = String(val ?? "");
-                return s.toLowerCase().startsWith(prefix.toLowerCase()) ? s : `${prefix} ${s}`;
-              };
-              const weekDay = sessionData?.week && sessionData?.day
-                ? `${stripPrefix(sessionData.week, "Week")} / ${stripPrefix(sessionData.day, "Day")}`
-                : "Single Session";
-              const isLiked = selectedSessionFeed.likes?.some((l) => Number(l) === Number(currentUser?.id));
-
-              // The feed's own title is often an activity sentence (e.g. "started a session")
-              // rather than the workout name — prefer the real title from the session/program data.
-              const rawCardTitle = sessionData?.title || sessionData?.workoutTitle || selectedSessionFeed.title || selectedSessionFeed.description || "Workout Session";
-              const cardTitle = rawCardTitle.replace(/started a session/gi, "").trim() || "Workout Session";
-
-              const handleJoinSession = async () => {
-                if (joiningSession) return;
-                if (selectedSessionFeed.type === "CompleteCardio") {
-                  const params = new URLSearchParams({
-                    feedId: String(selectedSessionFeed.id),
-                    userName: selectedSessionFeed.user?.name || "",
-                    userUsername: selectedSessionFeed.user?.username || "",
-                    userImage: selectedSessionFeed.user?.image || "",
-                    title: selectedSessionFeed.title || "",
-                    date: selectedSessionFeed.date || selectedSessionFeed.created_at || "",
-                  });
-                  router.push(`/feed/cardio-session?${params.toString()}`);
-                  return;
-                }
-
-                const code = sessionData?.program_id || sessionData?.workout_code || "";
-                const hostSessionId = selectedSessionFeed.activity_id || String(selectedSessionFeed.id);
-                localStorage.setItem("workoutProgramCode", code);
-                localStorage.setItem("workoutTitle", sessionData?.title || selectedSessionFeed.title || "");
-                localStorage.setItem("workoutName", sessionData?.programName || "");
-                localStorage.setItem("workoutIsFree", "true");
-
-                // Mirrors mobile's handleJoinSession: a non-host joining a still-live
-                // session gets their own linked session (referencing the host's via
-                // refSessionId) before landing on the workout hub. A host reopening
-                // their own session, or any already-completed session, just reopens
-                // the existing session id — no new session is created.
-                if (!isOwnWorkout && !isCompleted) {
-                  setJoiningSession(true);
-                  try {
-                    const created = await createWorkoutSession({
-                      workoutLibraryId: code,
-                      refSessionId: hostSessionId,
-                    });
-                    const newSessionId = created.session?.id;
-                    if (newSessionId) {
-                      await createFeedPost({ sessionId: newSessionId, workoutLibraryId: code }).catch(() => {});
-                      if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, newSessionId);
-                      localStorage.setItem("sessionActive", "true");
-                      // One-shot signal viewWorkoutSession's mount effect already
-                      // checks (same one athenaWorkout's "Return to Workout" uses) —
-                      // marks you as already engaged so the rejoin banner is skipped
-                      // and you land directly in the joined session, matching mobile.
-                      localStorage.setItem("returningFromAthenaWorkout", "true");
-                      router.push("/workout/viewWorkoutSession");
-                      return;
-                    }
-                  } catch {
-                    // Fall through to reopening the host's session below if creating
-                    // a linked session failed, rather than leaving the button inert.
-                  } finally {
-                    setJoiningSession(false);
-                  }
-                }
-
-                if (code) localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, hostSessionId);
-                localStorage.setItem("sessionActive", "true");
-                localStorage.setItem("returningFromAthenaWorkout", "true");
-                router.push("/workout/viewWorkoutSession");
-              };
-
-              return (
-                <div className="p-5 overflow-y-auto">
-                  {/* AVATAR + USERNAME — centered */}
-                  <div className="flex flex-col items-center mb-3">
-                    <button
-                      onClick={() => selectedSessionFeed.user?.username && router.push(`/profile/${encodeURIComponent(selectedSessionFeed.user.username)}`)}
-                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-sm cursor-pointer"
-                      style={{ background: "linear-gradient(135deg,#8b5cf6,#6366f1)" }}
-                    >
-                      {selectedSessionFeed.user?.image ? (
-                        <img src={selectedSessionFeed.user.image} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-white font-bold text-xl">
-                          {(selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "U").charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </button>
-                    <p className="font-bold text-gray-900 text-sm leading-tight mt-2">
-                      {selectedSessionFeed.user?.name || selectedSessionFeed.user?.username || "User"}
-                    </p>
-                    <button
-                      onClick={() => selectedSessionFeed.user?.username && router.push(`/profile/${encodeURIComponent(selectedSessionFeed.user.username)}`)}
-                      className="text-purple-500 text-xs hover:underline cursor-pointer"
-                    >
-                      @{selectedSessionFeed.user?.username || "user"}
-                    </button>
-                  </div>
-
-                  {/* Completed badge */}
-                  {isCompleted && (
-                    <div className="flex justify-center mb-3">
-                      <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-[11px] font-bold px-3 py-1 rounded-full">
-                        <CheckCircle2 size={13} />
-                        Workout Completed
-                      </div>
-                    </div>
-                  )}
-
-                  {/* WORKOUT CARD */}
-                  <button
-                    onClick={handleJoinSession}
-                    className="relative w-full h-44 rounded-2xl overflow-hidden mb-4 block text-left bg-gradient-to-br from-blue-500 to-blue-600"
-                  >
-                    {sessionProgramImage ? (
-                      <img src={sessionProgramImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                    ) : (
-                      <Dumbbell size={80} className="absolute inset-0 m-auto text-white/20 rotate-[-20deg]" />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-
-                    {/* Top-right franchise code pill — same sequence as mobile's
-                        FeedWorkoutSessionScreen workout card overlay. */}
-                    <div className="absolute top-3 right-3">
-                      <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide truncate max-w-[120px] inline-block">
-                        {((sessionData as any)?.franchiseCode || (selectedSessionFeed as any)?.franchiseCode || selectedSessionFeed.type || "WORKOUT").toUpperCase()}
-                      </span>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <p className="text-white/80 text-[11px] font-bold uppercase tracking-wide mb-1">
-                        {sessionData?.programName || selectedSessionFeed.type}
-                      </p>
-                      <p className="text-white font-bold text-base leading-snug mb-2 line-clamp-2">
-                        {cardTitle}
-                      </p>
-                      {popupPowerTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {popupPowerTags.map((label, idx) => (
-                            <span key={idx} className="bg-blue-500 text-white text-[11px] font-bold px-3 py-1 rounded-full">
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {(sessionWorkoutCategory || selectedSessionFeed.title2) && (
-                        <p className="text-white/90 text-[13px] font-semibold">
-                          {sessionWorkoutCategory || selectedSessionFeed.title2}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Info row: week/day pill + like + people count */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="bg-blue-50 text-blue-600 text-[11px] font-bold px-3 py-1.5 rounded-full border border-blue-100">
-                      {weekDay}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleLike(selectedSessionFeed)}
-                        disabled={likingFeedId === selectedSessionFeed.id}
-                        className="flex items-center gap-1.5 text-gray-500"
-                      >
-                        <Heart size={16} className={isLiked ? "fill-red-500 text-red-500" : "text-red-500"} />
-                        <span className="text-[12px] font-semibold">{selectedSessionFeed.likeCount ?? 0}</span>
-                      </button>
-                      <div className="flex items-center gap-1.5 text-gray-500">
-                        <Users size={16} />
-                        <span className="text-[12px] font-semibold">{sessionData?.joinedCount ?? selectedSessionFeed.joined_count ?? 0}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Date box */}
-                  <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 mb-3 border border-gray-100">
-                    <CalendarDays size={14} className="text-gray-400 flex-shrink-0" />
-                    <span className="text-[12px] text-gray-500 font-medium">
-                      {formatSessionDate(selectedSessionFeed.date || selectedSessionFeed.created_at)}
-                    </span>
-                  </div>
-
-                  {/* Results section */}
-                  {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout) && (() => {
-                    // /workouts/stats' thisWorkout is unreliable (returns 0 even with real
-                    // data logged). Each load-record's load/power/kcal is a running CUMULATIVE
-                    // total, not a per-round delta, so the true session total is just the last
-                    // record's values — summing every record would multiply-count the total.
-                    const lastRecord = popupLoadRecords[popupLoadRecords.length - 1];
-                    const totals = lastRecord
-                      ? {
-                          load: Number(lastRecord.load) || 0,
-                          power: Number(lastRecord.power) || 0,
-                          cals: Number(lastRecord.kcal) || 0,
-                        }
-                      : popupWorkoutStats?.thisWorkout ?? { load: 0, power: 0, cals: 0 };
-                    // A session can have load-record rows pre-populated at 0 before anything
-                    // is actually logged — go by whether they (or tracking/power-set logs)
-                    // show real activity, not just whether the arrays are non-empty.
-                    const hasLoggedData = totals.load > 0 || totals.power > 0 || totals.cals > 0
-                      || popupTrackingLogs.length > 0 || popupPowerSetLogs.length > 0;
-                    return (
-                      <div className="mb-4">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { label: "Load", value: totals.load },
-                            { label: "Power", value: totals.power },
-                            { label: "Kcal", value: totals.cals },
-                          ].map(({ label, value }) => (
-                            <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
-                              <p className="text-[20px] font-extrabold text-gray-900">
-                                {!hasLoggedData ? "n/a" : value ?? "—"}
-                              </p>
-                              <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Load chart (simple CSS bars) */}
-                  {isCompleted && (popupLoadRecords.length > 0 || popupRoundGroups.length > 0 || popupTrackingLogs.length > 0 || (popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0)) && (
-                    <div className="mb-4">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Load Chart</p>
-                      <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                        {(() => {
-                          const normalize = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-                          // Each load-record's load is a running CUMULATIVE total, not a
-                          // per-round value — diff consecutive records to get this round's
-                          // actual load. record.title is an internal exercise code (e.g.
-                          // "ANE12"), not a display name, so the label comes from the
-                          // program's round structure at the same position instead.
-                          const bars = popupLoadRecords.length > 0
-                            ? popupLoadRecords.map((r, i) => {
-                                const prev = i > 0 ? Number(popupLoadRecords[i - 1].load) || 0 : 0;
-                                const value = Math.max(0, (Number(r.load) || 0) - prev);
-                                const label = popupRoundGroups.length === popupLoadRecords.length
-                                  ? popupRoundGroups[i].label
-                                  : r.title || `R${i + 1}`;
-                                return { label, value };
-                              })
-                            : popupRoundGroups.length > 0
-                              ? popupRoundGroups.map((group) => {
-                                  const key = normalize(group.label);
-                                  const value = popupTrackingLogs
-                                    .filter((log) => {
-                                      const logKey = normalize(log.title);
-                                      return logKey && key && (logKey.startsWith(key) || key.startsWith(logKey));
-                                    })
-                                    .reduce((sum, log) => sum + (log.load ?? 0), 0);
-                                  return { label: group.label, value };
-                                })
-                              : popupTrackingLogs.length > 0
-                                ? popupTrackingLogs.map((log, i) => ({ label: log.title || `R${i + 1}`, value: log.load ?? 0 }))
-                                : (popupWorkoutStats?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
-
-                          const rawMax = Math.max(...bars.map((b) => b.value), 1);
-                          // Round the axis ceiling up to a "nice" number so the scale reads cleanly.
-                          const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
-                          const steps = [1, 1.5, 2, 3, 4, 5, 10];
-                          const step = steps.find((s) => rawMax <= s * magnitude) ?? 10;
-                          const axisMax = step * magnitude;
-                          const ticks = [4, 3, 2, 1, 0].map((n) => Math.round((axisMax * n) / 4));
-
-                          return (
-                            <div className="flex gap-2">
-                              <div className="flex flex-col justify-between h-16 mt-[17px] text-[9px] text-gray-400 font-medium text-right">
-                                {ticks.map((t, i) => (
-                                  <span key={i}>{t}</span>
-                                ))}
-                              </div>
-                              <div className="flex-1 flex items-end gap-1.5 min-w-0">
-                                {bars.map((b, i) => (
-                                  <div key={i} className="flex-1 min-w-0 flex flex-col items-center">
-                                    <span className="text-[9px] font-bold text-gray-600 mb-1">{b.value}</span>
-                                    <div className="w-full h-16 flex items-end">
-                                      <div
-                                        className="w-full rounded-t-md bg-cyan-400"
-                                        style={{ height: `${Math.max(4, (b.value / axisMax) * 64)}px` }}
-                                      />
-                                    </div>
-                                    <span className="text-[8px] text-gray-400 truncate w-full text-center uppercase mt-1" title={b.label}>
-                                      {b.label}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Power Set Logs */}
-                  {isCompleted && popupPowerSetLogs.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">$ Sets</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {popupPowerSetLogs.map((log, idx) => (
-                          <div key={idx} className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
-                            <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center mb-1.5">
-                              <span className="text-[11px] font-extrabold text-purple-700">$</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-gray-800 leading-tight mb-1 uppercase">{log.exercise || log.title}</p>
-                            {log.weight != null && <p className="text-[12px] font-extrabold text-gray-900">{log.weight} kg</p>}
-                            {log.reps != null && <p className="text-[10px] text-gray-400">{log.reps} reps</p>}
-                            {log.opm && <p className="text-[10px] text-gray-400 mt-0.5">{log.opm}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* View/Join button — hidden only for your own completed session */}
-                  {(!isCompleted || !isOwnWorkout) && (
-                    <button
-                      onClick={handleJoinSession}
-                      disabled={joiningSession}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-2xl text-[15px] transition mb-3"
-                    >
-                      {joiningSession ? "Joining..." : "View / Join Session"}
-                    </button>
-                  )}
-
-                  {/* Workout Preview */}
-                  <button
-                    onClick={() => {
-                      const code = sessionData?.program_id || sessionData?.workout_code || "";
-                      const title = sessionData?.title || selectedSessionFeed.title || "";
-                      localStorage.setItem("workoutProgramCode", code);
-                      localStorage.setItem("workoutTitle", title);
-                      localStorage.setItem("workoutName", sessionData?.programName || "");
-                      localStorage.setItem("workoutIsFree", "true");
-                      const params = new URLSearchParams();
-                      if (code) params.set("code", code);
-                      if (title) params.set("workoutKey", title);
-                      router.push(`/workout/detail?${params.toString()}`);
-                    }}
-                    className={`w-full flex items-center justify-center gap-1.5 font-semibold text-sm transition mb-4 ${
-                      isCompleted && isOwnWorkout ? "text-purple-600 hover:text-purple-700" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    Workout Preview <ArrowRight size={15} />
-                  </button>
-
-                  {/* Comments */}
-                  <div className="border-t border-gray-100 pt-4">
-                    <FeedComments
-                      feedId={String(selectedSessionFeed.id)}
-                      onCommentAdded={() => {
-                        setFeeds(prev => prev.map(f =>
-                          String(f.id) === String(selectedSessionFeed.id)
-                            ? { ...f, commentsCount: (f.commentsCount || 0) + 1 }
-                            : f
-                        ));
-                        setFollowingFeeds(prev => prev.map(f =>
-                          String(f.id) === String(selectedSessionFeed.id)
-                            ? { ...f, commentsCount: (f.commentsCount || 0) + 1 }
-                            : f
-                        ));
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
       {/* SHARE SESSION MODAL */}
       {shareSessionFeed && (() => {
-        const sessionId = shareSessionFeed.activity_id || String(shareSessionFeed.id);
-        // Same link format as the "Invite via Link" share on viewWorkoutSession —
-        // that page already resolves a bare sessionId into the full session
-        // (program, exercises, purchase state), so no extra share-link API call
-        // or feed-specific route is needed here.
-        const displayUrl = `https://paxlete.com/workout/viewWorkoutSession?sessionId=${sessionId}`;
+        // Points recipients at the feed's own session-details page (rather than
+        // straight into the live workout session) so it's viewable without
+        // requiring login first — matches whatever data the feed card itself
+        // already has, same param shape the "View Session" button builds.
+        const shareParams = new URLSearchParams({
+          feedId: String(shareSessionFeed.id),
+          activityId: shareSessionFeed.activity_id || "",
+          type: shareSessionFeed.type || "",
+          memberId: String(shareSessionFeed.member_id ?? ""),
+          userName: shareSessionFeed.user?.name || "",
+          userUsername: shareSessionFeed.user?.username || "",
+          userImage: shareSessionFeed.user?.image || "",
+          title: shareSessionFeed.title || "",
+          title2: shareSessionFeed.title2 || "",
+          date: shareSessionFeed.date || shareSessionFeed.created_at || "",
+          likeCount: String(shareSessionFeed.likeCount || 0),
+          joinedCount: String(shareSessionFeed.joined_count || 0),
+        });
+        const displayUrl = `https://paxlete.com/feed/session-details?${shareParams.toString()}`;
 
         return (
           <div
