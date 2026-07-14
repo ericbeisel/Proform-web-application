@@ -7,6 +7,8 @@ import { feedApi, FeedComment } from "@/api/feed/route";
 interface Props {
   feedId: string;
   onCommentAdded?: () => void;
+  requireLogin?: boolean;
+  onRequireLogin?: () => void;
 }
 
 function formatCommentTime(dateStr?: string): string {
@@ -21,7 +23,7 @@ function formatCommentTime(dateStr?: string): string {
   }
 }
 
-export default function FeedComments({ feedId, onCommentAdded }: Props) {
+export default function FeedComments({ feedId, onCommentAdded, requireLogin, onRequireLogin }: Props) {
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -44,6 +46,10 @@ export default function FeedComments({ feedId, onCommentAdded }: Props) {
   }, [feedId]);
 
   const openInput = () => {
+    if (requireLogin) {
+      onRequireLogin?.();
+      return;
+    }
     setInputOpen(true);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
