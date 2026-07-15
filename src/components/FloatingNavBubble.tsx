@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Rss, ChevronRight, Calendar, Activity, Users, Menu, X } from "lucide-react";
-import { hasAuthSession } from "@/lib/auth/session";
 
 const navItems = [
   { label: "Feed",      icon: Rss,          href: "/feed/main-feed" },
@@ -26,15 +25,6 @@ export default function FloatingNavBubble() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  // hasAuthSession() reads localStorage, which is unavailable during SSR — start
-  // false (matching the server's always-false render) and resolve for real only
-  // after mount, so the client's first paint matches the server and hydrates
-  // cleanly instead of popping the bubble in and causing a mismatch.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    setIsLoggedIn(hasAuthSession());
-  }, []);
 
   const clamp = (x: number, y: number) => ({
     x: Math.min(Math.max(MARGIN, x), window.innerWidth - BUBBLE_SIZE - MARGIN),
@@ -109,10 +99,6 @@ export default function FloatingNavBubble() {
     : undefined;
 
   if (pathname?.startsWith("/coach")) return null;
-
-  // Every nav item points at an authenticated page — nothing for a logged-out
-  // visitor (e.g. following a shared session link) to navigate to.
-  if (!isLoggedIn) return null;
 
   // The workout session view has its own fixed mobile bottom nav bar
   // (Results/Session/Powersets/Map/Start) once a session is active — sitting
