@@ -927,6 +927,13 @@ export interface ProgramOverviewResponse {
   // response (matches the locationId param, when passed) — mobile seeds its
   // location display from this before a session/section fetch takes over.
   selectedLocation?: { id?: string | number; name?: string; [key: string]: unknown } | null;
+  // Whether this account has an active (non-expired) purchase for this
+  // program, and when it lapses — mirrors mobile's OverviewScreen.tsx
+  // fetchData (res.isPurchased / res.expiresAt). This is the actual source
+  // of truth for unlock state; `preview.free` only says whether the program
+  // requires purchase at all, not whether *this user* already paid for it.
+  isPurchased?: boolean;
+  expiresAt?: string | null;
 }
 
 export const getProgramOverview = async (

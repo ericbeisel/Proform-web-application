@@ -28,6 +28,7 @@ import {
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import PowerSetTrackingModal, { type VelocitySet } from "./PowerSetTrackingModal";
 import SessionViewsPanel from "./SessionViewsPanel";
+import PurchaseCheckout from "../components/PurchaseCheckout";
 import {
   getProgramPowerSets,
   getProgramOverview,
@@ -144,10 +145,23 @@ function ViewWorkoutSessionContent() {
   const [rejoinLoading, setRejoinLoading] = useState(false);
   const [workoutTitle, setWorkoutTitle] = useState<string>("");
   const [workoutName, setWorkoutName] = useState<string>("");
+  // "Workout" | "Supplemental" | "Field Workout" | "Conditioning" — set by
+  // whichever queue tab/dashboard the user launched this session from (see
+  // workoutDashboardMain.tsx's handleSessionClick), and used only to pick
+  // the right pending-activities list on completion. Mirrors mobile's
+  // resolvedWorkoutData.type (MapScreen.tsx's proceedCompleteWorkout).
+  const [workoutType, setWorkoutType] = useState<string>("Workout");
   const [programTags, setProgramTags] = useState<string[]>([]);
   const [previewData, setPreviewData] = useState<ProgramPreview | null>(null);
   const [hasPurchased, setHasPurchased] = useState(false);
+  const [purchaseExpiresAt, setPurchaseExpiresAt] = useState<string | null>(null);
+  const [purchaseTimeRemaining, setPurchaseTimeRemaining] = useState<string>("");
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  // Drives the same Stripe PurchaseCheckout flow used in viewWorkoutDetail.tsx
+  // — this modal previously just flipped hasPurchased locally with no real
+  // charge, unlike the paywall on that other page.
+  const [checkoutStarted, setCheckoutStarted] = useState(false);
+  const [programCodeForPurchase, setProgramCodeForPurchase] = useState<string | null>(null);
   // Mirrors mobile's exercise-tap-before-session-starts modal — mobile's
   // version doesn't actually render exercise-specific details despite
   // storing them, it's just a "Ready to Start?" confirmation, so no need to
@@ -503,6 +517,50 @@ function ViewWorkoutSessionContent() {
     0,
   );
   const isLocked = !hasPurchased;
+  // Mirrors mobile's programDetails.price || .amount || .cost || '1' fallback
+  // chain (OverviewScreen.tsx:1800) — this is a display-only estimate, the
+  // actual charge is whatever the backend's create-intent PaymentIntent sets.
+  const displayPrice = String(
+    (previewData?.price ?? previewData?.amount ?? previewData?.cost ?? "1") as string | number,
+  );
+  // Absolute end date/time alongside the relative countdown, so the user
+  // doesn't have to do "22h 4m from... when?" math themselves.
+  const purchaseEndDateLabel =
+    hasPurchased && purchaseExpiresAt
+      ? new Date(purchaseExpiresAt).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "";
+
+  // Ticks the 24h purchase countdown every minute and flips the paywall back
+  // on once it lapses — mirrors mobile's OverviewScreen.tsx:444-469. This is
+  // just a client-side display/safety net: the next overview fetch would
+  // re-derive the correct locked/unlocked state from the backend regardless.
+  useEffect(() => {
+    if (!purchaseExpiresAt || !hasPurchased) {
+      setPurchaseTimeRemaining("");
+      return;
+    }
+
+    const updateRemaining = () => {
+      const diff = new Date(purchaseExpiresAt).getTime() - Date.now();
+      if (diff <= 0) {
+        setPurchaseTimeRemaining("Expired");
+        setHasPurchased(false);
+      } else {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setPurchaseTimeRemaining(`${hours}h ${minutes}m remaining`);
+      }
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 60000);
+    return () => clearInterval(interval);
+  }, [purchaseExpiresAt, hasPurchased]);
 
   // Tapping an exercise before a session exists — mirrors mobile's
   // preview-modal branch (isLocked -> purchase prompt, else -> "Ready to
@@ -705,6 +763,10 @@ function ViewWorkoutSessionContent() {
           // through as this session's free/purchase status or subtitle.
           localStorage.removeItem("workoutIsFree");
           localStorage.removeItem("workoutName");
+          // Not derivable from the shared session itself (unlike title/code) —
+          // clear it rather than let a stale value from whatever this browser
+          // last browsed leak into this session's completion flow.
+          localStorage.removeItem("workoutType");
 
           // Activate this specific session immediately, regardless of
           // ownership — mirrors mobile's autoActivateSession deep-link path.
@@ -752,10 +814,13 @@ function ViewWorkoutSessionContent() {
       if (savedLocation) setLocation(savedLocation);
 
       const programCode = localStorage.getItem("workoutProgramCode");
+      setProgramCodeForPurchase(programCode);
       const title = localStorage.getItem("workoutTitle");
       if (title) setWorkoutTitle(title);
       const name = localStorage.getItem("workoutName");
       if (name) setWorkoutName(name);
+      const type = localStorage.getItem("workoutType");
+      if (type) setWorkoutType(type);
 
       const isFree = localStorage.getItem("workoutIsFree");
       if (isFree === "true") setHasPurchased(true);
@@ -879,13 +944,20 @@ function ViewWorkoutSessionContent() {
           if (overview.preview?.free) {
             localStorage.setItem("workoutIsFree", "true");
             setHasPurchased(true);
+            setPurchaseExpiresAt(null);
           } else {
             // Otherwise a stale "true" left over from a previously-viewed
             // *different* free program would leak in via the early
             // localStorage read above and incorrectly hide this paid
             // program's paywall.
             localStorage.removeItem("workoutIsFree");
-            setHasPurchased(false);
+            // The backend is the source of truth for whether *this account*
+            // already has an active purchase — mirrors mobile's
+            // OverviewScreen.tsx fetchData (res.isPurchased / res.expiresAt).
+            // Without this, a real purchase would only live in this
+            // component's in-memory state and evaporate on the next reload.
+            setHasPurchased(Boolean(overview.isPurchased));
+            setPurchaseExpiresAt(overview.expiresAt ?? null);
           }
 
           const groups = sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []);
@@ -1113,6 +1185,7 @@ function ViewWorkoutSessionContent() {
         workoutGroups={workoutGroups}
         workoutTitle={workoutTitle}
         workoutName={workoutName}
+        workoutType={workoutType}
         completedSectionsCount={completedSectionsCount}
         workoutStats={workoutStats}
         powerSets={powerSets}
@@ -1359,8 +1432,15 @@ function ViewWorkoutSessionContent() {
                     >
                       {isLocked
                         ? "• This workout requires purchase"
-                        : "• This workout is free"}
+                        : purchaseTimeRemaining
+                          ? `• Unlocked — ${purchaseTimeRemaining}`
+                          : "• This workout is free"}
                     </p>
+                    {!isLocked && purchaseEndDateLabel && (
+                      <p className="text-[10px] text-gray-400">
+                        Ends {purchaseEndDateLabel}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1872,71 +1952,106 @@ function ViewWorkoutSessionContent() {
       {showPurchaseModal && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-6"
-          onClick={() => setShowPurchaseModal(false)}
+          onClick={() => {
+            setShowPurchaseModal(false);
+            setCheckoutStarted(false);
+          }}
         >
           <div
             className="bg-white w-full max-w-[380px] rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.2)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header band */}
-            <div className="relative overflow-hidden bg-[#7C3AED] pt-[22px] pb-[18px] px-6">
-              <div className="absolute w-[120px] h-[120px] rounded-full bg-white/[0.07] -left-[30px] -bottom-[30px]" />
-              <div className="absolute w-[160px] h-[160px] rounded-full bg-white/[0.07] -right-[60px] -top-[40px]" />
+            {checkoutStarted && programCodeForPurchase ? (
+              <div className="p-4">
+                <PurchaseCheckout
+                  workoutId={programCodeForPurchase}
+                  workoutTitle={workoutTitle}
+                  onSuccess={() => {
+                    console.log("[viewWorkoutSession] payment flow succeeded — unlocking", { programCode: programCodeForPurchase, workoutTitle });
+                    setHasPurchased(true);
+                    // Optimistic estimate so the countdown shows immediately
+                    // instead of "This workout is free" until the next
+                    // getProgramOverview fetch — the backend grants a fixed
+                    // 24h window, and the next natural refetch (remount/focus)
+                    // will overwrite this with the authoritative expiresAt.
+                    setPurchaseExpiresAt(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+                    setShowPurchaseModal(false);
+                    setCheckoutStarted(false);
+                  }}
+                  onCancel={() => {
+                    console.log("[viewWorkoutSession] payment flow closed without unlocking", { programCode: programCodeForPurchase });
+                    setShowPurchaseModal(false);
+                    setCheckoutStarted(false);
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                {/* Header band */}
+                <div className="relative overflow-hidden bg-[#7C3AED] pt-[22px] pb-[18px] px-6">
+                  <div className="absolute w-[120px] h-[120px] rounded-full bg-white/[0.07] -left-[30px] -bottom-[30px]" />
+                  <div className="absolute w-[160px] h-[160px] rounded-full bg-white/[0.07] -right-[60px] -top-[40px]" />
 
-              <div className="relative flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-white/[0.18] flex items-center justify-center mb-3">
-                  <div className="w-12 h-12 rounded-full bg-[#F59E0B] flex items-center justify-center">
-                    <Lock size={22} className="text-white" />
+                  <div className="relative flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-white/[0.18] flex items-center justify-center mb-3">
+                      <div className="w-12 h-12 rounded-full bg-[#F59E0B] flex items-center justify-center">
+                        <Lock size={22} className="text-white" />
+                      </div>
+                    </div>
+                    <h2 className="text-[20px] font-bold text-white">Premium Session</h2>
+                    <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
+                      {workoutTitle || "WORKOUT"}
+                    </p>
                   </div>
                 </div>
-                <h2 className="text-[20px] font-bold text-white">Premium Session</h2>
-                <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
-                  {workoutTitle || "WORKOUT"}
-                </p>
-              </div>
-            </div>
 
-            {/* Body */}
-            <div className="p-4 flex flex-col items-center gap-[10px]">
-              <div className="flex items-end gap-1">
-                <span className="text-[32px] font-bold text-[#111827] leading-none">$19.95</span>
-                <span className="text-[13px] font-semibold text-[#6B7280] mb-0.5 ml-1">USD</span>
-              </div>
-
-              <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
-                This is a premium session. Purchase to unlock full access and start your workout.
-              </p>
-
-              <div className="w-full bg-[#F9FAFB] rounded-xl p-[10px] flex flex-col gap-1.5">
-                <p className="text-[14px] font-bold text-[#111827]">Included with purchase:</p>
-                {["Full workout access", "Set tracking", "Unlimited Sessions"].map((label) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
-                    <span className="text-[13px] font-medium text-[#374151]">{label}</span>
+                {/* Body */}
+                <div className="p-4 flex flex-col items-center gap-[10px]">
+                  <div className="flex items-end gap-1">
+                    <span className="text-[32px] font-bold text-[#111827] leading-none">${displayPrice}</span>
+                    <span className="text-[13px] font-semibold text-[#6B7280] mb-0.5 ml-1">USD</span>
                   </div>
-                ))}
-              </div>
 
-              <p className="text-[14px] font-bold text-[#111827] text-center">View Purchase Options:</p>
+                  <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
+                    This is a premium session. Purchase to unlock full access and start your workout.
+                  </p>
 
-              <button
-                onClick={() => {
-                  setHasPurchased(true);
-                  setShowPurchaseModal(false);
-                }}
-                className="w-full bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold text-[14px] py-3 rounded-[14px] flex items-center justify-center gap-2 transition"
-              >
-                <CreditCard size={16} />
-                Purchase for $19.95
-              </button>
+                  <div className="w-full bg-[#F9FAFB] rounded-xl p-[10px] flex flex-col gap-1.5">
+                    <p className="text-[14px] font-bold text-[#111827]">Included with purchase:</p>
+                    {["Full workout access", "Set tracking", "Unlimited Sessions"].map((label) => (
+                      <div key={label} className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
+                        <span className="text-[13px] font-medium text-[#374151]">{label}</span>
+                      </div>
+                    ))}
+                  </div>
 
-              <button
-                onClick={() => setShowPurchaseModal(false)}
-                className="w-full py-2 text-[15px] font-semibold text-[#6B7280] hover:text-gray-700 transition"
-              >
-                Cancel
-              </button>
-            </div>
+                  <p className="text-[14px] font-bold text-[#111827] text-center">View Purchase Options:</p>
+
+                  <button
+                    onClick={() => {
+                      console.log("[viewWorkoutSession] Purchase button tapped", { programCode: programCodeForPurchase, workoutTitle });
+                      setCheckoutStarted(true);
+                    }}
+                    disabled={!programCodeForPurchase}
+                    className="w-full bg-[#7C3AED] hover:bg-[#6d28d9] disabled:opacity-60 text-white font-bold text-[14px] py-3 rounded-[14px] flex items-center justify-center gap-2 transition"
+                  >
+                    <CreditCard size={16} />
+                    Purchase for ${displayPrice}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowPurchaseModal(false);
+                      setCheckoutStarted(false);
+                    }}
+                    className="w-full py-2 text-[15px] font-semibold text-[#6B7280] hover:text-gray-700 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

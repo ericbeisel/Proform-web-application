@@ -75,6 +75,9 @@ type Props = {
   workoutGroups: WorkoutGroup[];
   workoutTitle: string;
   workoutName: string;
+  // "Workout" | "Supplemental" | "Field Workout" | "Conditioning" — which
+  // pending-activities list to offer credit against on completion.
+  workoutType: string;
 
   // sidebar-only
   completedSectionsCount: number;
@@ -286,6 +289,7 @@ export default function SessionViewsPanel({
   workoutGroups,
   workoutTitle,
   workoutName,
+  workoutType,
   completedSectionsCount,
   workoutStats,
   powerSets,
@@ -364,7 +368,7 @@ export default function SessionViewsPanel({
   const openCompletionModal = async () => {
     setIncompleteRoundNames(null);
     try {
-      const activities = await getPendingActivities({ type: "Workout", workoutName: workoutTitle });
+      const activities = await getPendingActivities({ type: workoutType || "Workout", workoutName: workoutTitle });
       setPendingActivities(
         activities.map((a) => ({
           id: a.id,

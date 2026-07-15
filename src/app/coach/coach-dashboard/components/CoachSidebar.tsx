@@ -14,7 +14,7 @@ interface CoachSidebarProps {
 
 const QUICK_LINK_ITEMS = [
   { label: "All Teams",      icon: Users,    href: "/coach/coach-dashboard" },
-  { label: "All Players",    icon: UserPlus, href: "/coach/activity" },
+  { label: "All Players",    icon: UserPlus, href: "/coach/players" },
   { label: "All Activities", icon: Target,   href: "/coach/activity" },
 ];
 

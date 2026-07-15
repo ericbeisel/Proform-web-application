@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   CreditCard,
+  Coins,
   Dumbbell,
   Calendar,
   Clock,
@@ -15,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getPurchases, Purchase } from "@/api/payments/route";
+import { getPointsTotal } from "@/api/points/route";
 
 interface PurchaseItem {
   id: string;
@@ -33,15 +35,32 @@ export default function PaymentsPage() {
   const [isWorkoutCollapsed, setIsWorkoutCollapsed] = useState(false);
   const [rawPurchases, setRawPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalPoints, setTotalPoints] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPointsTotal()
+      .then((pts) => {
+        if (!cancelled) setTotalPoints(pts);
+      })
+      .catch(() => {
+        if (!cancelled) setTotalPoints(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     getPurchases()
       .then((data) => {
+        console.log("[Payments] getPurchases resolved", data);
         if (!cancelled) setRawPurchases(data);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("[Payments] getPurchases failed", error);
         if (!cancelled) setRawPurchases([]);
       })
       .finally(() => {
@@ -56,16 +75,27 @@ export default function PaymentsPage() {
     const isExpired = new Date(item.expiresAt) <= new Date();
     const status = isExpired ? ("Expired" as const) : ("Active" as const);
 
+    console.log("[Payments] purchase expiration check", {
+      id: item.id,
+      expiresAt: item.expiresAt,
+      expiresAtParsed: new Date(item.expiresAt),
+      now: new Date(),
+      isExpired,
+      status,
+    });
+
     const purchaseDate = new Date(item.createdAt).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
 
-    const expiryDate = new Date(item.expiresAt).toLocaleDateString("en-US", {
+    const expiryDate = new Date(item.expiresAt).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
 
     return {
@@ -117,6 +147,17 @@ export default function PaymentsPage() {
               <h1 className="text-lg font-bold text-white leading-tight">Payments</h1>
               <p className="text-[12px] text-white/70">All purchases</p>
             </div>
+
+            <button
+              onClick={() => router.push("/points")}
+              className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 h-9 hover:bg-white/20 transition mr-2.5"
+              aria-label="View points"
+            >
+              <Coins size={16} className="text-amber-300" />
+              <span className="text-[12px] font-semibold text-white">
+                {totalPoints === null ? "—" : totalPoints}
+              </span>
+            </button>
 
             <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
               <CreditCard size={18} className="text-white" strokeWidth={1.8} />

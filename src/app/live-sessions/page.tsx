@@ -14,10 +14,14 @@ const FILTER_STATUS: Record<string, boolean | undefined> = {
 };
 
 function openSession(session: LiveSession, router: ReturnType<typeof useRouter>) {
-  localStorage.setItem("workoutProgramCode", session.title);
-  localStorage.setItem("workoutTitle", session.programName);
-  localStorage.setItem("workoutName", session.workoutName);
-  router.push("/workout/viewWorkoutSession");
+  // Previously set workoutProgramCode to session.title (a display name, not
+  // the program code), which made getProgramOverview query the wrong/
+  // unresolvable program — silently failing and leaving whatever purchase
+  // state was already in memory from a previously-viewed program. Routing
+  // via ?sessionId= instead reuses viewWorkoutSession's own proven session
+  // resolution (getWorkoutSessionById -> workout_code/program_id), the same
+  // path shared-session links already rely on.
+  router.push(`/workout/viewWorkoutSession?sessionId=${session.id}`);
 }
 
 export default function LiveSessionsPage() {
