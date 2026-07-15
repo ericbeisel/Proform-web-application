@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import {
-  ArrowLeft, Share2, Bookmark, X,
+  AlertCircle, ArrowLeft, Share2, Bookmark, X,
   Dumbbell, Zap, Plus, Eye, ChevronRight, Loader2
 } from "lucide-react";
 import { getProgramExercises, getProgramEquipment, getProgramPowerSets, getProgramWorkoutStats, getProgramIdByCode, getProgramTags, getProgramPreview, Exercise, Equipment, PowerSet, WorkoutStats, ChartBarDatum, ChartPieDatum, ProgramPreview } from "@/api/programs/route";
 import { getCompletedUsers, CompletedUser } from "@/api/workouts/route";
+import { hasAuthSession } from "@/lib/auth/session";
 interface WorkoutDetailProps {
   workoutId?: number | string;
   onClose?: () => void;
@@ -143,12 +145,17 @@ function CompletedAvatar({ user, index }: { user: CompletedUser; index: number }
 
 export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetailProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const programUuid = searchParams.get('code');
   const workoutKey = searchParams.get('workoutKey');
   const queueProgramName = searchParams.get('programName') ||
     (typeof window !== 'undefined' ? localStorage.getItem('workoutProgramName') : null) || '';
-  
+
+  const isLoggedIn = hasAuthSession();
+  const loginUrl = `/auth/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`;
+  const [authPrompt, setAuthPrompt] = useState<"queue" | "start" | null>(null);
+
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [powerSets, setPowerSets] = useState<PowerSet[]>([]);
@@ -164,6 +171,8 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
   const [addingToQueue, setAddingToQueue] = useState(false);
   const [completedUsers, setCompletedUsers] = useState<CompletedUser[]>([]);
   const [programTags, setProgramTags] = useState<string[]>([]);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
   // Add this line at the top of the component, before any hooks
 console.log("=== WorkoutDetail mount ===");
 console.log("localStorage workoutProgramId:", typeof window !== 'undefined' ? localStorage.getItem("workoutProgramId") : "SSR");
@@ -441,7 +450,7 @@ const filteredExercises = exercises;
             {/* Mobile-only: Add to Queue lives here (top-right) instead of the
                 full-width button under the title — desktop keeps that button. */}
             <button
-              onClick={() => setShowAddToQueueModal(true)}
+              onClick={() => (isLoggedIn ? setShowAddToQueueModal(true) : setAuthPrompt("queue"))}
               className="flex md:hidden h-10 items-center justify-center gap-1 px-3.5 bg-violet-600 hover:bg-violet-700 rounded-full shadow-sm text-white text-[11px] font-bold uppercase tracking-wide whitespace-nowrap transition-all active:scale-90"
             >
               <Plus className="w-[14px] h-[14px]" strokeWidth={3} /> Add to Queue
@@ -449,7 +458,10 @@ const filteredExercises = exercises;
             <button className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90">
               <Bookmark className="w-[18px] h-[18px]" />
             </button>
-            <button className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-full border border-slate-100 shadow-sm text-slate-500 hover:bg-slate-50 transition-all active:scale-90"
+            >
               <Share2 className="w-[18px] h-[18px]" />
             </button>
             <button
@@ -517,9 +529,10 @@ const filteredExercises = exercises;
           </div>
    <button
   onClick={() => {
-    console.log("=== Opening modal ===");
-    console.log("programId state:", programId);
-    console.log("localStorage now:", localStorage.getItem("workoutProgramId"));
+    if (!isLoggedIn) {
+      setAuthPrompt("queue");
+      return;
+    }
     setShowAddToQueueModal(true);
   }}
   className="hidden md:flex w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white px-8 py-3.5 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-violet-200 transition-all active:scale-95 items-center justify-center gap-2"
@@ -743,15 +756,11 @@ const filteredExercises = exercises;
       <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
         <button
 onClick={() => {
-  // Use the URL-derived code directly rather than the `programCode` state
-  // (only set once fetchWorkoutData's Promise.all succeeds) — if that fetch
-  // hadn't finished yet or partially failed, `programCode` stays "" and this
-  // silently skipped updating localStorage, leaving whatever *previous*
-  // workout's code was already there (e.g. one actually purchased) — so
-  // viewWorkoutSession would show that other workout's real unlock status
-  // under this one's title.
-  const code = programUuid || (workoutId ? String(workoutId) : programCode);
-  if (code) localStorage.setItem("workoutProgramCode", code);
+  if (!isLoggedIn) {
+    setAuthPrompt("start");
+    return;
+  }
+  if (programCode) localStorage.setItem("workoutProgramCode", programCode);
   const title = workoutTitle || workoutKey || "";
   if (title) localStorage.setItem("workoutTitle", title);
   // Appending the code also guarantees a distinct URL per workout, so
@@ -873,6 +882,120 @@ onClick={() => {
           </div>
         </div>
       )}
+
+      {/* SHARE MODAL — same QR + copy-link + native-share pattern as the
+          feed's Share Session modal */}
+      {showShareModal && (() => {
+        const shareUrl = `https://paxlete.com/workout/detail?${searchParams.toString()}`;
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => { setShowShareModal(false); setShareLinkCopied(false); }}
+          >
+            <div
+              className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => { setShowShareModal(false); setShareLinkCopied(false); }}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} className="text-gray-600" />
+              </button>
+
+              <div className="px-6 pt-6 pb-6">
+                <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Workout</h3>
+                <p className="text-[13px] text-gray-400 mb-5 truncate">{displayTitle}</p>
+
+                <div className="flex justify-center mb-5">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                      <QRCodeSVG value={shareUrl} size={140} fgColor="#1f2937" bgColor="#ffffff" />
+                    </div>
+                    <p className="text-[12px] text-gray-400">Scan this code to view the workout</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
+                  <span className="text-[12px] text-gray-500 truncate flex-1">{shareUrl}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                      setShareLinkCopied(true);
+                      setTimeout(() => setShareLinkCopied(false), 2000);
+                    }}
+                    className="shrink-0 text-[12px] font-bold text-purple-600 hover:text-purple-700 px-2 disabled:opacity-40"
+                  >
+                    {shareLinkCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: displayTitle, url: shareUrl });
+                    } else {
+                      navigator.clipboard.writeText(shareUrl);
+                      setShareLinkCopied(true);
+                      setTimeout(() => setShareLinkCopied(false), 2000);
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3.5 rounded-2xl text-[14px] transition hover:shadow-lg disabled:opacity-50"
+                >
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* AUTH PROMPT — gates queueing/starting a workout for anonymous
+          preview visitors (e.g. following a shared session link) */}
+      {authPrompt && (() => {
+        const copy = authPrompt === "queue"
+          ? { heading: "Add to your Queue", subtitle: "Log in or sign up to save this workout" }
+          : { heading: "Start your Session", subtitle: "Log in or sign up to begin the workout" };
+        return (
+          <div
+            className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setAuthPrompt(null)}
+          >
+            <div
+              className="relative w-full max-w-3xl overflow-hidden rounded-3xl px-6 py-10 md:px-12 md:py-14 shadow-2xl"
+              style={{ background: "linear-gradient(135deg, #8B5CF6, #6202AC)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setAuthPrompt(null)}
+                className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition"
+              >
+                <X size={15} className="text-white" />
+              </button>
+
+              <div className="relative z-10 max-w-xs md:max-w-sm">
+                <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-4">
+                  <AlertCircle size={20} className="text-white" />
+                </div>
+                <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">{copy.heading}</h3>
+                <p className="text-white/80 text-sm md:text-base mb-6">{copy.subtitle}</p>
+                <button
+                  onClick={() => router.push(loginUrl)}
+                  className="bg-white text-purple-700 font-bold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition"
+                >
+                  Log in or Sign up
+                </button>
+              </div>
+
+              <img
+                src="/images/Visual.png"
+                alt=""
+                className="hidden sm:block absolute right-2 md:right-6 bottom-0 w-64 md:w-80 pointer-events-none select-none"
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
