@@ -9,6 +9,7 @@ import {
   createWorkoutSession,
   IncompleteSession,
 } from "@/api/workouts/route";
+import PurchaseCheckout from "./PurchaseCheckout";
 
 function resolveWixImage(url?: string): string {
   if (!url) return "";
@@ -22,7 +23,9 @@ function resolveWixImage(url?: string): string {
 export default function ViewWorkoutPage() {
   const router = useRouter();
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [checkoutStarted, setCheckoutStarted] = useState(false);
   const [hasPurchased, setHasPurchased] = useState(false);
+  const [programCode, setProgramCode] = useState<string | null>(null);
   const [location, setLocation] = useState<string | null>(null);
   const [workoutGroups, setWorkoutGroups] = useState<WorkoutGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,7 @@ export default function ViewWorkoutPage() {
     if (savedLocation) setLocation(savedLocation);
 
     const programCode = localStorage.getItem("workoutProgramCode");
+    setProgramCode(programCode);
     const title = localStorage.getItem("workoutTitle");
     if (title) setWorkoutTitle(title);
 
@@ -324,7 +328,10 @@ const ExerciseCard = ({
 
       {/* CLOSE */}
       <button
-        onClick={() => setShowPurchaseModal(false)}
+        onClick={() => {
+          setShowPurchaseModal(false);
+          setCheckoutStarted(false);
+        }}
         className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
       >
         <X size={14} />
@@ -332,6 +339,24 @@ const ExerciseCard = ({
 
       <div className="px-5 py-6">
 
+      {checkoutStarted && programCode ? (
+        <PurchaseCheckout
+          workoutId={programCode}
+          workoutTitle={workoutTitle}
+          onSuccess={() => {
+            console.log("[viewWorkoutDetail] payment flow succeeded — unlocking", { programCode, workoutTitle });
+            setHasPurchased(true);
+            setShowPurchaseModal(false);
+            setCheckoutStarted(false);
+          }}
+          onCancel={() => {
+            console.log("[viewWorkoutDetail] payment flow closed without unlocking", { programCode });
+            setShowPurchaseModal(false);
+            setCheckoutStarted(false);
+          }}
+        />
+      ) : (
+      <>
         {/* ICON */}
         <div className="flex justify-center mb-4">
           <div className="w-14 h-14 rounded-[18px] bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-md relative">
@@ -361,15 +386,16 @@ const ExerciseCard = ({
 
         {/* BUTTON */}
         <div className="flex justify-center mt-5">
-       <button
-  onClick={() => {
-    setHasPurchased(true);
-    setShowPurchaseModal(false);
-  }}
-  className="bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-black text-[13px] px-6 py-2.5 rounded-xl shadow-md transition"
->
-  Purchase for $19.95
-</button>
+          <button
+            onClick={() => {
+              console.log("[viewWorkoutDetail] Purchase button tapped", { programCode, workoutTitle });
+              setCheckoutStarted(true);
+            }}
+            disabled={!programCode}
+            className="bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 disabled:opacity-60 text-white font-black text-[13px] px-6 py-2.5 rounded-xl shadow-md transition"
+          >
+            Purchase for $19.95
+          </button>
         </div>
 
         {/* DIVIDER */}
@@ -412,6 +438,8 @@ const ExerciseCard = ({
             <ChevronRight size={14} />
           </button>
         </div>
+      </>
+      )}
 
       </div>
     </div>

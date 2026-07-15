@@ -237,6 +237,10 @@ export default function WorkoutDashboard() {
     localStorage.setItem("workoutProgramCode", code);
     localStorage.setItem("workoutTitle", session.title);
     localStorage.setItem("workoutProgramName", session.programName || "");
+    // Mirrors mobile's workoutData.type, threaded through to
+    // viewWorkoutSession so completing a Supplemental session offers credit
+    // toward scheduled Supplemental slots, not Workout ones.
+    localStorage.setItem("workoutType", workoutType);
     router.push(`/workout/detail?code=${code}&workoutKey=${encodeURIComponent(session.title)}&programName=${encodeURIComponent(session.programName || "")}`);
   };
 

@@ -32,6 +32,7 @@ export default function WorkoutSummaryPage() {
   const sessionId = typeof window !== "undefined" ? localStorage.getItem("summarySessionId") || "" : "";
   const workoutCode = typeof window !== "undefined" ? localStorage.getItem("summaryWorkoutCode") || "" : "";
   const workoutTitle = typeof window !== "undefined" ? localStorage.getItem("workoutTitle") || "" : "";
+  const workoutType = typeof window !== "undefined" ? localStorage.getItem("workoutType") || "Workout" : "Workout";
 
   useEffect(() => {
     const init = async () => {
@@ -40,7 +41,7 @@ export default function WorkoutSummaryPage() {
           getWorkoutLoads(sessionId),
           getWorkoutLoadRecords(sessionId),
           getProgramGroupedWorkouts(workoutCode),
-          getPendingActivities({ type: "Workout", workoutName: workoutTitle }),
+          getPendingActivities({ type: workoutType, workoutName: workoutTitle }),
         ]);
         console.log("[workoutSummary] raw load records:", rawRecords);
         setAllLoadRecords(rawRecords);
