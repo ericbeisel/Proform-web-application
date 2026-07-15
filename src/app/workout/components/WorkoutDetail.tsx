@@ -760,14 +760,15 @@ onClick={() => {
     setAuthPrompt("start");
     return;
   }
-  if (programCode) localStorage.setItem("workoutProgramCode", programCode);
+  const navCode = programCode || programUuid || (workoutId ? String(workoutId) : "");
+  if (navCode) localStorage.setItem("workoutProgramCode", navCode);
   const title = workoutTitle || workoutKey || "";
   if (title) localStorage.setItem("workoutTitle", title);
   // Appending the code also guarantees a distinct URL per workout, so
   // Next's client router cache can't reuse a previously-mounted
   // viewWorkoutSession instance (and its stale purchase state) for a
   // different workout when the destination path would otherwise be identical.
-  router.push(`/workout/viewWorkoutSession${code ? `?code=${encodeURIComponent(code)}` : ""}`);
+  router.push(`/workout/viewWorkoutSession${navCode ? `?code=${encodeURIComponent(navCode)}` : ""}`);
 }}          className="pointer-events-auto w-full max-w-[280px] md:max-w-xs bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-full font-black text-[10px] uppercase tracking-[0.25em] shadow-2xl shadow-violet-300/50 flex items-center justify-center gap-2.5 transition-all active:scale-90 border border-white/10">
           <Eye className="w-4 h-4" strokeWidth={4} /> View Workout
         </button>
