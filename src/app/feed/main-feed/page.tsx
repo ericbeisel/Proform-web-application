@@ -25,6 +25,10 @@ import { getTodayActivities } from "@/api/checklist/route";
 import FeedSettingsModal from "@/components/FeedSettingsModal";
 import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
+import SessionDetailsModal from "../session-details/SessionDetailsModal";
+import { SessionDetailsContentProps } from "../session-details/SessionDetailsContent";
+import { hasAuthSession } from "@/lib/auth/session";
+import { getWorkoutSessionById } from "@/api/workouts/route";
 
 interface ExtendedFeed extends Feed {
   date?: string;
@@ -180,10 +184,27 @@ const [creatingHighlight, setCreatingHighlight] =
   const [shareSessionFeed, setShareSessionFeed] = useState<ExtendedFeed | null>(null);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [sessionDetailsModalProps, setSessionDetailsModalProps] =
+    useState<SessionDetailsContentProps | null>(null);
+  const [shareProgramCode, setShareProgramCode] = useState("");
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!shareSessionFeed?.activity_id) {
+      setShareProgramCode("");
+      return;
+    }
+    // /workouts/session/{id} needs auth (the viewer sharing the link is logged
+    // in right now), but /programs/{code}/* — what the recipient's preview
+    // page actually calls — doesn't. Resolving the code here and baking it
+    // into the share URL lets an anonymous recipient still see a real preview.
+    getWorkoutSessionById(shareSessionFeed.activity_id)
+      .then((session) => setShareProgramCode(session.program_id || session.workout_code || ""))
+      .catch(() => setShareProgramCode(""));
+  }, [shareSessionFeed]);
 
   useEffect(() => {
     if (ads.length === 0) return;
@@ -934,7 +955,28 @@ const [creatingHighlight, setCreatingHighlight] =
                                 p.set("memberId", String(feed.member_id ?? ""));
                                 p.set("title2", feed.title2 || "");
                                 p.set("joinedCount", String(feed.joined_count || 0));
-                                router.push(`/feed/session-details?${p.toString()}`);
+
+                                if (hasAuthSession()) {
+                                  setSessionDetailsModalProps({
+                                    feedId: String(feed.id),
+                                    activityId: feed.activity_id || "",
+                                    type: feed.type || "",
+                                    memberId: String(feed.member_id ?? ""),
+                                    userName: feed.user?.name || "",
+                                    userUsername: feed.user?.username || "",
+                                    userImage: feed.user?.image || "",
+                                    feedTitle: feed.title || "",
+                                    title2: feed.title2 || "",
+                                    date: feed.date || feed.created_at || "",
+                                    initialLikeCount: feed.likeCount || 0,
+                                    initialLiked: isLiked,
+                                    joinedCountParam: feed.joined_count || 0,
+                                    isLoggedIn: true,
+                                    loginUrl: `/auth/login?next=${encodeURIComponent(`/feed/session-details?${p.toString()}`)}`,
+                                  });
+                                } else {
+                                  router.push(`/feed/session-details?${p.toString()}`);
+                                }
                               }
                             }}
                             className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#6c3fef] bg-purple-50 hover:bg-purple-100 border border-purple-100 px-4 py-2 rounded-xl transition"
@@ -1640,6 +1682,7 @@ const [creatingHighlight, setCreatingHighlight] =
           date: shareSessionFeed.date || shareSessionFeed.created_at || "",
           likeCount: String(shareSessionFeed.likeCount || 0),
           joinedCount: String(shareSessionFeed.joined_count || 0),
+          programCode: shareProgramCode,
         });
         const displayUrl = `https://paxlete.com/feed/session-details?${shareParams.toString()}`;
 
@@ -1713,6 +1756,13 @@ const [creatingHighlight, setCreatingHighlight] =
 
       {showSettingsModal && (
         <FeedSettingsModal onClose={() => setShowSettingsModal(false)} />
+      )}
+
+      {sessionDetailsModalProps && (
+        <SessionDetailsModal
+          {...sessionDetailsModalProps}
+          onClose={() => setSessionDetailsModalProps(null)}
+        />
       )}
     </div>
   );

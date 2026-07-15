@@ -36,6 +36,12 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    // /feed/{id}/comments requires auth server-side — skip the request
+    // entirely when logged out instead of firing a doomed fetch.
+    if (requireLogin) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     feedApi.getFeedComments(feedId, 1).then(({ comments, total, hasMore }) => {
       setComments(comments);
@@ -43,7 +49,7 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
       setHasMore(hasMore);
       setPage(1);
     }).finally(() => setLoading(false));
-  }, [feedId]);
+  }, [feedId, requireLogin]);
 
   const openInput = () => {
     if (requireLogin) {
@@ -137,7 +143,14 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
       )}
 
       {/* Comments list */}
-      {loading ? (
+      {requireLogin ? (
+        <button
+          onClick={() => onRequireLogin?.()}
+          className="text-[13px] font-semibold text-purple-600 hover:text-purple-700 transition py-2"
+        >
+          Log in to view comments
+        </button>
+      ) : loading ? (
         <div className="flex justify-center py-6">
           <Loader2 size={18} className="text-purple-400 animate-spin" />
         </div>
