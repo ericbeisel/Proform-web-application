@@ -14,45 +14,93 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
-import { profileApi, PublicProfileData } from "@/api/profile/route";
+import { profileApi, PublicProfileData, ProfileData } from "@/api/profile/route";
 import { getPowerSetLogsByUsername, PowerSetAccomplishment } from "@/api/workouts/route";
+import { hasAuthSession } from "@/lib/auth/session";
 
 const getUnit = (diffStr?: string) => {
   if (!diffStr) return "lbs";
   return diffStr.toLowerCase().includes("kg") ? "kg" : "lbs";
 };
 
+// Unified shape this page renders from, regardless of which endpoint
+// supplied it — id/followtype are only ever present when fetched via the
+// authenticated path (see DisplayProfile fetch below), which is what makes
+// following possible.
+type DisplayProfile = {
+  id?: number;
+  followtype?: string;
+  image: string | null;
+  name: string;
+  username: string;
+  bench_cmp: string | number | null;
+  squat_cmp: string | number | null;
+  clean_cmp: string | number | null;
+  deadlift_cmp: string | number | null;
+  strength: number;
+  followersCount: number;
+};
+
+const fromPublicProfile = (p: PublicProfileData): DisplayProfile => ({
+  image: p.image,
+  name: p.name,
+  username: p.username,
+  bench_cmp: p.bench_cmp,
+  squat_cmp: p.squat_cmp,
+  clean_cmp: p.clean_cmp,
+  deadlift_cmp: p.deadlift_cmp,
+  strength: p.strength,
+  followersCount: p.followersCount,
+});
+
+const fromAuthProfile = (p: ProfileData): DisplayProfile => ({
+  id: p.id,
+  followtype: p.followtype,
+  image: p.image,
+  name: p.name,
+  username: p.username,
+  bench_cmp: p.Bench_CMP,
+  squat_cmp: p.Squat_CMP,
+  clean_cmp: p.Clean_CMP,
+  deadlift_cmp: p.Deadlift_CMP,
+  strength: p.Strength,
+  followersCount: p.followersCount,
+});
+
 // /public-profile doesn't return a workout count at all (unlike /my-profile),
 // so this is Followers/Strength only — not the 3-stat row the authenticated
 // /profile/[username] page shows.
-const STAT_LABELS: { key: keyof PublicProfileData; label: string }[] = [
+const STAT_LABELS: { key: keyof DisplayProfile; label: string }[] = [
   { key: "followersCount", label: "Followers" },
   { key: "strength",       label: "Strength" },
 ];
 
-const LIFTS: { key: keyof PublicProfileData; label: string }[] = [
+const LIFTS: { key: keyof DisplayProfile; label: string }[] = [
   { key: "bench_cmp",    label: "Bench" },
   { key: "squat_cmp",    label: "Squat" },
   { key: "clean_cmp",    label: "Clean" },
   { key: "deadlift_cmp", label: "Deadlift" },
 ];
 
-// Public, no-auth duplicate of /profile/[username] — used for the shared
-// profile link (see ProfilePage.tsx's Share Profile modal). Backed by
-// GET /public-profile, which has no id/followtype in its response, so there's
-// no way to know (or drive) actual follow state here — Follow Me! always
-// just prompts login/signup instead of performing the follow directly;
-// the real follow/unfollow toggle stays on the authenticated
-// /profile/[username] page.
+// Public duplicate of /profile/[username] — used for the shared profile link
+// (see ProfilePage.tsx's Share Profile modal). Anonymous visitors are served
+// by GET /public-profile (no id/followtype, so Follow Me! just prompts
+// login/signup). Once logged in, this page instead calls the same
+// authenticated /my-profile endpoint the original page uses, which does
+// return id/followtype — that's what makes actually following possible here
+// after login, without duplicating a whole separate authenticated page.
 export default function PublicProfileViewPage() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
   const username = decodeURIComponent(params.username as string);
+  const isLoggedIn = hasAuthSession();
 
-  const [profile, setProfile] = useState<PublicProfileData | null>(null);
+  const [profile, setProfile] = useState<DisplayProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [followPending, setFollowPending] = useState(false);
   const [accomplishments, setAccomplishments] = useState<PowerSetAccomplishment[]>([]);
   const [accLoading, setAccLoading] = useState(true);
   const [shareCopied, setShareCopied] = useState(false);
@@ -60,9 +108,22 @@ export default function PublicProfileViewPage() {
   const loginUrl = `/auth/login?next=${encodeURIComponent(pathname)}`;
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        setCurrentUsername(JSON.parse(stored)?.username || null);
+      } catch {}
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
     if (!username) return;
     setLoading(true);
-    profileApi.getPublicProfile(username)
+    const fetchProfile = isLoggedIn
+      ? profileApi.getProfileByUsername(username).then(fromAuthProfile)
+      : profileApi.getPublicProfile(username).then(fromPublicProfile);
+    fetchProfile
       .then(setProfile)
       .catch(() => setError("Profile not found."))
       .finally(() => setLoading(false));
@@ -72,7 +133,37 @@ export default function PublicProfileViewPage() {
       .then(setAccomplishments)
       .catch(() => setAccomplishments([]))
       .finally(() => setAccLoading(false));
-  }, [username]);
+  }, [username, isLoggedIn]);
+
+  // Mirrors mobile's PublicProfileScreen: followtype === 'Follow Me!' means
+  // you're not yet following them — anything else means you are.
+  const isFollowing = profile?.followtype !== "Follow Me!";
+
+  const handleFollowToggle = async () => {
+    if (!profile?.id || !currentUsername || followPending) return;
+    setFollowPending(true);
+    const payload = { user_id: profile.id, follower_username: currentUsername };
+    try {
+      if (isFollowing) {
+        await profileApi.unfollowUser(payload);
+        setProfile((prev) => prev && {
+          ...prev,
+          followtype: "Follow Me!",
+          followersCount: Math.max(0, (prev.followersCount || 0) - 1),
+        });
+      } else {
+        await profileApi.followUser(payload);
+        setProfile((prev) => prev && {
+          ...prev,
+          followtype: "Following",
+          followersCount: (prev.followersCount || 0) + 1,
+        });
+      }
+    } catch {
+    } finally {
+      setFollowPending(false);
+    }
+  };
 
   // Mirrors mobile's PublicProfileScreen.handleShare (Share.share) — falls
   // back to copying the link since not every browser supports navigator.share.
@@ -171,13 +262,38 @@ export default function PublicProfileViewPage() {
               })}
             </div>
 
-            {/* Follow Me! — always prompts login/signup here, see comment above */}
-            <button
-              onClick={() => setAuthPrompt(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold bg-[#6202AC] text-white hover:bg-purple-800 transition"
-            >
-              <UserPlus size={16} /> Follow Me!
-            </button>
+            {/* Follow / Unfollow — real toggle once logged in (and not your
+                own profile); prompts login/signup otherwise */}
+            {isLoggedIn && profile.id != null ? (
+              currentUsername && profile.username !== currentUsername && (
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={followPending}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold transition disabled:opacity-60 ${
+                    isFollowing
+                      ? "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                      : "bg-[#6202AC] text-white hover:bg-purple-800"
+                  }`}
+                >
+                  {followPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : isFollowing ? (
+                    <>Unfollow</>
+                  ) : (
+                    <><UserPlus size={16} /> Follow Me!</>
+                  )}
+                </button>
+              )
+            ) : (
+              !isLoggedIn && (
+                <button
+                  onClick={() => setAuthPrompt(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold bg-[#6202AC] text-white hover:bg-purple-800 transition"
+                >
+                  <UserPlus size={16} /> Follow Me!
+                </button>
+              )
+            )}
           </div>
 
           {/* Competition lifts */}
