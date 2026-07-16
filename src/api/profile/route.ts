@@ -149,7 +149,23 @@ export const profileApi = {
       throw new Error(
         extractErrorMessage(err, "Failed to fetch profile data."),
       );
-      
+
+    }
+  },
+
+  // No-auth-required counterpart to getProfileByUsername — for viewing a
+  // shared profile link anonymously (e.g. /profile/view/[username]).
+  getPublicProfile: async (username: string): Promise<ProfileData> => {
+    try {
+      const res = await apiClient.get<ProfileResponse | ProfileData>(
+        `/public-profile?username=${encodeURIComponent(username)}`,
+      );
+      const body = res.data as ProfileResponse | ProfileData;
+      return ("data" in body ? body.data : body) as ProfileData;
+    } catch (err) {
+      throw new Error(
+        extractErrorMessage(err, "Failed to fetch public profile data."),
+      );
     }
   },
 

@@ -62,7 +62,7 @@ export default function PublicProfileViewPage() {
   useEffect(() => {
     if (!username) return;
     setLoading(true);
-    profileApi.getProfileByUsername(username)
+    profileApi.getPublicProfile(username)
       .then(setProfile)
       .catch(() => setError("Profile not found."))
       .finally(() => setLoading(false));
