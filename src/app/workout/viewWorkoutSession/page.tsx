@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   ArrowLeft,
   Play,
@@ -23,6 +23,7 @@ import {
   Loader2,
   Plus,
   CreditCard,
+  AlertCircle,
 } from "lucide-react";
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
@@ -55,7 +56,7 @@ import {
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
 import { equipmentApi } from "@/api/location/route";
-import { getAuthToken, getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
+import { getAuthUser, getUserIdFromToken, hasAuthSession } from "@/lib/auth/session";
 import { convertToUserUnit } from "@/lib/units";
 import { resolveWixImage, sortWorkoutGroups } from "./helpers";
 
@@ -104,7 +105,15 @@ function computeTrackingLoad(
 
 function ViewWorkoutSessionContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // Anonymous visitors can browse this page's preview (few exercises,
+  // rejoin banner, etc.) same as /workout/detail — login is only required
+  // once they try to actually act on a session (start/rejoin/invite).
+  const isLoggedIn = hasAuthSession();
+  const loginUrl = `/auth/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`;
+  const [authPrompt, setAuthPrompt] = useState(false);
 
   // Existing state
   const [location, setLocation] = useState<string | null>(null);
@@ -573,7 +582,19 @@ function ViewWorkoutSessionContent() {
     }
   };
 
+  const openInviteModal = () => {
+    if (!isLoggedIn) {
+      setAuthPrompt(true);
+      return;
+    }
+    setShowInviteModal(true);
+  };
+
   const startNewSession = () => {
+    if (!isLoggedIn) {
+      setAuthPrompt(true);
+      return;
+    }
     const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
     localStorage.setItem("pendingSessionCode", code);
     localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
@@ -610,6 +631,10 @@ function ViewWorkoutSessionContent() {
   };
 
   const handleRejoin = async (session: IncompleteSession) => {
+    if (!isLoggedIn) {
+      setAuthPrompt(true);
+      return;
+    }
     setSessionStarted(true);
     setActiveSession(session);
     // Engagement itself still isn't persisted across a fresh visit — matches
@@ -706,14 +731,12 @@ function ViewWorkoutSessionContent() {
   // Fetch real data (from 1st code)
   useEffect(() => {
     const initializeWorkout = async () => {
-      // Guard: a copy-pasted share link (?sessionId=...) can be opened by
-      // anyone, including a logged-out browser — send them to login instead
-      // of letting every subsequent fetch below fail silently. Mirrors the
-      // same getAuthToken() check dashboard/page.tsx already uses.
-      if (!getAuthToken()) {
-        router.replace("/auth/login");
-        return;
-      }
+      // A logged-out visitor still sees this page's preview (mirrors
+      // /workout/detail) — getAuthUser()/getUserIdFromToken() below simply
+      // resolve to null without a token, and the session-scoped fetches
+      // (incomplete sessions, stats) degrade to "nothing to resume" rather
+      // than failing. Login is only required at the point of actually
+      // starting/rejoining/inviting (see authPrompt below).
 
       // Computed synchronously (not inside applyIncompleteSessions, which
       // only runs once the overview fetch resolves) so isHost has a value
@@ -1206,6 +1229,8 @@ function ViewWorkoutSessionContent() {
         setShowPurchaseModal={setShowPurchaseModal}
         getActualExercise={getActualExercise}
         onEditExercise={openTracking}
+        isLoggedIn={isLoggedIn}
+        onRequireAuth={() => setAuthPrompt(true)}
       >
         {/* HEADER — only shown on the Overview view; Results/Powersets/Map
             get a dedicated view without the title/tags/ad-banner/session-box
@@ -1326,7 +1351,7 @@ function ViewWorkoutSessionContent() {
                     )}
                   </div>
                   <button
-                    onClick={() => setShowInviteModal(true)}
+                    onClick={openInviteModal}
                     className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
                   >
                     <Share2 size={15} />
@@ -1418,7 +1443,7 @@ function ViewWorkoutSessionContent() {
                       )}
                       {!isLocked && (
                         <button
-                          onClick={() => setShowInviteModal(true)}
+                          onClick={openInviteModal}
                           className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
                         >
                           <UserPlus size={14} />
@@ -1941,6 +1966,42 @@ function ViewWorkoutSessionContent() {
                   );
                 })()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AUTH PROMPT — gates starting/rejoining/inviting for anonymous
+          preview visitors; browsing the preview itself never triggers this. */}
+      {authPrompt && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setAuthPrompt(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl overflow-hidden rounded-3xl px-6 py-10 md:px-12 md:py-14 shadow-2xl"
+            style={{ background: "linear-gradient(135deg, #8B5CF6, #6202AC)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setAuthPrompt(false)}
+              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition"
+            >
+              <X size={15} className="text-white" />
+            </button>
+
+            <div className="relative z-10 max-w-xs md:max-w-sm">
+              <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-4">
+                <AlertCircle size={20} className="text-white" />
+              </div>
+              <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">Start your Session</h3>
+              <p className="text-white/80 text-sm md:text-base mb-6">Log in or sign up to begin the workout</p>
+              <button
+                onClick={() => router.push(loginUrl)}
+                className="bg-white text-purple-700 font-bold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition"
+              >
+                Log in or Sign up
+              </button>
             </div>
           </div>
         </div>

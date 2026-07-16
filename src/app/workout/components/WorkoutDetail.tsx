@@ -154,7 +154,7 @@ export default function ResponsiveWorkoutUI({ workoutId, onClose }: WorkoutDetai
 
   const isLoggedIn = hasAuthSession();
   const loginUrl = `/auth/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`;
-  const [authPrompt, setAuthPrompt] = useState<"queue" | "start" | null>(null);
+  const [authPrompt, setAuthPrompt] = useState<"queue" | null>(null);
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -756,10 +756,10 @@ const filteredExercises = exercises;
       <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none px-6">
         <button
 onClick={() => {
-  if (!isLoggedIn) {
-    setAuthPrompt("start");
-    return;
-  }
+  // Always navigate — the destination page itself shows its own
+  // preview (few exercises, rejoin banner) to logged-out visitors and
+  // only gates the actual session actions (Start/Rejoin/Invite) behind
+  // login, so there's no reason to block navigation here.
   const navCode = programCode || programUuid || (workoutId ? String(workoutId) : "");
   if (navCode) localStorage.setItem("workoutProgramCode", navCode);
   const title = workoutTitle || workoutKey || "";
@@ -954,9 +954,7 @@ onClick={() => {
       {/* AUTH PROMPT — gates queueing/starting a workout for anonymous
           preview visitors (e.g. following a shared session link) */}
       {authPrompt && (() => {
-        const copy = authPrompt === "queue"
-          ? { heading: "Add to your Queue", subtitle: "Log in or sign up to save this workout" }
-          : { heading: "Start your Session", subtitle: "Log in or sign up to begin the workout" };
+        const copy = { heading: "Add to your Queue", subtitle: "Log in or sign up to save this workout" };
         return (
           <div
             className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"

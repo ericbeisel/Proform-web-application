@@ -108,6 +108,12 @@ type Props = {
   setShowPurchaseModal: (v: boolean) => void;
   getActualExercise: (item: WorkoutGroupItem) => WorkoutGroupItem;
   onEditExercise: (item: WorkoutGroupItem) => void;
+
+  // Anonymous preview gating — a logged-out visitor only sees the first
+  // section; "View More" surfaces the login/signup prompt instead of the
+  // rest of the workout.
+  isLoggedIn: boolean;
+  onRequireAuth: () => void;
 };
 
 function DynamicExerciseCard({
@@ -310,6 +316,8 @@ export default function SessionViewsPanel({
   setShowPurchaseModal,
   getActualExercise,
   onEditExercise,
+  isLoggedIn,
+  onRequireAuth,
 }: Props) {
   // Mirrors mobile's Complete Workout flow exactly: proceedCompleteWorkout ->
   // WorkoutCompletionModal -> WorkoutCompleteModal, all as overlays directly
@@ -1149,109 +1157,132 @@ export default function SessionViewsPanel({
                       </p>
                     </div>
                   )}
-                  {(filterByLocation
-                    ? locationFilteredGroups
-                    : workoutGroups
-                  ).map((group, groupIdx) => {
-                    // Matches mobile's isRoundLocked = isLocked && index >= 2
-                    // — the first TWO rounds stay unlocked, not just one.
-                    const isGroupLocked = isLocked && groupIdx >= 2;
-                    const previewItems = isGroupLocked
-                      ? group.workouts.slice(0, 3)
-                      : group.workouts;
-
+                  {(() => {
+                    const allGroups = filterByLocation
+                      ? locationFilteredGroups
+                      : workoutGroups;
+                    // Logged-out visitors only get the first section as a
+                    // preview — "View More" below surfaces the login prompt
+                    // instead of paging through the rest of the workout.
+                    const visibleGroups = isLoggedIn ? allGroups : allGroups.slice(0, 1);
+                    const hasMoreForAnon = !isLoggedIn && allGroups.length > visibleGroups.length;
                     return (
-                      <section key={`${group.label}-${groupIdx}`}>
-                        <div className="flex items-center gap-3 mb-6">
-                          <div
-                            className={`w-8 h-1 rounded-full ${groupIdx === 0 ? "bg-orange-400" : groupIdx === 1 ? "bg-[#7c3aed]" : "bg-emerald-500"}`}
-                          />
-                          <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">
-                            {group.label} {group.rounds && `(${group.rounds})`}
-                          </h2>
-                          {isGroupLocked ? (
-                            <Lock size={12} className="text-gray-300 ml-auto" />
-                          ) : (
-                            // Matches mobile's SectionHeader — the play button
-                            // only renders once a session is actually
-                            // active (onPlayPress is undefined otherwise),
-                            // it's not just disabled/dimmed.
-                            isSessionActive && (
-                              <button
-                                onClick={() => {
-                                  localStorage.setItem("sessionActive", "true");
-                                  router.push(
-                                    `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`,
-                                  );
-                                }}
-                                className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition"
-                              >
-                                <Play
-                                  size={12}
-                                  fill="white"
-                                  className="text-white ml-0.5"
+                      <>
+                        {visibleGroups.map((group, groupIdx) => {
+                          // Matches mobile's isRoundLocked = isLocked && index >= 2
+                          // — the first TWO rounds stay unlocked, not just one.
+                          const isGroupLocked = isLocked && groupIdx >= 2;
+                          const previewItems = isGroupLocked
+                            ? group.workouts.slice(0, 3)
+                            : group.workouts;
+
+                          return (
+                            <section key={`${group.label}-${groupIdx}`}>
+                              <div className="flex items-center gap-3 mb-6">
+                                <div
+                                  className={`w-8 h-1 rounded-full ${groupIdx === 0 ? "bg-orange-400" : groupIdx === 1 ? "bg-[#7c3aed]" : "bg-emerald-500"}`}
                                 />
-                              </button>
-                            )
-                          )}
-                        </div>
+                                <h2 className="text-[11px] font-black uppercase tracking-wider text-gray-500">
+                                  {group.label} {group.rounds && `(${group.rounds})`}
+                                </h2>
+                                {isGroupLocked ? (
+                                  <Lock size={12} className="text-gray-300 ml-auto" />
+                                ) : (
+                                  // Matches mobile's SectionHeader — the play button
+                                  // only renders once a session is actually
+                                  // active (onPlayPress is undefined otherwise),
+                                  // it's not just disabled/dimmed.
+                                  isSessionActive && (
+                                    <button
+                                      onClick={() => {
+                                        localStorage.setItem("sessionActive", "true");
+                                        router.push(
+                                          `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}`,
+                                        );
+                                      }}
+                                      className="ml-auto w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center shadow hover:bg-[#6d28d9] transition"
+                                    >
+                                      <Play
+                                        size={12}
+                                        fill="white"
+                                        className="text-white ml-0.5"
+                                      />
+                                    </button>
+                                  )
+                                )}
+                              </div>
 
-                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                          {previewItems.map((item, i) => (
-                            <DynamicExerciseCard
-                              key={`${item.exercise_id || "item"}-${i}`}
-                              item={item}
-                              locked={isGroupLocked}
-                              sessionStarted={sessionStarted}
-                              rounds={group.rounds}
-                              getActualExercise={getActualExercise}
-                              powerSets={powerSets}
-                              openVelocityModal={openVelocityModal}
-                              isSessionActive={isSessionActive}
-                              onEditExercise={onEditExercise}
-                              onCardClick={
-                                isSessionActive
-                                  ? () => {
-                                      localStorage.setItem(
-                                        "sessionActive",
-                                        "true",
-                                      );
-                                      router.push(
-                                        `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`,
-                                      );
+                              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                                {previewItems.map((item, i) => (
+                                  <DynamicExerciseCard
+                                    key={`${item.exercise_id || "item"}-${i}`}
+                                    item={item}
+                                    locked={isGroupLocked}
+                                    sessionStarted={sessionStarted}
+                                    rounds={group.rounds}
+                                    getActualExercise={getActualExercise}
+                                    powerSets={powerSets}
+                                    openVelocityModal={openVelocityModal}
+                                    isSessionActive={isSessionActive}
+                                    onEditExercise={onEditExercise}
+                                    onCardClick={
+                                      isSessionActive
+                                        ? () => {
+                                            localStorage.setItem(
+                                              "sessionActive",
+                                              "true",
+                                            );
+                                            router.push(
+                                              `/workout/athenaWorkout?section=${encodeURIComponent(group.label)}&exercise=${i}`,
+                                            );
+                                          }
+                                        : handleExerciseTapWithoutSession
                                     }
-                                  : handleExerciseTapWithoutSession
-                              }
-                            />
-                          ))}
-                        </div>
+                                  />
+                                ))}
+                              </div>
 
-                        {isGroupLocked && groupIdx === 2 && (
-                          <div className="flex justify-center mt-8">
-                            <div className="bg-white shadow-lg border border-gray-100 rounded-3xl px-6 py-7 text-center max-w-sm w-full">
-                              <Lock size={26} className="text-[#7c3aed] mx-auto mb-3" />
-                              <h2 className="text-[17px] font-black text-gray-900 mb-2">
-                                Unlock Full Workout
-                              </h2>
-                              <p className="text-[13px] text-gray-500 leading-relaxed mb-5">
-                                This is a premium workout session. Pay $1.00 via
-                                Stripe to get full access to all rounds,
-                                exercises, and interactive set logging for the
-                                next 24 hours.
-                              </p>
-                              <button
-                                onClick={() => setShowPurchaseModal(true)}
-                                className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-[14px] py-3 rounded-full shadow-md transition flex items-center justify-center gap-2"
-                              >
-                                <CreditCard size={16} />
-                                Unlock for $1.00
-                              </button>
-                            </div>
+                              {isGroupLocked && groupIdx === 2 && (
+                                <div className="flex justify-center mt-8">
+                                  <div className="bg-white shadow-lg border border-gray-100 rounded-3xl px-6 py-7 text-center max-w-sm w-full">
+                                    <Lock size={26} className="text-[#7c3aed] mx-auto mb-3" />
+                                    <h2 className="text-[17px] font-black text-gray-900 mb-2">
+                                      Unlock Full Workout
+                                    </h2>
+                                    <p className="text-[13px] text-gray-500 leading-relaxed mb-5">
+                                      This is a premium workout session. Pay $1.00 via
+                                      Stripe to get full access to all rounds,
+                                      exercises, and interactive set logging for the
+                                      next 24 hours.
+                                    </p>
+                                    <button
+                                      onClick={() => setShowPurchaseModal(true)}
+                                      className="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold text-[14px] py-3 rounded-full shadow-md transition flex items-center justify-center gap-2"
+                                    >
+                                      <CreditCard size={16} />
+                                      Unlock for $1.00
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </section>
+                          );
+                        })}
+
+                        {hasMoreForAnon && (
+                          <div className="flex justify-center pt-2">
+                            <button
+                              onClick={onRequireAuth}
+                              className="flex items-center gap-1.5 text-[13px] font-bold text-[#7c3aed] hover:text-[#6d28d9] transition"
+                            >
+                              View More
+                              <ChevronDown size={16} />
+                            </button>
                           </div>
                         )}
-                      </section>
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               )}
             </>

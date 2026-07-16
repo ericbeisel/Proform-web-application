@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Dumbbell, X, BarChart2, Loader2,
-  Calendar, ArrowUp, ArrowDown
+  Calendar, ArrowUp, ArrowDown, Search
 } from "lucide-react";
 import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue, getProgramTags } from "@/api/programs/route";
 
@@ -103,6 +103,8 @@ export default function WorkoutDashboard() {
   const [isReordering, setIsReordering] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
   const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
+  // TEMPORARY: client-side filter, not a real search feature.
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -212,6 +214,19 @@ export default function WorkoutDashboard() {
   const completedCalories  = sessions.filter((s) => s.completed).reduce((sum, s) => sum + s.calories, 0);
   const remainingCalories  = goalCalories - completedCalories;
   const progressPct        = Math.min((completedCalories / goalCalories) * 100, 100);
+
+  // TEMPORARY search filter — keeps each entry's original index (for
+  // reorder/delete handlers, which operate on positions in the full,
+  // unfiltered `sessions` array) alongside the filtered view.
+  const q = searchQuery.trim().toLowerCase();
+  const filteredSessions = sessions
+    .map((session, originalIndex) => ({ session, originalIndex }))
+    .filter(
+      ({ session }) =>
+        !q ||
+        session.title.toLowerCase().includes(q) ||
+        session.programName?.toLowerCase().includes(q),
+    );
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -354,6 +369,20 @@ export default function WorkoutDashboard() {
         </div>
       </div>
 
+      {/* ── Search bar (TEMPORARY) ───────────────────────────────────────── */}
+      <div className="bg-white px-3 sm:px-6 lg:px-7 py-2.5 border-b border-[#e8e8f0]">
+        <div className="relative max-w-6xl mx-auto">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search workouts..."
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[#e8e8f0] bg-gray-50 outline-none focus:border-[#7c3aed] focus:bg-white transition-colors"
+          />
+        </div>
+      </div>
+
       {/* ── Schedule strip ────────────────────────────────────────────────── */}
       {activities.length > 0 && (
         <div className="bg-white px-3 sm:px-6 lg:px-7 py-2 border-b border-[#e8e8f0] overflow-x-auto">
@@ -392,8 +421,17 @@ export default function WorkoutDashboard() {
         </div>
       )}
 
+      {/* ── No search results ───────────────────────────────────────────── */}
+      {!error && sessions.length > 0 && filteredSessions.length === 0 && (
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 mt-8">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+            <p className="text-gray-500">No workouts match &quot;{searchQuery}&quot;.</p>
+          </div>
+        </div>
+      )}
+
       {/* ── Session list ──────────────────────────────────────────────────── */}
-      {sessions.length > 0 && (
+      {filteredSessions.length > 0 && (
         <div className="p-3 sm:p-5 lg:p-7 max-w-6xl mx-auto">
           {isReordering && (
             <div className="flex items-center gap-2 text-xs text-purple-600 mb-3">
@@ -403,7 +441,7 @@ export default function WorkoutDashboard() {
           )}
 
           <div className="flex flex-col gap-2 sm:gap-2.5">
-            {sessions.map((session, index) => (
+            {filteredSessions.map(({ session, originalIndex: index }) => (
               <div
                 key={session.id}
                 onClick={() => handleSessionClick(session)}
@@ -413,7 +451,9 @@ export default function WorkoutDashboard() {
                     : "bg-[#1e1e2e]"
                 }`}
               >
-                {/* ── Reorder arrows ── */}
+                {/* ── Reorder arrows — hidden while a search filter is active,
+                    since up/down would jump over hidden items ── */}
+                {!q && (
                 <div className="flex flex-col justify-center gap-0.5 flex-shrink-0">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleReorder(index, "up"); }}
@@ -434,6 +474,7 @@ export default function WorkoutDashboard() {
                     <ArrowDown size={14} className="text-purple-400" />
                   </button>
                 </div>
+                )}
 
                 {/* ── Cover photo ── */}
                 {session.cover_photo && (
