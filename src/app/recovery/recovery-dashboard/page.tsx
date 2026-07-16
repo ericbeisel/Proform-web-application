@@ -377,7 +377,15 @@ export default function RecoveryDashboard() {
                   const recordDate = (record as any).date || (record as any).created_date;
                   
                   return (
-                    <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div
+                      key={idx}
+                      onClick={() =>
+                        router.push(
+                          `/recovery/${record.id}?title=${encodeURIComponent(recoveryTitle)}&time=${timeSpent}&date=${encodeURIComponent(recordDate)}&image=${encodeURIComponent(imageUrl || "")}`,
+                        )
+                      }
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition"
+                    >
                       {/* Image */}
                       <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
                         {imageUrl ? (

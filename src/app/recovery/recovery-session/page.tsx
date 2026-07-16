@@ -148,7 +148,11 @@ export default function RecoverySessions() {
                   hover:shadow-[0_25px_40px_-12px_rgba(0,0,0,0.25)]
                   hover:-translate-y-1.5 
                   transition-all duration-300 cursor-pointer"
-                onClick={() => router.push(`/recovery/${record.id}`)}
+                onClick={() =>
+                  router.push(
+                    `/recovery/${record.id}?title=${encodeURIComponent(recoveryName)}&time=${record.time_spent}&date=${encodeURIComponent(record.date || record.created_date)}&image=${encodeURIComponent(recoveryImage || "")}`,
+                  )
+                }
               >
                 {/* Left - Text Content */}
                 <div className="flex items-center gap-5 relative z-10">
