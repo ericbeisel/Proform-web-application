@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   User,
@@ -10,6 +10,9 @@ import {
   Trophy,
   Share2,
   Check,
+  UserPlus,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { profileApi, PublicProfileData } from "@/api/profile/route";
 import { getPowerSetLogsByUsername, PowerSetAccomplishment } from "@/api/workouts/route";
@@ -37,10 +40,13 @@ const LIFTS: { key: keyof PublicProfileData; label: string }[] = [
 // Public, no-auth duplicate of /profile/[username] — used for the shared
 // profile link (see ProfilePage.tsx's Share Profile modal). Backed by
 // GET /public-profile, which has no id/followtype in its response, so there's
-// no reliable way to drive a Follow button here — that stays on the
-// authenticated /profile/[username] page instead.
+// no way to know (or drive) actual follow state here — Follow Me! always
+// just prompts login/signup instead of performing the follow directly;
+// the real follow/unfollow toggle stays on the authenticated
+// /profile/[username] page.
 export default function PublicProfileViewPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams();
   const username = decodeURIComponent(params.username as string);
 
@@ -50,6 +56,8 @@ export default function PublicProfileViewPage() {
   const [accomplishments, setAccomplishments] = useState<PowerSetAccomplishment[]>([]);
   const [accLoading, setAccLoading] = useState(true);
   const [shareCopied, setShareCopied] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
+  const loginUrl = `/auth/login?next=${encodeURIComponent(pathname)}`;
 
   useEffect(() => {
     if (!username) return;
@@ -162,6 +170,14 @@ export default function PublicProfileViewPage() {
                 );
               })}
             </div>
+
+            {/* Follow Me! — always prompts login/signup here, see comment above */}
+            <button
+              onClick={() => setAuthPrompt(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold bg-[#6202AC] text-white hover:bg-purple-800 transition"
+            >
+              <UserPlus size={16} /> Follow Me!
+            </button>
           </div>
 
           {/* Competition lifts */}
@@ -249,6 +265,49 @@ export default function PublicProfileViewPage() {
         </div>
 
       </div>
+
+      {/* AUTH PROMPT — same purple-gradient login/signup modal used across
+          the app's anonymous-preview flows (WorkoutDetail.tsx,
+          viewWorkoutSession/page.tsx, feed's SessionDetailsContent.tsx). */}
+      {authPrompt && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setAuthPrompt(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl overflow-hidden rounded-3xl px-6 py-10 md:px-12 md:py-14 shadow-2xl"
+            style={{ background: "linear-gradient(135deg, #8B5CF6, #6202AC)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setAuthPrompt(false)}
+              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition"
+            >
+              <X size={15} className="text-white" />
+            </button>
+
+            <div className="relative z-10 max-w-xs md:max-w-sm">
+              <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-4">
+                <AlertCircle size={20} className="text-white" />
+              </div>
+              <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">Follow on Proform</h3>
+              <p className="text-white/80 text-sm md:text-base mb-6">Log in or sign up to follow this user</p>
+              <button
+                onClick={() => router.push(loginUrl)}
+                className="bg-white text-purple-700 font-bold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition"
+              >
+                Log in or Sign up
+              </button>
+            </div>
+
+            <img
+              src="/images/Visual.png"
+              alt=""
+              className="hidden sm:block absolute right-2 md:right-6 bottom-0 w-64 md:w-80 pointer-events-none select-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
