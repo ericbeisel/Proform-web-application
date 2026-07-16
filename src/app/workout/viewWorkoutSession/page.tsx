@@ -33,6 +33,9 @@ import PurchaseCheckout from "../components/PurchaseCheckout";
 import {
   getProgramPowerSets,
   getProgramOverview,
+  getProgramGroupedWorkouts,
+  getProgramPreview,
+  getProgramTags,
   WorkoutGroup,
   WorkoutGroupItem,
   PowerSet,
@@ -953,7 +956,33 @@ function ViewWorkoutSessionContent() {
       // Single consolidated call replaces separate tags/preview/power-sets/
       // grouped-workouts requests — the backend returns everything needed
       // for this view (optionally scoped to storedSessionId) in one response.
+      // /overview requires auth though (401s for a logged-out visitor) — an
+      // anonymous preview visitor instead gets the same public
+      // tags/preview/grouped-workouts endpoints /workout/detail already uses,
+      // just enough to render the first section before login is required.
       setPowerSetsLoading(true);
+      if (!isLoggedIn) {
+        Promise.all([
+          getProgramPreview(programCode.toLowerCase()),
+          getProgramGroupedWorkouts(programCode.toLowerCase()).catch(() => []),
+          getProgramTags(programCode.toLowerCase()),
+        ])
+          .then(([preview, groups, tags]) => {
+            setProgramTags(tags);
+            setPreviewData(preview);
+            setWorkoutGroups(sortWorkoutGroups(Array.isArray(groups) ? groups : []));
+            if (preview?.free) {
+              localStorage.setItem("workoutIsFree", "true");
+              setHasPurchased(true);
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setPowerSetsLoading(false);
+            setLoading(false);
+          });
+        return;
+      }
       getProgramOverview(programCode.toLowerCase(), { sessionId: storedSessionId })
         .then((overview) => {
           setProgramTags(Array.isArray(overview.tags) ? overview.tags : []);
