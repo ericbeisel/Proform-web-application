@@ -2,15 +2,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft, Calendar, Users, Eye, Clock, Dumbbell,
   Target, Zap, Heart, Award, Star, ChevronRight,
   Loader2, CheckCircle, Tag, Building2, FileText,
   Apple, Play,
-  X, Lock
+  X, Lock, AlertCircle
 } from "lucide-react";
 import { getProgramDetail, startProgram, ProgramDetail } from "@/api/programs/route";
+import { QRCodeSVG } from "qrcode.react";
+import { hasAuthSession } from "@/lib/auth/session";
 
 // ─── Utility ────────────────────────────────────────────────────────────────
 function resolveWixImage(url?: string): string {
@@ -288,8 +290,16 @@ function AddToQueueModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+const AUTH_PROMPT_COPY = {
+  start: { heading: "Start this Program", subtitle: "Log in or sign up to start this program" },
+  preview: { heading: "Preview this Workout", subtitle: "Log in or sign up to preview this workout" },
+  programs: { heading: "Browse other Programs", subtitle: "Log in or sign up to browse other programs" },
+  dashboard: { heading: "Go to your Dashboard", subtitle: "Log in or sign up to view your dashboard" },
+} as const;
+
 export default function ProgramDetailPage() {
   const params = useParams();
+  const pathname = usePathname();
   const router = useRouter();
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -298,6 +308,11 @@ export default function ProgramDetailPage() {
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState<keyof typeof AUTH_PROMPT_COPY | null>(null);
+  const isLoggedIn = hasAuthSession();
+  const loginUrl = `/auth/login?next=${encodeURIComponent(pathname)}`;
 
   const programId = params.id as string;
 
@@ -325,6 +340,10 @@ useEffect(() => {
 }, [programId]);
 
   const handleStartProgram = () => {
+    if (!isLoggedIn) {
+      setAuthPrompt("start");
+      return;
+    }
     const isFree = Boolean(program?.free_is_program);
 
     if (isFree) {
@@ -439,6 +458,116 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
   }}
 />
 
+{/* SHARE PROGRAM MODAL — same QR/copy-link design as the feed's Share
+    Session modal and the profile Share Profile modal. */}
+{showShareModal && (() => {
+  const shareUrl = `https://paxlete.com/programs/${programId}`;
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={() => { setShowShareModal(false); setShareLinkCopied(false); }}
+    >
+      <div
+        className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => { setShowShareModal(false); setShareLinkCopied(false); }}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+        >
+          <X size={14} className="text-gray-600" />
+        </button>
+
+        <div className="px-6 pt-6 pb-6">
+          <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Program</h3>
+          <p className="text-[13px] text-gray-400 mb-5 truncate">{program.title}</p>
+
+          {/* QR Code */}
+          <div className="flex justify-center mb-5">
+            <div className="flex flex-col items-center gap-2">
+              <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <QRCodeSVG value={shareUrl} size={140} fgColor="#1f2937" bgColor="#ffffff" />
+              </div>
+              <p className="text-[12px] text-gray-400">Scan this code to view the program</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
+            <span className="text-[12px] text-gray-500 truncate flex-1">{shareUrl}</span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(shareUrl);
+                setShareLinkCopied(true);
+                setTimeout(() => setShareLinkCopied(false), 2000);
+              }}
+              className="shrink-0 text-[12px] font-bold text-purple-600 hover:text-purple-700 px-2 disabled:opacity-40"
+            >
+              {shareLinkCopied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({ title: program.title, url: shareUrl });
+              } else {
+                navigator.clipboard.writeText(shareUrl);
+                setShareLinkCopied(true);
+                setTimeout(() => setShareLinkCopied(false), 2000);
+              }
+            }}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3.5 rounded-2xl text-[14px] transition hover:shadow-lg disabled:opacity-50"
+          >
+            Share
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
+
+{/* AUTH PROMPT — same purple-gradient login/signup modal used across the
+    app's anonymous-preview flows; copy varies per triggering action. */}
+{authPrompt && (
+  <div
+    className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+    onClick={() => setAuthPrompt(null)}
+  >
+    <div
+      className="relative w-full max-w-3xl overflow-hidden rounded-3xl px-6 py-10 md:px-12 md:py-14 shadow-2xl"
+      style={{ background: "linear-gradient(135deg, #8B5CF6, #6202AC)" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={() => setAuthPrompt(null)}
+        className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition"
+      >
+        <X size={15} className="text-white" />
+      </button>
+
+      <div className="relative z-10 max-w-xs md:max-w-sm">
+        <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-4">
+          <AlertCircle size={20} className="text-white" />
+        </div>
+        <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">{AUTH_PROMPT_COPY[authPrompt].heading}</h3>
+        <p className="text-white/80 text-sm md:text-base mb-6">{AUTH_PROMPT_COPY[authPrompt].subtitle}</p>
+        <button
+          onClick={() => router.push(loginUrl)}
+          className="bg-white text-purple-700 font-bold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition"
+        >
+          Log in or Sign up
+        </button>
+      </div>
+
+      <img
+        src="/images/Visual.png"
+        alt=""
+        className="hidden sm:block absolute right-2 md:right-6 bottom-0 w-64 md:w-80 pointer-events-none select-none"
+      />
+    </div>
+  </div>
+)}
+
       {/* ══════════════════════════════════════
           HEADER
       ══════════════════════════════════════ */}
@@ -483,7 +612,7 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
 
           {/* Logo — Dashboard shortcut */}
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => (isLoggedIn ? router.push("/dashboard") : setAuthPrompt("dashboard"))}
             className="hidden sm:flex items-center gap-1.5 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors shrink-0"
           >
             <img src="/images/proform-logo.jpg" alt="Proform Logo" className="w-5 h-5 object-contain" />
@@ -491,14 +620,7 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
 
           {/* Share */}
           <button
-            onClick={async () => {
-              if (navigator.share) {
-                try { await navigator.share({ title: program.title, url: window.location.href }); } catch {}
-              } else {
-                navigator.clipboard.writeText(window.location.href);
-                alert("Link copied to clipboard!");
-              }
-            }}
+            onClick={() => setShowShareModal(true)}
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-lg transition-colors shrink-0"
             title="Share program"
           >
@@ -510,7 +632,7 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
 
           {/* Other Programs */}
           <button
-            onClick={() => router.push("/programs")}
+            onClick={() => (isLoggedIn ? router.push("/programs") : setAuthPrompt("programs"))}
             className="hidden md:flex bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm transition shrink-0"
           >
             Other Programs
@@ -723,6 +845,10 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
                   </div>
              <button
 onClick={() => {
+  if (!isLoggedIn) {
+    setAuthPrompt("preview");
+    return;
+  }
   console.log("🔍 workout.title (code):", workout.title);
   localStorage.setItem("workoutIsFree", program?.free_is_program ? "true" : "false");
   if (program?.id) localStorage.setItem("workoutProgramId", program.id);
