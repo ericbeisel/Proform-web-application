@@ -149,7 +149,7 @@ export default function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-[#f4f4f8] pb-10">
       {/* Header */}
-      <div className="bg-white sticky top-0 z-40 border-b px-4 md:px-6 py-3 flex items-center gap-3">
+      <div className="bg-white sticky top-0 z-40 border-b border-gray-100 px-4 md:px-6 py-3 flex items-center gap-3">
         <button
           onClick={() => router.back()}
           className="w-9 h-9 bg-[#6c3fef] rounded-xl flex items-center justify-center hover:bg-purple-700 transition shrink-0"
