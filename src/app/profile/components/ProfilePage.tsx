@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Target,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import EditProfilePage from "./EditProfilePage";
 import SocialLinksPage from "./SocialLinksPage";
 import {
@@ -27,7 +28,7 @@ import {
 } from "@/api/profile/route";
 import { getDashboardData } from "@/api/auth/dashboard/route";
 
-type Modal = "edit" | "social" | null;
+type Modal = "edit" | "social" | "share" | null;
 
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -67,6 +68,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     id: number;
     username: string;
@@ -336,17 +338,7 @@ export default function ProfilePage() {
 
           {/* 📤 Share Button */}
           <button
-            onClick={() => {
-              if (navigator.share) {
-                navigator.share({
-                  title: profile.name,
-                  url: window.location.href,
-                });
-              } else {
-                navigator.clipboard.writeText(window.location.href);
-                alert("Link copied to clipboard!");
-              }
-            }}
+            onClick={() => setModal("share")}
             className="w-9 h-9 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-colors shadow-lg"
           >
             <Share2 size={18} />
@@ -514,7 +506,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {modal && (
+      {(modal === "edit" || modal === "social") && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
           onClick={() => setModal(null)}
@@ -551,6 +543,75 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      {/* SHARE PROFILE MODAL — same QR/copy-link design as the feed's Share
+          Session modal (src/app/feed/main-feed/page.tsx), pointed at this
+          profile's own page instead of a session. */}
+      {modal === "share" && (() => {
+        const shareUrl = `https://paxlete.com/profile/view/${profile.username}`;
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => { setModal(null); setProfileLinkCopied(false); }}
+          >
+            <div
+              className="relative bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => { setModal(null); setProfileLinkCopied(false); }}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+              >
+                <X size={14} className="text-gray-600" />
+              </button>
+
+              <div className="px-6 pt-6 pb-6">
+                <h3 className="font-bold text-gray-900 text-[17px] mb-1">Share Profile</h3>
+                <p className="text-[13px] text-gray-400 mb-5 truncate">{profile.name}</p>
+
+                {/* QR Code */}
+                <div className="flex justify-center mb-5">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                      <QRCodeSVG value={shareUrl} size={140} fgColor="#1f2937" bgColor="#ffffff" />
+                    </div>
+                    <p className="text-[12px] text-gray-400">Scan this code to view the profile</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3.5 border border-gray-100 mb-5">
+                  <span className="text-[12px] text-gray-500 truncate flex-1">{shareUrl}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                      setProfileLinkCopied(true);
+                      setTimeout(() => setProfileLinkCopied(false), 2000);
+                    }}
+                    className="shrink-0 text-[12px] font-bold text-purple-600 hover:text-purple-700 px-2 disabled:opacity-40"
+                  >
+                    {profileLinkCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: profile.name, url: shareUrl });
+                    } else {
+                      navigator.clipboard.writeText(shareUrl);
+                      setProfileLinkCopied(true);
+                      setTimeout(() => setProfileLinkCopied(false), 2000);
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3.5 rounded-2xl text-[14px] transition hover:shadow-lg disabled:opacity-50"
+                >
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
