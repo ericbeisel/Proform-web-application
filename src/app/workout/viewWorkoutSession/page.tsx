@@ -2003,6 +2003,12 @@ function ViewWorkoutSessionContent() {
                 Log in or Sign up
               </button>
             </div>
+
+            <img
+              src="/images/Visual.png"
+              alt=""
+              className="hidden sm:block absolute right-2 md:right-6 bottom-0 w-64 md:w-80 pointer-events-none select-none"
+            />
           </div>
         </div>
       )}
