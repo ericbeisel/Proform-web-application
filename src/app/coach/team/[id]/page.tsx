@@ -112,8 +112,16 @@ function TeamDetailContent() {
 
   async function handleCreatePlayer(values: CreatePlayerFormValues) {
     const response = await coachApi.invitePlayer({ team_id: id, name: values.name, email: values.email });
-    if (response.status === "added") {
+    if (response.status === "added" || response.status === "created") {
+      // Backend either linked the existing account or created a new one and emailed
+      // temporary credentials — either way the player is already on the team.
       refetchPlayers();
+      alert(
+        response.message ??
+          (response.status === "added"
+            ? "Player Added: this player already has an account and was added directly to your team."
+            : "Player Created: a new account has been created for this player and added to your team. Temporary credentials have been sent to their email."),
+      );
     } else {
       setPlayers((prev) => [
         ...prev,

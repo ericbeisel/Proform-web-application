@@ -425,27 +425,22 @@ export interface InvitePlayerPayload {
   team_id: number | string;
   email: string;
   name: string;
+  image?: string;
 }
 
-export interface InvitePlayerAddedResult {
-  status: "added";
-  teamMemberId: number;
-  playerId: number;
-  joinedAt: string;
-}
-
-export interface InvitePlayerPendingResult {
-  status: "invited";
+// Mirrors the mobile app's coachService.invitePlayer contract (same backend endpoint,
+// same three outcomes): "added" (existing account, linked directly), "created" (new
+// account made, temp credentials emailed by the backend), "invited" (no account yet,
+// pending signup link to share).
+export interface InvitePlayerResponse {
+  status: "added" | "created" | "invited";
   message?: string;
   inviteLink?: string;
+  teamMemberId?: number;
+  playerId?: number;
+  joinedAt?: string;
 }
 
-export type InvitePlayerResponse = InvitePlayerAddedResult | InvitePlayerPendingResult;
-
-// Creating a player and inviting one are the same backend call. When the email already
-// has an account, the backend adds them to the team directly and responds with the raw
-// team-membership row (no `status` field). Only the pending-invite path returns an
-// explicit `status: "invited"` with an inviteLink to share.
 export const invitePlayer = async (
   payload: InvitePlayerPayload,
 ): Promise<InvitePlayerResponse> => {
@@ -453,16 +448,17 @@ export const invitePlayer = async (
   console.log("[coachApi] invitePlayer → POST /coach-team/invite-player", body);
   try {
     const { data } = await apiClient.post<any>("/coach-team/invite-player", body);
-    const raw = (data as any)?.data ?? data;
-    console.log("[coachApi] invitePlayer ✅", raw);
-    if (raw?.status === "invited") {
-      return { status: "invited", message: raw.message, inviteLink: raw.inviteLink ?? raw.invite_link };
-    }
+    // `status`/`message` live on the outer envelope; the team-membership fields are
+    // nested under `data`. Keep both — don't collapse into just the inner object.
+    const inner = (data as any)?.data ?? data;
+    console.log("[coachApi] invitePlayer ✅", data);
     return {
-      status: "added",
-      teamMemberId: raw?.id,
-      playerId: raw?.player_id,
-      joinedAt: raw?.joined_at,
+      status: data?.status ?? inner?.status ?? "added",
+      message: data?.message ?? inner?.message,
+      inviteLink: data?.inviteLink ?? data?.invite_link ?? inner?.inviteLink ?? inner?.invite_link,
+      teamMemberId: inner?.id,
+      playerId: inner?.player_id,
+      joinedAt: inner?.joined_at,
     };
   } catch (error: unknown) {
     console.error("[coachApi] invitePlayer ❌", error);

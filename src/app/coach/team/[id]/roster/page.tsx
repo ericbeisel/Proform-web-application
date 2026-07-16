@@ -152,19 +152,39 @@ function RosterContent() {
     return `${origin}/auth/signup?${params.toString()}`;
   }
 
-  function handleSendInvite(p: RosterPlayer) {
-    if (!p.email) return;
-    const link = p.inviteLink ?? buildSignLink(p);
-    const subject = encodeURIComponent(`You're invited to join ${teamName}`);
-    const body = encodeURIComponent(`Hi ${p.name ?? ""},\n\nJoin ${teamName} using this link:\n${link}`);
-    window.location.href = `mailto:${p.email}?subject=${subject}&body=${body}`;
+  // Backend already emails the signup link when the player was created via invitePlayer —
+  // this just lets the coach re-share that same link (matches mobile's Share.share()).
+  async function handleSendInvite(p: RosterPlayer) {
+    const link = p.inviteLink;
+    if (!link) {
+      alert("No signup invitation link is available.");
+      return;
+    }
+    const message = `Hey! Coach ${orgName || teamName} has invited you to join the team "${teamName}" on Paxlete. Register and download the app here: ${link}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ text: message });
+      } catch {
+        // user dismissed the share sheet — nothing to do
+      }
+    } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+      await navigator.clipboard.writeText(message);
+      alert("Invite message copied to clipboard.");
+    }
   }
 
   async function handleCreatePlayer(values: CreatePlayerFormValues) {
     const response = await coachApi.invitePlayer({ team_id: id, name: values.name, email: values.email });
-    if (response.status === "added") {
-      // Email already had an account — backend added them to the team directly.
+    if (response.status === "added" || response.status === "created") {
+      // Backend either linked the existing account or created a new one and emailed
+      // temporary credentials — either way the player is already on the team.
       refetchPlayers();
+      alert(
+        response.message ??
+          (response.status === "added"
+            ? "Player Added: this player already has an account and was added directly to your team."
+            : "Player Created: a new account has been created for this player and added to your team. Temporary credentials have been sent to their email."),
+      );
     } else {
       // No account yet — pending invite. Show a local card with the invite link to share.
       const pendingPlayer: TeamPlayer = {
