@@ -36,6 +36,34 @@ export interface ProfileResponse {
   data: ProfileData;
 }
 
+// GET /public-profile — distinct field names/casing from ProfileData
+// (bench_cmp not Bench_CMP, strength not Strength), and doesn't include id,
+// workoutCount, or followtype at all.
+export interface PublicProfileData {
+  role_id: number | string;
+  image: string | null;
+  banner: string | null;
+  name: string;
+  username: string;
+  bench_cmp: number | null;
+  squat_cmp: number | null;
+  clean_cmp: number | null;
+  deadlift_cmp: number | null;
+  current_weight?: number;
+  height?: number;
+  bodyfat?: number;
+  optimal_wellness_score?: number;
+  strength: number;
+  pf_points?: number;
+  SocialMedia: DetailedSocialMedia[];
+  followersCount: number;
+}
+
+export interface PublicProfileResponse {
+  message: string;
+  data: PublicProfileData;
+}
+
 export interface DetailedSocialMedia {
   id: number;
   type: string;
@@ -154,14 +182,15 @@ export const profileApi = {
   },
 
   // No-auth-required counterpart to getProfileByUsername — for viewing a
-  // shared profile link anonymously (e.g. /profile/view/[username]).
-  getPublicProfile: async (username: string): Promise<ProfileData> => {
+  // shared profile link anonymously (e.g. /profile/view/[username]). Field
+  // names/casing differ from ProfileData (see PublicProfileData) and it
+  // doesn't include id/workoutCount/followtype at all.
+  getPublicProfile: async (username: string): Promise<PublicProfileData> => {
     try {
-      const res = await apiClient.get<ProfileResponse | ProfileData>(
+      const res = await apiClient.get<PublicProfileResponse>(
         `/public-profile?username=${encodeURIComponent(username)}`,
       );
-      const body = res.data as ProfileResponse | ProfileData;
-      return ("data" in body ? body.data : body) as ProfileData;
+      return res.data.data;
     } catch (err) {
       throw new Error(
         extractErrorMessage(err, "Failed to fetch public profile data."),
