@@ -117,10 +117,6 @@ export default function SessionDetailsContent({
 
     sessionPromise
       .then((session) => {
-        console.log("[session-details] session response:", session);
-        console.log("[session-details] session.stats:", (session as any).stats);
-        console.log("[session-details] session.workoutLoads:", (session as any).workoutLoads);
-        console.log("[session-details] session.loadChart:", (session as any).loadChart);
         setSessionProgramImage(session.workoutImage || null);
         setSessionWorkoutCategory(session.workoutCategory || null);
         setSessionData(session as unknown as WorkoutSession);
@@ -161,18 +157,10 @@ export default function SessionDetailsContent({
       });
 
     if (isCompleted) {
-      getWorkoutStats(activityId)
-        .then((res) => { console.log("[session-details] getWorkoutStats:", res); setPopupWorkoutStats(res); })
-        .catch((err) => { console.log("[session-details] getWorkoutStats failed:", err); setPopupWorkoutStats(null); });
-      getPowerSetLogs(activityId)
-        .then((res) => { console.log("[session-details] getPowerSetLogs:", res); setPopupPowerSetLogs(res); })
-        .catch((err) => { console.log("[session-details] getPowerSetLogs failed:", err); setPopupPowerSetLogs([]); });
-      getTrackingLogs({ sessionId: activityId })
-        .then((res) => { console.log("[session-details] getTrackingLogs:", res); setPopupTrackingLogs(res); })
-        .catch((err) => { console.log("[session-details] getTrackingLogs failed:", err); setPopupTrackingLogs([]); });
-      getWorkoutLoadRecords(activityId)
-        .then((res) => { console.log("[session-details] getWorkoutLoadRecords:", res); setPopupLoadRecords(res); })
-        .catch((err) => { console.log("[session-details] getWorkoutLoadRecords failed:", err); setPopupLoadRecords([]); });
+      getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
+      getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
+      getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
+      getWorkoutLoadRecords(activityId).then(setPopupLoadRecords).catch(() => setPopupLoadRecords([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityId]);
@@ -206,6 +194,16 @@ export default function SessionDetailsContent({
 
   const rawCardTitle = sessionData?.title || sessionData?.workoutTitle || feedTitle || "Workout Session";
   const cardTitle = rawCardTitle.replace(/started a session/gi, "").trim() || "Workout Session";
+
+  // The public preview endpoint's workoutLoads come back in round-code order
+  // (APP3, BPP3, CPP3…), not creation order — sort chronologically so
+  // cumulative deltas/final totals are meaningful (mirrors how the
+  // authenticated popupLoadRecords are already assumed to be creation-ordered).
+  const sortedWorkoutLoads = sessionData?.workoutLoads
+    ? [...sessionData.workoutLoads].sort(
+        (a, b) => new Date(a.createdDate || 0).getTime() - new Date(b.createdDate || 0).getTime(),
+      )
+    : [];
 
   // Query-string values come from whatever the sharer's client had on hand at
   // share time and are sometimes blank (e.g. no profile photo set) — the
@@ -463,9 +461,12 @@ export default function SessionDetailsContent({
 
       {/* Results section — prefers the authenticated per-round records, then
           authenticated workout stats, then falls back to the public preview
-          endpoint's stats (the only one anonymous share-link visitors get). */}
-      {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout || sessionData?.stats) && (() => {
+          endpoint's workoutLoads (final chronological entry = the session's
+          true cumulative totals; sessionData.stats turned out to just mirror
+          the first round logged, not the totals, so it's the last resort). */}
+      {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout || sortedWorkoutLoads.length > 0 || sessionData?.stats) && (() => {
         const lastRecord = popupLoadRecords[popupLoadRecords.length - 1];
+        const lastPublicLoad = sortedWorkoutLoads[sortedWorkoutLoads.length - 1];
         const totals = lastRecord
           ? {
               load: Number(lastRecord.load) || 0,
@@ -473,19 +474,22 @@ export default function SessionDetailsContent({
               cals: Number(lastRecord.kcal) || 0,
             }
           : popupWorkoutStats?.thisWorkout ?? (
-              sessionData?.stats
+              lastPublicLoad
                 ? {
-                    load: sessionData.stats.load ?? 0,
-                    power: sessionData.stats.power ?? 0,
-                    cals: sessionData.stats.calories ?? 0,
+                    load: Number(lastPublicLoad.load) || 0,
+                    power: Number(lastPublicLoad.power) || 0,
+                    cals: Number(lastPublicLoad.kcal) || 0,
                   }
-                : { load: 0, power: 0, cals: 0 }
+                : sessionData?.stats
+                  ? {
+                      load: sessionData.stats.load ?? 0,
+                      power: sessionData.stats.power ?? 0,
+                      cals: sessionData.stats.calories ?? 0,
+                    }
+                  : { load: 0, power: 0, cals: 0 }
             );
         const hasLoggedData = totals.load > 0 || totals.power > 0 || totals.cals > 0
           || popupTrackingLogs.length > 0 || popupPowerSetLogs.length > 0;
-        console.log("[session-details] Results totals:", totals, "hasLoggedData:", hasLoggedData, {
-          lastRecord, popupWorkoutStatsThisWorkout: popupWorkoutStats?.thisWorkout, sessionStats: sessionData?.stats,
-        });
         return (
           <div className="mb-4">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
@@ -514,7 +518,7 @@ export default function SessionDetailsContent({
         popupRoundGroups.length > 0 ||
         popupTrackingLogs.length > 0 ||
         (popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0) ||
-        (sessionData?.workoutLoads && sessionData.workoutLoads.length > 0) ||
+        sortedWorkoutLoads.length > 0 ||
         (sessionData?.loadChart && sessionData.loadChart.length > 0)
       ) && (
         <div className="mb-4">
@@ -547,19 +551,16 @@ export default function SessionDetailsContent({
                     ? popupTrackingLogs.map((log, i) => ({ label: log.title || `R${i + 1}`, value: log.load ?? 0 }))
                     : popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0
                       ? popupWorkoutStats.loadChart.map((val, i) => ({ label: `R${i + 1}`, value: val }))
-                      : sessionData?.workoutLoads && sessionData.workoutLoads.length > 0
-                        ? sessionData.workoutLoads.map((w, i) => {
-                            const prev = i > 0 ? Number(sessionData.workoutLoads![i - 1].load) || 0 : 0;
+                      : sortedWorkoutLoads.length > 0
+                        ? sortedWorkoutLoads.map((w, i) => {
+                            const prev = i > 0 ? Number(sortedWorkoutLoads[i - 1].load) || 0 : 0;
                             const value = Math.max(0, (Number(w.load) || 0) - prev);
-                            return { label: w.title || `R${i + 1}`, value };
+                            const label = popupRoundGroups.length === sortedWorkoutLoads.length
+                              ? popupRoundGroups[i].label
+                              : w.title || `R${i + 1}`;
+                            return { label, value };
                           })
                         : (sessionData?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
-
-              console.log("[session-details] Load Chart bars:", bars, {
-                popupLoadRecords, popupRoundGroups, popupTrackingLogs,
-                popupWorkoutStatsLoadChart: popupWorkoutStats?.loadChart,
-                sessionWorkoutLoads: sessionData?.workoutLoads, sessionLoadChart: sessionData?.loadChart,
-              });
 
               const rawMax = Math.max(...bars.map((b) => b.value), 1);
               const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
