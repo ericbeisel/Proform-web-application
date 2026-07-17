@@ -9,6 +9,15 @@ import { createFeedPost, createWorkoutLocation, createWorkoutSession, swapExerci
 import { WorkoutGroup, WorkoutGroupItem } from "@/api/programs/route";
 import { deleteWorkoutSession } from "@/api/workouts/route";
 
+// Equipment names come from two different sources (a location's saved
+// equipmentList vs the master catalog) that don't always agree on
+// formatting — e.g. "Mini-Bands" vs "Mini Bands". Collapsing hyphens/
+// underscores/whitespace before lowercasing means the same physical item
+// still matches across sources instead of silently appearing twice.
+function normalizeEquipmentName(name?: string): string {
+  return (name || "").trim().toLowerCase().replace(/[\s\-_]+/g, " ");
+}
+
 // Mirrors mobile's EquipmentNeededModal.handleSelectLocation: matching is by
 // equipment name (case-insensitive), not id — an item is checked only if its
 // name appears in the chosen location's saved equipmentList.
@@ -17,16 +26,69 @@ function computeSelectedIdsForLocation(
   requiredList: Equipment[],
   catalog: CatalogEquipment[],
 ): Set<number> {
-  const locationNames = new Set(fetchedList.map((eq) => eq.name?.toLowerCase()));
+  const locationNames = new Set(fetchedList.map((eq) => normalizeEquipmentName(eq.name)));
   const ids = new Set<number>();
   fetchedList.forEach((eq) => ids.add(eq.id));
   requiredList.forEach((eq) => {
-    if (locationNames.has(eq.name?.toLowerCase())) ids.add(eq.id);
+    if (locationNames.has(normalizeEquipmentName(eq.name))) ids.add(eq.id);
   });
   catalog.forEach((eq) => {
-    if (locationNames.has(eq.name?.toLowerCase())) ids.add(eq.id);
+    if (locationNames.has(normalizeEquipmentName(eq.name))) ids.add(eq.id);
   });
   return ids;
+}
+
+// Equipment tags actually used by this session's exercises (e.g. "BALANCE-PAD",
+// "FLOOR", "STANDING" — the same badges shown on the exercise cards), read from
+// the exercise list viewWorkoutSession stashed before navigating here.
+function getSessionEquipmentTags(): Set<string> {
+  const tags = new Set<string>();
+  try {
+    const raw = localStorage.getItem("pendingWorkoutGroups");
+    if (!raw) return tags;
+    const groups: WorkoutGroup[] = JSON.parse(raw);
+    groups.forEach((group) => {
+      group.workouts?.forEach((w) => {
+        if (w.supplemental) tags.add(w.supplemental.trim().toUpperCase());
+      });
+    });
+  } catch {
+    // malformed/missing — filtering below just falls back to the full list
+  }
+  return tags;
+}
+
+// Narrows the program's full equipment catalog down to only what this
+// session's exercises need. If nothing matches (or there's no session
+// exercise data at all), returns an empty list rather than the full
+// catalog — unrelated equipment should never show, even as a fallback.
+function filterEquipmentBySession(equipment: Equipment[], sessionTags: Set<string>): Equipment[] {
+  if (sessionTags.size === 0) {
+    console.warn("[equipmentNeeded] No session equipment tags found — Required list will be empty.");
+    return [];
+  }
+  const filtered = equipment.filter((eq) => {
+    const keywords = (eq.keyword || "")
+      .split(",")
+      .map((k) => k.trim().toUpperCase())
+      .filter(Boolean);
+    if (keywords.some((k) => sessionTags.has(k))) return true;
+    const nameUpper = eq.name?.trim().toUpperCase();
+    const slugUpper = eq.slug?.trim().toUpperCase();
+    const typeUpper = eq.type?.trim().toUpperCase();
+    return (
+      (!!nameUpper && sessionTags.has(nameUpper)) ||
+      (!!slugUpper && sessionTags.has(slugUpper)) ||
+      (!!typeUpper && sessionTags.has(typeUpper))
+    );
+  });
+  if (filtered.length === 0) {
+    console.warn(
+      "[equipmentNeeded] Session equipment tags matched nothing in the program catalog.",
+      { sessionTags: Array.from(sessionTags), catalogSample: equipment.slice(0, 3) },
+    );
+  }
+  return filtered;
 }
 
 export default function EquipmentNeededPage() {
@@ -62,10 +124,12 @@ export default function EquipmentNeededPage() {
 
         setLocations(locData);
         setAllEquipment(Array.isArray(allEquip) ? allEquip : []);
+        let sessionEquip: Equipment[] = [];
         if (programEquip && Array.isArray(programEquip)) {
-          setProgramEquipment(programEquip);
-          // Auto-select all program equipment when no location is chosen yet
-          setSelectedEquipIds(new Set(programEquip.map((eq: Equipment) => eq.id)));
+          sessionEquip = filterEquipmentBySession(programEquip, getSessionEquipmentTags());
+          setProgramEquipment(sessionEquip);
+          // Auto-select all required equipment when no location is chosen yet
+          setSelectedEquipIds(new Set(sessionEquip.map((eq: Equipment) => eq.id)));
         }
 
         // Auto-select newly created location if navigated from createLocation page
@@ -82,7 +146,7 @@ export default function EquipmentNeededPage() {
             const fetchedList = detail.equipmentList || [];
             setEquipments(fetchedList);
             setSelectedEquipIds(
-              computeSelectedIdsForLocation(fetchedList, programEquip || [], Array.isArray(allEquip) ? allEquip : []),
+              computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
             );
           } catch (e) {
             console.error("Failed to fetch new location detail:", e);
@@ -103,7 +167,7 @@ export default function EquipmentNeededPage() {
               const fetchedList = detail.equipmentList || [];
               setEquipments(fetchedList);
               setSelectedEquipIds(
-                computeSelectedIdsForLocation(fetchedList, programEquip || [], Array.isArray(allEquip) ? allEquip : []),
+                computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
               );
             }
           } catch {
@@ -172,7 +236,7 @@ const handleBack = async () => {
   }
 
   // If a session was already created (user started then came back somehow), clean it up
-  const activeSessionId = pendingSessionCode 
+  const activeSessionId = pendingSessionCode
     ? localStorage.getItem(`activeSessionId_${pendingSessionCode}`)
     : null;
 
@@ -333,31 +397,29 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     programEquipment.length === 0 ||
     programEquipment.every((eq) => selectedEquipIds.has(eq.id));
 
-  // Everything in the full catalog that isn't already shown as Required or
-  // as part of the selected location's Available equipment.
-  const otherEquipment = allEquipment.filter((eq) => {
-    const nameLower = eq.name?.toLowerCase();
-    const inRequired = programEquipment.some((req) => req.name?.toLowerCase() === nameLower);
-    const inAvailable = equipments.some((av) => av.name?.toLowerCase() === nameLower);
-    return !inRequired && !inAvailable;
-  });
-
-  // With a location selected, show Required/Available/Other as one mixed
-  // grid instead of separate grouped sections — dedup by name so items
-  // matched across sources (e.g. a required item also in Available) show once.
+  // With a location selected, show Required + Available as one mixed grid —
+  // dedup by name so an item required AND present shows once. Deliberately
+  // excludes the full catalog: gear that's neither present at this location
+  // nor required for this session has no reason to be shown at all.
   const mixedEquipment = (() => {
     const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
-    equipments.forEach((eq) => byName.set(eq.name?.toLowerCase(), eq));
+    equipments.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
     programEquipment.forEach((eq) => {
-      const key = eq.name?.toLowerCase();
-      if (!byName.has(key)) byName.set(key, eq);
-    });
-    otherEquipment.forEach((eq) => {
-      const key = eq.name?.toLowerCase();
+      const key = normalizeEquipmentName(eq.name);
       if (!byName.has(key)) byName.set(key, eq);
     });
     return Array.from(byName.values());
   })();
+
+  // Highlight rule: an item is "matched" if it's actually present at the
+  // selected location (regardless of whether the session requires it) OR
+  // it's been manually toggled on — not just "required AND present", which
+  // used to hide gear you have but the session doesn't ask for.
+  const isPresentAtLocation = (eq: EquipmentItem | Equipment | CatalogEquipment) =>
+    equipments.some((av) => normalizeEquipmentName(av.name) === normalizeEquipmentName(eq.name));
+  const highlightedCount = mixedEquipment.filter(
+    (eq) => selectedEquipIds.has(eq.id) || isPresentAtLocation(eq),
+  ).length;
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -375,7 +437,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-6">
-        
+
         {/* COMPACT LOCATION SELECTION CARD */}
         <div className="bg-[#f8faff] rounded-2xl p-4 border border-[#eef2ff] flex items-center gap-4 mb-8">
           <div className="w-10 h-10 bg-[#7c3aed] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0">
@@ -496,13 +558,13 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                         <p className="text-xs text-gray-400 mt-0.5">Tap to verify</p>
                       </div>
                       <span className="text-[10px] font-bold text-[#7c3aed] bg-purple-50 px-2 py-0.5 rounded-full uppercase">
-                        {selectedEquipIds.size} Matched
+                        {highlightedCount} Matched
                       </span>
                     </div>
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                       {mixedEquipment.map((eq) => {
-                        const isSelected = selectedEquipIds.has(eq.id);
+                        const highlight = selectedEquipIds.has(eq.id) || isPresentAtLocation(eq);
 
                         return (
                           <button
@@ -510,12 +572,12 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             type="button"
                             onClick={() => toggleEquipment(eq.id)}
                             className={`relative flex flex-col items-center bg-white border rounded-2xl p-3 shadow-sm transition-all hover:shadow-md ${
-                              isSelected
+                              highlight
                                 ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
                                 : "border-gray-100 opacity-80"
                             }`}
                           >
-                            {isSelected && (
+                            {highlight && (
                               <div className="absolute top-1.5 right-1.5 text-[#7c3aed] animate-in zoom-in">
                                 <CheckCircle2 size={14} fill="white" />
                               </div>
@@ -530,7 +592,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             </div>
 
                             <p className={`text-[9px] font-bold uppercase tracking-wider text-center ${
-                              isSelected ? "text-[#7c3aed]" : "text-gray-500"
+                              highlight ? "text-[#7c3aed]" : "text-gray-500"
                             }`}>
                               {eq.name}
                             </p>
