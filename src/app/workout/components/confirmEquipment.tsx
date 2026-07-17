@@ -38,7 +38,29 @@ function computeSelectedIdsForLocation(
   return ids;
 }
 
-export default function EquipmentNeededPage() {
+// Dedup-by-name merge for the mixed equipment grid: location's saved gear,
+// then the required list, then the rest of the full catalog ("other
+// equipment") — each only added if its name hasn't already been claimed by
+// an earlier, more specific source.
+function buildMixedEquipment(
+  locationEquipment: EquipmentItem[],
+  requiredList: Equipment[],
+  catalog: CatalogEquipment[],
+): (EquipmentItem | Equipment | CatalogEquipment)[] {
+  const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
+  locationEquipment.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
+  requiredList.forEach((eq) => {
+    const key = normalizeEquipmentName(eq.name);
+    if (!byName.has(key)) byName.set(key, eq);
+  });
+  catalog.forEach((eq) => {
+    const key = normalizeEquipmentName(eq.name);
+    if (!byName.has(key)) byName.set(key, eq);
+  });
+  return Array.from(byName.values());
+}
+
+export default function ConfirmEquipmentPage() {
   const router = useRouter();
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
@@ -56,7 +78,6 @@ export default function EquipmentNeededPage() {
   const [displayLocationName, setDisplayLocationName] = useState("Selected Location");
   const [makeDefault, setMakeDefault] = useState(false);
 
-
   useEffect(() => {
     const initializeData = async () => {
       try {
@@ -67,61 +88,40 @@ export default function EquipmentNeededPage() {
 
         const [locData, allEquip, programEquip] = await Promise.all(promises);
 
-        console.log("[equipmentNeeded] required equipment names:", (programEquip || []).map((eq: Equipment) => eq.name));
-
         setLocations(locData);
         setAllEquipment(Array.isArray(allEquip) ? allEquip : []);
-        // getProgramEquipment already scopes to exactly what this program
-        // needs — no further client-side filtering required.
         let sessionEquip: Equipment[] = [];
         if (programEquip && Array.isArray(programEquip)) {
           sessionEquip = programEquip;
           setProgramEquipment(sessionEquip);
-          // Auto-select all required equipment when no location is chosen yet
-          setSelectedEquipIds(new Set(sessionEquip.map((eq: Equipment) => eq.id)));
         }
 
-        // Auto-select newly created location if navigated from createLocation page
-        const newId = localStorage.getItem("newLocationId");
-        const savedName = localStorage.getItem("newLocationName");
-        if (newId) {
-          localStorage.removeItem("newLocationId");
-          localStorage.removeItem("newLocationName");
-          setSelectedLocation(newId);
-          setIsNewlyCreated(true);
-          setDisplayLocationName(savedName || "New Location");
+        // Pick up the location + selection carried over from the Equipment
+        // Check page's "Add Equipment to X and Proceed" button.
+        const carriedLocationId = localStorage.getItem("confirmEquipmentLocationId");
+        const carriedLocationName = localStorage.getItem("confirmEquipmentLocationName");
+        const carriedSelectedIds = localStorage.getItem("confirmEquipmentSelectedIds");
+        localStorage.removeItem("confirmEquipmentLocationId");
+        localStorage.removeItem("confirmEquipmentLocationName");
+        localStorage.removeItem("confirmEquipmentSelectedIds");
+
+        if (carriedLocationId) {
+          setSelectedLocation(carriedLocationId);
+          setDisplayLocationName(carriedLocationName || "Selected Location");
           try {
-            const detail = await equipmentApi.getLocationDetail(newId);
+            const detail = await equipmentApi.getLocationDetail(carriedLocationId);
             const fetchedList = detail.equipmentList || [];
             setEquipments(fetchedList);
             setSelectedEquipIds(
-              computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
+              carriedSelectedIds
+                ? new Set<number>(JSON.parse(carriedSelectedIds))
+                : computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
             );
           } catch (e) {
-            console.error("Failed to fetch new location detail:", e);
+            console.error("Failed to fetch carried-over location detail:", e);
           }
-        } else {
-          // Pre-select the user's saved default location (mirrors mobile's
-          // OverviewScreen showBasedOnDefaultLocation) — this only pre-fills
-          // the selection so the confirmation flow below still runs as
-          // normal, it never auto-starts the session.
-          try {
-            const defaultLoc = await equipmentApi.getDefaultLocation();
-            const defaultId = defaultLoc?.data?.id;
-            if (defaultId && locData.some((l: LocationItem) => String(l.id) === String(defaultId))) {
-              const locName = locData.find((l: LocationItem) => String(l.id) === String(defaultId))?.name || "Selected Location";
-              setSelectedLocation(String(defaultId));
-              setDisplayLocationName(locName);
-              const detail = await equipmentApi.getLocationDetail(defaultId);
-              const fetchedList = detail.equipmentList || [];
-              setEquipments(fetchedList);
-              setSelectedEquipIds(
-                computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
-              );
-            }
-          } catch {
-            // no default location set — leave the dropdown on "Select location..."
-          }
+        } else if (sessionEquip.length > 0) {
+          setSelectedEquipIds(new Set(sessionEquip.map((eq: Equipment) => eq.id)));
         }
       } catch (err) {
         console.error("Initialization failed:", err);
@@ -179,7 +179,6 @@ const handleBack = async () => {
   // pendingSessionCode still exists = user came here but hasn't started session yet
   // nothing to delete, just go back
   if (pendingSessionCode) {
-    console.log("[back] No session created yet — going back cleanly");
     router.back();
     return;
   }
@@ -190,12 +189,10 @@ const handleBack = async () => {
     : null;
 
   if (activeSessionId) {
-    console.log("[back] Deleting session:", activeSessionId);
     try {
       await deleteWorkoutSession(activeSessionId);
       localStorage.removeItem(`activeSessionId_${pendingSessionCode}`);
       localStorage.removeItem(`swappedExercises_${pendingSessionCode}`);
-      console.log("[back] ✓ Session deleted");
     } catch (err) {
       console.error("[back] ✗ Failed to delete session:", err);
     }
@@ -206,7 +203,6 @@ const handleBack = async () => {
 
 const handleStartSession = async (locationNameOverride?: string, equipmentIdsOverride?: number[]) => {
   const pendingSessionCode = localStorage.getItem("pendingSessionCode");
-  console.log("[session] ▶ handleStartSession fired — pendingSessionCode:", pendingSessionCode);
   if (!pendingSessionCode) {
     console.error("[session] ✗ No pendingSessionCode — aborting");
     return;
@@ -222,13 +218,11 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
         : "Temporary Location"); // ← exact same fallback as mobile
 
     const resolvedEquipIds = equipmentIdsOverride ?? Array.from(selectedEquipIds);
-    console.log("[session] 📍 Creating location:", selectedLocationName, "equipIds:", resolvedEquipIds);
     const locationResult = await createWorkoutLocation({
       locationTitle: selectedLocationName,
       equipmentIds: resolvedEquipIds.map(String),
     });
     const locationId = locationResult?.locationId;
-    console.log("[session] 📍 locationId:", locationId);
 
     if (!locationId) {
       console.error("[session] ✗ No locationId returned — aborting");
@@ -240,13 +234,11 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     }
 
     // 2. ALWAYS pass locationId to session — mirrors mobile exactly
-    console.log("[session] 🔄 Creating session for:", pendingSessionCode, "locationId:", locationId);
     const sessionResult = await createWorkoutSession({
       workoutLibraryId: pendingSessionCode,
       locationId, // ← always present now
     });
     const sessionId = sessionResult.session.id;
-    console.log("[session] ✓ Session created — id:", sessionId);
     localStorage.setItem(`activeSessionId_${pendingSessionCode.toUpperCase()}`, sessionId);
     localStorage.setItem("workoutLocationName", selectedLocationName);
     localStorage.setItem("workoutLocationId", locationId);
@@ -254,28 +246,23 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
 
     // 3. Swap exercises
     const rawGroups = localStorage.getItem("pendingWorkoutGroups");
-    console.log("[session] 🔁 pendingWorkoutGroups found:", !!rawGroups);
 
     if (rawGroups) {
       try {
         const groups: WorkoutGroup[] = JSON.parse(rawGroups);
-        console.log("[session] 🔁 Total rounds to process:", groups.length);
         const swapsMap: [string, WorkoutGroupItem][] = [];
 
         for (const group of groups) {
-          console.log(`[session] 🔁 Processing round: "${group.label}" — ${group.workouts.length} exercises`);
           const processedInRound: WorkoutGroupItem[] = [];
 
           for (let i = 0; i < group.workouts.length; i++) {
             const exercise = group.workouts[i];
 
             if (!exercise.exercise_id) {
-              console.log(`[session]   ⏭ Skipping "${exercise.exercise_name}" — no exercise_id`);
               processedInRound.push(exercise);
               continue;
             }
             if (exercise.is_power_set) {
-              console.log(`[session]   ⏭ Skipping "${exercise.exercise_name}" — is power set`);
               processedInRound.push(exercise);
               continue;
             }
@@ -285,18 +272,12 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
               ...group.workouts.slice(i + 1).map((e) => e.exercise_name),
             ].filter(Boolean);
 
-            console.log(`[session]   🔀 Swapping "${exercise.exercise_name}" (id: ${exercise.exercise_id})`);
-
             const result = await swapExercise({
               exerciseId: exercise.exercise_id,
               sessionId,
               section: group.label,
               existingExercises,
             });
-
-            console.log(`[session]   🔀 Result — swapped: ${result.swapped}`,
-              result.swapped ? `→ "${result.exercise?.name}"` : `reason: ${result.reason || "none"}`
-            );
 
             if (result.swapped && result.exercise) {
               const swappedItem: WorkoutGroupItem = {
@@ -315,9 +296,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
           }
         }
 
-        console.log(`[session] ✓ Swap loop complete — total swaps applied: ${swapsMap.length}`);
         localStorage.setItem(`swappedExercises_${pendingSessionCode}`, JSON.stringify(swapsMap));
-        console.log("[session] ✓ swappedExercises saved to localStorage");
       } catch (err) {
         console.error("[session] ✗ Swap loop failed:", err);
       } finally {
@@ -326,13 +305,11 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     }
 
     // 4. Feed post — fire and forget (mirrors mobile)
-    console.log("[session] 📢 Creating feed post");
     createFeedPost({ sessionId, workoutLibraryId: pendingSessionCode }).catch((err) =>
       console.error("[session] ✗ createFeedPost failed:", err)
     );
 
     localStorage.setItem("sessionJustCreated", "true");
-    console.log("[session] ✓ Navigating to viewWorkoutSession");
     router.replace("/workout/viewWorkoutSession");
   } catch (err) {
     console.error("[session] ✗ handleStartSession failed:", err);
@@ -346,29 +323,32 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     programEquipment.length === 0 ||
     programEquipment.every((eq) => selectedEquipIds.has(eq.id));
 
-  // With a location selected, show Required + Available as one mixed grid —
-  // dedup by name so an item required AND present shows once. Deliberately
-  // excludes the full catalog: gear that's neither present at this location
-  // nor required for this session has no reason to be shown at all.
-  const mixedEquipment = (() => {
-    const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
-    equipments.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
-    programEquipment.forEach((eq) => {
-      const key = normalizeEquipmentName(eq.name);
-      if (!byName.has(key)) byName.set(key, eq);
-    });
-    return Array.from(byName.values());
-  })();
+  // Mixed grid: location's saved gear + required list + the rest of the full
+  // catalog ("other equipment"), deduped by name.
+  const mixedEquipment = buildMixedEquipment(equipments, programEquipment, allEquipment);
 
-  // Highlight rule: an item is "matched" if it's actually present at the
-  // selected location (regardless of whether the session requires it) OR
-  // it's been manually toggled on — not just "required AND present", which
-  // used to hide gear you have but the session doesn't ask for.
+  // An item actually saved at this location gets the green "already have
+  // this" treatment, regardless of required/selected state. Everything else
+  // (required-but-missing or extra catalog items) follows the normal
+  // purple-when-selected / gray-when-not scheme.
   const isPresentAtLocation = (eq: EquipmentItem | Equipment | CatalogEquipment) =>
     equipments.some((av) => normalizeEquipmentName(av.name) === normalizeEquipmentName(eq.name));
   const highlightedCount = mixedEquipment.filter(
     (eq) => selectedEquipIds.has(eq.id) || isPresentAtLocation(eq),
   ).length;
+
+  // Any tile (required or catalog-extra) not actually saved at the
+  // location — reactive, derived live from equipments/mixedEquipment every
+  // render.
+  const missingTiles = mixedEquipment.filter((eq) => !isPresentAtLocation(eq));
+
+  // With a location selected, don't let the user proceed until they've
+  // selected at least one tile that wasn't already present at the location —
+  // the ones already saved there stay selected as-is and don't need to be
+  // touched. Counts both missing-required tiles and catalog extras.
+  const allMixedEquipSelected =
+    missingTiles.length === 0 ||
+    missingTiles.some((eq) => selectedEquipIds.has(eq.id));
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -418,19 +398,6 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                   </div>
                 )}
               </div>
-
-              {/* <button
-                onClick={() => {
-                  const url = selectedLocation
-                    ? `/workout/selectEquipmentNeeded?locationId=${selectedLocation}`
-                    : "/workout/selectEquipmentNeeded";
-                  router.push(url);
-                }}
-                className="bg-white text-[#7c3aed] w-10 rounded-xl border border-gray-100 hover:border-[#7c3aed] hover:bg-purple-50 transition-all flex items-center justify-center shadow-sm"
-                title="Add New Location"
-              >
-                <Plus size={18} />
-              </button> */}
             </div>
           </div>
         </div>
@@ -494,7 +461,8 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 )
               ) : (
                 /* MIXED EQUIPMENT — location selected: Required/Available/Other
-                   shown together in one grid rather than grouped sections. */
+                   shown together in one grid. Gear actually at this location
+                   is green; everything else is the normal purple/gray. */
                 (programEquipmentLoading || allEquipmentLoading) ? (
                   <div className="flex justify-center py-4">
                     <Loader2 className="animate-spin text-[#7c3aed]" size={24} />
@@ -513,7 +481,24 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                       {mixedEquipment.map((eq) => {
-                        const highlight = selectedEquipIds.has(eq.id) || isPresentAtLocation(eq);
+                        const atLocation = isPresentAtLocation(eq);
+                        const isRequired = programEquipment.some(
+                          (req) => normalizeEquipmentName(req.name) === normalizeEquipmentName(eq.name),
+                        );
+                        const manuallySelected = selectedEquipIds.has(eq.id);
+                        // Purple = required (always, regardless of match) OR
+                        // a catalog extra the user just tapped on. Green =
+                        // the location's own saved gear that isn't required.
+                        // Plain = not required, not at this location, and
+                        // not yet tapped.
+                        const category: "purple" | "green" | "none" = isRequired
+                          ? "purple"
+                          : atLocation
+                            ? "green"
+                            : manuallySelected
+                              ? "purple"
+                              : "none";
+                        const showCheck = category !== "none";
 
                         return (
                           <button
@@ -521,13 +506,15 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             type="button"
                             onClick={() => toggleEquipment(eq.id)}
                             className={`relative flex flex-col items-center bg-white border rounded-2xl p-3 shadow-sm transition-all hover:shadow-md ${
-                              highlight
+                              category === "purple"
                                 ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
-                                : "border-gray-100 opacity-80"
+                                : category === "green"
+                                  ? "border-green-400 ring-2 ring-green-400/10"
+                                  : "border-gray-100 opacity-80"
                             }`}
                           >
-                            {highlight && (
-                              <div className="absolute top-1.5 right-1.5 text-[#7c3aed] animate-in zoom-in">
+                            {showCheck && (
+                              <div className={`absolute top-1.5 right-1.5 animate-in zoom-in ${category === "green" ? "text-green-500" : "text-[#7c3aed]"}`}>
                                 <CheckCircle2 size={14} fill="white" />
                               </div>
                             )}
@@ -541,7 +528,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             </div>
 
                             <p className={`text-[9px] font-bold uppercase tracking-wider text-center ${
-                              highlight ? "text-[#7c3aed]" : "text-gray-500"
+                              category === "purple" ? "text-[#7c3aed]" : category === "green" ? "text-green-600" : "text-gray-500"
                             }`}>
                               {eq.name}
                             </p>
@@ -576,41 +563,48 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
             /* ── Dropdown-selected location: full flow ── */
             <>
               <button
-                onClick={() => {
-                  localStorage.setItem("confirmEquipmentLocationId", selectedLocation);
-                  localStorage.setItem("confirmEquipmentLocationName", displayLocationName);
-                  localStorage.setItem("confirmEquipmentSelectedIds", JSON.stringify(Array.from(selectedEquipIds)));
-                  router.push("/workout/confirmEquipment");
-                }}
-                disabled={isDeleting || isCreatingNew}
+                onClick={() => handleStartSession()}
+                disabled={isDeleting || isCreatingNew || !allMixedEquipSelected}
                 className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} />
+                {isDeleting ? (
+                  <><Loader2 size={16} className="animate-spin" /> Setting up...</>
+                ) : (
+                  <>Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} /></>
+                )}
               </button>
 
-              <p className="text-sm text-[#7c3aed] font-medium">+ Create a new location and proceed</p>
+              {!allMixedEquipSelected && (
+                <p className="text-xs text-gray-400 -mt-2">Select at least one missing item above to continue</p>
+              )}
+
+              <p className={`text-sm text-[#7c3aed] font-medium ${!allMixedEquipSelected ? "opacity-40" : ""}`}>
+                + Create a new location and proceed
+              </p>
 
               <input
                 type="text"
                 placeholder="New location name..."
                 value={newLocationName}
                 onChange={(e) => setNewLocationName(e.target.value)}
-                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed]"
+                disabled={!allMixedEquipSelected}
+                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-50"
               />
 
-              <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none">
+              <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none has-[:disabled]:opacity-40 has-[:disabled]:cursor-not-allowed">
                 <input
                   type="checkbox"
                   checked={makeDefault}
                   onChange={(e) => setMakeDefault(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer"
+                  disabled={!allMixedEquipSelected}
+                  className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer disabled:cursor-not-allowed"
                 />
                 <span className="text-sm font-medium text-gray-700">Make this my default location</span>
               </label>
 
               <button
                 onClick={() => newLocationName.trim() && handleStartSession(newLocationName.trim())}
-                disabled={isCreatingNew || isDeleting || !newLocationName.trim()}
+                disabled={isCreatingNew || isDeleting || !newLocationName.trim() || !allMixedEquipSelected}
                 className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isCreatingNew ? (
