@@ -116,6 +116,10 @@ export default function SessionDetailsContent({
 
     sessionPromise
       .then((session) => {
+        console.log("[session-details] session response:", session);
+        console.log("[session-details] session.stats:", (session as any).stats);
+        console.log("[session-details] session.workoutLoads:", (session as any).workoutLoads);
+        console.log("[session-details] session.loadChart:", (session as any).loadChart);
         setSessionProgramImage(session.workoutImage || null);
         setSessionWorkoutCategory(session.workoutCategory || null);
         setSessionData(session as unknown as WorkoutSession);
@@ -156,10 +160,18 @@ export default function SessionDetailsContent({
       });
 
     if (isCompleted) {
-      getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
-      getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
-      getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
-      getWorkoutLoadRecords(activityId).then(setPopupLoadRecords).catch(() => setPopupLoadRecords([]));
+      getWorkoutStats(activityId)
+        .then((res) => { console.log("[session-details] getWorkoutStats:", res); setPopupWorkoutStats(res); })
+        .catch((err) => { console.log("[session-details] getWorkoutStats failed:", err); setPopupWorkoutStats(null); });
+      getPowerSetLogs(activityId)
+        .then((res) => { console.log("[session-details] getPowerSetLogs:", res); setPopupPowerSetLogs(res); })
+        .catch((err) => { console.log("[session-details] getPowerSetLogs failed:", err); setPopupPowerSetLogs([]); });
+      getTrackingLogs({ sessionId: activityId })
+        .then((res) => { console.log("[session-details] getTrackingLogs:", res); setPopupTrackingLogs(res); })
+        .catch((err) => { console.log("[session-details] getTrackingLogs failed:", err); setPopupTrackingLogs([]); });
+      getWorkoutLoadRecords(activityId)
+        .then((res) => { console.log("[session-details] getWorkoutLoadRecords:", res); setPopupLoadRecords(res); })
+        .catch((err) => { console.log("[session-details] getWorkoutLoadRecords failed:", err); setPopupLoadRecords([]); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityId]);
@@ -458,6 +470,9 @@ export default function SessionDetailsContent({
             );
         const hasLoggedData = totals.load > 0 || totals.power > 0 || totals.cals > 0
           || popupTrackingLogs.length > 0 || popupPowerSetLogs.length > 0;
+        console.log("[session-details] Results totals:", totals, "hasLoggedData:", hasLoggedData, {
+          lastRecord, popupWorkoutStatsThisWorkout: popupWorkoutStats?.thisWorkout, sessionStats: sessionData?.stats,
+        });
         return (
           <div className="mb-4">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Results</p>
@@ -546,6 +561,12 @@ export default function SessionDetailsContent({
                             return { label: w.title || `R${i + 1}`, value };
                           })
                         : (sessionData?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
+
+              console.log("[session-details] Load Chart bars:", bars, {
+                popupLoadRecords, popupRoundGroups, popupTrackingLogs,
+                popupWorkoutStatsLoadChart: popupWorkoutStats?.loadChart,
+                sessionWorkoutLoads: sessionData?.workoutLoads, sessionLoadChart: sessionData?.loadChart,
+              });
 
               const rawMax = Math.max(...bars.map((b) => b.value), 1);
               const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
