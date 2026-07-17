@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Dumbbell,
   Heart,
+  MapPin,
   Users,
   X,
 } from "lucide-react";
@@ -193,6 +194,13 @@ export default function SessionDetailsContent({
   const rawCardTitle = sessionData?.title || sessionData?.workoutTitle || feedTitle || "Workout Session";
   const cardTitle = rawCardTitle.replace(/started a session/gi, "").trim() || "Workout Session";
 
+  // Query-string values come from whatever the sharer's client had on hand at
+  // share time and are sometimes blank (e.g. no profile photo set) — the
+  // session API's own owner record is the source of truth, so prefer it.
+  const effectiveUserName = userName || sessionData?.owner?.name || "";
+  const effectiveUserUsername = userUsername || sessionData?.owner?.username || "";
+  const effectiveUserImage = userImage || sessionData?.owner?.image || "";
+
   const handleJoinSession = async () => {
     if (joiningSession) return;
     if (!isLoggedIn) {
@@ -202,9 +210,9 @@ export default function SessionDetailsContent({
     if (type === "CompleteCardio") {
       const p = new URLSearchParams({
         feedId: String(feedId),
-        userName,
-        userUsername,
-        userImage,
+        userName: effectiveUserName,
+        userUsername: effectiveUserUsername,
+        userImage: effectiveUserImage,
         title: feedTitle,
         date,
       });
@@ -306,26 +314,26 @@ export default function SessionDetailsContent({
         {/* AVATAR + USERNAME — centered */}
         <div className={`flex flex-col items-center ${compact ? "mb-3" : "mb-4"}`}>
           <button
-            onClick={() => userUsername && router.push(`/profile/${encodeURIComponent(userUsername)}`)}
+            onClick={() => effectiveUserUsername && router.push(`/profile/${encodeURIComponent(effectiveUserUsername)}`)}
             className={`${compact ? "w-14 h-14" : "w-20 h-20"} rounded-full overflow-hidden flex items-center justify-center shadow-md ring-4 ring-purple-50 cursor-pointer`}
             style={{ background: "linear-gradient(135deg,#8b5cf6,#6366f1)" }}
           >
-            {userImage ? (
-              <img src={userImage} alt="" className="w-full h-full object-cover" />
+            {effectiveUserImage ? (
+              <img src={effectiveUserImage} alt="" className="w-full h-full object-cover" />
             ) : (
               <span className={`text-white font-bold ${compact ? "text-lg" : "text-2xl"}`}>
-                {(userName || userUsername || "U").charAt(0).toUpperCase()}
+                {(effectiveUserName || effectiveUserUsername || "U").charAt(0).toUpperCase()}
               </span>
             )}
           </button>
           <p className={`font-bold text-gray-900 leading-tight mt-2 ${compact ? "text-sm" : "text-base mt-3"}`}>
-            {userName || userUsername || "User"}
+            {effectiveUserName || effectiveUserUsername || "User"}
           </p>
           <button
-            onClick={() => userUsername && router.push(`/profile/${encodeURIComponent(userUsername)}`)}
+            onClick={() => effectiveUserUsername && router.push(`/profile/${encodeURIComponent(effectiveUserUsername)}`)}
             className="text-purple-500 text-sm hover:underline cursor-pointer"
           >
-            @{userUsername || "user"}
+            @{effectiveUserUsername || "user"}
           </button>
         </div>
 
@@ -398,6 +406,15 @@ export default function SessionDetailsContent({
               <Users size={compact ? 15 : 17} />
               <span className={`font-semibold ${compact ? "text-[12px]" : "text-[13px]"}`}>{sessionData?.joinedCount ?? joinedCountParam}</span>
             </div>
+            {!!sessionData?.liveUserCount && (
+              <div className="flex items-center gap-1.5 text-gray-500">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <span className={`font-semibold ${compact ? "text-[12px]" : "text-[13px]"}`}>{sessionData.liveUserCount} live</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -409,8 +426,20 @@ export default function SessionDetailsContent({
           </span>
         </div>
 
-      {/* Results section */}
-      {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout) && (() => {
+        {/* Location box — only when the session was logged at a saved location */}
+        {sessionData?.locationName && (
+          <div className={`flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-100 ${compact ? "px-3 py-2.5 mb-3" : "px-4 py-3 mb-5"}`}>
+            <MapPin size={compact ? 13 : 15} className="text-gray-400 flex-shrink-0" />
+            <span className={`text-gray-500 font-medium ${compact ? "text-[12px]" : "text-[13px]"}`}>
+              {sessionData.locationName}
+            </span>
+          </div>
+        )}
+
+      {/* Results section — prefers the authenticated per-round records, then
+          authenticated workout stats, then falls back to the public preview
+          endpoint's stats (the only one anonymous share-link visitors get). */}
+      {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout || sessionData?.stats) && (() => {
         const lastRecord = popupLoadRecords[popupLoadRecords.length - 1];
         const totals = lastRecord
           ? {
@@ -418,7 +447,15 @@ export default function SessionDetailsContent({
               power: Number(lastRecord.power) || 0,
               cals: Number(lastRecord.kcal) || 0,
             }
-          : popupWorkoutStats?.thisWorkout ?? { load: 0, power: 0, cals: 0 };
+          : popupWorkoutStats?.thisWorkout ?? (
+              sessionData?.stats
+                ? {
+                    load: sessionData.stats.load ?? 0,
+                    power: sessionData.stats.power ?? 0,
+                    cals: sessionData.stats.calories ?? 0,
+                  }
+                : { load: 0, power: 0, cals: 0 }
+            );
         const hasLoggedData = totals.load > 0 || totals.power > 0 || totals.cals > 0
           || popupTrackingLogs.length > 0 || popupPowerSetLogs.length > 0;
         return (
@@ -442,8 +479,36 @@ export default function SessionDetailsContent({
         );
       })()}
 
-      {/* Load chart (simple CSS bars) */}
-      {isCompleted && (popupLoadRecords.length > 0 || popupRoundGroups.length > 0 || popupTrackingLogs.length > 0 || (popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0)) && (
+      {/* How you compare — power output vs. the group average/best, from the
+          public preview endpoint's compareGroup. */}
+      {isCompleted && sessionData?.compareGroup && (
+        <div className="mb-4">
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">How You Compare</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Yours", value: sessionData.compareGroup.yours, accent: "text-purple-600" },
+              { label: "Average", value: sessionData.compareGroup.avg, accent: "text-gray-900" },
+              { label: "Best", value: sessionData.compareGroup.best, accent: "text-amber-500" },
+            ].map(({ label, value, accent }) => (
+              <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
+                <p className={`text-[20px] font-extrabold ${accent}`}>{value ?? "—"}</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Load chart (simple CSS bars) — same authenticated-first, public-preview-
+          fallback ordering as the Results section above. */}
+      {isCompleted && (
+        popupLoadRecords.length > 0 ||
+        popupRoundGroups.length > 0 ||
+        popupTrackingLogs.length > 0 ||
+        (popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0) ||
+        (sessionData?.workoutLoads && sessionData.workoutLoads.length > 0) ||
+        (sessionData?.loadChart && sessionData.loadChart.length > 0)
+      ) && (
         <div className="mb-4">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Load Chart</p>
           <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
@@ -472,7 +537,15 @@ export default function SessionDetailsContent({
                     })
                   : popupTrackingLogs.length > 0
                     ? popupTrackingLogs.map((log, i) => ({ label: log.title || `R${i + 1}`, value: log.load ?? 0 }))
-                    : (popupWorkoutStats?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
+                    : popupWorkoutStats?.loadChart && popupWorkoutStats.loadChart.length > 0
+                      ? popupWorkoutStats.loadChart.map((val, i) => ({ label: `R${i + 1}`, value: val }))
+                      : sessionData?.workoutLoads && sessionData.workoutLoads.length > 0
+                        ? sessionData.workoutLoads.map((w, i) => {
+                            const prev = i > 0 ? Number(sessionData.workoutLoads![i - 1].load) || 0 : 0;
+                            const value = Math.max(0, (Number(w.load) || 0) - prev);
+                            return { label: w.title || `R${i + 1}`, value };
+                          })
+                        : (sessionData?.loadChart || []).map((val, i) => ({ label: `R${i + 1}`, value: val }));
 
               const rawMax = Math.max(...bars.map((b) => b.value), 1);
               const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
@@ -568,6 +641,11 @@ export default function SessionDetailsContent({
           get the auth-prompt popup instead of the input opening */}
       {feedId && (
         <div className={`bg-white rounded-3xl border border-gray-100 shadow-sm mt-5 ${compact ? "p-4" : "p-5 md:p-8"}`}>
+          {!!sessionData?.commentCount && (
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Comments ({sessionData.commentCount})
+            </p>
+          )}
           <FeedComments
             feedId={String(feedId)}
             requireLogin={!isLoggedIn}

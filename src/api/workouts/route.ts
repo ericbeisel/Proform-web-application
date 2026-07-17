@@ -67,11 +67,69 @@ export interface WorkoutSession {
   joinedCount?: number;
   participants?: { id?: number; name?: string; username?: string; image?: string }[];
   franchiseCode?: string;
+  owner?: PublicWorkoutSessionOwner;
+  stats?: PublicWorkoutSessionStats;
+  locationName?: string;
+  liveUserCount?: number;
+  compareGroup?: PublicWorkoutSessionCompareGroup;
+  commentCount?: number;
+  loadChart?: number[];
+  workoutLoads?: PublicWorkoutLoad[];
+}
+
+export interface PublicWorkoutSessionOwner {
+  id?: number;
+  memberId?: number | null;
+  name?: string;
+  username?: string;
+  image?: string;
+}
+
+export interface PublicWorkoutSessionStats {
+  load?: number;
+  power?: number;
+  calories?: number;
+}
+
+export interface PublicWorkoutSessionMetrics {
+  viewed?: number;
+  started?: number;
+  completed?: number;
+}
+
+export interface PublicWorkoutSessionCompareGroup {
+  yours?: number;
+  avg?: number;
+  best?: number;
+}
+
+export interface PublicWorkoutLoad {
+  id: string;
+  title?: string;
+  createdDate?: string;
+  updatedDate?: string;
+  load?: number;
+  power?: number;
+  kcal?: number;
+  workoutId?: string;
+  program?: string;
+  workoutComplete?: boolean;
+  sessionId?: string;
+}
+
+export interface PublicWorkoutSessionComment {
+  id?: string;
+  text?: string;
+  createdAt?: string;
+  user?: { name?: string; username?: string; image?: string };
+  [key: string]: unknown;
 }
 
 export interface PublicWorkoutSession {
   id: string;
+  shortId?: string;
   title?: string;
+  subtitle?: string;
   workoutTitle?: string;
   programName?: string;
   workoutImage?: string;
@@ -81,6 +139,27 @@ export interface PublicWorkoutSession {
   program_id?: string;
   workout_code?: string;
   franchiseCode?: string;
+  createdAt?: string;
+  createdAtFormatted?: string;
+  completedAtFormatted?: string;
+  joinedCount?: number;
+  owner?: PublicWorkoutSessionOwner;
+  participants?: { id?: number; name?: string; username?: string; image?: string }[];
+  url?: string;
+  stats?: PublicWorkoutSessionStats;
+  locationName?: string;
+  prescribedBy?: string | null;
+  exercises?: unknown[];
+  liveUserCount?: number;
+  sessionMetrics?: PublicWorkoutSessionMetrics;
+  compareGroup?: PublicWorkoutSessionCompareGroup;
+  likeCount?: number;
+  commentCount?: number;
+  comments?: PublicWorkoutSessionComment[];
+  feedPostId?: string;
+  isLiked?: boolean;
+  loadChart?: number[];
+  workoutLoads?: PublicWorkoutLoad[];
 }
 
 export interface CreateSessionResponse {
