@@ -322,7 +322,14 @@ useEffect(() => {
       setLoading(true);
       const data = await getProgramDetail(programId);
       setProgram(data);
-      
+
+      console.log("🏷️ Franchise fields from API:", {
+        franchise: (data as any).franchise,
+        franchise_name: (data as any).franchise_name,
+        franchiseCode: (data as any).franchiseCode,
+        franchise_id: (data as any).franchise_id,
+      });
+
       // ← Store immediately when program loads
       if (data.id) {
         localStorage.setItem("workoutProgramId", data.id);
@@ -584,9 +591,16 @@ const handleAddToQueue = async (includeSupplemental: boolean, queueType: 'up_nex
 
           {/* Title + subtitle */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-base md:text-lg font-extrabold text-gray-900 truncate leading-tight">
-              {program.title}
-            </h1>
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-base md:text-lg font-extrabold text-gray-900 truncate leading-tight">
+                {program.title}
+              </h1>
+              {program.organization_name && (
+                <span className="shrink-0 bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full truncate max-w-[160px]">
+                  {program.organization_name}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-400 truncate">
               {program.duration} {program.description ? `· ${program.description}` : ""}
             </p>

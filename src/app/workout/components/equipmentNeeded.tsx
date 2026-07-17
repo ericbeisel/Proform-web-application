@@ -38,57 +38,26 @@ function computeSelectedIdsForLocation(
   return ids;
 }
 
-// Equipment tags actually used by this session's exercises (e.g. "BALANCE-PAD",
-// "FLOOR", "STANDING" — the same badges shown on the exercise cards), read from
-// the exercise list viewWorkoutSession stashed before navigating here.
-function getSessionEquipmentTags(): Set<string> {
-  const tags = new Set<string>();
-  try {
-    const raw = localStorage.getItem("pendingWorkoutGroups");
-    if (!raw) return tags;
-    const groups: WorkoutGroup[] = JSON.parse(raw);
-    groups.forEach((group) => {
-      group.workouts?.forEach((w) => {
-        if (w.supplemental) tags.add(w.supplemental.trim().toUpperCase());
-      });
-    });
-  } catch {
-    // malformed/missing — filtering below just falls back to the full list
-  }
-  return tags;
-}
-
-// Narrows the program's full equipment catalog down to only what this
-// session's exercises need. If nothing matches (or there's no session
-// exercise data at all), returns an empty list rather than the full
-// catalog — unrelated equipment should never show, even as a fallback.
-function filterEquipmentBySession(equipment: Equipment[], sessionTags: Set<string>): Equipment[] {
-  if (sessionTags.size === 0) {
-    console.warn("[equipmentNeeded] No session equipment tags found — Required list will be empty.");
-    return [];
-  }
-  const filtered = equipment.filter((eq) => {
-    const keywords = (eq.keyword || "")
-      .split(",")
-      .map((k) => k.trim().toUpperCase())
-      .filter(Boolean);
-    if (keywords.some((k) => sessionTags.has(k))) return true;
-    const nameUpper = eq.name?.trim().toUpperCase();
-    const slugUpper = eq.slug?.trim().toUpperCase();
-    const typeUpper = eq.type?.trim().toUpperCase();
-    return (
-      (!!nameUpper && sessionTags.has(nameUpper)) ||
-      (!!slugUpper && sessionTags.has(slugUpper)) ||
-      (!!typeUpper && sessionTags.has(typeUpper))
-    );
+// Dedup-by-name merge for the mixed equipment grid: location's saved gear,
+// then required-but-missing items, then the rest of the full catalog —
+// each only added if its name hasn't already been claimed by an earlier,
+// more specific source.
+function buildMixedEquipment(
+  locationEquipment: EquipmentItem[],
+  requiredList: Equipment[],
+  catalog: CatalogEquipment[],
+): (EquipmentItem | Equipment | CatalogEquipment)[] {
+  const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
+  locationEquipment.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
+  requiredList.forEach((eq) => {
+    const key = normalizeEquipmentName(eq.name);
+    if (!byName.has(key)) byName.set(key, eq);
   });
-  if (filtered.length === 0) {
-    console.warn(
-      "[equipmentNeeded] Session equipment tags matched nothing in the program catalog.",
-      { sessionTags: Array.from(sessionTags), catalogSample: equipment.slice(0, 3) },
-    );
-  }
-  return filtered;
+  catalog.forEach((eq) => {
+    const key = normalizeEquipmentName(eq.name);
+    if (!byName.has(key)) byName.set(key, eq);
+  });
+  return Array.from(byName.values());
 }
 
 export default function EquipmentNeededPage() {
@@ -124,9 +93,11 @@ export default function EquipmentNeededPage() {
 
         setLocations(locData);
         setAllEquipment(Array.isArray(allEquip) ? allEquip : []);
+        // getProgramEquipment already scopes to exactly what this program
+        // needs — no further client-side filtering required.
         let sessionEquip: Equipment[] = [];
         if (programEquip && Array.isArray(programEquip)) {
-          sessionEquip = filterEquipmentBySession(programEquip, getSessionEquipmentTags());
+          sessionEquip = programEquip;
           setProgramEquipment(sessionEquip);
           // Auto-select all required equipment when no location is chosen yet
           setSelectedEquipIds(new Set(sessionEquip.map((eq: Equipment) => eq.id)));
@@ -397,29 +368,46 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     programEquipment.length === 0 ||
     programEquipment.every((eq) => selectedEquipIds.has(eq.id));
 
-  // With a location selected, show Required + Available as one mixed grid —
-  // dedup by name so an item required AND present shows once. Deliberately
-  // excludes the full catalog: gear that's neither present at this location
-  // nor required for this session has no reason to be shown at all.
-  const mixedEquipment = (() => {
-    const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
-    equipments.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
-    programEquipment.forEach((eq) => {
-      const key = normalizeEquipmentName(eq.name);
-      if (!byName.has(key)) byName.set(key, eq);
-    });
-    return Array.from(byName.values());
-  })();
+  // With a location selected, show Required + Available + the rest of the
+  // catalog as one mixed grid — dedup by name so an item required AND
+  // present shows once.
+  const mixedEquipment = buildMixedEquipment(equipments, programEquipment, allEquipment);
 
-  // Highlight rule: an item is "matched" if it's actually present at the
-  // selected location (regardless of whether the session requires it) OR
-  // it's been manually toggled on — not just "required AND present", which
-  // used to hide gear you have but the session doesn't ask for.
-  const isPresentAtLocation = (eq: EquipmentItem | Equipment | CatalogEquipment) =>
-    equipments.some((av) => normalizeEquipmentName(av.name) === normalizeEquipmentName(eq.name));
-  const highlightedCount = mixedEquipment.filter(
-    (eq) => selectedEquipIds.has(eq.id) || isPresentAtLocation(eq),
-  ).length;
+  // Highlight rule: driven purely by selectedEquipIds (the same source of
+  // truth the "select all to proceed" gate below reads from). Items present
+  // at the location are already seeded into selectedEquipIds by
+  // computeSelectedIdsForLocation, so this stays in sync — if it also OR'd
+  // in a separate "is this actually present at the location" check, toggling
+  // one of those tiles off would silently desync: the tile would still show
+  // as selected (because it's still present at the location) even though
+  // it just dropped out of selectedEquipIds, so the gate would stay blocked
+  // with no visual indication of which tile was the problem.
+  const highlightedCount = mixedEquipment.filter((eq) => selectedEquipIds.has(eq.id)).length;
+
+  // Any tile (required or catalog-extra) not actually saved on the location —
+  // used for the "select at least one to proceed" gate below. Derived live
+  // from equipments/mixedEquipment every render, so it's never a stale
+  // snapshot from whenever the location happened to be selected.
+  const missingTiles = mixedEquipment.filter(
+    (eq) => !equipments.some((loc) => normalizeEquipmentName(loc.name) === normalizeEquipmentName(eq.name)),
+  );
+
+  // Narrower subset of missingTiles — only the ones actually required by the
+  // program. Used solely to decide which missing tiles get the green
+  // "needs attention" border; catalog-only extras stay neutral since they
+  // were never required.
+  const missingRequiredTiles = programEquipment.filter(
+    (eq) => !equipments.some((loc) => normalizeEquipmentName(loc.name) === normalizeEquipmentName(eq.name)),
+  );
+
+  // With a location selected, don't let the user proceed (or set up a new
+  // location) until they've selected at least one tile that wasn't already
+  // present at the location — the ones already saved there stay selected
+  // as-is and don't need to be touched.
+  const allMixedEquipSelected =
+    mixedEquipment.length === 0 ||
+    missingTiles.length === 0 ||
+    missingTiles.some((eq) => selectedEquipIds.has(eq.id));
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -564,7 +552,8 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                       {mixedEquipment.map((eq) => {
-                        const highlight = selectedEquipIds.has(eq.id) || isPresentAtLocation(eq);
+                        const highlight = selectedEquipIds.has(eq.id);
+                        const isMissingRequired = missingRequiredTiles.some((m) => m.id === eq.id);
 
                         return (
                           <button
@@ -574,7 +563,9 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                             className={`relative flex flex-col items-center bg-white border rounded-2xl p-3 shadow-sm transition-all hover:shadow-md ${
                               highlight
                                 ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10"
-                                : "border-gray-100 opacity-80"
+                                : isMissingRequired
+                                  ? "border-green-400 ring-2 ring-green-400/10"
+                                  : "border-gray-100 opacity-80"
                             }`}
                           >
                             {highlight && (
@@ -628,7 +619,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
             <>
               <button
                 onClick={() => handleStartSession()}
-                disabled={isDeleting || isCreatingNew}
+                disabled={isDeleting || isCreatingNew || !allMixedEquipSelected}
                 className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isDeleting ? (
@@ -638,29 +629,37 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 )}
               </button>
 
-              <p className="text-sm text-[#7c3aed] font-medium">+ Create a new location and proceed</p>
+              {!allMixedEquipSelected && (
+                <p className="text-xs text-gray-400 -mt-2">Select at least one missing item above to continue</p>
+              )}
+
+              <p className={`text-sm text-[#7c3aed] font-medium ${!allMixedEquipSelected ? "opacity-40" : ""}`}>
+                + Create a new location and proceed
+              </p>
 
               <input
                 type="text"
                 placeholder="New location name..."
                 value={newLocationName}
                 onChange={(e) => setNewLocationName(e.target.value)}
-                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed]"
+                disabled={!allMixedEquipSelected}
+                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-50"
               />
 
-              <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none">
+              <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none has-[:disabled]:opacity-40 has-[:disabled]:cursor-not-allowed">
                 <input
                   type="checkbox"
                   checked={makeDefault}
                   onChange={(e) => setMakeDefault(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer"
+                  disabled={!allMixedEquipSelected}
+                  className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer disabled:cursor-not-allowed"
                 />
                 <span className="text-sm font-medium text-gray-700">Make this my default location</span>
               </label>
 
               <button
                 onClick={() => newLocationName.trim() && handleStartSession(newLocationName.trim())}
-                disabled={isCreatingNew || isDeleting || !newLocationName.trim()}
+                disabled={isCreatingNew || isDeleting || !newLocationName.trim() || !allMixedEquipSelected}
                 className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isCreatingNew ? (
