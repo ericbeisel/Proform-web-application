@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import FeedComments from "@/components/FeedComments";
+import { FeedComment } from "@/api/feed/route";
 import { useFeedLike } from "@/hooks/useFeedLike";
 import { getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
 import {
@@ -212,6 +213,18 @@ export default function SessionDetailsContent({
   const effectiveUserName = userName || sessionData?.owner?.name || "";
   const effectiveUserUsername = userUsername || sessionData?.owner?.username || "";
   const effectiveUserImage = userImage || sessionData?.owner?.image || "";
+
+  // The public preview endpoint returns comments alongside the rest of the
+  // session data (no auth needed) — hand these to FeedComments so anonymous
+  // viewers see the real list instead of a "log in to view" wall.
+  const publicComments: FeedComment[] | undefined = sessionData?.comments?.map((c, idx) => ({
+    id: (c.id as string) ?? `public-${idx}`,
+    text: c.text ?? (c as { comment?: string }).comment,
+    created_at: c.createdAt ?? (c as { created_at?: string }).created_at,
+    user: c.user
+      ? { id: 0, name: c.user.name ?? "", username: c.user.username ?? "", image: c.user.image }
+      : undefined,
+  }));
 
   const handleJoinSession = async () => {
     if (joiningSession) return;
@@ -494,26 +507,6 @@ export default function SessionDetailsContent({
         );
       })()}
 
-      {/* How you compare — power output vs. the group average/best, from the
-          public preview endpoint's compareGroup. */}
-      {isCompleted && sessionData?.compareGroup && (
-        <div className="mb-4">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">How You Compare</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "Yours", value: sessionData.compareGroup.yours, accent: "text-purple-600" },
-              { label: "Average", value: sessionData.compareGroup.avg, accent: "text-gray-900" },
-              { label: "Best", value: sessionData.compareGroup.best, accent: "text-amber-500" },
-            ].map(({ label, value, accent }) => (
-              <div key={label} className="bg-gray-50 rounded-2xl py-3 text-center border border-gray-100">
-                <p className={`text-[20px] font-extrabold ${accent}`}>{value ?? "—"}</p>
-                <p className="text-[10px] text-gray-400 font-medium mt-0.5">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Load chart (simple CSS bars) — same authenticated-first, public-preview-
           fallback ordering as the Results section above. */}
       {isCompleted && (
@@ -662,15 +655,11 @@ export default function SessionDetailsContent({
           get the auth-prompt popup instead of the input opening */}
       {feedId && (
         <div className={`bg-white rounded-3xl border border-gray-100 shadow-sm mt-5 ${compact ? "p-4" : "p-5 md:p-8"}`}>
-          {!!sessionData?.commentCount && (
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Comments ({sessionData.commentCount})
-            </p>
-          )}
           <FeedComments
             feedId={String(feedId)}
             requireLogin={!isLoggedIn}
             onRequireLogin={() => setAuthPrompt("engage")}
+            publicComments={publicComments}
           />
         </div>
       )}

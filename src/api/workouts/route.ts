@@ -73,6 +73,7 @@ export interface WorkoutSession {
   liveUserCount?: number;
   compareGroup?: PublicWorkoutSessionCompareGroup;
   commentCount?: number;
+  comments?: PublicWorkoutSessionComment[];
   loadChart?: number[];
   workoutLoads?: PublicWorkoutLoad[];
 }

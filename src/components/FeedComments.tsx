@@ -9,6 +9,10 @@ interface Props {
   onCommentAdded?: () => void;
   requireLogin?: boolean;
   onRequireLogin?: () => void;
+  /** Comments already fetched from a public (no-auth) endpoint — when given,
+   * logged-out viewers see these directly instead of a "log in to view"
+   * wall. Posting a new comment still requires login regardless. */
+  publicComments?: FeedComment[];
 }
 
 function formatCommentTime(dateStr?: string): string {
@@ -23,7 +27,7 @@ function formatCommentTime(dateStr?: string): string {
   }
 }
 
-export default function FeedComments({ feedId, onCommentAdded, requireLogin, onRequireLogin }: Props) {
+export default function FeedComments({ feedId, onCommentAdded, requireLogin, onRequireLogin, publicComments }: Props) {
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -37,8 +41,15 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
 
   useEffect(() => {
     // /feed/{id}/comments requires auth server-side — skip the request
-    // entirely when logged out instead of firing a doomed fetch.
+    // entirely when logged out instead of firing a doomed fetch. If a
+    // public (no-auth) endpoint already handed us the comments, show those
+    // instead of blocking the view behind login — only posting needs auth.
     if (requireLogin) {
+      if (publicComments) {
+        setComments(publicComments);
+        setTotal(publicComments.length);
+        setHasMore(false);
+      }
       setLoading(false);
       return;
     }
@@ -49,7 +60,7 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
       setHasMore(hasMore);
       setPage(1);
     }).finally(() => setLoading(false));
-  }, [feedId, requireLogin]);
+  }, [feedId, requireLogin, publicComments]);
 
   const openInput = () => {
     if (requireLogin) {
@@ -143,7 +154,7 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
       )}
 
       {/* Comments list */}
-      {requireLogin ? (
+      {requireLogin && !publicComments ? (
         <button
           onClick={() => onRequireLogin?.()}
           className="text-[13px] font-semibold text-purple-600 hover:text-purple-700 transition py-2"
