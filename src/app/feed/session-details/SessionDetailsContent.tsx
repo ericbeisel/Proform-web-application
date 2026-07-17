@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Dumbbell,
   Heart,
-  MapPin,
   Users,
   X,
 } from "lucide-react";
@@ -156,7 +155,11 @@ export default function SessionDetailsContent({
         setPopupPowerTags([]);
       });
 
-    if (isCompleted) {
+    // Authenticated-only endpoints — skip entirely when logged out rather
+    // than firing them and risking a delayed, degenerate (e.g. all-zero)
+    // success response overwrite the correct public-data-derived Results/
+    // Load Chart a moment after they first render correctly.
+    if (isCompleted && isLoggedIn) {
       getWorkoutStats(activityId).then(setPopupWorkoutStats).catch(() => setPopupWorkoutStats(null));
       getPowerSetLogs(activityId).then(setPopupPowerSetLogs).catch(() => setPopupPowerSetLogs([]));
       getTrackingLogs({ sessionId: activityId }).then(setPopupTrackingLogs).catch(() => setPopupTrackingLogs([]));
@@ -448,16 +451,6 @@ export default function SessionDetailsContent({
             {formatSessionDate(date)}
           </span>
         </div>
-
-        {/* Location box — only when the session was logged at a saved location */}
-        {sessionData?.locationName && (
-          <div className={`flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-100 ${compact ? "px-3 py-2.5 mb-3" : "px-4 py-3 mb-5"}`}>
-            <MapPin size={compact ? 13 : 15} className="text-gray-400 flex-shrink-0" />
-            <span className={`text-gray-500 font-medium ${compact ? "text-[12px]" : "text-[13px]"}`}>
-              {sessionData.locationName}
-            </span>
-          </div>
-        )}
 
       {/* Results section — prefers the authenticated per-round records, then
           authenticated workout stats, then falls back to the public preview
