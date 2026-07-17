@@ -17,6 +17,7 @@ import { useFeedLike } from "@/hooks/useFeedLike";
 import { getAuthUser, getUserIdFromToken } from "@/lib/auth/session";
 import {
   getWorkoutSessionById,
+  getPublicWorkoutSession,
   getWorkoutStats,
   getPowerSetLogs,
   getTrackingLogs,
@@ -104,11 +105,19 @@ export default function SessionDetailsContent({
 
   useEffect(() => {
     if (!activityId) return;
-    getWorkoutSessionById(activityId)
+    // Logged-in viewers get the full session (joinedCount, participants, etc.);
+    // anonymous share-link visitors can't hit that endpoint, so they use the
+    // public preview endpoint instead. Also falls back to the public preview
+    // if the authenticated lookup fails (e.g. viewer isn't a participant).
+    const sessionPromise = isLoggedIn
+      ? getWorkoutSessionById(activityId).catch(() => getPublicWorkoutSession(activityId))
+      : getPublicWorkoutSession(activityId);
+
+    sessionPromise
       .then((session) => {
         setSessionProgramImage(session.workoutImage || null);
         setSessionWorkoutCategory(session.workoutCategory || null);
-        setSessionData(session);
+        setSessionData(session as unknown as WorkoutSession);
 
         const programCode = session.program_id || session.workout_code;
         if (programCode) {
@@ -344,7 +353,7 @@ export default function SessionDetailsContent({
 
           <div className={`absolute ${compact ? "top-2.5 right-2.5" : "top-4 right-4"}`}>
             <span className={`bg-white/20 backdrop-blur-sm text-white font-bold rounded-full uppercase tracking-wide truncate inline-block ${compact ? "text-[9px] px-2 py-1 max-w-[110px]" : "text-[10px] px-3 py-1.5 max-w-[140px]"}`}>
-              {((sessionData as any)?.franchiseCode || type || "WORKOUT").toUpperCase()}
+              {(sessionData?.franchiseCode || type || "WORKOUT").toUpperCase()}
             </span>
           </div>
 

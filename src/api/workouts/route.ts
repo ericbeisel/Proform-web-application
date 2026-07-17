@@ -66,6 +66,21 @@ export interface WorkoutSession {
   createdAtFormatted?: string;
   joinedCount?: number;
   participants?: { id?: number; name?: string; username?: string; image?: string }[];
+  franchiseCode?: string;
+}
+
+export interface PublicWorkoutSession {
+  id: string;
+  title?: string;
+  workoutTitle?: string;
+  programName?: string;
+  workoutImage?: string;
+  workoutCategory?: string;
+  week?: string;
+  day?: string;
+  program_id?: string;
+  workout_code?: string;
+  franchiseCode?: string;
 }
 
 export interface CreateSessionResponse {
@@ -268,6 +283,16 @@ export const getWorkoutSessionById = async (sessionId: string): Promise<WorkoutS
   const { data } = await apiClient.get<WorkoutSession>(`/workouts/session/${sessionId}`);
   console.log("[workout session] API response:", data);
   return data;
+};
+
+// Unauthenticated preview endpoint for share links — used when the viewer
+// isn't logged in (or the authenticated lookup fails/404s because they
+// don't have access to the session).
+export const getPublicWorkoutSession = async (sessionId: string): Promise<PublicWorkoutSession> => {
+  const { data } = await apiClient.get<{ message: string; data: PublicWorkoutSession }>(
+    `/public-workout-session/${sessionId}`,
+  );
+  return data.data;
 };
 
 export const swapExercise = async (
