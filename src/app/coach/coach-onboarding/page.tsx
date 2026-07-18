@@ -11,7 +11,7 @@ export default function CoachOnBoardingPage() {
 
   function handleSignInClick() {
     if (getAuthToken()) {
-      router.push("/coach/coach-dashboard");
+      router.push("/coach/coach-dashboard?callback=/coach/coach-dashboard");
     } else {
       router.push("/auth/login");
     }
