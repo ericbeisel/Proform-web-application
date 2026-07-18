@@ -55,6 +55,12 @@ export default function EquipmentNeededPage() {
   const [newLocationName, setNewLocationName] = useState("");
   const [displayLocationName, setDisplayLocationName] = useState("Selected Location");
   const [makeDefault, setMakeDefault] = useState(false);
+  const [defaultLocationId, setDefaultLocationId] = useState<string | null>(null);
+  const [exerciseTitle, setExerciseTitle] = useState<string>("");
+
+  useEffect(() => {
+    setExerciseTitle(localStorage.getItem("workoutTitle") || "");
+  }, []);
 
 
   useEffect(() => {
@@ -81,6 +87,20 @@ export default function EquipmentNeededPage() {
           setSelectedEquipIds(new Set(sessionEquip.map((eq: Equipment) => eq.id)));
         }
 
+        // Fetch the user's saved default location up front — used both to
+        // label it in the dropdown and (below) to pre-select it when the
+        // user hasn't just come from creating a new location.
+        let defaultId: string | null = null;
+        try {
+          const defaultLoc = await equipmentApi.getDefaultLocation();
+          console.log("[equipmentNeeded] getDefaultLocation response:", defaultLoc);
+          defaultId = defaultLoc?.data?.id ? String(defaultLoc.data.id) : null;
+          console.log("[equipmentNeeded] resolved defaultId:", defaultId, "matching location:", locData.find((l: LocationItem) => String(l.id) === defaultId));
+          setDefaultLocationId(defaultId);
+        } catch (e) {
+          console.log("[equipmentNeeded] getDefaultLocation failed:", e);
+        }
+
         // Auto-select newly created location if navigated from createLocation page
         const newId = localStorage.getItem("newLocationId");
         const savedName = localStorage.getItem("newLocationName");
@@ -100,25 +120,21 @@ export default function EquipmentNeededPage() {
           } catch (e) {
             console.error("Failed to fetch new location detail:", e);
           }
-        } else {
+        } else if (defaultId && locData.some((l: LocationItem) => String(l.id) === defaultId)) {
           // Pre-select the user's saved default location (mirrors mobile's
           // OverviewScreen showBasedOnDefaultLocation) — this only pre-fills
           // the selection so the confirmation flow below still runs as
           // normal, it never auto-starts the session.
+          const locName = locData.find((l: LocationItem) => String(l.id) === defaultId)?.name || "Selected Location";
+          setSelectedLocation(defaultId);
+          setDisplayLocationName(locName);
           try {
-            const defaultLoc = await equipmentApi.getDefaultLocation();
-            const defaultId = defaultLoc?.data?.id;
-            if (defaultId && locData.some((l: LocationItem) => String(l.id) === String(defaultId))) {
-              const locName = locData.find((l: LocationItem) => String(l.id) === String(defaultId))?.name || "Selected Location";
-              setSelectedLocation(String(defaultId));
-              setDisplayLocationName(locName);
-              const detail = await equipmentApi.getLocationDetail(defaultId);
-              const fetchedList = detail.equipmentList || [];
-              setEquipments(fetchedList);
-              setSelectedEquipIds(
-                computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
-              );
-            }
+            const detail = await equipmentApi.getLocationDetail(defaultId);
+            const fetchedList = detail.equipmentList || [];
+            setEquipments(fetchedList);
+            setSelectedEquipIds(
+              computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
+            );
           } catch {
             // no default location set — leave the dropdown on "Select location..."
           }
@@ -346,19 +362,10 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
     programEquipment.length === 0 ||
     programEquipment.every((eq) => selectedEquipIds.has(eq.id));
 
-  // With a location selected, show Required + Available as one mixed grid —
-  // dedup by name so an item required AND present shows once. Deliberately
-  // excludes the full catalog: gear that's neither present at this location
-  // nor required for this session has no reason to be shown at all.
-  const mixedEquipment = (() => {
-    const byName = new Map<string, EquipmentItem | Equipment | CatalogEquipment>();
-    equipments.forEach((eq) => byName.set(normalizeEquipmentName(eq.name), eq));
-    programEquipment.forEach((eq) => {
-      const key = normalizeEquipmentName(eq.name);
-      if (!byName.has(key)) byName.set(key, eq);
-    });
-    return Array.from(byName.values());
-  })();
+  // With a location selected, show only the Required list — the location's
+  // own saved gear is never shown as its own separate tiles, it's only used
+  // (below) to decide which required items are already highlighted/matched.
+  const mixedEquipment: (EquipmentItem | Equipment | CatalogEquipment)[] = programEquipment;
 
   // Highlight rule: an item is "matched" if it's actually present at the
   // selected location (regardless of whether the session requires it) OR
@@ -369,6 +376,19 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
   const highlightedCount = mixedEquipment.filter(
     (eq) => selectedEquipIds.has(eq.id) || isPresentAtLocation(eq),
   ).length;
+
+  // Required items not actually saved at the location — reactive, derived
+  // live from equipments/programEquipment every render.
+  const missingTiles = mixedEquipment.filter((eq) => !isPresentAtLocation(eq));
+
+  // With a location selected, don't let the user proceed until they've
+  // selected at least one tile that wasn't already present at the location —
+  // the ones already saved there stay selected as-is and don't need to be
+  // touched.
+  const allMixedEquipSelected =
+    mixedEquipment.length === 0 ||
+    missingTiles.length === 0 ||
+    missingTiles.some((eq) => selectedEquipIds.has(eq.id));
 
   return (
     <div className="min-h-screen bg-white font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
@@ -383,6 +403,12 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
             <p className="text-xs text-gray-400 font-medium">Verify your gear</p>
           </div>
         </div>
+
+        {exerciseTitle && (
+          <p className="text-lg sm:text-xl font-bold text-[#7c3aed] text-right truncate max-w-[50%]">
+            {exerciseTitle}
+          </p>
+        )}
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-8 pb-20 mt-6">
@@ -402,7 +428,9 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 >
                   <option value="">No location</option>
                   {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}{String(loc.id) === defaultLocationId ? " (Default Location)" : ""}
+                    </option>
                   ))}
                 </select>
                 {selectedLocation ? (
@@ -575,19 +603,45 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
           ) : selectedLocation && !isNewlyCreated ? (
             /* ── Dropdown-selected location: full flow ── */
             <>
+              <div className="w-full max-w-sm flex gap-3">
+                <button
+                  onClick={() => {
+                    localStorage.setItem("confirmEquipmentLocationId", selectedLocation);
+                    localStorage.setItem("confirmEquipmentLocationName", displayLocationName);
+                    localStorage.setItem("confirmEquipmentSelectedIds", JSON.stringify(Array.from(selectedEquipIds)));
+                    router.push("/workout/confirmEquipment");
+                  }}
+                  disabled={isDeleting || isCreatingNew || !allMixedEquipSelected}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (selectedLocation) localStorage.setItem("referenceLocationId", selectedLocation);
+                    router.push("/workout/createLocation");
+                  }}
+                  disabled={isDeleting || isCreatingNew}
+                  className="shrink-0 bg-white text-[#7c3aed] border-2 border-[#7c3aed] px-4 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all hover:bg-purple-50 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <MapPin size={16} />
+                  Create a Location
+                </button>
+              </div>
+
+              {!allMixedEquipSelected && (
+                <p className="text-xs text-gray-400 -mt-2">Select at least one missing item above to continue</p>
+              )}
+
               <button
-                onClick={() => {
-                  localStorage.setItem("confirmEquipmentLocationId", selectedLocation);
-                  localStorage.setItem("confirmEquipmentLocationName", displayLocationName);
-                  localStorage.setItem("confirmEquipmentSelectedIds", JSON.stringify(Array.from(selectedEquipIds)));
-                  router.push("/workout/confirmEquipment");
-                }}
-                disabled={isDeleting || isCreatingNew}
-                className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                onClick={() => handleStartSession()}
+                className="w-full max-w-sm bg-[#7c3aed] hover:bg-[#6d28d9] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all active:scale-95"
               >
-                Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} />
+                Proceed <ChevronRight size={16} />
               </button>
 
+              {/*
               <p className="text-sm text-[#7c3aed] font-medium">+ Create a new location and proceed</p>
 
               <input
@@ -619,6 +673,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                   <>Proceed <ChevronRight size={16} /></>
                 )}
               </button>
+              */}
             </>
           ) : (
             /* ── No location selected ── */

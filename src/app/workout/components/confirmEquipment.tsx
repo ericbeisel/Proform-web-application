@@ -38,6 +38,26 @@ function computeSelectedIdsForLocation(
   return ids;
 }
 
+// The "at this location, not required" tiles should start unchecked so
+// tapping them behaves like every other category (checkmark reflects real
+// selection) — computeSelectedIdsForLocation (and equipmentNeeded's carried-
+// over selection) auto-includes every location item regardless of whether
+// it's required, so that noise needs to be stripped back out here.
+function excludeNonRequiredLocationExtras(
+  ids: Set<number>,
+  fetchedList: EquipmentItem[],
+  requiredList: Equipment[],
+): Set<number> {
+  const requiredNames = new Set(requiredList.map((eq) => normalizeEquipmentName(eq.name)));
+  const result = new Set(ids);
+  fetchedList.forEach((eq) => {
+    if (!requiredNames.has(normalizeEquipmentName(eq.name))) {
+      result.delete(eq.id);
+    }
+  });
+  return result;
+}
+
 // Dedup-by-name merge for the mixed equipment grid: location's saved gear,
 // then the required list, then the rest of the full catalog ("other
 // equipment") — each only added if its name hasn't already been claimed by
@@ -73,9 +93,7 @@ export default function ConfirmEquipmentPage() {
   const [allEquipmentLoading, setAllEquipmentLoading] = useState(true);
   const [selectedEquipIds, setSelectedEquipIds] = useState<Set<number>>(new Set());
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [isNewlyCreated, setIsNewlyCreated] = useState(false);
-  const [newLocationName, setNewLocationName] = useState("");
-  const [displayLocationName, setDisplayLocationName] = useState("Selected Location");
+  const [defaultLocationId, setDefaultLocationId] = useState<string | null>(null);
   const [makeDefault, setMakeDefault] = useState(false);
 
   useEffect(() => {
@@ -96,10 +114,16 @@ export default function ConfirmEquipmentPage() {
           setProgramEquipment(sessionEquip);
         }
 
+        try {
+          const defaultLoc = await equipmentApi.getDefaultLocation();
+          setDefaultLocationId(defaultLoc?.data?.id ? String(defaultLoc.data.id) : null);
+        } catch {
+          // no default location set
+        }
+
         // Pick up the location + selection carried over from the Equipment
         // Check page's "Add Equipment to X and Proceed" button.
         const carriedLocationId = localStorage.getItem("confirmEquipmentLocationId");
-        const carriedLocationName = localStorage.getItem("confirmEquipmentLocationName");
         const carriedSelectedIds = localStorage.getItem("confirmEquipmentSelectedIds");
         localStorage.removeItem("confirmEquipmentLocationId");
         localStorage.removeItem("confirmEquipmentLocationName");
@@ -107,16 +131,14 @@ export default function ConfirmEquipmentPage() {
 
         if (carriedLocationId) {
           setSelectedLocation(carriedLocationId);
-          setDisplayLocationName(carriedLocationName || "Selected Location");
           try {
             const detail = await equipmentApi.getLocationDetail(carriedLocationId);
             const fetchedList = detail.equipmentList || [];
             setEquipments(fetchedList);
-            setSelectedEquipIds(
-              carriedSelectedIds
-                ? new Set<number>(JSON.parse(carriedSelectedIds))
-                : computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []),
-            );
+            const initialIds = carriedSelectedIds
+              ? new Set<number>(JSON.parse(carriedSelectedIds))
+              : computeSelectedIdsForLocation(fetchedList, sessionEquip, Array.isArray(allEquip) ? allEquip : []);
+            setSelectedEquipIds(excludeNonRequiredLocationExtras(initialIds, fetchedList, sessionEquip));
           } catch (e) {
             console.error("Failed to fetch carried-over location detail:", e);
           }
@@ -140,7 +162,8 @@ export default function ConfirmEquipmentPage() {
       const fetchedList = data.equipmentList || [];
       setEquipments(fetchedList);
 
-      setSelectedEquipIds(computeSelectedIdsForLocation(fetchedList, programEquipment, allEquipment));
+      const initialIds = computeSelectedIdsForLocation(fetchedList, programEquipment, allEquipment);
+      setSelectedEquipIds(excludeNonRequiredLocationExtras(initialIds, fetchedList, programEquipment));
 
     } catch (err) {
       console.error(err);
@@ -152,15 +175,11 @@ export default function ConfirmEquipmentPage() {
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedLocation(id);
-    setIsNewlyCreated(false);
     if (id) {
-      const locName = locations.find((l) => String(l.id) === id)?.name || "Selected Location";
-      setDisplayLocationName(locName);
       fetchLocationDetail(id);
     } else {
       setEquipments([]);
       setSelectedEquipIds(new Set(programEquipment.map((eq) => eq.id)));
-      setDisplayLocationName("Selected Location");
     }
   };
 
@@ -229,7 +248,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
       return;
     }
 
-    if (locationNameOverride && makeDefault) {
+    if (makeDefault) {
       await equipmentApi.selectDefaultLocation(locationId).catch(() => {});
     }
 
@@ -319,23 +338,15 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
   }
 };
 
-  const allProgramEquipSelected =
-    programEquipment.length === 0 ||
-    programEquipment.every((eq) => selectedEquipIds.has(eq.id));
-
   // Mixed grid: location's saved gear + required list + the rest of the full
   // catalog ("other equipment"), deduped by name.
   const mixedEquipment = buildMixedEquipment(equipments, programEquipment, allEquipment);
 
-  // An item actually saved at this location gets the green "already have
-  // this" treatment, regardless of required/selected state. Everything else
-  // (required-but-missing or extra catalog items) follows the normal
-  // purple-when-selected / gray-when-not scheme.
   const isPresentAtLocation = (eq: EquipmentItem | Equipment | CatalogEquipment) =>
     equipments.some((av) => normalizeEquipmentName(av.name) === normalizeEquipmentName(eq.name));
-  const highlightedCount = mixedEquipment.filter(
-    (eq) => selectedEquipIds.has(eq.id) || isPresentAtLocation(eq),
-  ).length;
+  // Matches the tile coloring rule below — only counts what's actually
+  // selected, not everything physically present at the location.
+  const highlightedCount = mixedEquipment.filter((eq) => selectedEquipIds.has(eq.id)).length;
 
   // Any tile (required or catalog-extra) not actually saved at the
   // location — reactive, derived live from equipments/mixedEquipment every
@@ -382,12 +393,14 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 >
                   <option value="">No location</option>
                   {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}{String(loc.id) === defaultLocationId ? " (Default Location)" : ""}
+                    </option>
                   ))}
                 </select>
                 {selectedLocation ? (
                   <button
-                    onClick={() => { setSelectedLocation(""); setEquipments([]); setSelectedEquipIds(new Set(programEquipment.map((eq) => eq.id))); setIsNewlyCreated(false); setDisplayLocationName("Selected Location"); }}
+                    onClick={() => { setSelectedLocation(""); setEquipments([]); setSelectedEquipIds(new Set(programEquipment.map((eq) => eq.id))); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
                     <X size={14} />
@@ -479,26 +492,49 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                       </span>
                     </div>
 
+                    {/* Legend — explains what each border color/checkmark means */}
+                    <div className="mb-4 px-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 size={12} className="text-[#7c3aed] flex-shrink-0" fill="#EFE6F9" />
+                        <span className="text-[11px] text-gray-500">Selected</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full border-2 border-green-400 bg-white flex-shrink-0" />
+                        <span className="text-[11px] text-gray-500">Required, not selected</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full border-2 border-[#7c3aed] bg-white flex-shrink-0" />
+                        <span className="text-[11px] text-gray-500">At this location, not required</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full border-2 border-gray-200 bg-white flex-shrink-0" />
+                        <span className="text-[11px] text-gray-500">Other equipment</span>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                       {mixedEquipment.map((eq) => {
-                        const atLocation = isPresentAtLocation(eq);
+                        // At this location but not required: border is
+                        // always purple (informational — "you have this
+                        // gear"), but excludeNonRequiredLocationExtras keeps
+                        // these out of the initial selection, so the
+                        // checkmark still reflects genuine taps rather than
+                        // the location's auto-seeded selection. Otherwise:
+                        // purple + checkmark if selected, green if required
+                        // but not selected (still needed), plain otherwise.
+                        const manuallySelected = selectedEquipIds.has(eq.id);
                         const isRequired = programEquipment.some(
                           (req) => normalizeEquipmentName(req.name) === normalizeEquipmentName(eq.name),
                         );
-                        const manuallySelected = selectedEquipIds.has(eq.id);
-                        // Purple = required (always, regardless of match) OR
-                        // a catalog extra the user just tapped on. Green =
-                        // the location's own saved gear that isn't required.
-                        // Plain = not required, not at this location, and
-                        // not yet tapped.
-                        const category: "purple" | "green" | "none" = isRequired
+                        const atLocation = isPresentAtLocation(eq);
+                        const isLocationExtra = atLocation && !isRequired;
+                        const category: "purple" | "green" | "none" = isLocationExtra
                           ? "purple"
-                          : atLocation
-                            ? "green"
-                            : manuallySelected
-                              ? "purple"
+                          : manuallySelected
+                            ? "purple"
+                            : isRequired
+                              ? "green"
                               : "none";
-                        const showCheck = category !== "none";
 
                         return (
                           <button
@@ -513,8 +549,8 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                                   : "border-gray-100 opacity-80"
                             }`}
                           >
-                            {showCheck && (
-                              <div className={`absolute top-1.5 right-1.5 animate-in zoom-in ${category === "green" ? "text-green-500" : "text-[#7c3aed]"}`}>
+                            {manuallySelected && (
+                              <div className="absolute top-1.5 right-1.5 animate-in zoom-in text-[#7c3aed]">
                                 <CheckCircle2 size={14} fill="white" />
                               </div>
                             )}
@@ -546,101 +582,32 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
 
         {/* ACTION BUTTONS */}
         <div className="mt-12 flex flex-col items-center gap-4">
-          {selectedLocation && isNewlyCreated ? (
-            /* ── Newly created location: only Start Workout ── */
-            <button
-              onClick={() => handleStartSession()}
-              disabled={isDeleting || isCreatingNew}
-              className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isDeleting ? (
-                <><Loader2 size={16} className="animate-spin" /> Setting up...</>
-              ) : (
-                <>Start Workout <ChevronRight size={16} /></>
-              )}
-            </button>
-          ) : selectedLocation && !isNewlyCreated ? (
-            /* ── Dropdown-selected location: full flow ── */
-            <>
-              <button
-                onClick={() => handleStartSession()}
-                disabled={isDeleting || isCreatingNew || !allMixedEquipSelected}
-                className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isDeleting ? (
-                  <><Loader2 size={16} className="animate-spin" /> Setting up...</>
-                ) : (
-                  <>Add Equipment to {displayLocationName} and Proceed <ChevronRight size={16} /></>
-                )}
-              </button>
+          <button
+            onClick={() => handleStartSession()}
+            disabled={isDeleting || isCreatingNew || !allMixedEquipSelected}
+            className="w-full max-w-sm bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isDeleting ? (
+              <><Loader2 size={16} className="animate-spin" /> Setting up...</>
+            ) : (
+              <>Proceed <ChevronRight size={16} /></>
+            )}
+          </button>
 
-              {!allMixedEquipSelected && (
-                <p className="text-xs text-gray-400 -mt-2">Select at least one missing item above to continue</p>
-              )}
+          {!allMixedEquipSelected && (
+            <p className="text-xs text-gray-400 -mt-2">Select at least one missing item above to continue</p>
+          )}
 
-              <p className={`text-sm text-[#7c3aed] font-medium ${!allMixedEquipSelected ? "opacity-40" : ""}`}>
-                + Create a new location and proceed
-              </p>
-
+          {selectedLocation && (
+            <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none">
               <input
-                type="text"
-                placeholder="New location name..."
-                value={newLocationName}
-                onChange={(e) => setNewLocationName(e.target.value)}
-                disabled={!allMixedEquipSelected}
-                className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#7c3aed] disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-50"
+                type="checkbox"
+                checked={makeDefault}
+                onChange={(e) => setMakeDefault(e.target.checked)}
+                className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer"
               />
-
-              <label className="w-full max-w-sm flex items-center gap-2.5 cursor-pointer select-none has-[:disabled]:opacity-40 has-[:disabled]:cursor-not-allowed">
-                <input
-                  type="checkbox"
-                  checked={makeDefault}
-                  onChange={(e) => setMakeDefault(e.target.checked)}
-                  disabled={!allMixedEquipSelected}
-                  className="w-4 h-4 rounded accent-[#7c3aed] cursor-pointer disabled:cursor-not-allowed"
-                />
-                <span className="text-sm font-medium text-gray-700">Make this my default location</span>
-              </label>
-
-              <button
-                onClick={() => newLocationName.trim() && handleStartSession(newLocationName.trim())}
-                disabled={isCreatingNew || isDeleting || !newLocationName.trim() || !allMixedEquipSelected}
-                className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isCreatingNew ? (
-                  <><Loader2 size={16} className="animate-spin" /> Creating...</>
-                ) : (
-                  <>Proceed <ChevronRight size={16} /></>
-                )}
-              </button>
-            </>
-          ) : (
-            /* ── No location selected ── */
-            <>
-              <button
-                onClick={() => router.push("/workout/createLocation")}
-                disabled={isDeleting || isCreatingNew}
-                className="w-full max-w-sm bg-[#7c3aed] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-purple-200 flex items-center justify-center gap-2 transition-all hover:bg-[#6d28d9] active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                <MapPin size={16} />
-                Create Location
-              </button>
-
-              <button
-                onClick={() => handleStartSession("Temporary Location")}
-                disabled={isDeleting || isCreatingNew || !allProgramEquipSelected}
-                className="text-[#7c3aed] text-sm font-medium hover:text-[#6d28d9] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isDeleting ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 size={14} className="animate-spin" />
-                    Starting...
-                  </span>
-                ) : (
-                  "Start Workout Without Location"
-                )}
-              </button>
-            </>
+              <span className="text-sm font-medium text-gray-700">Set as default location</span>
+            </label>
           )}
         </div>
       </div>
