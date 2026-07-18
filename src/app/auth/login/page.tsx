@@ -16,9 +16,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  
 
   const router = useRouter();
   const searchParams = useSearchParams();
+  const callback = searchParams.get("callback");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -40,12 +42,9 @@ export default function LoginPage() {
     try {
       const data = await login(formData.email, formData.password);
 
-      console.log("🔐 Login Response:", data);
-
       // Save token
       if (data.token) {
         localStorage.setItem("token", data.token);
-        console.log("✅ Token saved to localStorage");
       }
 
       // Extract role (support both role and role_id)
@@ -70,17 +69,18 @@ export default function LoginPage() {
         console.log("✅ User data saved with role:", userRole);
       }
 
-      // Check account status & redirect
-      const redirectTo = await checkAccountStatus();
-      const nextPath = searchParams.get("next");
-      const safeNextPath =
-        nextPath && nextPath.startsWith("/") && !nextPath.startsWith("/auth")
-          ? nextPath
-          : null;
+      // If callback exists, redirect directly to callback
+if (callback) {
+  console.log("🔀 Redirecting to callback:", callback);
+  window.location.href = callback;
+  return;
+}
 
-      console.log("🔀 Redirecting to:", safeNextPath || redirectTo);
+// Otherwise continue normal account-status based redirect
+const redirectTo = await checkAccountStatus();
 
-      window.location.href = safeNextPath ?? redirectTo;
+console.log("🔀 Redirecting to:", redirectTo);
+window.location.href = redirectTo;
 
     } catch (err: any) {
       const errorMsg = err.message || "Unable to login. Please try again.";
