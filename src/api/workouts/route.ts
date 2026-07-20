@@ -1046,3 +1046,130 @@ export const getDropdownOptions = async (): Promise<DropdownOptions> => {
     throw new Error(getErrorMessage(error, "Failed to fetch dropdown options."));
   }
 };
+
+// ===========================================
+// EXERCISE LOGS
+// ===========================================
+
+export interface ExerciseLogSet {
+  id: number;
+  exercise_log_id: number;
+  set_number: number;
+  unit_type: string;
+  reps: number | null;
+  value: number | null;
+  value_secondary: number | null;
+  weight_1: number | null;
+  weight_2: number | null;
+  measurement: string | null;
+  completed: boolean;
+  created_at: string;
+}
+
+export interface ExerciseLogEntry {
+  id: number;
+  member_id: string;
+  user_id: number;
+  exercise_id: string;
+  exercise_title: string;
+  session_id: string | null;
+  photos: string[];
+  measurement: string | null;
+  notes: string | null;
+  logged_at: string;
+  created_at: string;
+  updated_at: string;
+  sets: ExerciseLogSet[];
+}
+
+export interface ExerciseLogsMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ExerciseLogsResponse {
+  data: ExerciseLogEntry[];
+  meta: ExerciseLogsMeta;
+}
+
+export const getExerciseLogs = async (params: {
+  page?: number;
+  limit?: number;
+  exerciseId?: string;
+} = {}): Promise<ExerciseLogsResponse> => {
+  try {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page ?? 1));
+    query.set("limit", String(params.limit ?? 10));
+    if (params.exerciseId) query.set("exerciseId", params.exerciseId);
+    console.log("[exerciseLogs] GET /exercise-logs → params:", params);
+    const { data } = await apiClient.get<ExerciseLogsResponse>(`/exercise-logs?${query.toString()}`);
+    console.log("[exerciseLogs] GET /exercise-logs ✅ response:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("[exerciseLogs] GET /exercise-logs ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
+    throw new Error(getErrorMessage(error, "Failed to fetch exercise logs."));
+  }
+};
+
+export interface CreateExerciseLogSetInput {
+  set_number: number;
+  unit_type: string;
+  reps?: number;
+  value?: number;
+  value_secondary?: number;
+  weight_1?: number;
+  weight_2?: number;
+  measurement?: string;
+  completed?: boolean;
+}
+
+export interface CreateExerciseLogPayload {
+  exerciseId: string;
+  sets: CreateExerciseLogSetInput[];
+  photos?: File[];
+  exerciseTitle?: string;
+  sessionId?: string;
+  measurement?: string;
+  notes?: string;
+  loggedAt?: string;
+}
+
+export const createExerciseLog = async (
+  payload: CreateExerciseLogPayload,
+): Promise<ExerciseLogEntry> => {
+  try {
+    const formData = new FormData();
+    formData.append("exerciseId", payload.exerciseId);
+    formData.append("sets", JSON.stringify(payload.sets));
+    if (payload.exerciseTitle) formData.append("exerciseTitle", payload.exerciseTitle);
+    if (payload.sessionId) formData.append("sessionId", payload.sessionId);
+    if (payload.measurement) formData.append("measurement", payload.measurement);
+    if (payload.notes) formData.append("notes", payload.notes);
+    if (payload.loggedAt) formData.append("loggedAt", payload.loggedAt);
+    payload.photos?.forEach((file) => formData.append("photos", file));
+
+    console.log("[exerciseLogs] POST /exercise-logs → payload:", {
+      exerciseId: payload.exerciseId,
+      exerciseTitle: payload.exerciseTitle,
+      sessionId: payload.sessionId,
+      measurement: payload.measurement,
+      notes: payload.notes,
+      loggedAt: payload.loggedAt,
+      sets: payload.sets,
+      photoCount: payload.photos?.length ?? 0,
+    });
+    // Don't set Content-Type manually — it must include the multipart boundary,
+    // which only the browser can generate when it sees the body is FormData.
+    // A hand-set header here has no boundary, so the server's multipart parser
+    // can't split the body and throws (surfaces as an opaque 500).
+    const { data } = await apiClient.post<ExerciseLogEntry>("/exercise-logs", formData);
+    console.log("[exerciseLogs] POST /exercise-logs ✅ response:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("[exerciseLogs] POST /exercise-logs ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
+    throw new Error(getErrorMessage(error, "Failed to save exercise log."));
+  }
+};
