@@ -6,6 +6,37 @@ import { invalidateDashboardCache } from "@/api/dashboard/route";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "https://paxlete.com/api";
 
+export const sendOtp = async (email: string) => {
+  try {
+    const { data } = await axios.post(`${API_BASE}/auth/send-otp`, {
+      email: email.trim(),
+    });
+    return data;
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to send verification code. Please try again.";
+    throw new Error(message);
+  }
+};
+
+export const verifyOtp = async (email: string, code: string) => {
+  try {
+    const { data } = await axios.post(`${API_BASE}/auth/verify-otp`, {
+      email: email.trim(),
+      code,
+    });
+    return data;
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      "Verification failed. Please check the code.";
+    throw new Error(message);
+  }
+};
+
 export const checkUsername = async (username: string) => {
   try {
     const formData = new FormData();

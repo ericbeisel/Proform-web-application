@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';           // ← add this import
+import { sendOtp } from '@/api/auth/signup/route';
 
 function SignupForm() {
   const router = useRouter();
@@ -15,6 +16,7 @@ function SignupForm() {
   });
 
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);   // ← new state
 
   // Prefill email when arriving from an invite/sign link (e.g. ?email=...&name=...)
@@ -37,27 +39,42 @@ function SignupForm() {
     setShowPassword(prev => !prev);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Trim and store
-    sessionStorage.setItem('signup_email', formData.email.trim());
-    sessionStorage.setItem('signup_password', formData.password.trim());
+    const email = formData.email.trim();
+    const password = formData.password.trim();
 
-    router.replace('/auth/profile');
+    setLoading(true);
+    setError('');
+
+    try {
+      await sendOtp(email);
+
+      // Trim and store — password rides along in sessionStorage until the
+      // actual account-creation call on the profile-setup step.
+      sessionStorage.setItem('signup_email', email);
+      sessionStorage.setItem('signup_password', password);
+
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <>
       <div className="flex justify-end mb-4 px-2">
-        <span className="text-sm font-semibold text-gray-600">1 of 2</span>
+        <span className="text-sm font-semibold text-gray-600">1 of 3</span>
       </div>
 
       <div className="flex justify-center mb-16 px-2">
         <div className="w-full max-w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
           <div
             className="bg-cyan-400 h-full transition-all duration-300 rounded-full"
-            style={{ width: '50%' }}
+            style={{ width: '33.33%' }}
           />
         </div>
       </div>
@@ -152,9 +169,10 @@ function SignupForm() {
 
           <button
             type="submit"
-            className="w-full bg-[#6202AC] hover:bg-[#4e0288] text-white font-semibold text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md hover:shadow-lg mt-8"
+            disabled={loading}
+            className="w-full bg-[#6202AC] hover:bg-[#4e0288] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-lg py-4 px-6 rounded-full transition-all duration-200 shadow-md hover:shadow-lg mt-8"
           >
-            Continue
+            {loading ? 'Sending code...' : 'Continue'}
           </button>
         </form>
 

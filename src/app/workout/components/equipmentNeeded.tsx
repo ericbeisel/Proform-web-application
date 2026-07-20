@@ -620,6 +620,7 @@ const handleStartSession = async (locationNameOverride?: string, equipmentIdsOve
                 <button
                   onClick={() => {
                     if (selectedLocation) localStorage.setItem("referenceLocationId", selectedLocation);
+                    localStorage.setItem("referenceSelectedIds", JSON.stringify(Array.from(selectedEquipIds)));
                     router.push("/workout/createLocation");
                   }}
                   disabled={isDeleting || isCreatingNew}

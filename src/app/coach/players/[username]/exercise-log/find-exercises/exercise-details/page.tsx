@@ -77,7 +77,7 @@ function ExerciseDetailsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -115,7 +115,7 @@ function ExerciseDetailsContent() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-8 py-6">
+        <div className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-8 py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-6">
 
         {/* Last / Best */}
@@ -133,7 +133,7 @@ function ExerciseDetailsContent() {
         </div>
 
         {/* Exercise + suggested */}
-        <div className="flex flex-wrap items-start gap-6 sm:gap-8 mb-8">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 mb-8">
           <div className="flex flex-col items-center gap-2 shrink-0 w-28">
             <div className="w-20 h-20 flex items-center justify-center">
               {hasPhoto ? (
@@ -153,7 +153,7 @@ function ExerciseDetailsContent() {
             </p>
           </div>
 
-          <div className="flex-1 min-w-[280px]">
+          <div className="w-full sm:flex-1 sm:min-w-[280px]">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold text-[#8B5CF6]">Suggested:</p>
               <button
@@ -164,7 +164,7 @@ function ExerciseDetailsContent() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 max-w-md mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mb-3">
               <div className="relative">
                 <select
                   value={sets}
@@ -196,7 +196,7 @@ function ExerciseDetailsContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 max-w-md">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md">
               <input placeholder="Weight/R..." disabled className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-400 outline-none" />
               <input placeholder="Weight P..." disabled className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-400 outline-none" />
               <div className="relative">
@@ -318,27 +318,29 @@ function ExerciseDetailsContent() {
         </div>
         )}
 
-        {/* Save actions */}
+        {/* Save actions — only once a set has been submitted */}
+        {showSet1 && (
         <div className="flex flex-col items-center gap-2.5">
           <button
             onClick={() => handleSave("Save Exercise")}
-            className="w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+            className="w-full max-w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
           >
             Save Exercise
           </button>
           <button
             onClick={() => handleSave("Save and Add workout")}
-            className="w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+            className="w-full max-w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
           >
             Save and Add workout
           </button>
           <button
             onClick={() => handleSave("Save and Add Custom Exercise Standard")}
-            className="w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+            className="w-full max-w-72 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
           >
             Save and Add Custom Exercise Standard
           </button>
         </div>
+        )}
           </div>
         </div>
       </div>

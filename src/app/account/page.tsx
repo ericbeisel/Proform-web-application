@@ -368,7 +368,7 @@ export default function AccountPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <button
               type="button"
-              onClick={() => router.push("/coach/coach-onboarding")}
+              onClick={() => router.push("/coach")}
               className="flex h-14 items-center justify-center gap-2.5 rounded-xl bg-cyan-600 text-base md:text-lg font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
             >
               <ArrowRightLeft size={18} />

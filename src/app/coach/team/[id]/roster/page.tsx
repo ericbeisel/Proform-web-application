@@ -175,28 +175,32 @@ function RosterContent() {
 
   async function handleCreatePlayer(values: CreatePlayerFormValues) {
     const response = await coachApi.invitePlayer({ team_id: id, name: values.name, email: values.email });
-    if (response.status === "added" || response.status === "created") {
-      // Backend either linked the existing account or created a new one and emailed
-      // temporary credentials — either way the player is already on the team.
+    if (response.status === "added") {
+      // Existing account was linked directly — refresh from backend, no invite link to share.
       refetchPlayers();
+      alert(response.message ?? "Player Added: this player already has an account and was added directly to your team.");
+      return;
+    }
+
+    // "created" (new account made, temp credentials emailed) or "invited" (no account yet) —
+    // both give the coach a link worth re-sharing, so show it on the new card via
+    // Send Invite / Copy Sign Link instead of refetching it away.
+    const pendingPlayer: TeamPlayer = {
+      id: Math.floor(Math.random() * 1_000_000) + 100_000,
+      name: values.name,
+      email: values.email,
+      username: values.email.split("@")[0],
+      profile_picture: values.image ? URL.createObjectURL(values.image) : null,
+      pendingSignup: true,
+      inviteLink: response.inviteLink,
+    };
+    setPlayers((prev) => [...prev, decoratePlayer(pendingPlayer, prev.length)]);
+
+    if (response.status === "created") {
       alert(
         response.message ??
-          (response.status === "added"
-            ? "Player Added: this player already has an account and was added directly to your team."
-            : "Player Created: a new account has been created for this player and added to your team. Temporary credentials have been sent to their email."),
+          "Player Created: a new account has been created for this player and added to your team. Temporary credentials have been sent to their email.",
       );
-    } else {
-      // No account yet — pending invite. Show a local card with the invite link to share.
-      const pendingPlayer: TeamPlayer = {
-        id: Math.floor(Math.random() * 1_000_000) + 100_000,
-        name: values.name,
-        email: values.email,
-        username: values.email.split("@")[0],
-        profile_picture: values.image ? URL.createObjectURL(values.image) : null,
-        pendingSignup: true,
-        inviteLink: response.inviteLink,
-      };
-      setPlayers((prev) => [...prev, decoratePlayer(pendingPlayer, prev.length)]);
     }
   }
 
@@ -229,7 +233,7 @@ function RosterContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -277,7 +281,7 @@ function RosterContent() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
 
             {/* Action buttons */}
@@ -498,40 +502,44 @@ function RosterContent() {
 
                           <p className="text-[11px] text-gray-400 mt-2">Last Workout: {p.lastWorkout}</p>
 
-                          {p.pendingSignup && (
-                            <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-100">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {p.pendingSignup && (
+                                <>
+                                  <button
+                                    onClick={() => handleSendInvite(p)}
+                                    className="h-8 px-4 rounded-full border border-[#8B5CF6] text-[#8B5CF6] text-xs font-semibold hover:bg-[#f5f0ff] transition"
+                                  >
+                                    Send Invite
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopySignLink(p)}
+                                    className="h-8 px-4 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition"
+                                  >
+                                    {copiedLinkId === p.id ? "Copied!" : "Copy Sign Link"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-4">
                               <button
-                                onClick={() => handleSendInvite(p)}
-                                className="h-8 px-4 rounded-full border border-[#8B5CF6] text-[#8B5CF6] text-xs font-semibold hover:bg-[#f5f0ff] transition"
+                                onClick={() => alert(`Print Schedule for ${displayName} — coming soon.`)}
+                                className="text-xs font-semibold text-[#3B82F6] hover:underline"
                               >
-                                Send Invite
+                                Print Schedule
                               </button>
                               <button
-                                onClick={() => handleCopySignLink(p)}
-                                className="h-8 px-4 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition"
+                                onClick={() => {
+                                  if (!p.username) return;
+                                  router.push(`/profile?username=${encodeURIComponent(p.username)}`);
+                                }}
+                                disabled={!p.username}
+                                className="h-8 px-4 rounded-full bg-[#1f1f1f] text-white text-xs font-semibold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                {copiedLinkId === p.id ? "Copied!" : "Copy Sign Link"}
+                                Profile
                               </button>
                             </div>
-                          )}
-
-                          <div className="flex items-center justify-end gap-4 mt-3">
-                            <button
-                              onClick={() => alert(`Print Schedule for ${displayName} — coming soon.`)}
-                              className="text-xs font-semibold text-[#3B82F6] hover:underline"
-                            >
-                              Print Schedule
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!p.username) return;
-                                router.push(`/profile?username=${encodeURIComponent(p.username)}`);
-                              }}
-                              disabled={!p.username}
-                              className="h-8 px-4 rounded-full bg-[#1f1f1f] text-white text-xs font-semibold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Profile
-                            </button>
                           </div>
                         </div>
                       </div>

@@ -96,7 +96,7 @@ export default function ExerciseLogPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -134,7 +134,7 @@ export default function ExerciseLogPage() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-6">
 
             {/* Search + Add */}
@@ -179,7 +179,7 @@ export default function ExerciseLogPage() {
                       <p className="text-xs font-semibold text-[#10B981] text-right">Created : {ex.createdAt}</p>
                     </div>
 
-                    <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-6">
                       <div className="flex flex-col items-center gap-1 shrink-0 w-28">
                         <div className="w-16 h-16 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-gray-300 text-2xl font-bold">
                           🏋
@@ -191,7 +191,7 @@ export default function ExerciseLogPage() {
                         </p>
                       </div>
 
-                      <div className="flex-1 min-w-[220px] grid grid-cols-3 gap-3">
+                      <div className="w-full sm:flex-1 sm:min-w-[220px] grid grid-cols-3 gap-3">
                         <div>
                           <p className="text-[10px] font-semibold text-gray-400">Reps/Time</p>
                           <p className="text-sm font-bold text-[#222]">{ex.repsTime}</p>

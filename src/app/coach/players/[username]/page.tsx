@@ -211,7 +211,7 @@ export default function MasterProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -257,11 +257,11 @@ export default function MasterProfilePage() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-6">
 
             {/* Identity + stats */}
-            <div className="flex flex-wrap items-start gap-4 sm:gap-6">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:gap-6">
               <button
                 onClick={() => stub("Message")}
                 className="w-9 h-9 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
@@ -282,7 +282,7 @@ export default function MasterProfilePage() {
                 <p className="text-sm font-bold text-[#222]">{displayName}</p>
               </div>
 
-              <div className="flex-1 min-w-[220px] grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 pt-1">
+              <div className="w-full sm:flex-1 sm:min-w-[220px] grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 pt-1">
                 {stats.map((s) => (
                   <div key={s.label} className="text-center">
                     <p className="text-xl font-black text-[#1f1f1f]">{s.value}</p>
@@ -351,7 +351,7 @@ export default function MasterProfilePage() {
                 <button
                   key={label}
                   onClick={() => stub(label)}
-                  className="w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+                  className="w-full max-w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
                 >
                   {label}
                 </button>
@@ -360,7 +360,7 @@ export default function MasterProfilePage() {
 
             {/* Quick icon row */}
             <div className="pb-5">
-              <div className="relative bg-[#f5f5f7] rounded-3xl border border-gray-200 p-4 sm:p-5 flex items-center justify-center gap-6 sm:gap-10">
+              <div className="relative bg-[#f5f5f7] rounded-3xl border border-gray-200 p-4 sm:p-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-4 sm:gap-x-10 sm:gap-y-6">
                 <button
                   onClick={() => stub("Notifications")}
                   className="absolute -top-2 left-3 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow"
@@ -399,13 +399,13 @@ export default function MasterProfilePage() {
             <div className="flex flex-col items-center gap-2.5 pb-5">
               <button
                 onClick={() => stub("View Itinerary")}
-                className="w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+                className="w-full max-w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
               >
                 View Itinerary
               </button>
               <button
                 onClick={() => router.push(`/coach/players/${username}/exercise-log`)}
-                className="w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
+                className="w-full max-w-64 h-10 rounded-full bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#2563EB] transition"
               >
                 Exercise Log
               </button>

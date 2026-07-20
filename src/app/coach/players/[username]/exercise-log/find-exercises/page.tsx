@@ -84,7 +84,7 @@ export default function FindExercisesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -122,7 +122,7 @@ export default function FindExercisesPage() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-6">
 
             {/* Search panel */}

@@ -186,7 +186,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     <>
       {/* Step Counter */}
       <div className="flex justify-end mb-4 px-2">
-        <span className="text-sm font-semibold text-gray-600">2 of 2</span>
+        <span className="text-sm font-semibold text-gray-600">3 of 3</span>
       </div>
 
       {/* Progress Bar */}

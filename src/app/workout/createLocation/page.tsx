@@ -44,7 +44,9 @@ export default function CreateLocationPage() {
     }
 
     const referenceLocationId = localStorage.getItem("referenceLocationId");
+    const referenceSelectedIds = localStorage.getItem("referenceSelectedIds");
     localStorage.removeItem("referenceLocationId");
+    localStorage.removeItem("referenceSelectedIds");
     if (referenceLocationId) {
       equipmentApi
         .getLocationDetail(referenceLocationId)
@@ -53,6 +55,15 @@ export default function CreateLocationPage() {
           setReferenceLocationName(detail.name || null);
         })
         .catch(() => setReferenceEquipment([]));
+    }
+    // Carry over whatever was checked on the Equipment Check page, so this
+    // page starts with the same selection instead of empty.
+    if (referenceSelectedIds) {
+      try {
+        setSelectedIds(new Set<number>(JSON.parse(referenceSelectedIds)));
+      } catch {
+        // malformed — leave selection empty
+      }
     }
   }, []);
 
@@ -256,20 +267,22 @@ export default function CreateLocationPage() {
         ) : (
           <div className="grid grid-cols-5 gap-2.5">
             {filtered.map((eq) => {
-              // Same scheme as the Equipment Check / confirm pages: purple +
-              // checkmark = selected for this new location, green = required
-              // by the current workout but not selected yet, purple with no
-              // checkmark = at the reference location (from equipmentNeeded)
-              // but not required, plain = neither.
+              // Exact same rule as confirmEquipment: required is always
+              // purple (a permanent "needed" badge, with a checkmark once
+              // selected). At the reference location but not required is
+              // always purple too, but never gets a checkmark — it's
+              // informational, not a confirmed selection. Everything else
+              // is plain until tapped, then purple + checkmark.
               const isSelected = selectedIds.has(eq.id);
               const isRequired = isRequiredEquipment(eq);
               const atReferenceLocation = isAtReferenceLocation(eq);
-              const category: "purple" | "green" | "none" = isSelected
+              const isLocationExtra = atReferenceLocation && !isRequired;
+              const category: "purple" | "green" | "none" = isLocationExtra
                 ? "purple"
-                : isRequired
-                  ? "green"
-                  : atReferenceLocation
-                    ? "purple"
+                : isSelected
+                  ? "purple"
+                  : isRequired
+                    ? "green"
                     : "none";
               return (
                 <button
@@ -284,7 +297,7 @@ export default function CreateLocationPage() {
                         : "border-gray-200 bg-white"
                   }`}
                 >
-                  {isSelected && (
+                  {!isLocationExtra && isSelected && (
                     <div className="absolute top-1.5 right-1.5 text-[#7c3aed]">
                       <CheckCircle2 size={14} fill="white" />
                     </div>

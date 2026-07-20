@@ -118,7 +118,7 @@ export default function AllPlayersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f7] flex">
       <CoachSidebar
         profilePicture={profilePicture}
         userInitial={userInitial}
@@ -149,7 +149,7 @@ export default function AllPlayersPage() {
         </header>
 
         {/* Body */}
-        <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
 
             {/* Search + Filter + actions row */}
@@ -168,10 +168,12 @@ export default function AllPlayersPage() {
               <div className="relative shrink-0">
                 <button
                   onClick={() => setTeamFilterOpen((v) => !v)}
-                  className="h-10 px-3 sm:px-4 rounded-xl border border-[#3B82F6] text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 hover:bg-blue-50 transition"
+                  className="h-10 px-3 sm:px-4 rounded-xl border border-[#3B82F6] text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 hover:bg-blue-50 transition max-w-[160px] sm:max-w-none"
                 >
-                  {teamFilterId === "all" ? "Filter By Teams" : teams.find((t) => t.id === teamFilterId)?.name ?? "Filter By Teams"}
-                  {teamFilterOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  <span className="truncate">
+                    {teamFilterId === "all" ? "Filter By Teams" : teams.find((t) => t.id === teamFilterId)?.name ?? "Filter By Teams"}
+                  </span>
+                  {teamFilterOpen ? <ChevronUp size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
                 </button>
 
                 {teamFilterOpen && (
@@ -228,20 +230,20 @@ export default function AllPlayersPage() {
                 players.map((p) => {
                   const displayName = p.name ?? p.username ?? "Player";
                   return (
-                    <div key={p.id} className="relative bg-[#fafafa] px-4 sm:px-5 py-4">
+                    <div key={p.id} className="relative bg-[#fafafa] px-4 sm:px-5 py-4 pr-12 sm:pr-14">
                       <button
                         onClick={() => {
                           if (!p.username) return;
                           router.push(`/coach/players/${encodeURIComponent(p.username)}`);
                         }}
                         disabled={!p.username}
-                        className="absolute bottom-3 right-4 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="absolute top-3 right-4 sm:top-auto sm:bottom-3 disabled:opacity-40 disabled:cursor-not-allowed"
                         title="View Master Profile"
                       >
                         <Crown size={20} className="text-[#F5A623]" fill="#F5A623" />
                       </button>
 
-                      <div className="flex items-start gap-4">
+                      <div className="flex items-start gap-3 sm:gap-4">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(p.id)}
@@ -250,7 +252,7 @@ export default function AllPlayersPage() {
                         />
 
                         <div className="flex flex-col items-center gap-1 shrink-0">
-                          <div className="relative w-14 h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold overflow-hidden">
+                          <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white font-bold overflow-hidden">
                             {p.profile_picture ? (
                               <img src={p.profile_picture} alt={displayName} className="w-full h-full object-cover" />
                             ) : (
@@ -260,12 +262,14 @@ export default function AllPlayersPage() {
                               <CheckCircle2 size={16} className="absolute -bottom-0.5 -right-0.5 text-[#3B82F6] bg-white rounded-full" />
                             )}
                           </div>
-                          {p.username && <p className="text-[11px] text-gray-500">@{p.username}</p>}
+                          {p.username && <p className="text-xs text-gray-500 truncate max-w-[64px] sm:max-w-none">@{p.username}</p>}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="grid grid-cols-5 gap-2 max-w-md">
+                          <p className="text-base font-semibold text-[#222] truncate sm:hidden mb-2">{displayName}</p>
+
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-2 gap-y-2 max-w-full sm:max-w-md">
                               {[
                                 { label: "Ov. Load", value: p.load },
                                 { label: "W.O.C.", value: p.score ?? "0/4" },
@@ -274,30 +278,30 @@ export default function AllPlayersPage() {
                                 { label: "Strength", value: p.strength },
                               ].map((stat) => (
                                 <div key={stat.label}>
-                                  <p className="text-[10px] font-semibold text-gray-400">{stat.label}</p>
-                                  <p className="text-xs font-bold text-[#222]">{stat.value}</p>
+                                  <p className="text-[11px] font-semibold text-gray-400">{stat.label}</p>
+                                  <p className="text-sm font-bold text-[#222]">{stat.value}</p>
                                 </div>
                               ))}
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2">
                               <input
                                 type="text"
                                 placeholder="Enter Notes"
                                 value={p.notes}
                                 onChange={(e) => updateNotes(p.id, e.target.value)}
-                                className="h-7 w-32 sm:w-44 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#8B5CF6] transition"
+                                className="h-7 flex-1 min-w-0 sm:w-44 sm:flex-none rounded-lg border border-gray-200 bg-white px-2.5 text-sm outline-none focus:border-[#8B5CF6] transition"
                               />
                               <button
                                 onClick={() => alert(`Notes saved for ${displayName} (dummy — backend endpoint pending).`)}
-                                className="text-xs font-semibold text-[#3B82F6] hover:underline whitespace-nowrap"
+                                className="text-sm font-semibold text-[#3B82F6] hover:underline whitespace-nowrap shrink-0"
                               >
                                 Save Notes
                               </button>
                             </div>
                           </div>
 
-                          <p className="text-[11px] text-gray-400 mt-2">Last Workout: {p.lastWorkout}</p>
+                          <p className="text-xs text-gray-400 mt-2">Last Workout: {p.lastWorkout}</p>
                         </div>
                       </div>
                     </div>
