@@ -38,6 +38,7 @@ export default function FindExercisesPage() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter state — same shape/options as the "Search all exercises" modal on
@@ -86,6 +87,7 @@ export default function FindExercisesPage() {
 
   const fetchExercises = async (q: string) => {
     setLoading(true);
+    setError("");
     setPage(1);
     try {
       const hasFilters = Object.values(filters).some(Boolean);
@@ -98,7 +100,9 @@ export default function FindExercisesPage() {
       setExercises(res.exercises);
       setTotal(res.total);
       setHasMore(res.exercises.length === LIMIT && res.exercises.length < res.total);
-    } catch {
+    } catch (err) {
+      console.error("[find-exercises] fetchExercises failed — filters:", filters, "| query:", q, "| error:", err);
+      setError(err instanceof Error ? err.message : "Failed to load exercises.");
       setExercises([]);
       setTotal(0);
       setHasMore(false);
@@ -198,7 +202,7 @@ export default function FindExercisesPage() {
       style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}
     >
       {/* Purple header */}
-      <div className="bg-purple-600 px-4 pb-5 pt-4">
+      <div className="bg-purple-600 px-4 pb-5 pt-4 sticky top-0 z-20">
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => router.back()}
@@ -299,13 +303,16 @@ export default function FindExercisesPage() {
 
       {/* Exercise grid */}
       <div className="px-4 pb-8">
+        {error && (
+          <div className="text-center py-3 text-red-500 text-xs font-medium">{error}</div>
+        )}
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 size={28} className="animate-spin text-purple-400" />
           </div>
         ) : exercises.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">
-            {showFavorites ? "No favorites yet" : "No exercises found"}
+            {error ? "Couldn't load exercises." : showFavorites ? "No favorites yet" : "No exercises found"}
           </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -314,14 +321,24 @@ export default function FindExercisesPage() {
               const isFav = favoriteIds.has(String(exId));
               const gifUrl = resolveMedia(ex.demo_gif || ex.demoGif);
               const name = ex.name || ex.exercise_name || "";
+              const handleSelect = () => {
+                console.log("[find-exercises] selected exercise id:", exId, "| name:", name, "| raw:", ex);
+                router.push(`/exercise-details?id=${encodeURIComponent(String(exId))}&name=${encodeURIComponent(name)}`);
+              };
+
               return (
-                <button
+                <div
                   key={exId}
-                  onClick={() => {
-                    console.log("[find-exercises] selected exercise id:", exId, "| name:", name, "| raw:", ex);
-                    router.push(`/exercise-details?id=${encodeURIComponent(String(exId))}&name=${encodeURIComponent(name)}`);
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleSelect}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSelect();
+                    }
                   }}
-                  className="relative flex flex-col items-center text-center p-2 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md hover:border-purple-200 transition-all active:scale-95"
+                  className="relative flex flex-col items-center text-center p-2 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md hover:border-purple-200 transition-all active:scale-95 cursor-pointer"
                 >
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleFavorite(ex); }}
@@ -344,7 +361,7 @@ export default function FindExercisesPage() {
                   <span className="text-[11px] font-bold text-gray-900 leading-tight uppercase">
                     {name}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>

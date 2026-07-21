@@ -2073,6 +2073,7 @@ function ViewWorkoutSessionContent() {
                     setPurchaseExpiresAt(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
                     setShowPurchaseModal(false);
                     setCheckoutStarted(false);
+                    router.push("/success");
                   }}
                   onCancel={() => {
                     console.log("[viewWorkoutSession] payment flow closed without unlocking", { programCode: programCodeForPurchase });

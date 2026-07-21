@@ -2,53 +2,49 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Menu, Search, Clock, Trash2, Eye, Plus } from "lucide-react";
+import { ArrowLeft, Menu, Search, Trash2, Plus, Loader2, Dumbbell } from "lucide-react";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
+import { deleteExerciseLog, getExerciseLogs, type ExerciseLogEntry, type ExerciseLogSet } from "@/api/workouts/route";
 
-// TODO(backend): no endpoint exists yet for a coach to view/manage a specific player's
-// individual exercise log. Dummy placeholders matching the design until a real
-// per-player exercise-log API is added.
-interface ExerciseLogEntry {
-  id: number;
-  name: string;
-  equipment: string;
-  repsTime: string;
-  sets: string;
-  weight?: string;
-  createdAt: string;
-  setSummary: string;
+const LIMIT = 10;
+
+function formatLoggedAt(iso: string): string {
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" });
+  const timePart = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  return `${datePart} ${timePart}`;
 }
 
-function buildDummyExercises(): ExerciseLogEntry[] {
-  const today = new Date().toLocaleDateString();
-  return [
-    {
-      id: 1,
-      name: "BUILD-UP (60-80-95)",
-      equipment: "ARC/ELLIPTICAL",
-      repsTime: "15",
-      sets: "1x",
-      weight: "10lbs",
-      createdAt: `${today} 12:19 pm`,
-      setSummary: "Set 1: 10 reps (12)",
-    },
-    {
-      id: 2,
-      name: "ROLL-OUT",
-      equipment: "AB-WHEEL",
-      repsTime: "12-15",
-      sets: "1x",
-      createdAt: `${today} 12:01 pm`,
-      setSummary: "Set 1: 10 reps (20)",
-    },
-  ];
-}
+// Sets can carry reps, a timed/range value, and/or a weight — shape varies by unit_type,
+// so build a short human label instead of assuming one fixed field combination.
+function formatSetLabel(s: ExerciseLogSet): string {
+  const parts: string[] = [];
 
-function stub(label: string) {
-  alert(`${label} — coming soon (backend endpoint pending).`);
+  if (s.unit_type === "range" && s.value != null && s.value_secondary != null) {
+    parts.push(`${s.value}-${s.value_secondary} reps`);
+  } else if ((s.unit_type === "reps" || s.unit_type === "amrp") && s.reps != null) {
+    parts.push(`${s.reps} reps`);
+  } else if (s.unit_type === "sec" && s.value != null) {
+    parts.push(`${s.value} sec`);
+  } else if (s.unit_type === "meters" && s.value != null) {
+    parts.push(`${s.value} m`);
+  } else if (s.value != null) {
+    parts.push(`${s.value}${s.value_secondary != null ? `-${s.value_secondary}` : ""} ${s.unit_type}`);
+  } else if (s.reps != null) {
+    parts.push(`${s.reps} reps`);
+  }
+
+  const unit = s.measurement && s.measurement !== "resistant" ? s.measurement : "";
+  if (s.weight_1 != null && s.weight_2 != null && s.weight_2 !== s.weight_1) {
+    parts.push(`${s.weight_1}-${s.weight_2}${unit}`.trim());
+  } else if (s.weight_1) {
+    parts.push(`${s.weight_1}${unit}`.trim());
+  }
+
+  return parts.length ? parts.join(" @ ") : `Set ${s.set_number}`;
 }
 
 export default function ExerciseLogPage() {
@@ -85,15 +81,75 @@ export default function ExerciseLogPage() {
   }, []);
 
   const [search, setSearch] = useState("");
-  const [exercises, setExercises] = useState<ExerciseLogEntry[]>(buildDummyExercises);
+  const [logs, setLogs] = useState<ExerciseLogEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
 
-  const visibleExercises = exercises.filter((e) =>
-    `${e.name} ${e.equipment}`.toLowerCase().includes(search.trim().toLowerCase()),
+  // TODO(backend): GET /exercise-logs has no documented player/member-scoping param
+  // (only page, limit, exerciseId) — this currently fetches whatever the logged-in
+  // coach's own auth token resolves to, not necessarily this specific player's
+  // (`username`) logs. Swap in the correct param once the backend exposes one.
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    getExerciseLogs({ page: 1, limit: LIMIT })
+      .then((res) => {
+        setLogs(res.data);
+        setTotal(res.meta.total);
+        setPage(res.meta.page);
+        setTotalPages(res.meta.totalPages);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load exercise logs."))
+      .finally(() => setLoading(false));
+  }, [username]);
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await getExerciseLogs({ page: nextPage, limit: LIMIT });
+      setLogs((prev) => [...prev, ...res.data]);
+      setTotal(res.meta.total);
+      setPage(res.meta.page);
+      setTotalPages(res.meta.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load more exercise logs.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Filters only the logs already loaded — the backend list endpoint has no free-text
+  // search param, only an exerciseId filter, so this can't search the whole history.
+  const visibleLogs = logs.filter((log) =>
+    log.exercise_title.toLowerCase().includes(search.trim().toLowerCase()),
   );
 
-  function removeExercise(id: number) {
-    setExercises((prev) => prev.filter((e) => e.id !== id));
-  }
+  const removeLog = async (id: number) => {
+    if (deletingId) return;
+    setConfirmId(null);
+    setDeletingId(id);
+    const previous = logs;
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    try {
+      await deleteExerciseLog(id);
+      setTotal((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      setLogs(previous);
+      setError(err instanceof Error ? err.message : "Failed to delete exercise log.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const confirmTarget = logs.find((l) => l.id === confirmId) ?? null;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex">
@@ -159,77 +215,152 @@ export default function ExerciseLogPage() {
 
             {/* Exercise list */}
             <div className="flex flex-col gap-3">
-              {visibleExercises.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-10">No exercises found.</p>
+              {loading ? (
+                <div className="flex justify-center items-center py-16">
+                  <Loader2 size={26} className="animate-spin text-[#8B5CF6]" />
+                </div>
+              ) : error ? (
+                <p className="text-sm text-red-400 text-center py-10">{error}</p>
               ) : (
-                visibleExercises.map((ex) => (
-                  <div key={ex.id} className="bg-[#fafafa] border border-gray-100 rounded-2xl p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => stub("Exercise History")} className="text-[#8B5CF6] hover:opacity-70 transition">
-                          <Clock size={16} />
-                        </button>
-                        <button
-                          onClick={() => removeExercise(ex.id)}
-                          className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-[#8B5CF6] hover:bg-gray-50 transition"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      <p className="text-xs font-semibold text-[#10B981] text-right">Created : {ex.createdAt}</p>
-                    </div>
+                <>
+                  <p className="text-xs text-gray-400 px-1">{total} logged</p>
 
-                    <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-6">
-                      <div className="flex flex-col items-center gap-1 shrink-0 w-28">
-                        <div className="w-16 h-16 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-gray-300 text-2xl font-bold">
-                          🏋
-                        </div>
-                        <p className="text-[11px] font-bold text-[#222] text-center leading-tight uppercase">
-                          {ex.name}
-                          <br />
-                          {ex.equipment}
-                        </p>
-                      </div>
+                  {visibleLogs.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-10">
+                      {search ? "No exercises found" : "No exercise logs yet"}
+                    </p>
+                  )}
 
-                      <div className="w-full sm:flex-1 sm:min-w-[220px] grid grid-cols-3 gap-3">
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400">Reps/Time</p>
-                          <p className="text-sm font-bold text-[#222]">{ex.repsTime}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400">Sets</p>
-                          <p className="text-sm font-bold text-[#222]">{ex.sets}</p>
-                        </div>
-                        {ex.weight && (
-                          <div>
-                            <p className="text-[10px] font-semibold text-gray-400">Weight/Resistance</p>
-                            <p className="text-sm font-bold text-[#222]">{ex.weight}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {visibleLogs.map((log) => {
+                    const completedCount = log.sets.filter((s) => s.completed).length;
+                    const totalSets = log.sets.length;
+                    const dotColor =
+                      totalSets > 0 && completedCount === totalSets
+                        ? "bg-emerald-500"
+                        : completedCount > 0
+                        ? "bg-amber-500"
+                        : "bg-gray-300";
+                    const photo = log.photos[0];
 
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                      <button onClick={() => stub("Toggle Visibility")} className="text-[#8B5CF6] hover:opacity-70 transition">
-                        <Eye size={16} />
-                      </button>
-                      <span className="text-[11px] font-semibold text-gray-500 bg-white border border-gray-200 rounded-full px-3 py-1">
-                        {ex.setSummary}
-                      </span>
-                      <button
-                        onClick={() => stub("Add Set")}
-                        className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-[#8B5CF6] hover:bg-gray-50 transition"
+                    return (
+                      <div
+                        key={log.id}
+                        className="flex items-start gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
                       >
-                        <Plus size={14} />
+                        {/* Delete button */}
+                        <button
+                          onClick={() => setConfirmId(log.id)}
+                          disabled={deletingId === log.id}
+                          className="flex-shrink-0 mt-0.5 text-red-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
+                          aria-label="Delete exercise log"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+
+                        {/* Exercise icon / photo */}
+                        <div className="w-11 h-11 rounded-xl bg-[#8B5CF6] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {photo ? (
+                            <img src={photo} alt={log.exercise_title} className="w-full h-full object-cover" />
+                          ) : (
+                            <Dumbbell size={20} className="text-white" />
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Top row: name + logged date */}
+                          <div className="flex items-start justify-between gap-2 mb-0.5">
+                            <p className="text-sm font-bold text-gray-900 leading-tight">
+                              {log.exercise_title}
+                            </p>
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">
+                              Logged:<br />
+                              {formatLoggedAt(log.logged_at)}
+                            </span>
+                          </div>
+
+                          {log.notes && (
+                            <p className="text-xs text-gray-500 italic mb-2">{log.notes}</p>
+                          )}
+
+                          {/* Set pills */}
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {log.sets.map((s) => (
+                              <span
+                                key={s.id}
+                                className="text-[11px] bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5 font-medium"
+                              >
+                                Set {s.set_number}: {formatSetLabel(s)}
+                              </span>
+                            ))}
+                            {log.sets.length === 0 && (
+                              <span className="text-[11px] text-gray-400">No sets recorded</span>
+                            )}
+                          </div>
+
+                          {/* Status */}
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                            <span className="text-xs text-gray-600">
+                              {totalSets > 0 ? `${completedCount}/${totalSets} sets completed` : "No sets"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {page < totalPages && (
+                    <div className="pt-2 flex justify-center">
+                      <button
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        className="px-6 py-2.5 bg-[#8B5CF6] text-white text-[13px] font-bold rounded-full hover:bg-[#7C3AED] transition flex items-center gap-2"
+                      >
+                        {loadingMore ? <Loader2 size={14} className="animate-spin" /> : null}
+                        {loadingMore ? "Loading..." : "Load More"}
                       </button>
                     </div>
-                  </div>
-                ))
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4"
+          onClick={() => setConfirmId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold text-gray-900 mb-1.5">Delete exercise log?</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              This will permanently delete the log for{" "}
+              <span className="font-semibold text-gray-700">{confirmTarget.exercise_title}</span>. This can&apos;t be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => removeLog(confirmTarget.id)}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

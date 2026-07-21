@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Elements,
   PaymentElement,
@@ -142,6 +143,7 @@ function CheckoutForm({
 }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
+  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -162,6 +164,15 @@ function CheckoutForm({
 
     if (error) {
       console.error("[PurchaseCheckout] confirmPayment error:", error.type, error.message);
+      // Only a genuine decline/processing failure (card_error) sends the
+      // user to the dedicated /failure page — validation errors (e.g.
+      // incomplete card fields) just need fixing inline, not a full-page
+      // redirect away from the form they're still editing.
+      if (error.type === "card_error") {
+        setSubmitting(false);
+        router.push("/failure");
+        return;
+      }
       setPaymentError(error.message || "Payment failed. Please try again.");
       setSubmitting(false);
       return;

@@ -348,6 +348,7 @@ const ExerciseCard = ({
             setHasPurchased(true);
             setShowPurchaseModal(false);
             setCheckoutStarted(false);
+            router.push("/success");
           }}
           onCancel={() => {
             console.log("[viewWorkoutDetail] payment flow closed without unlocking", { programCode });

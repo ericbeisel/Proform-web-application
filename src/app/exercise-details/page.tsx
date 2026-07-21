@@ -12,15 +12,15 @@ import {
 
 const UNIT_TYPE_OPTIONS = [
   { value: "reps", label: "Reps" },
-  { value: "range", label: "Rep Range" },
-  { value: "amrp", label: "AMRAP" },
   { value: "each", label: "Each" },
+  { value: "range", label: "Range" },
+  { value: "yds", label: "YDS" },
+  { value: "amrp", label: "AMRP" },
   { value: "series", label: "Series" },
-  { value: "sec", label: "Seconds" },
+  { value: "sec", label: "Sec" },
+  { value: "seeWithEach", label: "SecWithEach" },
   { value: "minutes", label: "Minutes" },
-  { value: "meters", label: "Meters" },
-  { value: "yds", label: "Yards" },
-  { value: "seeWithEach", label: "See With Each" },
+  { value: "meters", label: "Meter" },
 ];
 
 const MEASUREMENT_OPTIONS = ["lbs", "kg", "resistant"];
@@ -28,6 +28,7 @@ const MEASUREMENT_OPTIONS = ["lbs", "kg", "resistant"];
 interface SetCardState {
   weight: string;
   reps: string;
+  repsCompanion: string;
   mets: string;
   effort: string;
   miles: string;
@@ -41,8 +42,9 @@ interface SetCardState {
 const EMPTY_SET_CARD: SetCardState = {
   weight: "",
   reps: "",
+  repsCompanion: "",
   mets: "",
-  effort: "Max Effort",
+  effort: "",
   miles: "",
   rpm: "",
   heartRate: "",
@@ -50,6 +52,30 @@ const EMPTY_SET_CARD: SetCardState = {
   watt: "",
   addPowerset: false,
 };
+
+// "each"/"seeWithEach"/"range"/"minutes" need a second number beside the main
+// reps/value input — the separator and mandatory field differ per type.
+function companionConfigFor(unitType: string): {
+  show: boolean;
+  separator: string | null;
+  companionMandatory: boolean;
+  primaryMandatory: boolean;
+  companionPlaceholder?: string;
+} {
+  switch (unitType) {
+    case "range":
+      return { show: true, separator: "-", companionMandatory: false, primaryMandatory: false, companionPlaceholder: "Add reps" };
+    case "minutes":
+      return { show: true, separator: ":", companionMandatory: false, primaryMandatory: true, companionPlaceholder: "00" };
+    case "each":
+    case "seeWithEach":
+      return { show: true, separator: null, companionMandatory: true, primaryMandatory: false, companionPlaceholder: "Rep Variable *" };
+    case "meters":
+      return { show: false, separator: null, companionMandatory: false, primaryMandatory: true };
+    default:
+      return { show: false, separator: null, companionMandatory: false, primaryMandatory: false };
+  }
+}
 
 function stub(label: string) {
   alert(`${label} — coming soon (backend endpoint pending).`);
@@ -97,10 +123,19 @@ function ExerciseDetailsContent() {
   // feed the real Set 1 card once "Submit Set" is pressed.
   const [sets, setSets] = useState("1x");
   const [reps, setReps] = useState("12");
+  const [repsCompanion, setRepsCompanion] = useState("");
   const [unitType, setUnitType] = useState("reps");
   const [suggestedWeight, setSuggestedWeight] = useState("");
   const [measurement, setMeasurement] = useState("lbs");
   const [percentageBased, setPercentageBased] = useState(false);
+
+  const companion = companionConfigFor(unitType);
+
+  function handleUnitTypeChange(value: string) {
+    setUnitType(value);
+    setReps("");
+    setRepsCompanion("");
+  }
 
   const [showSets, setShowSets] = useState(false);
   const [setCards, setSetCards] = useState<SetCardState[]>([]);
@@ -144,6 +179,9 @@ function ExerciseDetailsContent() {
         s.reps = card.reps ? Number(card.reps) : undefined;
       } else {
         s.value = card.reps ? Number(card.reps) : undefined;
+      }
+      if (companion.show && card.repsCompanion) {
+        s.value_secondary = Number(card.repsCompanion);
       }
       return s;
     });
@@ -272,35 +310,53 @@ function ExerciseDetailsContent() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mb-3">
+              <div className={`grid grid-cols-2 ${companion.show ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-3 max-w-md mb-3`}>
                 <div className="relative">
                   <select
                     value={sets}
                     onChange={(e) => setSets(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-500 outline-none appearance-none focus:border-[#8B5CF6] transition"
+                    className="w-full h-12 rounded-xl border border-gray-200 px-4 text-base text-gray-500 outline-none appearance-none focus:border-[#8B5CF6] transition"
                   >
-                    {["1x", "2x", "3x", "4x", "5x"].map((s) => (
+                    {["1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x"].map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
                 <input
                   value={reps}
                   onChange={(e) => setReps(e.target.value)}
-                  className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-[#222] outline-none focus:border-[#8B5CF6] transition"
+                  placeholder={unitType === "minutes" ? "00" : unitType === "meters" ? "Add reps" : undefined}
+                  className={`h-12 rounded-xl border px-4 text-base text-[#222] outline-none focus:border-[#8B5CF6] transition ${
+                    companion.primaryMandatory && !reps ? "border-red-400" : "border-gray-200"
+                  }`}
                 />
+                {companion.show && (
+                  <div className="flex items-center gap-1.5">
+                    {companion.separator && (
+                      <span className="text-gray-400 font-semibold text-base shrink-0">{companion.separator}</span>
+                    )}
+                    <input
+                      value={repsCompanion}
+                      onChange={(e) => setRepsCompanion(e.target.value)}
+                      placeholder={companion.companionPlaceholder}
+                      className={`h-12 w-full rounded-xl border px-4 text-base text-[#222] outline-none focus:border-[#8B5CF6] transition ${
+                        companion.companionMandatory && !repsCompanion ? "border-red-400" : "border-gray-200"
+                      }`}
+                    />
+                  </div>
+                )}
                 <div className="relative">
                   <select
                     value={unitType}
-                    onChange={(e) => setUnitType(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-[#3B82F6] px-3 text-sm text-[#3B82F6] outline-none appearance-none focus:border-[#2563EB] transition"
+                    onChange={(e) => handleUnitTypeChange(e.target.value)}
+                    className="w-full h-12 rounded-xl border border-[#3B82F6] px-4 text-base text-[#3B82F6] outline-none appearance-none focus:border-[#2563EB] transition"
                   >
                     {UNIT_TYPE_OPTIONS.map((u) => (
                       <option key={u.value} value={u.value}>{u.label}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#3B82F6] pointer-events-none" />
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3B82F6] pointer-events-none" />
                 </div>
               </div>
 
@@ -309,20 +365,20 @@ function ExerciseDetailsContent() {
                   placeholder="Weight"
                   value={suggestedWeight}
                   onChange={(e) => setSuggestedWeight(e.target.value)}
-                  className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-[#222] outline-none focus:border-[#8B5CF6] transition"
+                  className="h-12 rounded-xl border border-gray-200 px-4 text-base text-[#222] outline-none focus:border-[#8B5CF6] transition"
                 />
-                <input placeholder="Weight P..." disabled className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-400 outline-none" />
+                <input placeholder="Weight P..." disabled className="h-12 rounded-xl border border-gray-200 bg-gray-50 px-4 text-base text-gray-400 outline-none" />
                 <div className="relative">
                   <select
                     value={measurement}
                     onChange={(e) => setMeasurement(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm text-[#222] outline-none appearance-none focus:border-[#8B5CF6] transition"
+                    className="w-full h-12 rounded-xl border border-gray-200 px-4 text-base text-[#222] outline-none appearance-none focus:border-[#8B5CF6] transition"
                   >
                     {MEASUREMENT_OPTIONS.map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
               </div>
 
@@ -353,6 +409,7 @@ function ExerciseDetailsContent() {
                           ...EMPTY_SET_CARD,
                           weight: suggestedWeight,
                           reps,
+                          repsCompanion,
                         })),
                       );
                       setShowSets(true);
@@ -378,56 +435,74 @@ function ExerciseDetailsContent() {
 
               <p className="text-sm font-bold text-[#222] mb-4">Set {i + 1}</p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <div className={`grid grid-cols-2 ${companion.show ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-3 mb-3`}>
                 <input
                   placeholder="Weight/R..."
                   value={card.weight}
                   onChange={(e) => updateCard(i, { weight: e.target.value })}
-                  className="h-10 rounded-lg border border-[#3B82F6] px-3 text-sm outline-none focus:border-[#2563EB] transition"
+                  className="h-12 rounded-xl border border-[#3B82F6] px-4 text-base outline-none focus:border-[#2563EB] transition"
                 />
                 {card.reps ? (
                   <input
                     value={card.reps}
                     onChange={(e) => updateCard(i, { reps: e.target.value })}
-                    placeholder="Reps"
-                    className="h-10 rounded-lg border border-[#3B82F6] px-3 text-sm outline-none focus:border-[#2563EB] transition"
+                    placeholder={unitType === "minutes" ? "00" : unitType === "meters" ? "Add reps" : "Reps"}
+                    className={`h-12 rounded-xl border px-4 text-base outline-none focus:border-[#2563EB] transition ${
+                      companion.primaryMandatory && !card.reps ? "border-red-400" : "border-[#3B82F6]"
+                    }`}
                   />
                 ) : (
                   <button
                     onClick={() => updateCard(i, { reps: "0" })}
-                    className="h-10 rounded-lg border border-[#3B82F6] text-[#3B82F6] text-sm font-semibold hover:bg-blue-50 transition"
+                    className="h-12 rounded-xl border border-[#3B82F6] text-[#3B82F6] text-sm font-semibold hover:bg-blue-50 transition"
                   >
                     Add REPS
                   </button>
+                )}
+                {companion.show && (
+                  <div className="flex items-center gap-1.5">
+                    {companion.separator && (
+                      <span className="text-gray-400 font-semibold text-base shrink-0">{companion.separator}</span>
+                    )}
+                    <input
+                      value={card.repsCompanion}
+                      onChange={(e) => updateCard(i, { repsCompanion: e.target.value })}
+                      placeholder={companion.companionPlaceholder}
+                      className={`h-12 w-full rounded-xl border px-4 text-base outline-none focus:border-[#2563EB] transition ${
+                        companion.companionMandatory && !card.repsCompanion ? "border-red-400" : "border-[#3B82F6]"
+                      }`}
+                    />
+                  </div>
                 )}
                 {/* Cosmetic only — no field for these in the real API yet */}
                 <input
                   placeholder="METs"
                   value={card.mets}
                   onChange={(e) => updateCard(i, { mets: e.target.value })}
-                  className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition"
+                  className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition"
                 />
                 <div className="relative">
                   <select
                     value={card.effort}
                     onChange={(e) => updateCard(i, { effort: e.target.value })}
-                    className="w-full h-10 rounded-lg border border-gray-200 px-3 text-sm text-[#222] outline-none appearance-none focus:border-[#8B5CF6] transition"
+                    className="w-full h-12 rounded-xl border border-gray-200 px-4 text-base text-[#222] outline-none appearance-none focus:border-[#8B5CF6] transition"
                   >
-                    {["Max Effort", "80% Effort", "50% Effort"].map((o) => (
+                    <option value="" disabled>Max Effort</option>
+                    {["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((o) => (
                       <option key={o} value={o}>{o}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
               </div>
 
               {/* Cosmetic only — no field for these in the real API yet */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
-                <input placeholder="Miles" value={card.miles} onChange={(e) => updateCard(i, { miles: e.target.value })} className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition" />
-                <input placeholder="RPM's" value={card.rpm} onChange={(e) => updateCard(i, { rpm: e.target.value })} className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition" />
-                <input placeholder="HR (Heart R..." value={card.heartRate} onChange={(e) => updateCard(i, { heartRate: e.target.value })} className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition" />
-                <input placeholder="Calories" value={card.calories} onChange={(e) => updateCard(i, { calories: e.target.value })} className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition" />
-                <input placeholder="Watt" value={card.watt} onChange={(e) => updateCard(i, { watt: e.target.value })} className="h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#8B5CF6] transition" />
+                <input placeholder="Miles" value={card.miles} onChange={(e) => updateCard(i, { miles: e.target.value })} className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition" />
+                <input placeholder="RPM's" value={card.rpm} onChange={(e) => updateCard(i, { rpm: e.target.value })} className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition" />
+                <input placeholder="HR (Heart R..." value={card.heartRate} onChange={(e) => updateCard(i, { heartRate: e.target.value })} className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition" />
+                <input placeholder="Calories" value={card.calories} onChange={(e) => updateCard(i, { calories: e.target.value })} className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition" />
+                <input placeholder="Watt" value={card.watt} onChange={(e) => updateCard(i, { watt: e.target.value })} className="h-12 rounded-xl border border-gray-200 px-4 text-base outline-none focus:border-[#8B5CF6] transition" />
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -449,7 +524,7 @@ function ExerciseDetailsContent() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-[#3B82F6] px-3 py-2 text-sm outline-none focus:border-[#2563EB] transition resize-none mb-6"
+              className="w-full rounded-xl border border-[#3B82F6] px-4 py-3 text-base outline-none focus:border-[#2563EB] transition resize-none mb-6"
             />
           )}
 

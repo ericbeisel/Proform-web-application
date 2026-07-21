@@ -4,6 +4,28 @@ import { getAuthToken } from "@/lib/auth/session";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.paxlete.com";
 
+// Debug helper for the "missing member_id" exercise-log errors — logs the full
+// decoded JWT payload (not just the id/email/username subset getTokenPayload
+// exposes) plus the stored user object, so we can see whether member_id is
+// present anywhere on the authenticated session.
+function logExerciseLogAuthDebug(context: string) {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      console.log(`[exerciseLogs] ${context} — no auth token found`);
+      return;
+    }
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    console.log(`[exerciseLogs] ${context} — decoded token payload:`, payload);
+    if (typeof window !== "undefined") {
+      const rawUser = window.localStorage.getItem("user");
+      console.log(`[exerciseLogs] ${context} — stored user object:`, rawUser ? JSON.parse(rawUser) : null);
+    }
+  } catch (err) {
+    console.error(`[exerciseLogs] ${context} — failed to decode token:`, err);
+  }
+}
+
 // ===========================================
 // TYPES
 // ===========================================
@@ -655,12 +677,15 @@ export const getAllExercises = async (params: {
     const query = new URLSearchParams();
     query.set("page", String(params.page ?? 1));
     query.set("limit", String(params.limit ?? 20));
+    console.log("[exercises] GET /workouts/exercises → params:", params);
     const { data } = await apiClient.get(`/workouts/exercises?${query.toString()}`);
+    console.log("[exercises] GET /workouts/exercises ✅ raw response:", data);
     if (Array.isArray(data)) return { exercises: data, total: data.length };
     if (data.exercises) return { exercises: data.exercises, total: data.total ?? data.exercises.length };
     if (data.data) return { exercises: data.data, total: data.total ?? data.data.length };
     return { exercises: [], total: 0 };
   } catch (error: unknown) {
+    console.error("[exercises] GET /workouts/exercises ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
     throw new Error(getErrorMessage(error, "Failed to fetch exercises."));
   }
 };
@@ -689,11 +714,14 @@ export const searchExercises = async (params: {
     if (params.location) query.set("locationId", params.location);
     if (params.max) query.set("opmRecord", params.max);
     if (params.favoritesOnly) query.set("favoritesOnly", "true");
+    console.log("[exercises] GET /workouts/search-exercises → params:", params, "| query string:", query.toString());
     const { data } = await apiClient.get(`/workouts/search-exercises?${query.toString()}`);
+    console.log("[exercises] GET /workouts/search-exercises ✅ raw response:", data);
     if (Array.isArray(data)) return { exercises: data, total: data.length };
     if (data.exercises) return { exercises: data.exercises, total: data.total ?? data.exercises.length };
     return { exercises: [], total: 0 };
   } catch (error: unknown) {
+    console.error("[exercises] GET /workouts/search-exercises ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
     throw new Error(getErrorMessage(error, "Failed to search exercises."));
   }
 };
@@ -1099,6 +1127,7 @@ export const getExerciseLogs = async (params: {
   limit?: number;
   exerciseId?: string;
 } = {}): Promise<ExerciseLogsResponse> => {
+  logExerciseLogAuthDebug("GET /exercise-logs");
   try {
     const query = new URLSearchParams();
     query.set("page", String(params.page ?? 1));
@@ -1140,6 +1169,7 @@ export interface CreateExerciseLogPayload {
 export const createExerciseLog = async (
   payload: CreateExerciseLogPayload,
 ): Promise<ExerciseLogEntry> => {
+  logExerciseLogAuthDebug("POST /exercise-logs");
   try {
     const formData = new FormData();
     formData.append("exerciseId", payload.exerciseId);
@@ -1171,5 +1201,17 @@ export const createExerciseLog = async (
   } catch (error: unknown) {
     console.error("[exerciseLogs] POST /exercise-logs ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
     throw new Error(getErrorMessage(error, "Failed to save exercise log."));
+  }
+};
+
+export const deleteExerciseLog = async (id: number): Promise<void> => {
+  logExerciseLogAuthDebug("DELETE /exercise-logs/" + id);
+  try {
+    console.log("[exerciseLogs] DELETE /exercise-logs/" + id);
+    await apiClient.delete(`/exercise-logs/${id}`);
+    console.log("[exerciseLogs] DELETE /exercise-logs/" + id + " ✅ deleted");
+  } catch (error: unknown) {
+    console.error("[exerciseLogs] DELETE /exercise-logs/" + id + " ❌ error:", axios.isAxiosError(error) ? error.response?.data : error);
+    throw new Error(getErrorMessage(error, "Failed to delete exercise log."));
   }
 };

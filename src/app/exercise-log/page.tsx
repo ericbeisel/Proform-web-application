@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Search, Plus, Trash2, Dumbbell, Loader2 } from "lucide-react";
-import { getExerciseLogs, type ExerciseLogEntry, type ExerciseLogSet } from "@/api/workouts/route";
+import { deleteExerciseLog, getExerciseLogs, type ExerciseLogEntry, type ExerciseLogSet } from "@/api/workouts/route";
 
 const LIMIT = 10;
 
@@ -53,6 +53,8 @@ export default function ExerciseLogPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -91,8 +93,24 @@ export default function ExerciseLogPage() {
     log.exercise_title.toLowerCase().includes(search.toLowerCase()),
   );
 
-  // TODO(backend): no endpoint yet to delete an exercise log — local-only for now.
-  const remove = (id: number) => setLogs((prev) => prev.filter((l) => l.id !== id));
+  const remove = async (id: number) => {
+    if (deletingId) return;
+    setConfirmId(null);
+    setDeletingId(id);
+    const previous = logs;
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    try {
+      await deleteExerciseLog(id);
+      setTotal((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      setLogs(previous);
+      setError(err instanceof Error ? err.message : "Failed to delete exercise log.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const confirmTarget = logs.find((l) => l.id === confirmId) ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
@@ -179,8 +197,9 @@ export default function ExerciseLogPage() {
                 >
                   {/* Delete button */}
                   <button
-                    onClick={() => remove(log.id)}
-                    className="flex-shrink-0 mt-0.5 text-red-400 hover:text-red-600 transition-colors p-1"
+                    onClick={() => setConfirmId(log.id)}
+                    disabled={deletingId === log.id}
+                    className="flex-shrink-0 mt-0.5 text-red-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
                     aria-label="Delete exercise log"
                   >
                     <Trash2 size={18} />
@@ -254,6 +273,39 @@ export default function ExerciseLogPage() {
           </>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4"
+          onClick={() => setConfirmId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold text-gray-900 mb-1.5">Delete exercise log?</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              This will permanently delete the log for{" "}
+              <span className="font-semibold text-gray-700">{confirmTarget.exercise_title}</span>. This can&apos;t be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => remove(confirmTarget.id)}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
