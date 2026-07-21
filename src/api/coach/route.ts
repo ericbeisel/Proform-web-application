@@ -363,7 +363,21 @@ export const getTeamPlayers = async (
 ): Promise<{ players: TeamPlayer[]; total: number }> => {
   console.log("[coachApi] getTeamPlayers → GET /coach-team/players", params);
   try {
-    const { data } = await apiClient.get("/coach-team/players", { params });
+    const queryParams: Record<string, unknown> = {};
+    if (params.team_id && params.team_id !== "all") {
+      queryParams.team_id = params.team_id;
+    }
+    if (params.search) {
+      queryParams.search = params.search;
+    }
+    if (params.page) {
+      queryParams.page = params.page;
+    }
+    if (params.limit) {
+      queryParams.limit = params.limit;
+    }
+
+    const { data } = await apiClient.get("/coach-team/players", { params: queryParams });
     const players: TeamPlayer[] = Array.isArray(data)
       ? data
       : (data?.data ?? data?.players ?? []);
@@ -383,31 +397,10 @@ export interface SearchPlayersParams {
   limit?: number;
 }
 
-// TODO(backend): no endpoint exists yet to search players across all teams (for the
-// "Add Player to Team" page). Confirm route/params with backend, then replace this stub.
-// Returning hardcoded dummy data until then.
-const DUMMY_ALL_PLAYERS: TeamPlayer[] = [
-  { id: 9001, name: "Asher Fisher",  username: "asherfisher",  profile_picture: null, score: "2/4", completion_pct: 50 },
-  { id: 9002, name: "Aiden Phoenix", username: "aidenphoenix", profile_picture: null, score: "0/4", completion_pct: 0 },
-  { id: 9003, name: "Aiden Jones",   username: "aiden_jones",  profile_picture: null, score: "1/4", completion_pct: 25 },
-  { id: 9004, name: "Bella Cruz",    username: "bellacruz",    profile_picture: null, score: "3/4", completion_pct: 75 },
-  { id: 9005, name: "Carter Lane",   username: "carterlane",   profile_picture: null, score: "4/4", completion_pct: 100 },
-  { id: 9006, name: "Dylan Wells",   username: "dylanwells",   profile_picture: null, score: "0/4", completion_pct: 0 },
-  { id: 9007, name: "Emma Sinclair", username: "emmasinclair", profile_picture: null, score: "2/4", completion_pct: 50 },
-];
-
 export const searchAllPlayers = async (
   params: SearchPlayersParams,
 ): Promise<{ players: TeamPlayer[]; total: number }> => {
-  console.warn("[coachApi] searchAllPlayers → backend endpoint pending, returning dummy data", params);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const q = (params.search ?? "").trim().toLowerCase();
-  const filtered = q
-    ? DUMMY_ALL_PLAYERS.filter(
-        (p) => p.name?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q),
-      )
-    : DUMMY_ALL_PLAYERS;
-  return { players: filtered, total: filtered.length };
+  return getTeamPlayers(params);
 };
 
 // TODO(backend): no endpoint exists yet to add an existing player to a team.

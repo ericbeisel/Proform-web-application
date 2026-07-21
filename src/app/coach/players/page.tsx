@@ -233,11 +233,12 @@ export default function AllPlayersPage() {
                     <div key={p.id} className="relative bg-[#fafafa] px-4 sm:px-5 py-4 pr-12 sm:pr-14">
                       <button
                         onClick={() => {
-                          if (!p.username) return;
-                          router.push(`/coach/players/${encodeURIComponent(p.username)}`);
+                          const target = p.username || p.id;
+                          if (!target) return;
+                          router.push(`/coach/players/${encodeURIComponent(target)}`);
                         }}
-                        disabled={!p.username}
-                        className="absolute top-3 right-4 sm:top-auto sm:bottom-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={!p.username && !p.id}
+                        className="absolute top-3 right-4 sm:top-auto sm:bottom-3 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110 transition-transform"
                         title="View Master Profile"
                       >
                         <Crown size={20} className="text-[#F5A623]" fill="#F5A623" />
