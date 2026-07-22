@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { X, Search, ChevronDown, ChevronUp, Menu, CheckCircle2, Crown } from "lucide-react";
+import { X, Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Menu, CheckCircle2, Crown } from "lucide-react";
 import { coachApi, type CoachTeam, type TeamPlayer } from "@/api/coach/route";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
+import { CreatePlayerModal, type CreatePlayerFormValues } from "@/app/coach/coach-dashboard/components/CreatePlayerModal";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
@@ -17,6 +18,11 @@ interface AllPlayer extends TeamPlayer {
   lastWorkout: string;
   verified: boolean;
   notes: string;
+  // Set only on a freshly-created pending-signup card — this page isn't
+  // scoped to one team, so unlike roster.tsx there's no single team_id to
+  // fall back on for Send Invite/Copy Sign Link; this remembers which team
+  // the coach actually picked in the modal for that specific player.
+  _createdForTeamId?: string;
 }
 
 function decoratePlayer(p: TeamPlayer): AllPlayer {
@@ -31,6 +37,8 @@ function decoratePlayer(p: TeamPlayer): AllPlayer {
     notes: p.notes ?? "",
   };
 }
+
+const PAGE_LIMIT = 20;
 
 export default function AllPlayersPage() {
   const router = useRouter();
@@ -54,6 +62,12 @@ export default function AllPlayersPage() {
   const [players, setPlayers] = useState<AllPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null);
 
   useEffect(() => {
     const user = getAuthUser();
@@ -77,21 +91,35 @@ export default function AllPlayersPage() {
     coachApi.getCoachTeams().then(setTeams).catch(console.error);
   }, []);
 
+  // Search/team-filter changes always start back at page 1 — otherwise a
+  // narrower result set could leave `page` pointing past the new last page.
   useEffect(() => {
-    setLoading(true);
-    const timeout = setTimeout(() => {
-      coachApi
-        .searchAllPlayers({
-          team_id: teamFilterId !== "all" ? teamFilterId : undefined,
-          search,
-          limit: 20,
-        })
-        .then(({ players }) => setPlayers(players.map(decoratePlayer)))
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    }, 400);
-    return () => clearTimeout(timeout);
+    setPage(1);
   }, [search, teamFilterId]);
+
+  function fetchPlayers() {
+    setLoading(true);
+    coachApi
+      .searchAllPlayers({
+        team_id: teamFilterId !== "all" ? teamFilterId : undefined,
+        search,
+        page,
+        limit: PAGE_LIMIT,
+      })
+      .then(({ players, total }) => {
+        console.log("[AllPlayersPage] /coach-team/players raw response:", { total, count: players.length, players });
+        setPlayers(players.map(decoratePlayer));
+        setTotal(total);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    const timeout = setTimeout(fetchPlayers, 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, teamFilterId, page]);
 
   function toggleSelect(playerId: number) {
     setSelectedIds((prev) => {
@@ -105,14 +133,87 @@ export default function AllPlayersPage() {
     setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, notes } : p)));
   }
 
-  function handleAddPlayers() {
-    if (teamFilterId === "all") {
-      alert('Select a team from "Filter By Teams" first to add players to it.');
+  function handleCreatePlayerClick() {
+    if (teams.length === 0) {
+      alert("You don't have any teams yet — create a team first.");
       return;
     }
-    const team = teams.find((t) => t.id === teamFilterId);
-    const params = new URLSearchParams({ team_name: team?.name ?? "Team" });
-    router.push(`/coach/team/${teamFilterId}/add-player?${params.toString()}`);
+    setShowCreateModal(true);
+  }
+
+  // Copied from roster/page.tsx's handleCreatePlayer — same backend call/branching.
+  // Unlike roster.tsx (team is implicit from the route), this page isn't scoped to
+  // one team, so the modal itself asks which team the player belongs to (values.teamId)
+  // rather than depending on "Filter By Teams" — the coach can browse "All Teams" and
+  // still create a player for any specific team.
+  async function handleCreatePlayer(values: CreatePlayerFormValues) {
+    const teamId = values.teamId!;
+    const response = await coachApi.invitePlayer({ team_id: teamId, name: values.name, email: values.email });
+    if (response.status === "added") {
+      // Existing account was linked directly — refresh from backend, no invite link to share.
+      fetchPlayers();
+      alert(response.message ?? "Player Added: this player already has an account and was added directly to your team.");
+      return;
+    }
+
+    // "created" (new account made, temp credentials emailed) or "invited" (no account yet) —
+    // both give the coach a link worth re-sharing, so show it on the new card via
+    // Send Invite / Copy Sign Link instead of refetching it away.
+    const pendingPlayer: TeamPlayer = {
+      id: Math.floor(Math.random() * 1_000_000) + 100_000,
+      name: values.name,
+      email: values.email,
+      username: values.email.split("@")[0],
+      profile_picture: values.image ? URL.createObjectURL(values.image) : null,
+      pendingSignup: true,
+      inviteLink: response.inviteLink,
+    };
+    setPlayers((prev) => [...prev, { ...decoratePlayer(pendingPlayer, prev.length), _createdForTeamId: teamId }]);
+
+    if (response.status === "created") {
+      alert(
+        response.message ??
+          "Player Created: a new account has been created for this player and added to your team. Temporary credentials have been sent to their email.",
+      );
+    }
+  }
+
+  // Fallback in case the backend didn't return an inviteLink for this pending player.
+  function buildSignLink(p: AllPlayer): string {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const params = new URLSearchParams({
+      team_id: p._createdForTeamId ?? "",
+      player_id: String(p.id),
+      name: p.name ?? "",
+      email: p.email ?? "",
+    });
+    return `${origin}/auth/signup?${params.toString()}`;
+  }
+
+  async function handleSendInvite(p: AllPlayer) {
+    const link = p.inviteLink;
+    if (!link) {
+      alert("No signup invitation link is available.");
+      return;
+    }
+    const teamName = teams.find((t) => t.id === p._createdForTeamId)?.name ?? "the team";
+    const message = `Hey! You've been invited to join the team "${teamName}" on Paxlete. Register and download the app here: ${link}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ text: message });
+      } catch {
+        // user dismissed the share sheet — nothing to do
+      }
+    } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+      await navigator.clipboard.writeText(message);
+      alert("Invite message copied to clipboard.");
+    }
+  }
+
+  function handleCopySignLink(p: AllPlayer) {
+    navigator.clipboard.writeText(p.inviteLink ?? buildSignLink(p));
+    setCopiedLinkId(p.id);
+    setTimeout(() => setCopiedLinkId((current) => (current === p.id ? null : current)), 2000);
   }
 
   return (
@@ -202,10 +303,10 @@ export default function AllPlayersPage() {
                 Connect ID&apos;s
               </button>
               <button
-                onClick={handleAddPlayers}
+                onClick={handleCreatePlayerClick}
                 className="h-10 px-4 rounded-full border border-gray-300 text-xs sm:text-sm font-semibold text-gray-700 hover:bg-gray-50 transition shrink-0"
               >
-                + Add Player(s)
+                + Create Player(s)
               </button>
             </div>
 
@@ -301,6 +402,23 @@ export default function AllPlayersPage() {
                           </div>
 
                           <p className="text-xs text-gray-400 mt-2">Last Workout: {p.lastWorkout}</p>
+
+                          {p.pendingSignup && (
+                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                              <button
+                                onClick={() => handleSendInvite(p)}
+                                className="h-8 px-4 rounded-full border border-[#8B5CF6] text-[#8B5CF6] text-xs font-semibold hover:bg-[#f5f0ff] transition"
+                              >
+                                Send Invite
+                              </button>
+                              <button
+                                onClick={() => handleCopySignLink(p)}
+                                className="h-8 px-4 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition"
+                              >
+                                {copiedLinkId === p.id ? "Copied!" : "Copy Sign Link"}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -308,9 +426,47 @@ export default function AllPlayersPage() {
                 })
               )}
             </div>
+
+            {/* Pagination */}
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  {total} player{total !== 1 ? "s" : ""} total
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-[#f5f5f7] hover:bg-gray-200 disabled:opacity-30 transition"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="text-xs font-semibold text-gray-600 whitespace-nowrap">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-[#f5f5f7] hover:bg-gray-200 disabled:opacity-30 transition"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {showCreateModal && (
+        <CreatePlayerModal
+          teamName={teams.find((t) => t.id === teamFilterId)?.name ?? "Team"}
+          teamOptions={teams.map((t) => ({ id: t.id, name: t.name }))}
+          defaultTeamId={teamFilterId !== "all" ? teamFilterId : undefined}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleCreatePlayer}
+        />
+      )}
     </div>
   );
 }

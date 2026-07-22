@@ -330,7 +330,7 @@ export default function FindExercisesPage() {
                     <button
                       key={exId}
                       onClick={() => {
-                        const params = new URLSearchParams({ id: String(exId), name });
+                        const params = new URLSearchParams({ id: String(exId), name, gif: gifUrl || "" });
                         router.push(`/coach/players/${username}/exercise-log/find-exercises/exercise-details?${params.toString()}`);
                       }}
                       className="group relative flex flex-col items-center gap-2 p-3 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md hover:border-[#8B5CF6]/30 hover:-translate-y-0.5 transition-all text-center"

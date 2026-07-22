@@ -29,6 +29,19 @@ const UNIT_TYPE_OPTIONS = [
 
 const MEASUREMENT_OPTIONS = ["lbs", "kg", "resistant"];
 
+// Same resolution find-exercises/page.tsx already applies before handing the
+// gif URL over via the query string — kept idempotent here (a plain https
+// URL passes through unchanged) in case a direct/bookmarked link ever
+// carries an unresolved wix:image:// URL.
+function resolveMedia(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("wix:image://")) {
+    const hash = url.replace("wix:image://v1/", "").split("/")[0];
+    return `https://static.wixstatic.com/media/${hash}`;
+  }
+  return url;
+}
+
 interface SetCardState {
   weight: string;
   reps: string;
@@ -115,6 +128,7 @@ function ExerciseDetailsContent() {
 
   const exerciseId = searchParams.get("id") ?? "";
   const name = searchParams.get("name") ?? "Exercise";
+  const gifUrl = resolveMedia(searchParams.get("gif"));
 
   const handleLogOut = () => {
     invalidateDashboardCache();
@@ -160,7 +174,7 @@ function ExerciseDetailsContent() {
   // Suggested section — sets is a cosmetic recommendation, reps/unit/weight/measurement
   // feed the real set cards once "Submit Set" is pressed.
   const [sets, setSets] = useState("1x");
-  const [reps, setReps] = useState("12");
+  const [reps, setReps] = useState("");
   const [repsCompanion, setRepsCompanion] = useState("");
   const [unitType, setUnitType] = useState("reps");
   const [suggestedWeight, setSuggestedWeight] = useState("");
@@ -319,9 +333,13 @@ function ExerciseDetailsContent() {
 
             {/* Exercise + suggested */}
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 mb-8">
-              <div className="flex flex-col items-center gap-2 shrink-0 w-28">
-                <div className="w-20 h-20 flex items-center justify-center">
-                  <Gem size={32} className="text-[#8B5CF6]" fill="#8B5CF6" />
+              <div className="flex flex-col items-center gap-2 shrink-0 w-32">
+                <div className="w-28 h-28 flex items-center justify-center overflow-hidden">
+                  {gifUrl ? (
+                    <img src={gifUrl} alt={name} className="w-full h-full object-contain" />
+                  ) : (
+                    <Gem size={32} className="text-[#8B5CF6]" fill="#8B5CF6" />
+                  )}
                 </div>
                 <p className="text-xs font-bold text-[#222] text-center leading-tight uppercase">
                   {name}

@@ -7,6 +7,9 @@ export interface CreatePlayerFormValues {
   name: string;
   email: string;
   image: File | null;
+  // Only set (and only meaningful) when `teamOptions` is passed in — the
+  // team the coach picked from the in-modal dropdown.
+  teamId?: string;
 }
 
 interface CreatePlayerModalProps {
@@ -15,13 +18,20 @@ interface CreatePlayerModalProps {
   // Pure form — the caller owns the API call (invite/create are the same backend call,
   // branched by response status) and rethrows on failure so the modal can surface it.
   onSave: (values: CreatePlayerFormValues) => Promise<void>;
+  // When provided, the modal shows its own "Team" picker instead of assuming
+  // a single fixed team — used where the caller doesn't already have a team
+  // selected (e.g. the cross-team /coach/players page). Omit this when the
+  // team is implicit (e.g. roster.tsx, scoped to one team via the route).
+  teamOptions?: { id: string; name: string }[];
+  defaultTeamId?: string;
 }
 
-export function CreatePlayerModal({ teamName, onClose, onSave }: CreatePlayerModalProps) {
+export function CreatePlayerModal({ teamName, onClose, onSave, teamOptions, defaultTeamId }: CreatePlayerModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState(defaultTeamId ?? teamOptions?.[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,10 +54,14 @@ export function CreatePlayerModal({ teamName, onClose, onSave }: CreatePlayerMod
       setError("Please enter both a name and an email.");
       return;
     }
+    if (teamOptions && !teamId) {
+      setError("Please select a team.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await onSave({ name: name.trim(), email: email.trim(), image });
+      await onSave({ name: name.trim(), email: email.trim(), image, teamId: teamOptions ? teamId : undefined });
       resetForm();
       if (closeAfter) onClose();
     } catch (err) {
@@ -73,7 +87,9 @@ export function CreatePlayerModal({ teamName, onClose, onSave }: CreatePlayerMod
             </div>
             <div>
               <h2 className="text-lg font-bold text-[#222] leading-tight">Create Player</h2>
-              <p className="text-xs text-gray-400">Add a new player to {teamName}</p>
+              <p className="text-xs text-gray-400">
+                {teamOptions ? "Add a new player" : `Add a new player to ${teamName}`}
+              </p>
             </div>
           </div>
           <button
@@ -105,6 +121,22 @@ export function CreatePlayerModal({ teamName, onClose, onSave }: CreatePlayerMod
             />
           </label>
         </div>
+
+        {teamOptions && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[#222]">Team</label>
+            <select
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
+              className="h-11 rounded-xl bg-[#f5f5f7] px-4 text-sm outline-none border border-transparent focus:border-[#8B5CF6] transition"
+            >
+              <option value="" disabled>Select a team</option>
+              {teamOptions.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-semibold text-[#222]">Full Name</label>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Users, UserPlus, Target, Trophy } from "lucide-react";
+import { Users, UserPlus, Target, Trophy, Dumbbell } from "lucide-react";
 
 interface CoachSidebarProps {
   profilePicture: string | null;
@@ -17,6 +17,7 @@ const QUICK_LINK_ITEMS = [
   { label: "All Players",    icon: UserPlus, href: "/coach/players" },
   { label: "All Activities", icon: Target,   href: "/coach/activity" },
   { label: "Leaderboard",    icon: Trophy,   href: "/coach/leaderboard" },
+  { label: "Exercise Log",   icon: Dumbbell, href: "/coach/players/test/exercise-log" },
 ];
 
 export function CoachSidebar({ profilePicture, userInitial, onSwitchToPlayer, onLogOut, isOpen = false, onClose }: CoachSidebarProps) {

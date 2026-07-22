@@ -397,6 +397,50 @@ export const getPublicWorkoutSession = async (sessionId: string): Promise<Public
   return data.data;
 };
 
+export interface ClosedSessionPrescribedBy {
+  id?: number;
+  name?: string;
+  username?: string;
+  image?: string;
+}
+
+// Response shape for the closed-session detail screen (web's
+// /live-sessions/[id], mirroring mobile's LiveSessionDetailScreen).
+export interface ClosedSessionDetails {
+  id?: string;
+  programName?: string;
+  workoutTitle?: string;
+  prescribedBy?: ClosedSessionPrescribedBy | null;
+  locationName?: string;
+  // Program identifier needed to open this session's workout overview —
+  // named inconsistently across endpoints elsewhere in this file
+  // (workout_code/program_id on WorkoutSession), so both are read
+  // defensively wherever this is consumed.
+  program_id?: string;
+  workout_code?: string;
+  stats?: PublicWorkoutSessionStats;
+  sessionMetrics?: PublicWorkoutSessionMetrics;
+  compareGroup?: PublicWorkoutSessionCompareGroup;
+  liveUserCount?: number;
+  participants?: { id?: number; name?: string; username?: string; image?: string }[];
+  exercises?: unknown[];
+  isLiked?: boolean;
+  likeCount?: number;
+  commentCount?: number;
+  comments?: PublicWorkoutSessionComment[];
+  feedPostId?: string;
+}
+
+export const getClosedSessionDetails = async (sessionId: string): Promise<ClosedSessionDetails> => {
+  const { data } = await apiClient.get<ClosedSessionDetails | { message: string; data: ClosedSessionDetails }>(
+    `/workouts/closed-session/${sessionId}`,
+  );
+  // Defensive unwrap — /public-workout-session wraps in { data }, while
+  // /workouts/session returns flat; this endpoint's convention isn't
+  // confirmed yet, so handle either.
+  return (data as { data?: ClosedSessionDetails }).data ?? (data as ClosedSessionDetails);
+};
+
 export const swapExercise = async (
   request: SwapExerciseRequest,
 ): Promise<SwappedExercise> => {

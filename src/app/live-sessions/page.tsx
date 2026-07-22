@@ -13,7 +13,14 @@ const FILTER_STATUS: Record<string, boolean | undefined> = {
   "Close Session": true,
 };
 
-function openSession(session: LiveSession, router: ReturnType<typeof useRouter>) {
+function openSession(session: LiveSession, router: ReturnType<typeof useRouter>, filter: string) {
+  // Mirrors mobile's handleLiveSessionPress: under the "Close Session"
+  // filter, a row is a finished session — tapping it opens the read-only
+  // session detail/summary page instead of trying to resume/view it live.
+  if (filter === "Close Session") {
+    router.push(`/live-sessions/${session.id}`);
+    return;
+  }
   // Previously set workoutProgramCode to session.title (a display name, not
   // the program code), which made getProgramOverview query the wrong/
   // unresolvable program — silently failing and leaving whatever purchase
@@ -147,7 +154,7 @@ export default function LiveSessionsPage() {
           sessions.map((session) => (
             <div
               key={session.id}
-              onClick={() => openSession(session, router)}
+              onClick={() => openSession(session, router, filter)}
               className="bg-white rounded-2xl p-4 flex gap-4 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
             >
               {/* Image */}
@@ -207,7 +214,7 @@ export default function LiveSessionsPage() {
                   </p>
                 </div>
                 <button
-                  onClick={(e) => { e.stopPropagation(); openSession(session, router); }}
+                  onClick={(e) => { e.stopPropagation(); openSession(session, router, filter); }}
                   className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6c5ce7] to-[#a29bfe] flex items-center justify-center hover:opacity-90 transition shadow-md"
                 >
                   <Play size={14} fill="white" className="text-white ml-0.5" />

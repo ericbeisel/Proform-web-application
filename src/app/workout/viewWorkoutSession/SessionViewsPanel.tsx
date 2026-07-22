@@ -693,12 +693,33 @@ export default function SessionViewsPanel({
                         const roundLabel = getRoundLabelForSet(ps);
                         const isGray = ps.is_gray;
                         const targetUnit = (userOtherDetail?.measurementUnit || "lbs").toLowerCase();
+                        // A power set is complete once its "money set" ($) is
+                        // recorded — NOT once every set is, matching
+                        // athenaWorkout.tsx's verifyPowerSetsCompletedFor /
+                        // mobile's verifyPowerSetsCompletion: the money set is
+                        // whichever child is flagged via min_reps, falling
+                        // back to the heaviest (last, sorted by multiplier)
+                        // set if none is flagged.
+                        const sortedChildSets = [...(ps.child_sets ?? [])].sort(
+                          (a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0),
+                        );
+                        const flaggedMoneySets = sortedChildSets.filter((s) => s.min_reps != null);
+                        const moneySets =
+                          flaggedMoneySets.length > 0
+                            ? flaggedMoneySets
+                            : sortedChildSets.length > 0
+                            ? [sortedChildSets[sortedChildSets.length - 1]]
+                            : [];
+                        const isPowerSetComplete =
+                          moneySets.length > 0 && moneySets.every((s) => s.isCompleted);
                         return (
                           <div
                             key={`${ps.id || "ps"}-${gi}`}
                             onClick={() => openVelocityModal(ps)}
                             className={`rounded-[20px] border-2 overflow-hidden cursor-pointer ${
-                              isGray
+                              isPowerSetComplete
+                                ? "bg-emerald-50/40 border-emerald-300"
+                                : isGray
                                 ? "bg-[#f5f5f7] border-gray-200"
                                 : "bg-white border-[#ede9fe]"
                             }`}
@@ -708,11 +729,16 @@ export default function SessionViewsPanel({
                                 onClick; only the chevron toggles collapse. */}
                             <div className="w-full flex items-center gap-3 p-4 transition hover:brightness-95">
                               {/* Thumbnail / emoji */}
-                              <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200">
+                              <div className="relative w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200">
                                 {thumb ? (
                                   <img src={thumb} alt={ps.title_secondary} className="w-full h-full object-cover" />
                                 ) : (
                                   <span className="text-2xl">{ps.emoji || "🏋️‍♂️"}</span>
+                                )}
+                                {isPowerSetComplete && (
+                                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                    <CheckCircle2 size={11} className="text-white" />
+                                  </div>
                                 )}
                               </div>
 
@@ -726,6 +752,12 @@ export default function SessionViewsPanel({
                                     <span className="bg-[#8B5CF6] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
                                       <Star size={10} className="fill-white" />
                                       MONEY SET
+                                    </span>
+                                  )}
+                                  {isPowerSetComplete && (
+                                    <span className="bg-emerald-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                      <CheckCircle2 size={10} />
+                                      Completed
                                     </span>
                                   )}
                                 </div>
