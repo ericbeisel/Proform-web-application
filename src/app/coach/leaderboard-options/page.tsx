@@ -1,68 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, ChevronDown, X } from "lucide-react";
-
-// ── All selectable metrics ────────────────────────────────────────────────────
-
-const ALL_METRICS = [
-  "Back Squat (CMP)",
-  "Band HK-Run (:12)",
-  "Band HK-Run (:15)",
-  "Battle Rope (:15 / HR-Test)",
-  "Battle Rope (:30 / HR-Test)",
-  "Battle Rope (:45 / HR-Test)",
-  "Bench Press (CMP)",
-  "Box Jump Challenge",
-  "Broad Jump (in)",
-  "C2 Rower (:15) - Meters",
-  "Cardio (kCal) - This Week",
-  "Deadlift (CMP)",
-  "Forceplate Squat Hop",
-  "Grip Strength Test",
-  "Max 10-yd Split (Timed)",
-  "Max 100m Dash (Timed)",
-  "Max 20-yd Split (Timed)",
-  "Max 200m Dash (Timed)",
-  "Max 3 Cone Test",
-  "Max 300m Dash (Timed)",
-  "Max 40-yd Dash",
-  "Max Arc-Sprint (:09)",
-  "Max Arc-Sprint (:12)",
-  "Max Arc-Sprint (:15)",
-  "Max Broad Jump",
-  "Max Curve-Treadmill (:09)",
-  "Max Curve-Treadmill (:15)",
-  "Max L Cone Test",
-  "Max Ski Erg (150m)",
-  "Max Ski Erg (80m)",
-  "Max Ski-Erg - Timed (:20)",
-  "Max Ski Erg - Timed (:60)",
-  "Max Wattbike (:09)",
-  "Max Wattbike (:15)",
-  "Max Wattbike (Tempo)",
-  "Max Wattbike (W)",
-  "Ov. Strength",
-  "PRESS (UES)",
-  "PULL (HHP)",
-  "PUSH (HHO)",
-  "Power Clean (CMP)",
-  "Pull Up (Reps)",
-  "RAISE (OVS)",
-  "Recovery (Minutes) - Last 4 Weeks",
-  "Recovery (Minutes) - This Week",
-  "SQUAT (LES)",
-  "Side Raise Test (S)",
-  "Ski-Erg (100i) - Seconds",
-  "Ski-Erg (150m) - Seconds",
-  "Ski-Erg (:20) - Meters",
-  "THRUST (CCP)",
-  "Vertical (in)",
-];
+import { coachApi, LeaderboardCategoryReference } from "@/api/coach/route";
 
 const MAX_SELECTIONS = 12;
-
 const TIME_OPTIONS = ["1 Day", "1 Week", "30 Days", "3 Months", "1 Year", "All Time"];
 
 // ── Content ───────────────────────────────────────────────────────────────────
@@ -70,22 +13,52 @@ const TIME_OPTIONS = ["1 Day", "1 Week", "30 Days", "3 Months", "1 Year", "All T
 function LeaderboardOptionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const teamName = searchParams.get("team_name") ?? "Alpha Coaches";
+  const teamId = searchParams.get("team_id") ?? "";
+  const teamName = searchParams.get("team_name") ?? "My Team";
 
+  const [allMetrics, setAllMetrics] = useState<LeaderboardCategoryReference[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [timeFilter, setTimeFilter] = useState("1 Day");
+  const [timeFilter, setTimeFilter] = useState("All Time");
   const [justCleared, setJustCleared] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load configured options and available metrics
+  useEffect(() => {
+    if (!teamId) return;
+
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const categories = await coachApi.getLeaderboardCategories();
+        setAllMetrics(categories);
+
+        const teamConfig = await coachApi.getTeamConfig(teamId);
+        if (teamConfig?.leaderboardOption) {
+          setSelected(new Set(teamConfig.leaderboardOption));
+        }
+        if (teamConfig?.leaderboardFilter) {
+          setTimeFilter(teamConfig.leaderboardFilter);
+        }
+      } catch (err) {
+        console.error("Failed to load options data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [teamId]);
 
   const remaining = MAX_SELECTIONS - selected.size;
 
-  const toggle = (metric: string) => {
+  const toggle = (metricTitle: string) => {
     setJustCleared(false);
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(metric)) {
-        next.delete(metric);
+      if (next.has(metricTitle)) {
+        next.delete(metricTitle);
       } else if (next.size < MAX_SELECTIONS) {
-        next.add(metric);
+        next.add(metricTitle);
       }
       return next;
     });
@@ -96,9 +69,60 @@ function LeaderboardOptionsContent() {
     setJustCleared(true);
   };
 
-  // Split into two visual sections (first 27, rest)
-  const section1 = ALL_METRICS.slice(0, 27);
-  const section2 = ALL_METRICS.slice(27);
+  const handleSave = async () => {
+    if (selected.size === 0) {
+      alert("Please select at least one metric category to save.");
+      return;
+    }
+    try {
+      await coachApi.saveLeaderboardOptions(teamId, {
+        options: Array.from(selected),
+        filter: timeFilter,
+      });
+      router.push(`/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save leaderboard options.");
+    }
+  };
+
+  const handleSaveMultiple = async () => {
+    if (selected.size === 0) {
+      alert("Please select at least one metric category to save.");
+      return;
+    }
+    try {
+      const coachTeams = await coachApi.getCoachTeams();
+      await Promise.all(
+        coachTeams.map((t) =>
+          coachApi.saveLeaderboardOptions(t.id, {
+            options: Array.from(selected),
+            filter: timeFilter,
+          })
+        )
+      );
+      router.push(`/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save leaderboard options for multiple teams.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500 text-sm font-semibold">Loading options configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Split dynamic categories into two visual columns
+  const mid = Math.ceil(allMetrics.length / 2);
+  const section1 = allMetrics.slice(0, mid);
+  const section2 = allMetrics.slice(mid);
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -114,7 +138,6 @@ function LeaderboardOptionsContent() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 px-4 sm:px-6 py-5 max-w-4xl mx-auto w-full">
-
         {/* Team header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -166,71 +189,83 @@ function LeaderboardOptionsContent() {
         </p>
 
         {/* Section 1 */}
-        <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x-0">
-            {section1.map((metric, i) => {
-              const col = i % 3;
-              const isChecked = selected.has(metric);
-              const disabled = !isChecked && remaining === 0;
-              return (
-                <label
-                  key={metric}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition
-                    ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}
-                    ${i >= 3 ? "border-t border-gray-200" : ""}
-                    ${col > 0 ? "sm:border-l sm:border-gray-200" : ""}
-                  `}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    disabled={disabled}
-                    onChange={() => toggle(metric)}
-                    className="accent-[#3B82F6] w-3.5 h-3.5 shrink-0"
-                  />
-                  <span className="text-xs text-gray-700 leading-tight">{metric}</span>
-                </label>
-              );
-            })}
-          </div>
+        <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 bg-white">
+          {section1.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4 text-center">No categories available.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3">
+              {section1.map((metric, i) => {
+                const col = i % 3;
+                const isChecked = selected.has(metric.title);
+                const disabled = !isChecked && remaining === 0;
+                return (
+                  <label
+                    key={metric.id}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition border-b border-gray-100
+                      ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}
+                      ${col > 0 ? "sm:border-l sm:border-gray-200" : ""}
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={disabled}
+                      onChange={() => toggle(metric.title)}
+                      className="accent-[#3B82F6] w-3.5 h-3.5 shrink-0"
+                    />
+                    <span className="text-xs text-gray-700 leading-tight">{metric.title}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Section 2 */}
-        <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x-0">
-            {section2.map((metric, i) => {
-              const col = i % 3;
-              const isChecked = selected.has(metric);
-              const disabled = !isChecked && remaining === 0;
-              return (
-                <label
-                  key={metric}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition
-                    ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}
-                    ${i >= 3 ? "border-t border-gray-200" : ""}
-                    ${col > 0 ? "sm:border-l sm:border-gray-200" : ""}
-                  `}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    disabled={disabled}
-                    onChange={() => toggle(metric)}
-                    className="accent-[#3B82F6] w-3.5 h-3.5 shrink-0"
-                  />
-                  <span className="text-xs text-gray-700 leading-tight">{metric}</span>
-                </label>
-              );
-            })}
-          </div>
+        <div className="border border-gray-200 rounded-lg overflow-hidden mb-6 bg-white">
+          {section2.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4 text-center">No additional categories available.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3">
+              {section2.map((metric, i) => {
+                const col = i % 3;
+                const isChecked = selected.has(metric.title);
+                const disabled = !isChecked && remaining === 0;
+                return (
+                  <label
+                    key={metric.id}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition border-b border-gray-100
+                      ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}
+                      ${col > 0 ? "sm:border-l sm:border-gray-200" : ""}
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={disabled}
+                      onChange={() => toggle(metric.title)}
+                      className="accent-[#3B82F6] w-3.5 h-3.5 shrink-0"
+                    />
+                    <span className="text-xs text-gray-700 leading-tight">{metric.title}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-3 pb-8">
-          <button className="text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition">
+          <button
+            onClick={handleSaveMultiple}
+            className="text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition"
+          >
             Save Changes For Multiple Teams
           </button>
-          <button className="h-10 px-8 rounded-full bg-[#3B82F6] text-white text-sm font-bold hover:bg-[#2563EB] transition shadow">
+          <button
+            onClick={handleSave}
+            className="h-10 px-8 rounded-full bg-[#3B82F6] text-white text-sm font-bold hover:bg-[#2563EB] transition shadow"
+          >
             Save Changes
           </button>
         </div>
