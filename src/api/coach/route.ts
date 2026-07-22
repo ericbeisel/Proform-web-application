@@ -82,6 +82,13 @@ export interface TeamPlayer {
   completion_pct?: string | number;
   pendingSignup?: boolean;
   inviteLink?: string;
+  load?: string;
+  power?: string;
+  bf?: string;
+  strength?: string;
+  lastWorkout?: string;
+  notes?: string;
+  verified?: boolean;
 }
 
 export interface GetTeamPlayersParams {

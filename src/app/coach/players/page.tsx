@@ -9,9 +9,6 @@ import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
 
-// TODO(backend): Ov. Load / W.O.C. / Power / BF% / Strength / Last Workout have no API yet
-// beyond `score` (used for W.O.C.). Dummy placeholders layered on top of the real player
-// list until those fields are added to the players endpoint.
 interface AllPlayer extends TeamPlayer {
   load: string;
   power: string;
@@ -22,16 +19,17 @@ interface AllPlayer extends TeamPlayer {
   notes: string;
 }
 
-function decoratePlayer(p: TeamPlayer, index: number): AllPlayer {
-  const variants: Array<
-    Pick<AllPlayer, "load" | "power" | "bf" | "strength" | "lastWorkout" | "verified">
-  > = [
-    { load: "0", power: "0", bf: "0", strength: "445 lbs", lastWorkout: "-", verified: true },
-    { load: "0", power: "0", bf: "0", strength: "1050 lbs", lastWorkout: "-", verified: true },
-    { load: "-", power: "-", bf: "-", strength: "-", lastWorkout: "-", verified: false },
-  ];
-  const v = variants[index % variants.length];
-  return { ...p, ...v, notes: "" };
+function decoratePlayer(p: TeamPlayer): AllPlayer {
+  return {
+    ...p,
+    load: p.load ?? "-",
+    power: p.power ?? "-",
+    bf: p.bf ?? "-",
+    strength: p.strength ?? "-",
+    lastWorkout: p.lastWorkout ?? "-",
+    verified: p.verified ?? false,
+    notes: p.notes ?? "",
+  };
 }
 
 export default function AllPlayersPage() {
