@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Dumbbell, X, BarChart2, Loader2,
-  Calendar, ArrowUp, ArrowDown, Search
+  Calendar, ArrowUp, ArrowDown
 } from "lucide-react";
 import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue, getProgramTags } from "@/api/programs/route";
 
@@ -103,8 +103,6 @@ export default function WorkoutDashboard() {
   const [isReordering, setIsReordering] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
   const [tagsMap, setTagsMap] = useState<Record<string, string[]>>({});
-  // TEMPORARY: client-side filter, not a real search feature.
-  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -215,19 +213,6 @@ export default function WorkoutDashboard() {
   const remainingCalories  = goalCalories - completedCalories;
   const progressPct        = Math.min((completedCalories / goalCalories) * 100, 100);
 
-  // TEMPORARY search filter — keeps each entry's original index (for
-  // reorder/delete handlers, which operate on positions in the full,
-  // unfiltered `sessions` array) alongside the filtered view.
-  const q = searchQuery.trim().toLowerCase();
-  const filteredSessions = sessions
-    .map((session, originalIndex) => ({ session, originalIndex }))
-    .filter(
-      ({ session }) =>
-        !q ||
-        session.title.toLowerCase().includes(q) ||
-        session.programName?.toLowerCase().includes(q),
-    );
-
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleReorder = async (index: number, direction: "up" | "down") => {
@@ -308,78 +293,111 @@ export default function WorkoutDashboard() {
     <div className="min-h-screen bg-[#f4f4f8] font-['DM_Sans',_sans-serif] text-[#1a1a2e]">
 
       {/* ── Top Bar ──────────────────────────────────────────────────────── */}
-      <div className="relative bg-white px-3 sm:px-6 lg:px-7 py-3 sm:py-4 flex items-center justify-between border-b border-[#e8e8f0] sticky top-0 z-10 gap-2">
+      <div className="relative bg-white px-3 sm:px-6 lg:px-7 py-3 sm:py-4 border-b border-[#e8e8f0] sticky top-0 z-10">
+        <div className="flex items-center justify-between gap-2">
 
-        {/* Center: Logo — absolutely centered */}
-        <div className="absolute left-1/2 -translate-x-1/2 bg-white">
+          {/* Center: Logo — absolutely centered (sm+ only; mobile gets its
+              own compact inline logo below so it doesn't overlap the title/
+              actions on narrow screens) */}
+          <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bg-white">
+            <img
+              src="/images/proform-logo.jpg"
+              alt="Proform"
+              onClick={() => router.push("/workout")}
+              className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity"
+            />
+          </div>
+
+          {/* Left: avatar + title */}
+          <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-xl font-extrabold text-[#7c3aed] m-0 truncate">
+                {getWorkoutTitle()}
+              </h1>
+              <p className="text-[10px] sm:text-xs text-[#999] m-0 hidden xs:block sm:block">
+                {completedSessions}/{sessions.length} sessions · Track progress
+              </p>
+            </div>
+          </div>
+
+          {/* Mobile-only compact logo — inline instead of absolutely
+              centered, so it sits beside the title instead of on top of it */}
           <img
             src="/images/proform-logo.jpg"
             alt="Proform"
             onClick={() => router.push("/workout")}
-            className="h-8 w-auto cursor-pointer rounded-lg hover:opacity-80 transition-opacity"
+            className="sm:hidden h-7 w-auto flex-shrink-0 cursor-pointer rounded-lg hover:opacity-80 transition-opacity"
           />
-        </div>
 
-        {/* Left: avatar + title */}
-        <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-          <div className="min-w-0">
-            <h1 className="text-sm sm:text-xl font-extrabold text-[#7c3aed] m-0 truncate">
-              {getWorkoutTitle()}
-            </h1>
-            <p className="text-[10px] sm:text-xs text-[#999] m-0 hidden xs:block sm:block">
-              {completedSessions}/{sessions.length} sessions · Track progress
-            </p>
+          {/* Right: actions (sm+ only; mobile gets its own row below since
+              there's no room for all four items beside the title) */}
+          <div className="hidden sm:flex items-center gap-2 sm:gap-4 flex-shrink-0">
+
+            {/* Calendar icon */}
+            <div
+              onClick={() => router.push("/itinerary/itinerary-page")}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+            >
+              <Calendar size={20} className="text-[#7c3aed]" />
+            </div>
+
+            {/* Dumbbell icon */}
+            <div
+              onClick={() => router.push("/workout/main")}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+            >
+              <Dumbbell size={20} className="text-[#7c3aed]" />
+            </div>
+
+            {/* Workout type select */}
+            <select
+              value={workoutType}
+              onChange={(e) => setWorkoutType(e.target.value)}
+              className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer h-9 sm:h-10"
+            >
+              <option value="Workout">Workout</option>
+              <option value="Field Workout">Field Workout</option>
+              <option value="Supplemental">Supplemental</option>
+            </select>
+
+            {/* Completed count */}
+            <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 font-bold text-xs sm:text-sm whitespace-nowrap h-9 sm:h-10 flex items-center">
+              {completedSessions} completed
+            </span>
           </div>
         </div>
 
-        {/* Right: actions */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-
-          {/* Calendar icon */}
+        {/* Mobile-only second row — same four actions as the sm+ row above,
+            given their own line since the top row (title + logo) leaves no
+            room for them on narrow screens. */}
+        <div className="flex sm:hidden items-center gap-2 mt-2.5 overflow-x-auto">
           <div
             onClick={() => router.push("/itinerary/itinerary-page")}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer shrink-0"
           >
-            <Calendar size={20} className="text-[#7c3aed]" />
+            <Calendar size={18} className="text-[#7c3aed]" />
           </div>
 
-          {/* Dumbbell icon */}
           <div
             onClick={() => router.push("/workout/main")}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer shrink-0"
           >
-            <Dumbbell size={20} className="text-[#7c3aed]" />
+            <Dumbbell size={18} className="text-[#7c3aed]" />
           </div>
 
-          {/* Workout type select */}
           <select
             value={workoutType}
             onChange={(e) => setWorkoutType(e.target.value)}
-            className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer h-9 sm:h-10"
+            className="bg-gray-50 border border-[#e8e8f0] text-gray-700 text-xs rounded-lg px-3 py-2 font-semibold outline-none cursor-pointer h-9 shrink-0"
           >
             <option value="Workout">Workout</option>
             <option value="Field Workout">Field Workout</option>
             <option value="Supplemental">Supplemental</option>
           </select>
 
-          {/* Completed count */}
-          <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 font-bold text-xs sm:text-sm whitespace-nowrap h-9 sm:h-10 flex items-center">
+          <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg px-3 py-2 font-bold text-xs whitespace-nowrap h-9 flex items-center shrink-0">
             {completedSessions} completed
           </span>
-        </div>
-      </div>
-
-      {/* ── Search bar (TEMPORARY) ───────────────────────────────────────── */}
-      <div className="bg-white px-3 sm:px-6 lg:px-7 py-2.5 border-b border-[#e8e8f0]">
-        <div className="relative max-w-6xl mx-auto">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search workouts..."
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[#e8e8f0] bg-gray-50 outline-none focus:border-[#7c3aed] focus:bg-white transition-colors"
-          />
         </div>
       </div>
 
@@ -421,17 +439,8 @@ export default function WorkoutDashboard() {
         </div>
       )}
 
-      {/* ── No search results ───────────────────────────────────────────── */}
-      {!error && sessions.length > 0 && filteredSessions.length === 0 && (
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 mt-8">
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
-            <p className="text-gray-500">No workouts match &quot;{searchQuery}&quot;.</p>
-          </div>
-        </div>
-      )}
-
       {/* ── Session list ──────────────────────────────────────────────────── */}
-      {filteredSessions.length > 0 && (
+      {sessions.length > 0 && (
         <div className="p-3 sm:p-5 lg:p-7 max-w-6xl mx-auto">
           {isReordering && (
             <div className="flex items-center gap-2 text-xs text-purple-600 mb-3">
@@ -441,7 +450,7 @@ export default function WorkoutDashboard() {
           )}
 
           <div className="flex flex-col gap-2 sm:gap-2.5">
-            {filteredSessions.map(({ session, originalIndex: index }) => (
+            {sessions.map((session, index) => (
               <div
                 key={session.id}
                 onClick={() => handleSessionClick(session)}
@@ -451,9 +460,7 @@ export default function WorkoutDashboard() {
                     : "bg-[#1e1e2e]"
                 }`}
               >
-                {/* ── Reorder arrows — hidden while a search filter is active,
-                    since up/down would jump over hidden items ── */}
-                {!q && (
+                {/* ── Reorder arrows ── */}
                 <div className="flex flex-col justify-center gap-0.5 flex-shrink-0">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleReorder(index, "up"); }}
@@ -474,7 +481,6 @@ export default function WorkoutDashboard() {
                     <ArrowDown size={14} className="text-purple-400" />
                   </button>
                 </div>
-                )}
 
                 {/* ── Cover photo ── */}
                 {session.cover_photo && (
@@ -585,6 +591,32 @@ export default function WorkoutDashboard() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ── Scroll to top / bottom ────────────────────────────────────────── */}
+      {/* Top button sits below the sticky header + search bar + schedule strip,
+          top-left. Bottom button stays bottom-left too — FloatingNavBubble
+          (src/components/FloatingNavBubble.tsx) sits fixed at bottom-5 right-5
+          on every non-coach page, which would otherwise overlap it. */}
+      {sessions.length > 4 && (
+        <>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="fixed top-28 left-4 sm:left-6 z-30 h-8 pl-2.5 pr-3 rounded-full bg-white shadow-lg border border-gray-200 flex items-center gap-1 text-[#7c3aed] text-[11px] font-semibold hover:bg-gray-50 transition"
+            aria-label="Scroll to top"
+          >
+            <ArrowUp size={13} />
+            Top
+          </button>
+          <button
+            onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+            className="fixed bottom-6 left-4 sm:left-6 z-30 h-8 pl-2.5 pr-3 rounded-full bg-white shadow-lg border border-gray-200 flex items-center gap-1 text-[#7c3aed] text-[11px] font-semibold hover:bg-gray-50 transition"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown size={13} />
+            Bottom
+          </button>
+        </>
       )}
 
       {/* ── Delete Confirm Modal ─────────────────────────────────────────── */}
