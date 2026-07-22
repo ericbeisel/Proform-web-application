@@ -523,6 +523,124 @@ const getActivityLogs = async (
   };
 };
 
+export interface LeaderboardEntry {
+  memberId: string;
+  username: string;
+  profilePicture?: string | null;
+  value: number;
+}
+
+export interface LeaderboardCategoryResponse {
+  category: string;
+  measurement: string;
+  rank1: LeaderboardEntry | null;
+  rank2: LeaderboardEntry | null;
+  rank3: LeaderboardEntry | null;
+}
+
+export interface LeaderboardResponse {
+  categories: LeaderboardCategoryResponse[];
+}
+
+export interface LeaderboardCategoryReference {
+  id: number;
+  title: string;
+  measurement: string;
+  fieldKey: string;
+}
+
+export const getTeamConfig = async (teamId: string | number): Promise<any> => {
+  console.log("[coachApi] getTeamConfig → GET /teams/" + teamId);
+  try {
+    const { data } = await apiClient.get<any>(`/teams/${teamId}`);
+    return data?.data ?? data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getTeamConfig ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch team configuration."));
+  }
+};
+
+export const getTeamLeaderboard = async (
+  teamId: string | number,
+  filter?: string
+): Promise<LeaderboardResponse> => {
+  console.log("[coachApi] getTeamLeaderboard → GET /teams/" + teamId + "/leaderboard", { filter });
+  try {
+    const { data } = await apiClient.get<LeaderboardResponse>(`/teams/${teamId}/leaderboard`, {
+      params: filter ? { filter } : undefined,
+    });
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getTeamLeaderboard ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch team leaderboard."));
+  }
+};
+
+export const getLeaderboardCategories = async (): Promise<LeaderboardCategoryReference[]> => {
+  console.log("[coachApi] getLeaderboardCategories → GET /leaderboard-categories");
+  try {
+    const { data } = await apiClient.get<any>("/leaderboard-categories");
+    return data?.data ?? data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getLeaderboardCategories ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch leaderboard categories."));
+  }
+};
+
+export const saveLeaderboardOptions = async (
+  teamId: string | number,
+  payload: { options: string[]; filter: string }
+): Promise<any> => {
+  console.log("[coachApi] saveLeaderboardOptions → POST /teams/" + teamId + "/leaderboard-options", payload);
+  try {
+    const { data } = await apiClient.post<any>(`/teams/${teamId}/leaderboard-options`, payload);
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] saveLeaderboardOptions ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to save leaderboard options."));
+  }
+};
+
+export const getXanvasAvailable = async (teamId: string | number): Promise<Array<{ label: string; value: number }>> => {
+  console.log("[coachApi] getXanvasAvailable → GET /xanvas/available", { teamId });
+  try {
+    const { data } = await apiClient.get<any>("/xanvas/available", {
+      params: { teamId },
+    });
+    return data?.data ?? data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getXanvasAvailable ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch available TV casting devices."));
+  }
+};
+
+export const assignXanvas = async (
+  id: string | number,
+  payload: { teamId: number; url: string }
+): Promise<any> => {
+  console.log("[coachApi] assignXanvas → POST /xanvas/" + id + "/assign", payload);
+  try {
+    const { data } = await apiClient.post<any>(`/xanvas/${id}/assign`, payload);
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] assignXanvas ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to link TV casting device."));
+  }
+};
+
+export const resolveXanvas = async (code: string): Promise<{ url: string; xanvasUpdate: boolean }> => {
+  console.log("[coachApi] resolveXanvas → GET /xanvas/resolve", { code });
+  try {
+    const { data } = await apiClient.get<any>("/xanvas/resolve", {
+      params: { code },
+    });
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] resolveXanvas ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to resolve TV casting device."));
+  }
+};
+
 export const coachApi = {
   getCoachTeams,
   createCoachTeam,
@@ -541,6 +659,13 @@ export const coachApi = {
   getPresignedUrl,
   uploadFileToS3,
   getActivityLogs,
+  getTeamConfig,
+  getTeamLeaderboard,
+  getLeaderboardCategories,
+  saveLeaderboardOptions,
+  getXanvasAvailable,
+  assignXanvas,
+  resolveXanvas,
 };
 
 export default coachApi;
