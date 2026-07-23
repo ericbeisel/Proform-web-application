@@ -549,14 +549,28 @@ export interface LeaderboardCategoryReference {
   fieldKey: string;
 }
 
-export const getTeamConfig = async (teamId: string | number): Promise<any> => {
-  console.log("[coachApi] getTeamConfig → GET /teams/" + teamId);
+export interface LeaderboardSettingsResponse {
+  teamId: number;
+  logo: string | null;
+  name: string;
+  sport: string | null;
+  leaderboardFilter: string;
+  leaderboardOption: string[];
+  hasSelections: boolean;
+}
+
+// Bootstraps the leaderboard-options page — this team's current selection/
+// filter (or the 3-item default with hasSelections: false if never configured).
+export const getTeamLeaderboardSettings = async (
+  teamId: string | number,
+): Promise<LeaderboardSettingsResponse> => {
+  console.log("[coachApi] getTeamLeaderboardSettings → GET /teams/" + teamId + "/leaderboard-settings");
   try {
-    const { data } = await apiClient.get<any>(`/teams/${teamId}`);
-    return data?.data ?? data;
+    const { data } = await apiClient.get<LeaderboardSettingsResponse>(`/teams/${teamId}/leaderboard-settings`);
+    return data;
   } catch (error: unknown) {
-    console.error("[coachApi] getTeamConfig ❌", error);
-    throw new Error(getErrorMessage(error, "Failed to fetch team configuration."));
+    console.error("[coachApi] getTeamLeaderboardSettings ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch team leaderboard settings."));
   }
 };
 
@@ -587,17 +601,33 @@ export const getLeaderboardCategories = async (): Promise<LeaderboardCategoryRef
   }
 };
 
-export const saveLeaderboardOptions = async (
-  teamId: string | number,
-  payload: { options: string[]; filter: string }
-): Promise<any> => {
-  console.log("[coachApi] saveLeaderboardOptions → POST /teams/" + teamId + "/leaderboard-options", payload);
+export interface SaveLeaderboardSettingsPayload {
+  teamIds: number[];
+  leaderboardOption: string[];
+  // Omit to leave the existing filter unchanged (backend-optional).
+  leaderboardFilter?: string;
+}
+
+export interface SaveLeaderboardSettingsResponse {
+  message: string;
+  updated: number[];
+  failed: { teamId: number; error: string }[];
+}
+
+// Single bulk endpoint for both "Save Changes" (teamIds: [oneId]) and
+// "Save Changes For Multiple Teams" (teamIds: every coach team) — replaces
+// the old per-team POST loop. Can partially succeed: check `failed` even on
+// a 200.
+export const saveLeaderboardSettings = async (
+  payload: SaveLeaderboardSettingsPayload,
+): Promise<SaveLeaderboardSettingsResponse> => {
+  console.log("[coachApi] saveLeaderboardSettings → PUT /teams/leaderboard-settings", payload);
   try {
-    const { data } = await apiClient.post<any>(`/teams/${teamId}/leaderboard-options`, payload);
+    const { data } = await apiClient.put<SaveLeaderboardSettingsResponse>("/teams/leaderboard-settings", payload);
     return data;
   } catch (error: unknown) {
-    console.error("[coachApi] saveLeaderboardOptions ❌", error);
-    throw new Error(getErrorMessage(error, "Failed to save leaderboard options."));
+    console.error("[coachApi] saveLeaderboardSettings ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to save leaderboard settings."));
   }
 };
 
@@ -659,10 +689,10 @@ export const coachApi = {
   getPresignedUrl,
   uploadFileToS3,
   getActivityLogs,
-  getTeamConfig,
+  getTeamLeaderboardSettings,
   getTeamLeaderboard,
   getLeaderboardCategories,
-  saveLeaderboardOptions,
+  saveLeaderboardSettings,
   getXanvasAvailable,
   assignXanvas,
   resolveXanvas,

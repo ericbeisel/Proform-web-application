@@ -21,6 +21,9 @@ function LeaderboardOptionsContent() {
   const [timeFilter, setTimeFilter] = useState("All Time");
   const [justCleared, setJustCleared] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Requires an explicit opt-in checkbox before this bulk action (applies to
+  // every one of the coach's teams) can be triggered.
+  const [confirmMultiple, setConfirmMultiple] = useState(false);
 
   // Load configured options and available metrics
   useEffect(() => {
@@ -32,12 +35,16 @@ function LeaderboardOptionsContent() {
         const categories = await coachApi.getLeaderboardCategories();
         setAllMetrics(categories);
 
-        const teamConfig = await coachApi.getTeamConfig(teamId);
-        if (teamConfig?.leaderboardOption) {
-          setSelected(new Set(teamConfig.leaderboardOption));
+        const settings = await coachApi.getTeamLeaderboardSettings(teamId);
+        // hasSelections: false means these are just the backend's 3-item
+        // default, not a real saved choice — still worth pre-checking them
+        // (matches what /coach/leaderboard would show), so no branch needed
+        // on hasSelections here.
+        if (settings?.leaderboardOption) {
+          setSelected(new Set(settings.leaderboardOption));
         }
-        if (teamConfig?.leaderboardFilter) {
-          setTimeFilter(teamConfig.leaderboardFilter);
+        if (settings?.leaderboardFilter) {
+          setTimeFilter(settings.leaderboardFilter);
         }
       } catch (err) {
         console.error("Failed to load options data:", err);
@@ -75,10 +82,15 @@ function LeaderboardOptionsContent() {
       return;
     }
     try {
-      await coachApi.saveLeaderboardOptions(teamId, {
-        options: Array.from(selected),
-        filter: timeFilter,
+      const res = await coachApi.saveLeaderboardSettings({
+        teamIds: [Number(teamId)],
+        leaderboardOption: Array.from(selected),
+        leaderboardFilter: timeFilter,
       });
+      if (res.failed.length > 0) {
+        alert(res.failed.map((f) => f.error).join("\n"));
+        return;
+      }
       router.push(`/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`);
     } catch (err) {
       console.error(err);
@@ -87,20 +99,28 @@ function LeaderboardOptionsContent() {
   };
 
   const handleSaveMultiple = async () => {
+    if (!confirmMultiple) {
+      alert("Please check the confirmation box before applying to multiple teams.");
+      return;
+    }
     if (selected.size === 0) {
       alert("Please select at least one metric category to save.");
       return;
     }
     try {
       const coachTeams = await coachApi.getCoachTeams();
-      await Promise.all(
-        coachTeams.map((t) =>
-          coachApi.saveLeaderboardOptions(t.id, {
-            options: Array.from(selected),
-            filter: timeFilter,
-          })
-        )
-      );
+      const res = await coachApi.saveLeaderboardSettings({
+        teamIds: coachTeams.map((t) => Number(t.id)),
+        leaderboardOption: Array.from(selected),
+        leaderboardFilter: timeFilter,
+      });
+      if (res.failed.length > 0) {
+        alert(
+          `Saved for ${res.updated.length} team(s), but failed for ${res.failed.length}:\n` +
+            res.failed.map((f) => `Team ${f.teamId}: ${f.error}`).join("\n"),
+        );
+        return;
+      }
       router.push(`/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`);
     } catch (err) {
       console.error(err);
@@ -256,12 +276,21 @@ function LeaderboardOptionsContent() {
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-3 pb-8">
-          <button
-            onClick={handleSaveMultiple}
-            className="text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition"
-          >
-            Save Changes For Multiple Teams
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={confirmMultiple}
+              onChange={(e) => setConfirmMultiple(e.target.checked)}
+              className="accent-[#3B82F6] w-3.5 h-3.5 cursor-pointer"
+              aria-label="Confirm applying to multiple teams"
+            />
+            <button
+              onClick={handleSaveMultiple}
+              className="text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition"
+            >
+              Save Changes For Multiple Teams
+            </button>
+          </div>
           <button
             onClick={handleSave}
             className="h-10 px-8 rounded-full bg-[#3B82F6] text-white text-sm font-bold hover:bg-[#2563EB] transition shadow"

@@ -120,6 +120,7 @@ function XanvasHubModal({
     try {
       setLoading(true);
       const res = await coachApi.getXanvasAvailable(teamId);
+      console.log("[Leaderboard] getXanvasAvailable response:", res);
       setDevices(res);
     } catch (err) {
       console.error(err);
@@ -135,6 +136,7 @@ function XanvasHubModal({
   const handleAssign = async (deviceId: number) => {
     try {
       const url = `${window.location.origin}/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`;
+      console.log("[Leaderboard] assignXanvas request:", { deviceId, teamId: Number(teamId), url });
       await coachApi.assignXanvas(deviceId, { teamId: Number(teamId), url });
       setMessage("Device linked successfully!");
       setTimeout(() => setMessage(""), 3000);
@@ -434,6 +436,7 @@ function LeaderboardContent() {
     const interval = setInterval(async () => {
       try {
         const res = await coachApi.resolveXanvas(code);
+        console.log("[Leaderboard] resolveXanvas poll response:", res);
         if (res?.url && !res.url.includes(`code=${code}`)) {
           window.location.href = res.url;
         }
@@ -449,6 +452,7 @@ function LeaderboardContent() {
     const fetchTeams = async () => {
       try {
         const coachTeams = await coachApi.getCoachTeams();
+        console.log("[Leaderboard] getCoachTeams response:", coachTeams);
         setTeams(coachTeams);
 
         if (initialTeamId) {
