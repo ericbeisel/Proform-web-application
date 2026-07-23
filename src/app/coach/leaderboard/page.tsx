@@ -471,6 +471,7 @@ function LeaderboardContent() {
       try {
         setLoading(true);
         const res = await coachApi.getTeamLeaderboard(selectedTeam.id);
+        console.log("[Leaderboard] getTeamLeaderboard raw response:", res);
         const mapped = res.categories.map((cat, i) => {
           const style = GRADIENTS[i % GRADIENTS.length];
           return {
@@ -483,6 +484,7 @@ function LeaderboardContent() {
             ...style,
           };
         });
+        console.log("[Leaderboard] mapped categories:", mapped);
         setCategories(mapped);
       } catch (err) {
         console.error("Failed to fetch team rankings:", err);
