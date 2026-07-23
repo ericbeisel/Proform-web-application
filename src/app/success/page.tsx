@@ -1,10 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 
 export default function PaymentSuccessPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(() => router.back(), 5000);
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f4f8f9] flex items-center justify-center px-6">
@@ -19,6 +25,13 @@ export default function PaymentSuccessPage() {
       >
         <ArrowLeft size={18} className="text-gray-700" />
       </button>
+
+      {/* Logo */}
+      <img
+        src="/images/proform-logo.jpg"
+        alt="Proform"
+        className="absolute top-6 left-1/2 -translate-x-1/2 h-8 w-auto rounded-md"
+      />
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center text-center max-w-sm">
