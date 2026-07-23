@@ -168,7 +168,7 @@ export default function AllPlayersPage() {
       pendingSignup: true,
       inviteLink: response.inviteLink,
     };
-    setPlayers((prev) => [...prev, { ...decoratePlayer(pendingPlayer, prev.length), _createdForTeamId: teamId }]);
+    setPlayers((prev) => [...prev, { ...decoratePlayer(pendingPlayer), _createdForTeamId: teamId }]);
 
     if (response.status === "created") {
       alert(

@@ -57,11 +57,11 @@ export default function CoachOnBoardingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
-              src="/proformapp logo blue_edited_edited.png"
+              src="/images/proform-logo.jpg"
               alt="ProformApp"
               width={160}
               height={40}
-              className="object-contain"
+              className="h-8 w-auto object-contain rounded-md"
             />
           </div>
 
