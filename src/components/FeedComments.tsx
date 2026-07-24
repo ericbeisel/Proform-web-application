@@ -40,6 +40,7 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    console.log("[FeedComments] effect fired:", { feedId, requireLogin, publicComments });
     // /feed/{id}/comments requires auth server-side — skip the request
     // entirely when logged out instead of firing a doomed fetch. If a
     // public (no-auth) endpoint already handed us the comments, show those
@@ -55,11 +56,13 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
     }
     setLoading(true);
     feedApi.getFeedComments(feedId, 1).then(({ comments, total, hasMore }) => {
+      console.log("[FeedComments] getFeedComments resolved:", { feedId, comments, total, hasMore });
       // A logged-in viewer who isn't a participant of this session can get a
       // "successful" but empty response here (no error, just no access) —
       // don't let that silently wipe out real comments we already have from
       // the public session data.
       if (comments.length === 0 && publicComments && publicComments.length > 0) {
+        console.log("[FeedComments] authenticated fetch was empty — falling back to publicComments:", publicComments);
         setComments(publicComments);
         setTotal(publicComments.length);
         setHasMore(false);

@@ -116,6 +116,13 @@ export default function SessionDetailsContent({
 
     sessionPromise
       .then((session) => {
+        console.log("[SessionDetails] session fetch resolved:", {
+          activityId,
+          feedId,
+          isLoggedIn,
+          commentCount: (session as unknown as { comments?: unknown[] }).comments?.length ?? 0,
+          rawComments: (session as unknown as { comments?: unknown[] }).comments,
+        });
         setSessionProgramImage(session.workoutImage || null);
         setSessionWorkoutCategory(session.workoutCategory || null);
         setSessionData(session as unknown as WorkoutSession);
@@ -226,6 +233,7 @@ export default function SessionDetailsContent({
       ? { id: 0, name: c.user.name ?? "", username: c.user.username ?? "", image: c.user.image }
       : undefined,
   }));
+  console.log("[SessionDetails] derived publicComments passed to FeedComments:", publicComments, "| feedId:", feedId, "| requireLogin:", !isLoggedIn);
 
   const handleJoinSession = async () => {
     if (joiningSession) return;
