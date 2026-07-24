@@ -502,7 +502,11 @@ function LeaderboardContent() {
 
   const handleSelectTeam = (team: CoachTeam) => {
     setSelectedTeam(team);
-    router.push(
+    // replace, not push — switching teams is a lateral update to this same
+    // page, not a new page to visit. push here was stacking one history
+    // entry per switch, so the back button just stepped through past teams
+    // instead of actually leaving the leaderboard page.
+    router.replace(
       `/coach/leaderboard?team_id=${team.id}&team_name=${encodeURIComponent(
         team.name
       )}`
@@ -521,33 +525,40 @@ function LeaderboardContent() {
       {/* Header - Hidden in TV casting mode */}
       {!isTvMode && (
         <header
-          className="sticky top-0 z-40 px-4 sm:px-6 py-5 border-b border-white/10"
+          className="relative overflow-hidden sticky top-0 z-40 px-4 sm:px-6 py-5 border-b border-white/10"
           style={{ background: "rgba(15,5,32,0.85)", backdropFilter: "blur(12px)" }}
         >
-          <div className="flex items-center justify-between gap-2">
+          {/* Decorative glowing orbs — same "bubbles" treatment as /metrics'
+              header, adapted to this page's dark theme (blurred glow instead
+              of flat translucent white circles, which would look out of
+              place against this background). */}
+          <div
+            className="absolute rounded-full pointer-events-none blur-2xl"
+            style={{ width: 220, height: 220, backgroundColor: "rgba(124,58,237,0.35)", top: -120, left: -60 }}
+          />
+          <div
+            className="absolute rounded-full pointer-events-none blur-2xl"
+            style={{ width: 160, height: 160, backgroundColor: "rgba(167,139,250,0.25)", top: -80, right: 10 }}
+          />
+
+          <div className="relative flex items-center justify-between gap-2">
             {/* Left */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+              {/* Real back navigation — distinct from "Change Teams" below,
+                  which opens the team-picker modal, not router.back(). */}
+              <button
+                onClick={() => router.back()}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition shrink-0"
+              >
+                <ArrowLeft size={15} className="text-white/70" />
+              </button>
               <button
                 onClick={() => setChooseTeamOpen(true)}
                 className="flex items-center gap-1 text-[#60a5fa] text-xs sm:text-sm font-semibold hover:text-[#93c5fd] transition-colors shrink-0"
               >
-                <ArrowLeft size={14} />
-                <span>Change Teams</span>
+                <Shield size={14} />
+                <span className="hidden sm:inline">Change Teams</span>
               </button>
-              {selectedTeam && (
-                <button
-                  onClick={() =>
-                    router.push(
-                      `/coach/leaderboard-options?team_id=${
-                        selectedTeam.id
-                      }&team_name=${encodeURIComponent(selectedTeam.name)}`
-                    )
-                  }
-                  className="hover:opacity-70 transition shrink-0"
-                >
-                  <Settings size={15} className="text-white/40" />
-                </button>
-              )}
               <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#7C3AED] flex items-center justify-center text-white text-[10px] font-black shrink-0">
                 {selectedTeam?.logo ? (
                   <img
@@ -559,12 +570,14 @@ function LeaderboardContent() {
                   initialLetter
                 )}
               </div>
-              <span className="text-white font-semibold text-sm truncate max-w-[100px] sm:max-w-none">
+              <span className="text-white font-semibold text-base sm:text-lg truncate max-w-[110px] sm:max-w-none">
                 {currentTeamName}
               </span>
             </div>
 
-            {/* Center */}
+            {/* Center — sm+ only. Absolute-centering this over the same row
+                as the left/right content overlaps on mobile (not enough
+                width for both), so mobile gets its own row below instead. */}
             {selectedTeam && (
               <button
                 onClick={() =>
@@ -574,39 +587,84 @@ function LeaderboardContent() {
                     )}`
                   )
                 }
-                className="flex flex-col items-center shrink-0 absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition"
+                className="hidden sm:flex flex-col items-center shrink-0 absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition"
               >
-                <div className="w-10 h-10 rounded-full bg-[#7C3AED] flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.6)]">
-                  <img
-                    src="/images/proform-logo.jpg"
-                    alt="Proform"
-                    className="w-6 h-6 object-contain rounded-sm"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                      (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                        '<span class="text-white font-black text-sm">P</span>';
-                    }}
-                  />
-                </div>
-                <span className="text-[#a78bfa] text-[11px] sm:text-xs font-bold italic mt-1 whitespace-nowrap">
-                  Team Leaderboard:
+                <img
+                  src="/images/proform-logo.jpg"
+                  alt="Proform"
+                  className="w-8 h-8 object-contain rounded-sm"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                    (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                      '<span class="text-white font-black text-sm">P</span>';
+                  }}
+                />
+                <span className="text-[#a78bfa] text-base font-bold italic mt-1 whitespace-nowrap">
+                  Team Leaderboard
                 </span>
               </button>
             )}
 
             {/* Right */}
-            <button
-              onClick={() => router.push("/coach/coach-dashboard")}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition shrink-0"
-            >
-              <X size={14} className="text-white/60" />
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {selectedTeam && (
+                <button
+                  onClick={() =>
+                    router.push(
+                      `/coach/leaderboard-options?team_id=${
+                        selectedTeam.id
+                      }&team_name=${encodeURIComponent(selectedTeam.name)}`
+                    )
+                  }
+                  className="hover:opacity-70 transition shrink-0"
+                >
+                  <Settings size={22} className="text-white/50" />
+                </button>
+              )}
+              <button
+                onClick={() => router.push("/coach/coach-dashboard")}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition shrink-0"
+              >
+                <X size={14} className="text-white/60" />
+              </button>
+            </div>
           </div>
+
+          {/* Mobile-only second row — same logo/label as the sm+ centered
+              button above, just given its own line since row 1 has no room
+              for it beside the team name on narrow screens. */}
+          {selectedTeam && (
+            <button
+              onClick={() =>
+                router.push(
+                  `/coach/team/${selectedTeam.id}?team_name=${encodeURIComponent(
+                    selectedTeam.name
+                  )}`
+                )
+              }
+              className="sm:hidden relative flex flex-col items-center mx-auto mt-3 hover:opacity-80 transition"
+            >
+              <img
+                src="/images/proform-logo.jpg"
+                alt="Proform"
+                className="w-7 h-7 object-contain rounded-sm"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                    '<span class="text-white font-black text-sm">P</span>';
+                }}
+              />
+              <span className="text-[#a78bfa] text-sm font-bold italic mt-1 whitespace-nowrap">
+                Team Leaderboard
+              </span>
+            </button>
+          )}
         </header>
       )}
 
-      {/* Grid */}
-      <div className="flex-1 px-4 sm:px-6 py-5 sm:py-6">
+      {/* Grid — extra bottom clearance so the fixed bottom-left team switcher
+          never covers the last card on mobile (single-column layout there). */}
+      <div className="flex-1 px-4 sm:px-6 pt-5 sm:pt-6 pb-24 sm:pb-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-12 h-12 border-4 border-[#a78bfa] border-t-transparent rounded-full animate-spin" />
@@ -669,19 +727,20 @@ function LeaderboardContent() {
 
       {/* Bottom-left team switcher - Hidden in TV casting mode */}
       {!isTvMode && teams.length > 0 && selectedTeam && (
-        <div className="fixed bottom-5 left-4 z-40 flex items-end gap-2">
+        <div className="fixed bottom-4 sm:bottom-5 left-3 sm:left-4 right-3 sm:right-auto z-40 flex items-end gap-2">
           {/* Chain icon button for Xanvas TV Casting */}
           <button
             onClick={() => setXanvasHubOpen(true)}
-            className="w-11 h-11 rounded-2xl bg-[#2a2a3a] flex items-center justify-center shadow-lg shrink-0 border border-white/5 hover:bg-[#34344a] transition"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#2a2a3a] flex items-center justify-center shadow-lg shrink-0 border border-white/5 hover:bg-[#34344a] transition"
           >
             <Link2 size={18} className="text-[#60a5fa]" />
           </button>
 
-          {/* Team Switcher dropdown */}
-          <div className="relative flex flex-col">
+          {/* Team Switcher dropdown — flex-1 + max-w on mobile so it can't
+              overflow the viewport on narrow phones, fixed width on sm+. */}
+          <div className="relative flex flex-col flex-1 max-w-[220px] sm:flex-none sm:w-52">
             {teamSwitcherOpen && (
-              <div className="absolute bottom-full mb-1 w-52 rounded-xl border border-[#7C3AED] bg-white overflow-hidden shadow-xl">
+              <div className="absolute bottom-full mb-1 w-full rounded-xl border border-[#7C3AED] bg-white overflow-hidden shadow-xl">
                 {teams
                   .filter((t) => t.id !== selectedTeam.id)
                   .map((team) => (
@@ -701,7 +760,7 @@ function LeaderboardContent() {
 
             <button
               onClick={() => setTeamSwitcherOpen((o) => !o)}
-              className="w-52 flex items-center justify-between px-4 py-3 bg-white rounded-xl shadow-lg border border-gray-100"
+              className="w-full flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white rounded-xl shadow-lg border border-gray-100"
             >
               <span className="text-[#1f1f1f] font-bold text-sm truncate">{selectedTeam.name}</span>
               {teamSwitcherOpen ? (

@@ -159,6 +159,55 @@ function getExerciseWeightToDisplay(exercise: any, userDetail: UserOtherDetail |
   return weightVal ? convertToUserUnit(weightVal, userUnit, exercise.msrmt || "lbs") : null;
 }
 
+// Ported exactly from mobile's getExerciseWeightToDisplay power-set branch —
+// a power set's "weight" isn't one number, it's the spread across its child
+// sets: convert every child_set's calculated_weight to the user's unit, then
+// show min-max (or just the single value if every child set weighs the
+// same). Regular exercises never take this path — they always show one
+// number via getExerciseWeightToDisplay above.
+function getPowerSetWeightRange(
+  exercise: { id?: string; exercise_id?: string } | null | undefined,
+  powerSets: PowerSet[],
+  userDetail: UserOtherDetail | null,
+): string | null {
+  if (!exercise) return null;
+  const match = powerSets.find(
+    (ps) =>
+      ps.id === exercise.id ||
+      (ps as unknown as { exercise_uuid?: string }).exercise_uuid === exercise.exercise_id,
+  );
+  if (!match?.child_sets || match.child_sets.length === 0) return null;
+
+  const targetUnit = (userDetail?.measurementUnit || "lbs").toLowerCase().trim();
+  const weights = match.child_sets.map((s) => {
+    const sourceUnit = (s.msrmt || "lbs").toLowerCase();
+    let w = s.calculated_weight || 0;
+    if (sourceUnit === "lbs" && targetUnit === "kg") {
+      w = w * 0.45359237;
+    } else if (sourceUnit === "kg" && targetUnit === "lbs") {
+      w = w / 0.45359237;
+    }
+    return Math.round(w);
+  });
+
+  const min = Math.min(...weights);
+  const max = Math.max(...weights);
+  return min === max ? `${min} ${targetUnit}` : `${min}-${max} ${targetUnit}`;
+}
+
+// Single entry point both render sites use — branches to the power-set
+// min-max range when applicable, otherwise the regular single-value display.
+function getWeightDisplay(
+  exercise: any,
+  userDetail: UserOtherDetail | null,
+  powerSets: PowerSet[],
+): string | null {
+  if (exercise?.is_power_set) {
+    return getPowerSetWeightRange(exercise, powerSets, userDetail) ?? getExerciseWeightToDisplay(exercise, userDetail);
+  }
+  return getExerciseWeightToDisplay(exercise, userDetail);
+}
+
 // Backend's section-exercises response isn't reliably pre-sorted — mobile
 // always re-sorts by `.order` before rendering (WorkoutSessionScreen.tsx),
 // so this must match exactly or exercises show in the wrong sequence.
@@ -684,7 +733,7 @@ export default function AthenaWorkoutPage() {
     title: ex.exercise_name || ex.title,
     subtitle: `${roundsFormattedForSidebar} ${ex.reps || "8-12"}`,
     supplemental: ex.supplemental,
-    weightDisplay: getExerciseWeightToDisplay(ex, userOtherDetail),
+    weightDisplay: getWeightDisplay(ex, userOtherDetail, inlinePowerSets),
     isCurrent: i === currentExerciseIndex,
     gifUrl: resolveMediaUrl(ex.demo_gif || ex.demoGif),
     isPowerSet: ex.is_power_set,
@@ -1511,7 +1560,7 @@ export default function AthenaWorkoutPage() {
                   <div className="text-center">
                     <p className="text-[9px] md:text-[10px] font-bold text-gray-400">Weight</p>
                     <span className="text-xs font-black text-gray-700">
-                      {getExerciseWeightToDisplay(currentExercise, userOtherDetail) || "—"}
+                      {getWeightDisplay(currentExercise, userOtherDetail, inlinePowerSets) || "—"}
                     </span>
                   </div>
                   {(() => {

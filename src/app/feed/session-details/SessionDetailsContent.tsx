@@ -460,13 +460,24 @@ export default function SessionDetailsContent({
       {isCompleted && (popupLoadRecords.length > 0 || popupWorkoutStats?.thisWorkout || sortedWorkoutLoads.length > 0 || sessionData?.stats) && (() => {
         const lastRecord = popupLoadRecords[popupLoadRecords.length - 1];
         const lastPublicLoad = sortedWorkoutLoads[sortedWorkoutLoads.length - 1];
+        // A viewer without real access to this session's stats can still get
+        // a successful (not erroring) response here that's just all zeros —
+        // truthy, so `??` alone would let it beat the correct public-data
+        // fallback below the moment it resolves. Only trust it if it's
+        // actually non-degenerate.
+        const workoutStatsTotals = popupWorkoutStats?.thisWorkout;
+        const hasRealStats = !!workoutStatsTotals && (
+          (workoutStatsTotals.load ?? 0) > 0 || (workoutStatsTotals.power ?? 0) > 0 || (workoutStatsTotals.cals ?? 0) > 0
+        );
         const totals = lastRecord
           ? {
               load: Number(lastRecord.load) || 0,
               power: Number(lastRecord.power) || 0,
               cals: Number(lastRecord.kcal) || 0,
             }
-          : popupWorkoutStats?.thisWorkout ?? (
+          : hasRealStats
+            ? workoutStatsTotals!
+            : (
               lastPublicLoad
                 ? {
                     load: Number(lastPublicLoad.load) || 0,
@@ -529,7 +540,7 @@ export default function SessionDetailsContent({
                       : r.title || `R${i + 1}`;
                     return { label, value };
                   })
-                : popupRoundGroups.length > 0
+                : popupRoundGroups.length > 0 && popupTrackingLogs.length > 0
                   ? popupRoundGroups.map((group) => {
                       const key = normalize(group.label);
                       const value = popupTrackingLogs
