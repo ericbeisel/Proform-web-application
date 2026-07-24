@@ -89,6 +89,13 @@ export interface TeamPlayer {
   lastWorkout?: string;
   notes?: string;
   verified?: boolean;
+  teamMembersAsPlayer?: Array<{
+    team_id: number;
+    team?: {
+      id: number;
+      name: string;
+    };
+  }>;
 }
 
 export interface GetTeamPlayersParams {
@@ -410,15 +417,21 @@ export const searchAllPlayers = async (
   return getTeamPlayers(params);
 };
 
-// TODO(backend): no endpoint exists yet to add an existing player to a team.
-// Confirm route/method/body with backend, then replace this stub.
-// Currently simulates success against dummy data so the UI flow can be tested end-to-end.
 export const addPlayerToTeam = async (
   payload: { team_id: number | string; player_id: number },
 ): Promise<{ message: string }> => {
-  console.warn("[coachApi] addPlayerToTeam → backend endpoint pending, simulating success", payload);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return { message: "Player added (dummy — backend endpoint pending)." };
+  console.log("[coachApi] addPlayerToTeam → POST /coach-team/add-player", payload);
+  try {
+    const { data } = await apiClient.post<{ message: string }>("/coach-team/add-player", {
+      team_id: Number(payload.team_id),
+      player_id: payload.player_id,
+    });
+    console.log("[coachApi] addPlayerToTeam ✅", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] addPlayerToTeam ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to add player to team."));
+  }
 };
 
 export interface InvitePlayerPayload {
@@ -590,6 +603,17 @@ export const getTeamLeaderboard = async (
   }
 };
 
+export const getGlobalLeaderboard = async (): Promise<LeaderboardResponse> => {
+  console.log("[coachApi] getGlobalLeaderboard → GET /leaderboard/global");
+  try {
+    const { data } = await apiClient.get<LeaderboardResponse>("/leaderboard/global");
+    return data;
+  } catch (error: unknown) {
+    console.error("[coachApi] getGlobalLeaderboard ❌", error);
+    throw new Error(getErrorMessage(error, "Failed to fetch global leaderboard."));
+  }
+};
+
 export const getLeaderboardCategories = async (): Promise<LeaderboardCategoryReference[]> => {
   console.log("[coachApi] getLeaderboardCategories → GET /leaderboard-categories");
   try {
@@ -691,6 +715,7 @@ export const coachApi = {
   getActivityLogs,
   getTeamLeaderboardSettings,
   getTeamLeaderboard,
+  getGlobalLeaderboard,
   getLeaderboardCategories,
   saveLeaderboardSettings,
   getXanvasAvailable,

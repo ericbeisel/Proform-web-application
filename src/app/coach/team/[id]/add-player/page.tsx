@@ -131,7 +131,9 @@ function AddPlayerContent() {
                   onClick={() => setTeamFilterOpen((v) => !v)}
                   className="h-10 px-3 sm:px-4 rounded-xl border border-[#3B82F6] text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 hover:bg-blue-50 transition"
                 >
-                  Filter By Teams
+                  {teamFilterId === "all"
+                    ? "All Teams"
+                    : (teams.find((t) => String(t.id) === String(teamFilterId))?.name ?? "Filter By Teams")}
                   {teamFilterOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
 
@@ -141,12 +143,12 @@ function AddPlayerContent() {
                       onClick={() => { setTeamFilterId("all"); setTeamFilterOpen(false); }}
                       className="w-full text-left px-4 py-2 text-sm font-medium text-[#F5A623] hover:bg-gray-50 transition"
                     >
-                      All Team
+                      All Teams
                     </button>
                     {teams.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => { setTeamFilterId(t.id); setTeamFilterOpen(false); }}
+                        onClick={() => { setTeamFilterId(String(t.id)); setTeamFilterOpen(false); }}
                         className="w-full text-left px-4 py-2 text-sm font-medium text-[#F5A623] hover:bg-gray-50 transition truncate"
                       >
                         {t.name}
@@ -192,7 +194,10 @@ function AddPlayerContent() {
               ) : (
                 players.map((p) => {
                   const displayName = p.name ?? p.username ?? "Player";
-                  const isAdded = addedIds.has(p.id);
+                  const isAlreadyInTeam = p.teamMembersAsPlayer?.some(
+                    (tm) => String(tm.team_id) === String(id)
+                  ) || addedIds.has(p.id);
+
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                       <div className="w-11 h-11 rounded-full bg-[#8B5CF6] flex items-center justify-center text-white text-sm font-bold overflow-hidden shrink-0">
@@ -208,12 +213,12 @@ function AddPlayerContent() {
                       </div>
                       <button
                         onClick={() => handleAddToTeam(p.id)}
-                        disabled={addingId === p.id || isAdded}
+                        disabled={addingId === p.id || isAlreadyInTeam}
                         className={`shrink-0 h-8 px-4 rounded-full text-xs font-semibold transition disabled:opacity-60 ${
-                          isAdded ? "bg-green-500 text-white" : "bg-[#3B82F6] text-white hover:bg-[#2563EB]"
+                          isAlreadyInTeam ? "bg-green-500 text-white cursor-default" : "bg-[#3B82F6] text-white hover:bg-[#2563EB]"
                         }`}
                       >
-                        {isAdded ? "Added" : addingId === p.id ? "Adding..." : "Add to Team"}
+                        {isAlreadyInTeam ? "Added" : addingId === p.id ? "Adding..." : "Add to Team"}
                       </button>
                     </div>
                   );

@@ -260,11 +260,10 @@ export default function AccountPage() {
                 <div
                   className={`
                       group flex h-20 items-center justify-between rounded-xl border px-5 transition-all duration-200
-                      ${
-                        isHighlighted
-                          ? "border-purple-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-200/30 hover:shadow-purple-300/40"
-                          : "border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:shadow-md"
-                      }
+                      ${isHighlighted
+                      ? "border-purple-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-200/30 hover:shadow-purple-300/40"
+                      : "border-gray-200 bg-white text-gray-900 shadow-sm hover:border-gray-300 hover:shadow-md"
+                    }
                     `}
                 >
                   <div className="flex items-center gap-4">
@@ -331,11 +330,10 @@ export default function AccountPage() {
                 <div
                   className={`
                       flex h-14 items-center rounded-xl border px-5 text-left text-base font-medium transition-all
-                      ${
-                        href && href !== "#"
-                          ? "border-gray-200 bg-white text-gray-800 hover:border-purple-200 hover:bg-purple-50/60 hover:text-purple-700"
-                          : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-75"
-                      }
+                      ${href && href !== "#"
+                      ? "border-gray-200 bg-white text-gray-800 hover:border-purple-200 hover:bg-purple-50/60 hover:text-purple-700"
+                      : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-75"
+                    }
                     `}
                 >
                   {tool.label}
@@ -368,7 +366,7 @@ export default function AccountPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <button
               type="button"
-              onClick={() => router.push("/coach")}
+              onClick={() => router.push("/coach/coach-dashboard")}
               className="flex h-14 items-center justify-center gap-2.5 rounded-xl bg-cyan-600 text-base md:text-lg font-semibold text-white shadow-sm transition-colors hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
             >
               <ArrowRightLeft size={18} />

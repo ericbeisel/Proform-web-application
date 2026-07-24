@@ -1,13 +1,14 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Menu, Search, Trash2, Plus, Loader2, Dumbbell } from "lucide-react";
+import { ArrowLeft, Menu, Search, Trash2, Plus, Loader2, Dumbbell, User, X } from "lucide-react";
 import { CoachSidebar } from "@/app/coach/coach-dashboard/components/CoachSidebar";
 import { invalidateDashboardCache } from "@/api/dashboard/route";
 import { clearAuthSession, getAuthUser, getTokenPayload } from "@/lib/auth/session";
 import { profileApi } from "@/api/profile/route";
 import { deleteExerciseLog, getExerciseLogs, type ExerciseLogEntry, type ExerciseLogSet } from "@/api/workouts/route";
+import { coachApi } from "@/api/coach/route";
 
 const LIMIT = 10;
 
@@ -18,8 +19,6 @@ function formatLoggedAt(iso: string): string {
   return `${datePart} ${timePart}`;
 }
 
-// Sets can carry reps, a timed/range value, and/or a weight — shape varies by unit_type,
-// so build a short human label instead of assuming one fixed field combination.
 function formatSetLabel(s: ExerciseLogSet): string {
   const parts: string[] = [];
 
@@ -47,9 +46,8 @@ function formatSetLabel(s: ExerciseLogSet): string {
   return parts.length ? parts.join(" @ ") : `Set ${s.set_number}`;
 }
 
-export default function ExerciseLogPage() {
+export default function GlobalExerciseLogPage() {
   const router = useRouter();
-  const { username } = useParams<{ username: string }>();
 
   const handleLogOut = () => {
     invalidateDashboardCache();
@@ -62,6 +60,7 @@ export default function ExerciseLogPage() {
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [userInitial, setUserInitial] = useState("");
 
+  // Load Coach Profile Info
   useEffect(() => {
     const user = getAuthUser();
     if (user?.name) setUserInitial((user.name as string)[0]?.toUpperCase() ?? "");
@@ -91,11 +90,11 @@ export default function ExerciseLogPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
-  // Load this player's exercise logs dynamically using their username
+  // Load all players' logs (without username filter)
   useEffect(() => {
     setLoading(true);
     setError("");
-    getExerciseLogs({ page: 1, limit: LIMIT, username })
+    getExerciseLogs({ page: 1, limit: LIMIT })
       .then((res) => {
         setLogs(res.data);
         setTotal(res.meta.total);
@@ -104,14 +103,14 @@ export default function ExerciseLogPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load exercise logs."))
       .finally(() => setLoading(false));
-  }, [username]);
+  }, []);
 
   const loadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await getExerciseLogs({ page: nextPage, limit: LIMIT, username });
+      const res = await getExerciseLogs({ page: nextPage, limit: LIMIT });
       setLogs((prev) => [...prev, ...res.data]);
       setTotal(res.meta.total);
       setPage(res.meta.page);
@@ -122,12 +121,6 @@ export default function ExerciseLogPage() {
       setLoadingMore(false);
     }
   };
-
-  // Filters only the logs already loaded — the backend list endpoint has no free-text
-  // search param, only an exerciseId filter, so this can't search the whole history.
-  const visibleLogs = logs.filter((log) =>
-    log.exercise_title.toLowerCase().includes(search.trim().toLowerCase()),
-  );
 
   const removeLog = async (id: number) => {
     if (deletingId) return;
@@ -145,6 +138,48 @@ export default function ExerciseLogPage() {
       setDeletingId(null);
     }
   };
+
+  // Add Log Flow (Choose Player Modal)
+  const [playerModalOpen, setPlayerModalOpen] = useState(false);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [playerSearch, setPlayerSearch] = useState("");
+
+  const handleOpenAddLog = async () => {
+    setPlayerModalOpen(true);
+    setLoadingPlayers(true);
+    try {
+      const coachTeams = await coachApi.getCoachTeams();
+      const allPlayers: any[] = [];
+      const seenIds = new Set<number>();
+      for (const t of coachTeams) {
+        const teamPlayers = await coachApi.getTeamPlayers({ team_id: t.id });
+        const playerList = Array.isArray(teamPlayers) ? teamPlayers : (teamPlayers?.players || []);
+        for (const p of playerList) {
+          if (!seenIds.has(p.id)) {
+            seenIds.add(p.id);
+            allPlayers.push(p);
+          }
+        }
+      }
+      setPlayers(allPlayers);
+    } catch (err) {
+      console.error("Failed to load players list:", err);
+    } finally {
+      setLoadingPlayers(false);
+    }
+  };
+
+  const filteredPlayers = players.filter((p) =>
+    (p.name || "").toLowerCase().includes(playerSearch.toLowerCase()) ||
+    (p.username || "").toLowerCase().includes(playerSearch.toLowerCase())
+  );
+
+  const visibleLogs = logs.filter((log) =>
+    log.exercise_title.toLowerCase().includes(search.trim().toLowerCase()) ||
+    (log.user?.name || "").toLowerCase().includes(search.trim().toLowerCase()) ||
+    (log.user?.username || "").toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   const confirmTarget = logs.find((l) => l.id === confirmId) ?? null;
 
@@ -169,18 +204,12 @@ export default function ExerciseLogPage() {
             >
               <Menu size={16} className="text-gray-700" />
             </button>
-            <button
-              onClick={() => router.push(`/coach/players/${username}`)}
-              className="w-8 h-8 rounded-full bg-[#f5f5f7] flex items-center justify-center hover:bg-gray-200 transition shrink-0"
-            >
-              <ArrowLeft size={16} className="text-gray-700" />
-            </button>
             <div className="min-w-0">
               <p className="text-[10px] sm:text-xs font-semibold text-[#F59E0B] uppercase leading-none truncate">
-                Master Profile
+                Dashboard
               </p>
               <h1 className="text-base sm:text-xl font-black text-[#1f1f1f] truncate leading-tight">
-                Individual Exercise Log
+                All Players Exercise Logs
               </h1>
             </div>
           </div>
@@ -196,15 +225,16 @@ export default function ExerciseLogPage() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search Exercise"
+                  placeholder="Search Exercise or Player"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full h-10 rounded-xl bg-[#f5f5f7] pl-9 pr-3 text-sm outline-none border border-transparent focus:border-[#8B5CF6] transition"
                 />
               </div>
               <button
-                onClick={() => router.push(`/coach/players/${username}/exercise-log/find-exercises`)}
+                onClick={handleOpenAddLog}
                 className="w-9 h-9 rounded-full bg-[#8B5CF6] flex items-center justify-center hover:bg-[#7C3AED] transition shrink-0"
+                title="Log Exercise for Player"
               >
                 <Plus size={18} className="text-white" />
               </button>
@@ -220,11 +250,11 @@ export default function ExerciseLogPage() {
                 <p className="text-sm text-red-400 text-center py-10">{error}</p>
               ) : (
                 <>
-                  <p className="text-xs text-gray-400 px-1">{total} logged</p>
+                  <p className="text-xs text-gray-400 px-1">{total} logs recorded</p>
 
                   {visibleLogs.length === 0 && (
                     <p className="text-sm text-gray-400 text-center py-10">
-                      {search ? "No exercises found" : "No exercise logs yet"}
+                      {search ? "No logs found matching search" : "No exercise logs recorded yet"}
                     </p>
                   )}
 
@@ -242,66 +272,84 @@ export default function ExerciseLogPage() {
                     return (
                       <div
                         key={log.id}
-                        className="flex items-start gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
                       >
-                        {/* Delete button */}
-                        <button
-                          onClick={() => setConfirmId(log.id)}
-                          disabled={deletingId === log.id}
-                          className="flex-shrink-0 mt-0.5 text-red-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
-                          aria-label="Delete exercise log"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {/* Delete button */}
+                          <button
+                            onClick={() => setConfirmId(log.id)}
+                            disabled={deletingId === log.id}
+                            className="flex-shrink-0 mt-2 text-red-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
+                            aria-label="Delete exercise log"
+                          >
+                            <Trash2 size={16} />
+                          </button>
 
-                        {/* Exercise icon / photo */}
-                        <div className="w-11 h-11 rounded-xl bg-[#8B5CF6] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {photo ? (
-                            <img src={photo} alt={log.exercise_title} className="w-full h-full object-cover" />
-                          ) : (
-                            <Dumbbell size={20} className="text-white" />
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          {/* Top row: name + logged date */}
-                          <div className="flex items-start justify-between gap-2 mb-0.5">
-                            <p className="text-sm font-bold text-gray-900 leading-tight">
-                              {log.exercise_title}
-                            </p>
-                            <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">
-                              Logged:<br />
-                              {formatLoggedAt(log.logged_at)}
-                            </span>
-                          </div>
-
-                          {log.notes && (
-                            <p className="text-xs text-gray-500 italic mb-2">{log.notes}</p>
-                          )}
-
-                          {/* Set pills */}
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {log.sets.map((s) => (
-                              <span
-                                key={s.id}
-                                className="text-[11px] bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5 font-medium"
-                              >
-                                Set {s.set_number}: {formatSetLabel(s)}
-                              </span>
-                            ))}
-                            {log.sets.length === 0 && (
-                              <span className="text-[11px] text-gray-400">No sets recorded</span>
+                          {/* Exercise icon / photo */}
+                          <div className="w-11 h-11 rounded-xl bg-[#8B5CF6] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {photo ? (
+                              <img src={photo} alt={log.exercise_title} className="w-full h-full object-cover" />
+                            ) : (
+                              <Dumbbell size={20} className="text-white" />
                             )}
                           </div>
 
-                          {/* Status */}
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
-                            <span className="text-xs text-gray-600">
-                              {totalSets > 0 ? `${completedCount}/${totalSets} sets completed` : "No sets"}
-                            </span>
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Player Header */}
+                            {log.user && (
+                              <div className="flex items-center gap-1.5 mb-1 bg-purple-50 px-2 py-0.5 rounded-lg w-fit">
+                                <div className="w-4 h-4 rounded-full bg-purple-200 flex items-center justify-center text-[8px] font-bold text-purple-700 overflow-hidden">
+                                  {log.user.image ? (
+                                    <img src={log.user.image} alt={log.user.username} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <User size={8} />
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-bold text-purple-700">
+                                  {log.user.name || `@${log.user.username}`}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Exercise title */}
+                            <div className="flex items-start justify-between gap-2 mb-0.5">
+                              <p className="text-sm font-bold text-gray-900 leading-tight truncate">
+                                {log.exercise_title}
+                              </p>
+                            </div>
+
+                            {log.notes && (
+                              <p className="text-xs text-gray-500 italic mb-2">{log.notes}</p>
+                            )}
+
+                            {/* Set pills */}
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {log.sets.map((s) => (
+                                <span
+                                  key={s.id}
+                                  className="text-[11px] bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5 font-medium"
+                                >
+                                  Set {s.set_number}: {formatSetLabel(s)}
+                                </span>
+                              ))}
+                              {log.sets.length === 0 && (
+                                <span className="text-[11px] text-gray-400">No sets recorded</span>
+                              )}
+                            </div>
+
+                            {/* Status */}
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                              <span className="text-xs text-gray-600">
+                                {totalSets > 0 ? `${completedCount}/${totalSets} sets completed` : "No sets"}
+                              </span>
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="text-[10px] text-gray-400 text-right self-end sm:self-center shrink-0">
+                          {formatLoggedAt(log.logged_at)}
                         </div>
                       </div>
                     );
@@ -325,6 +373,83 @@ export default function ExerciseLogPage() {
           </div>
         </div>
       </div>
+
+      {/* Choose Player Modal */}
+      {playerModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPlayerModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col"
+            style={{ maxHeight: "80vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Select Player:</h2>
+              <button
+                onClick={() => setPlayerModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Search */}
+            <div className="px-6 py-3 border-b border-gray-100">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search Player..."
+                  value={playerSearch}
+                  onChange={(e) => setPlayerSearch(e.target.value)}
+                  className="w-full h-9 rounded-lg bg-[#f5f5f7] pl-8 pr-3 text-xs outline-none border border-transparent focus:border-[#8B5CF6] transition"
+                />
+              </div>
+            </div>
+
+            {/* Players List */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5">
+              {loadingPlayers ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 size={20} className="animate-spin text-[#8B5CF6]" />
+                </div>
+              ) : filteredPlayers.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-10">No players found</p>
+              ) : (
+                filteredPlayers.map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => {
+                      setPlayerModalOpen(false);
+                      router.push(`/coach/players/${player.username}/exercise-log/find-exercises`);
+                    }}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:bg-purple-50/50 hover:border-purple-200 transition text-left"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-sm font-bold shrink-0 overflow-hidden">
+                      {player.profile_picture ? (
+                        <img src={player.profile_picture} alt={player.name} className="w-full h-full object-cover" />
+                      ) : (
+                        (player.name || player.username || "P")[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-900 leading-tight">
+                        {player.name}
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        @{player.username}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {confirmTarget && (

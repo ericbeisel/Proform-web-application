@@ -4,214 +4,12 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  Settings,
   X,
   Trophy,
-  Shield,
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
   User,
-  Link2,
-  Atom,
-  Home,
-  Plus,
 } from "lucide-react";
-import { coachApi, CoachTeam, LeaderboardCategoryResponse } from "@/api/coach/route";
-
-// ── Choose Team Modal ─────────────────────────────────────────────────────────
-
-function ChooseTeamModal({
-  teams,
-  onClose,
-  onSelect,
-}: {
-  teams: CoachTeam[];
-  onClose: () => void;
-  onSelect: (team: CoachTeam) => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl bg-white rounded-2xl border-2 border-[#3B82F6] shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxHeight: "88vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">Choose Team:</h2>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 transition"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Team list */}
-        <div className="overflow-y-auto p-6">
-          {teams.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">No teams found.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {teams.map((team) => {
-                const initials = team.name
-                  .split(" ")
-                  .slice(0, 2)
-                  .map((w) => w[0])
-                  .join("")
-                  .toUpperCase();
-                return (
-                  <button
-                    key={team.id}
-                    onClick={() => {
-                      onSelect(team);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 hover:bg-gray-50 border border-gray-100 hover:border-blue-300 rounded-xl p-3 transition text-left"
-                  >
-                    {team.logo ? (
-                      <img
-                        src={team.logo}
-                        alt={team.name}
-                        className="w-10 h-10 rounded-full object-cover shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 bg-blue-600"
-                      >
-                        {initials}
-                      </div>
-                    )}
-                    <span className="text-xs text-gray-800 font-bold leading-tight line-clamp-2">
-                      {team.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Xanvas Hub Modal ──────────────────────────────────────────────────────────
-
-function XanvasHubModal({
-  teamId,
-  teamName,
-  onClose,
-}: {
-  teamId: string;
-  teamName: string;
-  onClose: () => void;
-}) {
-  const [devices, setDevices] = useState<Array<{ label: string; value: number }>>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-
-  const loadDevices = async () => {
-    try {
-      setLoading(true);
-      const res = await coachApi.getXanvasAvailable(teamId);
-      console.log("[Leaderboard] getXanvasAvailable response:", res);
-      setDevices(res);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDevices();
-  }, [teamId]);
-
-  const handleAssign = async (deviceId: number) => {
-    try {
-      const url = `${window.location.origin}/coach/leaderboard?team_id=${teamId}&team_name=${encodeURIComponent(teamName)}`;
-      console.log("[Leaderboard] assignXanvas request:", { deviceId, teamId: Number(teamId), url });
-      await coachApi.assignXanvas(deviceId, { teamId: Number(teamId), url });
-      setMessage("Device linked successfully!");
-      setTimeout(() => setMessage(""), 3000);
-      loadDevices();
-    } catch (err) {
-      console.error(err);
-      setMessage("Failed to link device.");
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg bg-[#f5f5f7] rounded-3xl overflow-hidden shadow-2xl flex flex-col"
-        style={{ maxHeight: "80vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="bg-white px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
-          <button
-            onClick={onClose}
-            className="text-[#3B82F6] text-sm font-medium mb-3 block hover:underline"
-          >
-            Back ...
-          </button>
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Atom size={28} className="text-gray-700 animate-spin-slow" />
-            <p className="text-2xl font-bold text-gray-900" style={{ fontFamily: "Georgia, serif" }}>
-              <span className="italic">Xanvas</span>{" "}
-              <span className="font-black not-italic" style={{ fontFamily: "sans-serif" }}>Hub</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 flex flex-col gap-3 overflow-y-auto flex-1">
-          <p className="text-sm font-semibold text-gray-500 mb-1">Available TV Casting Devices:</p>
-
-          {message && (
-            <p className="text-xs font-bold text-center text-blue-600 bg-blue-50 py-2 rounded-lg">
-              {message}
-            </p>
-          )}
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : devices.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">No unassigned TV displays found.</p>
-          ) : (
-            devices.map((device) => (
-              <div key={device.value} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-gray-900 text-sm">{device.label}</p>
-                </div>
-                <button
-                  onClick={() => handleAssign(device.value)}
-                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shrink-0 flex items-center gap-1"
-                >
-                  <Link2 size={13} />
-                  Cast
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import { coachApi } from "@/api/coach/route";
 
 // ── Category Modal ─────────────────────────────────────────────────────────────
 
@@ -303,7 +101,7 @@ function LeaderCard({ cat, onViewCategory }: { cat: any; onViewCategory: () => v
             <span className="bg-[#f59e0b] text-white text-[11px] font-black w-5 h-5 rounded-full flex items-center justify-center leading-none">
               1
             </span>
-            <span className="text-white/70 text-xs font-semibold">Team</span>
+            <span className="text-white/70 text-xs font-semibold">Rankings</span>
           </div>
           <Trophy size={20} className={`${cat.iconColor} opacity-80`} />
         </div>
@@ -415,20 +213,13 @@ const GRADIENTS = [
 function LeaderboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTeamId = searchParams.get("team_id");
-  const initialTeamName = searchParams.get("team_name");
   const code = searchParams.get("code");
   const isTvMode = !!code;
 
-  const [teams, setTeams] = useState<CoachTeam[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<CoachTeam | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<any | null>(null);
-  const [teamSwitcherOpen, setTeamSwitcherOpen] = useState(false);
-  const [xanvasHubOpen, setXanvasHubOpen] = useState(false);
-  const [chooseTeamOpen, setChooseTeamOpen] = useState(false);
 
   // Poll TV casting config if in kiosk mode
   useEffect(() => {
@@ -447,35 +238,13 @@ function LeaderboardContent() {
     return () => clearInterval(interval);
   }, [isTvMode, code]);
 
-  // Load coach teams list
-  useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const coachTeams = await coachApi.getCoachTeams();
-        console.log("[Leaderboard] getCoachTeams response:", coachTeams);
-        setTeams(coachTeams);
-
-        if (initialTeamId) {
-          const match = coachTeams.find((t) => String(t.id) === initialTeamId);
-          if (match) setSelectedTeam(match);
-        } else if (coachTeams.length > 0) {
-          setSelectedTeam(coachTeams[0]);
-        }
-      } catch (err) {
-        console.error("Failed to load coach teams:", err);
-      }
-    };
-    fetchTeams();
-  }, [initialTeamId]);
-
-  // Load leaderboard categories and ranks
+  // Load leaderboard categories and ranks dynamically
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      if (!selectedTeam) return;
       try {
         setLoading(true);
-        const res = await coachApi.getTeamLeaderboard(selectedTeam.id);
-        console.log("[Leaderboard] getTeamLeaderboard raw response:", res);
+        const res = await coachApi.getGlobalLeaderboard();
+        console.log("[Leaderboard] getGlobalLeaderboard raw response:", res);
         const mapped = res.categories.map((cat, i) => {
           const style = GRADIENTS[i % GRADIENTS.length];
           return {
@@ -491,31 +260,18 @@ function LeaderboardContent() {
         console.log("[Leaderboard] mapped categories:", mapped);
         setCategories(mapped);
       } catch (err) {
-        console.error("Failed to fetch team rankings:", err);
+        console.error("Failed to fetch rankings:", err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchLeaderboard();
-  }, [selectedTeam]);
+  }, []);
 
-  const handleSelectTeam = (team: CoachTeam) => {
-    setSelectedTeam(team);
-    // replace, not push — switching teams is a lateral update to this same
-    // page, not a new page to visit. push here was stacking one history
-    // entry per switch, so the back button just stepped through past teams
-    // instead of actually leaving the leaderboard page.
-    router.replace(
-      `/coach/leaderboard?team_id=${team.id}&team_name=${encodeURIComponent(
-        team.name
-      )}`
-    );
-  };
-
-  const currentTeamName = selectedTeam?.name ?? initialTeamName ?? "My Team";
-  const currentTeamId = selectedTeam?.id ?? initialTeamId ?? "";
-  const initialLetter = currentTeamName[0]?.toUpperCase() ?? "T";
+  const filteredCategories = categories.filter((cat) =>
+    cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div
@@ -528,10 +284,7 @@ function LeaderboardContent() {
           className="relative overflow-hidden sticky top-0 z-40 px-4 sm:px-6 py-5 border-b border-white/10"
           style={{ background: "rgba(15,5,32,0.85)", backdropFilter: "blur(12px)" }}
         >
-          {/* Decorative glowing orbs — same "bubbles" treatment as /metrics'
-              header, adapted to this page's dark theme (blurred glow instead
-              of flat translucent white circles, which would look out of
-              place against this background). */}
+          {/* Decorative glowing orbs */}
           <div
             className="absolute rounded-full pointer-events-none blur-2xl"
             style={{ width: 220, height: 220, backgroundColor: "rgba(124,58,237,0.35)", top: -120, left: -60 }}
@@ -544,83 +297,33 @@ function LeaderboardContent() {
           <div className="relative flex items-center justify-between gap-2">
             {/* Left */}
             <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-              {/* Real back navigation — distinct from "Change Teams" below,
-                  which opens the team-picker modal, not router.back(). */}
               <button
                 onClick={() => router.back()}
                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition shrink-0"
               >
                 <ArrowLeft size={15} className="text-white/70" />
               </button>
-              <button
-                onClick={() => setChooseTeamOpen(true)}
-                className="flex items-center gap-1 text-[#60a5fa] text-xs sm:text-sm font-semibold hover:text-[#93c5fd] transition-colors shrink-0"
-              >
-                <Shield size={14} />
-                <span className="hidden sm:inline">Change Teams</span>
-              </button>
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#7C3AED] flex items-center justify-center text-white text-[10px] font-black shrink-0">
-                {selectedTeam?.logo ? (
-                  <img
-                    src={selectedTeam.logo}
-                    alt={currentTeamName}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  initialLetter
-                )}
-              </div>
-              <span className="text-white font-semibold text-base sm:text-lg truncate max-w-[110px] sm:max-w-none">
-                {currentTeamName}
+              <span className="text-white font-semibold text-base sm:text-lg truncate">
+                Leaderboard
               </span>
             </div>
 
-            {/* Center — sm+ only. Absolute-centering this over the same row
-                as the left/right content overlaps on mobile (not enough
-                width for both), so mobile gets its own row below instead. */}
-            {selectedTeam && (
-              <button
-                onClick={() =>
-                  router.push(
-                    `/coach/team/${selectedTeam.id}?team_name=${encodeURIComponent(
-                      selectedTeam.name
-                    )}`
-                  )
-                }
-                className="hidden sm:flex flex-col items-center shrink-0 absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition"
-              >
-                <img
-                  src="/images/proform-logo.jpg"
-                  alt="Proform"
-                  className="w-8 h-8 object-contain rounded-sm"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                    (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                      '<span class="text-white font-black text-sm">P</span>';
-                  }}
-                />
-                <span className="text-[#a78bfa] text-base font-bold italic mt-1 whitespace-nowrap">
-                  Team Leaderboard
-                </span>
-              </button>
-            )}
+            {/* Center — sm+ only */}
+            <div className="hidden sm:flex flex-col items-center shrink-0 absolute left-1/2 -translate-x-1/2">
+              <img
+                src="/images/proform-logo.jpg"
+                alt="Proform"
+                className="w-8 h-8 object-contain rounded-sm"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                    '<span class="text-white font-black text-sm">P</span>';
+                }}
+              />
+            </div>
 
             {/* Right */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {selectedTeam && (
-                <button
-                  onClick={() =>
-                    router.push(
-                      `/coach/leaderboard-options?team_id=${
-                        selectedTeam.id
-                      }&team_name=${encodeURIComponent(selectedTeam.name)}`
-                    )
-                  }
-                  className="hover:opacity-70 transition shrink-0"
-                >
-                  <Settings size={22} className="text-white/50" />
-                </button>
-              )}
               <button
                 onClick={() => router.push("/coach/coach-dashboard")}
                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition shrink-0"
@@ -629,69 +332,35 @@ function LeaderboardContent() {
               </button>
             </div>
           </div>
-
-          {/* Mobile-only second row — same logo/label as the sm+ centered
-              button above, just given its own line since row 1 has no room
-              for it beside the team name on narrow screens. */}
-          {selectedTeam && (
-            <button
-              onClick={() =>
-                router.push(
-                  `/coach/team/${selectedTeam.id}?team_name=${encodeURIComponent(
-                    selectedTeam.name
-                  )}`
-                )
-              }
-              className="sm:hidden relative flex flex-col items-center mx-auto mt-3 hover:opacity-80 transition"
-            >
-              <img
-                src="/images/proform-logo.jpg"
-                alt="Proform"
-                className="w-7 h-7 object-contain rounded-sm"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                  (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                    '<span class="text-white font-black text-sm">P</span>';
-                }}
-              />
-              <span className="text-[#a78bfa] text-sm font-bold italic mt-1 whitespace-nowrap">
-                Team Leaderboard
-              </span>
-            </button>
-          )}
         </header>
       )}
 
-      {/* Grid — extra bottom clearance so the fixed bottom-left team switcher
-          never covers the last card on mobile (single-column layout there). */}
-      <div className="flex-1 px-4 sm:px-6 pt-5 sm:pt-6 pb-24 sm:pb-6">
+      {/* Grid */}
+      <div className="flex-1 px-4 sm:px-6 pt-5 sm:pt-6 pb-24 sm:pb-6 animate-fadeIn">
+        {/* Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <input
+            type="text"
+            placeholder="Search categories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full sm:max-w-xs px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-blue-500 transition"
+          />
+        </div>
+
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 animate-pulse">
             <div className="w-12 h-12 border-4 border-[#a78bfa] border-t-transparent rounded-full animate-spin" />
-            <p className="text-white/60 text-sm font-semibold">Loading team statistics...</p>
+            <p className="text-white/60 text-sm font-semibold">Loading leaderboard statistics...</p>
           </div>
-        ) : categories.length === 0 ? (
+        ) : filteredCategories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
             <Trophy size={48} className="text-white/20" />
-            <p className="text-white/50 text-sm font-bold">No metrics configured for this team.</p>
-            {!isTvMode && selectedTeam && (
-              <button
-                onClick={() =>
-                  router.push(
-                    `/coach/leaderboard-options?team_id=${
-                      selectedTeam.id
-                    }&team_name=${encodeURIComponent(selectedTeam.name)}`
-                  )
-                }
-                className="px-6 py-2 rounded-full bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold transition shadow"
-              >
-                Configure Options
-              </button>
-            )}
+            <p className="text-white/50 text-sm font-bold">No metrics found.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {categories.map((cat) => (
+            {filteredCategories.map((cat) => (
               <LeaderCard
                 key={cat.id}
                 cat={cat}
@@ -705,72 +374,6 @@ function LeaderboardContent() {
       {/* Category modal */}
       {activeCategory && (
         <CategoryModal cat={activeCategory} onClose={() => setActiveCategory(null)} />
-      )}
-
-      {/* Xanvas Hub modal */}
-      {xanvasHubOpen && currentTeamId && (
-        <XanvasHubModal
-          teamId={String(currentTeamId)}
-          teamName={currentTeamName}
-          onClose={() => setXanvasHubOpen(false)}
-        />
-      )}
-
-      {/* Choose Team modal */}
-      {chooseTeamOpen && (
-        <ChooseTeamModal
-          teams={teams}
-          onClose={() => setChooseTeamOpen(false)}
-          onSelect={handleSelectTeam}
-        />
-      )}
-
-      {/* Bottom-left team switcher - Hidden in TV casting mode */}
-      {!isTvMode && teams.length > 0 && selectedTeam && (
-        <div className="fixed bottom-4 sm:bottom-5 left-3 sm:left-4 right-3 sm:right-auto z-40 flex items-end gap-2">
-          {/* Chain icon button for Xanvas TV Casting */}
-          <button
-            onClick={() => setXanvasHubOpen(true)}
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#2a2a3a] flex items-center justify-center shadow-lg shrink-0 border border-white/5 hover:bg-[#34344a] transition"
-          >
-            <Link2 size={18} className="text-[#60a5fa]" />
-          </button>
-
-          {/* Team Switcher dropdown — flex-1 + max-w on mobile so it can't
-              overflow the viewport on narrow phones, fixed width on sm+. */}
-          <div className="relative flex flex-col flex-1 max-w-[220px] sm:flex-none sm:w-52">
-            {teamSwitcherOpen && (
-              <div className="absolute bottom-full mb-1 w-full rounded-xl border border-[#7C3AED] bg-white overflow-hidden shadow-xl">
-                {teams
-                  .filter((t) => t.id !== selectedTeam.id)
-                  .map((team) => (
-                    <button
-                      key={team.id}
-                      onClick={() => {
-                        handleSelectTeam(team);
-                        setTeamSwitcherOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-[#7C3AED] font-semibold text-sm hover:bg-purple-50 transition-colors border-b border-purple-100 last:border-b-0"
-                    >
-                      {team.name}
-                    </button>
-                  ))}
-              </div>
-            )}
-
-            <button
-              onClick={() => setTeamSwitcherOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white rounded-xl shadow-lg border border-gray-100"
-            >
-              <span className="text-[#1f1f1f] font-bold text-sm truncate">{selectedTeam.name}</span>
-              {teamSwitcherOpen ? (
-                <ChevronUp size={16} className="text-gray-500 shrink-0" />
-              ) : (
-                <ChevronDown size={16} className="text-gray-500 shrink-0" />
-              )}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
