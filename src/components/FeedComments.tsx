@@ -9,9 +9,10 @@ interface Props {
   onCommentAdded?: () => void;
   requireLogin?: boolean;
   onRequireLogin?: () => void;
-  /** Comments already fetched from a public (no-auth) endpoint — when given,
-   * logged-out viewers see these directly instead of a "log in to view"
-   * wall. Posting a new comment still requires login regardless. */
+  /** Comments already fetched from a public (no-auth) endpoint — shown
+   * immediately (before the real fetch below resolves) and kept as a
+   * fallback if that fetch comes back empty. Posting a new comment still
+   * requires login regardless — viewing never does. */
   publicComments?: FeedComment[];
 }
 
@@ -28,8 +29,8 @@ function formatCommentTime(dateStr?: string): string {
 }
 
 export default function FeedComments({ feedId, onCommentAdded, requireLogin, onRequireLogin, publicComments }: Props) {
-  const [comments, setComments] = useState<FeedComment[]>([]);
-  const [total, setTotal] = useState(0);
+  const [comments, setComments] = useState<FeedComment[]>(publicComments ?? []);
+  const [total, setTotal] = useState(publicComments?.length ?? 0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -40,29 +41,18 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    console.log("[FeedComments] effect fired:", { feedId, requireLogin, publicComments });
-    // /feed/{id}/comments requires auth server-side — skip the request
-    // entirely when logged out instead of firing a doomed fetch. If a
-    // public (no-auth) endpoint already handed us the comments, show those
-    // instead of blocking the view behind login — only posting needs auth.
-    if (requireLogin) {
-      if (publicComments) {
-        setComments(publicComments);
-        setTotal(publicComments.length);
-        setHasMore(false);
-      }
-      setLoading(false);
-      return;
-    }
+    // Viewing comments is a read — it should never require login (only
+    // posting does, gated separately in openInput below). Always attempt the
+    // real fetch regardless of auth state; worst case it 401s (caught inside
+    // getFeedComments, returns empty) and we keep whatever publicComments we
+    // already have instead.
     setLoading(true);
     feedApi.getFeedComments(feedId, 1).then(({ comments, total, hasMore }) => {
-      console.log("[FeedComments] getFeedComments resolved:", { feedId, comments, total, hasMore });
-      // A logged-in viewer who isn't a participant of this session can get a
-      // "successful" but empty response here (no error, just no access) —
-      // don't let that silently wipe out real comments we already have from
-      // the public session data.
+      // Either an unauthenticated request or a logged-in viewer who isn't a
+      // participant of this session can get a "successful" but empty
+      // response here — don't let that silently wipe out real comments we
+      // already have from the public session data.
       if (comments.length === 0 && publicComments && publicComments.length > 0) {
-        console.log("[FeedComments] authenticated fetch was empty — falling back to publicComments:", publicComments);
         setComments(publicComments);
         setTotal(publicComments.length);
         setHasMore(false);
@@ -73,7 +63,7 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
       setHasMore(hasMore);
       setPage(1);
     }).finally(() => setLoading(false));
-  }, [feedId, requireLogin, publicComments]);
+  }, [feedId, publicComments]);
 
   const openInput = () => {
     if (requireLogin) {
@@ -166,15 +156,8 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
         </div>
       )}
 
-      {/* Comments list */}
-      {requireLogin && !publicComments ? (
-        <button
-          onClick={() => onRequireLogin?.()}
-          className="text-[13px] font-semibold text-purple-600 hover:text-purple-700 transition py-2"
-        >
-          Log in to view comments
-        </button>
-      ) : loading ? (
+      {/* Comments list — viewing never requires login, only posting does */}
+      {loading ? (
         <div className="flex justify-center py-6">
           <Loader2 size={18} className="text-purple-400 animate-spin" />
         </div>
