@@ -55,6 +55,16 @@ export default function FeedComments({ feedId, onCommentAdded, requireLogin, onR
     }
     setLoading(true);
     feedApi.getFeedComments(feedId, 1).then(({ comments, total, hasMore }) => {
+      // A logged-in viewer who isn't a participant of this session can get a
+      // "successful" but empty response here (no error, just no access) —
+      // don't let that silently wipe out real comments we already have from
+      // the public session data.
+      if (comments.length === 0 && publicComments && publicComments.length > 0) {
+        setComments(publicComments);
+        setTotal(publicComments.length);
+        setHasMore(false);
+        return;
+      }
       setComments(comments);
       setTotal(total);
       setHasMore(hasMore);
