@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Calendar, Loader2, RefreshCw, Settings, X, Dumbbell, Flame, Sparkles, Droplet, ChevronRight } from "lucide-react";
+import { Plus, Calendar, Loader2, RefreshCw, Settings, X, Dumbbell, Flame, Sparkles, Droplet, ChevronRight, ArrowLeft } from "lucide-react";
 import { getActivityWorkoutQueue, getProgramTags } from "@/api/programs/route";
 import { preferenceApi } from "@/api/preferences/route";
 
@@ -217,6 +217,13 @@ export default function WorkoutDashboard() {
       <div className="bg-white px-4 sm:px-6 lg:px-7 py-3.5 sm:py-4 border-b border-[#e8e8f0] sticky top-0 z-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3.5">
+            <button
+              onClick={() => router.back()}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} className="text-gray-700" />
+            </button>
             <div>
               <h1 className="text-lg sm:text-xl font-extrabold text-[#7c3aed] m-0">
                 {workoutType === "Workout" ? "Workout Queue" :

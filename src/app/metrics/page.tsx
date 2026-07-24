@@ -263,7 +263,11 @@ export default function MetricsPage() {
             />
           </button>
 
-          <button className="justify-self-end shrink-0 w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70">
+          <button
+            onClick={() => router.back()}
+            className="justify-self-end shrink-0 w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70"
+            aria-label="Close"
+          >
             <X size={20} color="rgba(255,255,255,0.85)" />
           </button>
         </div>

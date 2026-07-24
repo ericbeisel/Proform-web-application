@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Dumbbell, X, BarChart2, Loader2,
-  Calendar, ArrowUp, ArrowDown
+  Calendar, ArrowUp, ArrowDown, ArrowLeft
 } from "lucide-react";
 import { getWorkoutQueue, reorderWorkoutQueue, deleteFromQueue, getProgramTags } from "@/api/programs/route";
 
@@ -308,8 +308,15 @@ export default function WorkoutDashboard() {
             />
           </div>
 
-          {/* Left: avatar + title */}
+          {/* Left: back button + title */}
           <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+            <button
+              onClick={() => router.back()}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} className="text-gray-700" />
+            </button>
             <div className="min-w-0">
               <h1 className="text-sm sm:text-xl font-extrabold text-[#7c3aed] m-0 truncate">
                 {getWorkoutTitle()}
@@ -602,7 +609,7 @@ export default function WorkoutDashboard() {
         <>
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed top-28 left-4 sm:left-6 z-30 h-8 pl-2.5 pr-3 rounded-full bg-white shadow-lg border border-gray-200 flex items-center gap-1 text-[#7c3aed] text-[11px] font-semibold hover:bg-gray-50 transition"
+            className="fixed top-36 left-4 sm:left-6 z-30 h-8 pl-2.5 pr-3 rounded-full bg-white shadow-lg border border-gray-200 flex items-center gap-1 text-[#7c3aed] text-[11px] font-semibold hover:bg-gray-50 transition"
             aria-label="Scroll to top"
           >
             <ArrowUp size={13} />

@@ -227,7 +227,10 @@ export default function PlayerProgress() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f8f9fb]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700" /></div>;
   
   if (error) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fb]">
+    <div className="min-h-screen flex items-center justify-center bg-[#f8f9fb] relative">
+      <button onClick={() => router.back()} className="absolute top-5 left-4 p-2 rounded-full bg-white shadow-sm">
+        <ArrowLeft size={18} className="text-gray-700" strokeWidth={2.5} />
+      </button>
       <div className="text-center p-8 bg-white rounded-2xl shadow-md max-w-md">
         <p className="text-red-600 mb-4">{error}</p>
         <button onClick={() => window.location.reload()} className="bg-purple-600 text-white px-6 py-2 rounded-xl">Try Again</button>
@@ -236,7 +239,10 @@ export default function PlayerProgress() {
   );
 
   if (progressData.length === 0) return (
-    <main className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
+    <main className="min-h-screen bg-[#f8f9fb] flex items-center justify-center relative">
+      <button onClick={() => router.back()} className="absolute top-5 left-4 p-2 rounded-full bg-white shadow-sm">
+        <ArrowLeft size={18} className="text-gray-700" strokeWidth={2.5} />
+      </button>
       <div className="text-center bg-white p-8 rounded-2xl shadow max-w-md">
         <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mx-auto mb-4">
           <Scan size={32} className="text-purple-400" />

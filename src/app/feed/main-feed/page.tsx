@@ -27,6 +27,12 @@ import { useRouter } from "next/navigation";
 import UploadHighlightModal from "./UploadHighlightModal";
 import SessionDetailsModal from "../session-details/SessionDetailsModal";
 import { SessionDetailsContentProps } from "../session-details/SessionDetailsContent";
+import HydrationDetailsModal from "../hydration-details/HydrationDetailsModal";
+import { HydrationDetailsContentProps } from "../hydration-details/HydrationDetailsContent";
+import CardioSessionModal from "../cardio-session/CardioSessionModal";
+import { CardioSessionContentProps } from "../cardio-session/CardioSessionContent";
+import RecoveryDetailsModal from "../recovery-details/RecoveryDetailsModal";
+import { RecoveryDetailsContentProps } from "../recovery-details/RecoveryDetailsContent";
 import { hasAuthSession } from "@/lib/auth/session";
 import { getWorkoutSessionById } from "@/api/workouts/route";
 
@@ -186,6 +192,12 @@ const [creatingHighlight, setCreatingHighlight] =
   const [pendingCount, setPendingCount] = useState(0);
   const [sessionDetailsModalProps, setSessionDetailsModalProps] =
     useState<SessionDetailsContentProps | null>(null);
+  const [hydrationDetailsModalProps, setHydrationDetailsModalProps] =
+    useState<HydrationDetailsContentProps | null>(null);
+  const [cardioSessionModalProps, setCardioSessionModalProps] =
+    useState<CardioSessionContentProps | null>(null);
+  const [recoveryDetailsModalProps, setRecoveryDetailsModalProps] =
+    useState<RecoveryDetailsContentProps | null>(null);
   const [shareProgramCode, setShareProgramCode] = useState("");
 
   useEffect(() => {
@@ -934,13 +946,39 @@ const [creatingHighlight, setCreatingHighlight] =
                                 isLiked: String(isLiked),
                               });
                               if (feed.type === "CompleteCardio") {
-                                router.push(`/feed/cardio-session?${p.toString()}`);
+                                setCardioSessionModalProps({
+                                  feedId: String(feed.id),
+                                  userName: feed.user?.name || "",
+                                  userUsername: feed.user?.username || "",
+                                  title: feed.title || "Completed a cardio workout",
+                                  date: feed.date || feed.created_at || "",
+                                  initialLikeCount: feed.likeCount || 0,
+                                  initialLiked: isLiked,
+                                });
                               } else if (feed.type === "CompleteRecovery") {
-                                router.push(`/feed/recovery-details?${p.toString()}`);
+                                const durationParam = (feed as any).time_spent || (feed as any).duration || "";
+                                setRecoveryDetailsModalProps({
+                                  feedId: String(feed.id),
+                                  userName: feed.user?.name || "",
+                                  userUsername: feed.user?.username || "",
+                                  date: feed.date || feed.created_at || "",
+                                  initialLikeCount: feed.likeCount || 0,
+                                  initialLiked: isLiked,
+                                  initialTitle: feed.title || "",
+                                  initialDuration: durationParam ? String(durationParam) : "",
+                                });
                               } else if (feed.type === "CompleteHydration") {
                                 const oz = (feed as any).oz_number || "";
-                                if (oz) p.set("oz", String(oz));
-                                router.push(`/feed/hydration-details?${p.toString()}`);
+                                setHydrationDetailsModalProps({
+                                  feedId: String(feed.id),
+                                  userName: feed.user?.name || "",
+                                  userUsername: feed.user?.username || "",
+                                  date: feed.date || feed.created_at || "",
+                                  initialLikeCount: feed.likeCount || 0,
+                                  initialLiked: isLiked,
+                                  initialTitle: feed.title || "",
+                                  initialOz: oz ? String(oz) : "",
+                                });
                               } else if (isNutrition && feed.type?.includes("Complete")) {
                                 const calories = (feed as any).calories || "";
                                 const protein = (feed as any).protein || "";
@@ -1762,6 +1800,27 @@ const [creatingHighlight, setCreatingHighlight] =
         <SessionDetailsModal
           {...sessionDetailsModalProps}
           onClose={() => setSessionDetailsModalProps(null)}
+        />
+      )}
+
+      {hydrationDetailsModalProps && (
+        <HydrationDetailsModal
+          {...hydrationDetailsModalProps}
+          onClose={() => setHydrationDetailsModalProps(null)}
+        />
+      )}
+
+      {cardioSessionModalProps && (
+        <CardioSessionModal
+          {...cardioSessionModalProps}
+          onClose={() => setCardioSessionModalProps(null)}
+        />
+      )}
+
+      {recoveryDetailsModalProps && (
+        <RecoveryDetailsModal
+          {...recoveryDetailsModalProps}
+          onClose={() => setRecoveryDetailsModalProps(null)}
         />
       )}
     </div>

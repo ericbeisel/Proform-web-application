@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import PageTitle from "@/components/itinerary/Pagetitle";
-import { ChevronRight, AlertCircle, CalendarDays } from "lucide-react";
+import { ChevronRight, AlertCircle, CalendarDays, ArrowLeft } from "lucide-react";
 import { getMissedActivities } from "@/api/itinerary/route";
 
 // Routes inside (tabs) that should hide the shared shell
@@ -35,8 +35,17 @@ export default function TabsShell({
     <div className="flex flex-col w-full min-h-screen">
       {/* ── Responsive Top Header Bar ── */}
       <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-gray-100 flex-shrink-0">
-        {/* Left — page title */}
-        <PageTitle />
+        {/* Left — back button + page title */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.back()}
+            className="p-1.5 -ml-1.5 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+            aria-label="Go back"
+          >
+            <ArrowLeft size={18} className="text-gray-700" />
+          </button>
+          <PageTitle />
+        </div>
 
         {/* Center — logo */}
         <div className="absolute left-1/2 -translate-x-1/2">

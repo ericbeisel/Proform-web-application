@@ -27,7 +27,9 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
-import PowerSetTrackingModal, { type VelocitySet } from "./PowerSetTrackingModal";
+import PowerSetTrackingModal, {
+  type VelocitySet,
+} from "./PowerSetTrackingModal";
 import SessionViewsPanel from "./SessionViewsPanel";
 import PurchaseCheckout from "../components/PurchaseCheckout";
 import {
@@ -59,13 +61,19 @@ import {
 import { dashboardApi, UserOtherDetail } from "@/api/dashboard/route";
 import { feedApi, Advertisement } from "@/api/feed/route";
 import { equipmentApi } from "@/api/location/route";
-import { getAuthUser, getUserIdFromToken, hasAuthSession } from "@/lib/auth/session";
+import {
+  getAuthUser,
+  getUserIdFromToken,
+  hasAuthSession,
+} from "@/lib/auth/session";
 import { convertToUserUnit } from "@/lib/units";
 import { resolveWixImage, sortWorkoutGroups } from "./helpers";
 
 // Exact port of mobile's ExerciseTrackingModal parseHeightInches — handles
 // both a plain number and a "5'10"" style string.
-function parseHeightInches(heightStr: string | number | null | undefined): number {
+function parseHeightInches(
+  heightStr: string | number | null | undefined,
+): number {
   if (!heightStr) return 0;
   const str = String(heightStr).trim();
   if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
@@ -89,14 +97,20 @@ function computeTrackingLoad(
   weightNum: number,
   repsNum: number,
 ): number {
-  const measurementUnit = (userDetail?.measurementUnit || "lbs").toLowerCase().trim();
+  const measurementUnit = (userDetail?.measurementUnit || "lbs")
+    .toLowerCase()
+    .trim();
   const isKg = measurementUnit === "kg";
   const weightConv = (val: number) => (isKg ? val * 2.2046 : val);
   const rawWeight = parseFloat(String(userDetail?.currentWeight || 0)) || 0;
   const weight = weightConv(rawWeight);
   const height = parseHeightInches(userDetail?.height);
   const data1 = weight * height;
-  const ex = exercise as unknown as { loadMeter?: number; rep_variant?: number; repVariant?: number } | null;
+  const ex = exercise as unknown as {
+    loadMeter?: number;
+    rep_variant?: number;
+    repVariant?: number;
+  } | null;
   const E = parseInt(String(ex?.loadMeter ?? 3)) || 3;
   const e = parseFloat(String(ex?.repVariant ?? ex?.rep_variant ?? 1)) || 1;
   // Mobile always treats the typed weight as kg for this calculation,
@@ -122,14 +136,18 @@ function ViewWorkoutSessionContent() {
   const [location, setLocation] = useState<string | null>(null);
   // Supports deep-linking straight to the Session Details modal — e.g.
   // athenaWorkout.tsx's sidebar "Session" item links to ?openSession=true.
-  const [showSessionModal, setShowSessionModal] = useState(searchParams.get("openSession") === "true");
+  const [showSessionModal, setShowSessionModal] = useState(
+    searchParams.get("openSession") === "true",
+  );
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [sessionLinkCopied, setSessionLinkCopied] = useState(false);
   const [followerSearch, setFollowerSearch] = useState("");
   // Supports deep-linking straight into a tab — e.g. athenaWorkout.tsx's
   // "This Workout" stats panel links to ?view=Results (mobile's
   // topStatsRowHeader navigates directly to the Results tab the same way).
-  const [activeView, setActiveView] = useState(searchParams.get("view") || "Overview");
+  const [activeView, setActiveView] = useState(
+    searchParams.get("view") || "Overview",
+  );
   const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<number>>(new Set());
   const [selectedExercises, setSelectedExercises] = useState<Set<number>>(
@@ -166,14 +184,19 @@ function ViewWorkoutSessionContent() {
   const [programTags, setProgramTags] = useState<string[]>([]);
   const [previewData, setPreviewData] = useState<ProgramPreview | null>(null);
   const [hasPurchased, setHasPurchased] = useState(false);
-  const [purchaseExpiresAt, setPurchaseExpiresAt] = useState<string | null>(null);
-  const [purchaseTimeRemaining, setPurchaseTimeRemaining] = useState<string>("");
+  const [purchaseExpiresAt, setPurchaseExpiresAt] = useState<string | null>(
+    null,
+  );
+  const [purchaseTimeRemaining, setPurchaseTimeRemaining] =
+    useState<string>("");
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   // Drives the same Stripe PurchaseCheckout flow used in viewWorkoutDetail.tsx
   // — this modal previously just flipped hasPurchased locally with no real
   // charge, unlike the paywall on that other page.
   const [checkoutStarted, setCheckoutStarted] = useState(false);
-  const [programCodeForPurchase, setProgramCodeForPurchase] = useState<string | null>(null);
+  const [programCodeForPurchase, setProgramCodeForPurchase] = useState<
+    string | null
+  >(null);
   // Mirrors mobile's exercise-tap-before-session-starts modal — mobile's
   // version doesn't actually render exercise-specific details despite
   // storing them, it's just a "Ready to Start?" confirmation, so no need to
@@ -225,7 +248,9 @@ function ViewWorkoutSessionContent() {
   const defaultLocationIdRef = useRef<string | number | null>(null);
   const [powerSets, setPowerSets] = useState<PowerSet[]>([]);
   const [powerSetsLoading, setPowerSetsLoading] = useState(false);
-  const [velocityExercise, setVelocityExercise] = useState<PowerSet | null>(null);
+  const [velocityExercise, setVelocityExercise] = useState<PowerSet | null>(
+    null,
+  );
   const [velocitySets, setVelocitySets] = useState<VelocitySet[]>([]);
   const velocitySetsCache = useRef<Record<string, VelocitySet[]>>({});
   const [mapSessionLogs, setMapSessionLogs] = useState<any[]>([]);
@@ -252,13 +277,15 @@ function ViewWorkoutSessionContent() {
           // trip was quietly producing a second, duplicate log entry for
           // the same set instead of just letting the user type once.
           recorded: false,
-          suggestedWeight: s.calculated_weight ? String(s.calculated_weight) : undefined,
+          suggestedWeight: s.calculated_weight
+            ? String(s.calculated_weight)
+            : undefined,
           suggestedReps: s.reps ? String(s.reps) : undefined,
           pwrst_wt: s.multiplier,
           weight_adjust: (ps as any).weight_adj,
           min_reps: s.min_reps ?? undefined,
           power_id: s.id,
-        }))
+        })),
       );
     }
   }, []);
@@ -270,13 +297,16 @@ function ViewWorkoutSessionContent() {
     ]);
   }, []);
 
-  const updateVelocitySet = useCallback((index: number, field: string, value: any) => {
-    setVelocitySets((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }, []);
+  const updateVelocitySet = useCallback(
+    (index: number, field: string, value: any) => {
+      setVelocitySets((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], [field]: value };
+        return next;
+      });
+    },
+    [],
+  );
 
   const toggleRecordVelocitySet = useCallback((index: number) => {
     setVelocitySets((prev) => {
@@ -317,27 +347,31 @@ function ViewWorkoutSessionContent() {
       getTrackingLogs({ sessionId: sid }).catch(() => [] as any[]),
       getPowerSetLogs(sid).catch(() => [] as any[]),
       getWorkoutLoadRecords(sid).catch(() => [] as WorkoutLoadRecord[]),
-    ]).then(([stdLogs, psLogs, loads]) => {
-      // Exact port of mobile's MapScreen: power-set logs are used only to
-      // flag the matching standard tracking log as isPowerSetLog (cross-
-      // referenced via each power-set log's `tracking_log` id) — they're
-      // never added as separate log entries. A set only renders green if a
-      // real standard log exists for it AND a power-set log references that
-      // exact log id; previously every power-set log was unconditionally
-      // pushed in as its own entry, which could color/duplicate sets that
-      // mobile's basis would not.
-      const powerSetTrackingLogIds = new Set<string>(
-        (psLogs as any[])
-          .map((l: any) => String(l.tracking_log || ""))
-          .filter(Boolean)
-      );
-      const allLogs = (stdLogs as any[]).map((log: any) => {
-        const logId = String(log.id || "");
-        return logId && powerSetTrackingLogIds.has(logId) ? { ...log, isPowerSetLog: true } : log;
-      });
-      setMapSessionLogs(allLogs);
-      setMapLoadRecords(loads as WorkoutLoadRecord[]);
-    }).finally(() => setMapLoading(false));
+    ])
+      .then(([stdLogs, psLogs, loads]) => {
+        // Exact port of mobile's MapScreen: power-set logs are used only to
+        // flag the matching standard tracking log as isPowerSetLog (cross-
+        // referenced via each power-set log's `tracking_log` id) — they're
+        // never added as separate log entries. A set only renders green if a
+        // real standard log exists for it AND a power-set log references that
+        // exact log id; previously every power-set log was unconditionally
+        // pushed in as its own entry, which could color/duplicate sets that
+        // mobile's basis would not.
+        const powerSetTrackingLogIds = new Set<string>(
+          (psLogs as any[])
+            .map((l: any) => String(l.tracking_log || ""))
+            .filter(Boolean),
+        );
+        const allLogs = (stdLogs as any[]).map((log: any) => {
+          const logId = String(log.id || "");
+          return logId && powerSetTrackingLogIds.has(logId)
+            ? { ...log, isPowerSetLog: true }
+            : log;
+        });
+        setMapSessionLogs(allLogs);
+        setMapLoadRecords(loads as WorkoutLoadRecord[]);
+      })
+      .finally(() => setMapLoading(false));
   }, [activeView, activeSession]);
 
   // Existing handlers
@@ -408,7 +442,11 @@ function ViewWorkoutSessionContent() {
         sessionId: sid || undefined,
         locationId: locationId != null ? String(locationId) : undefined,
       });
-      setLocationFilteredGroups(sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []));
+      setLocationFilteredGroups(
+        sortWorkoutGroups(
+          Array.isArray(overview.rounds) ? overview.rounds : [],
+        ),
+      );
     } catch {
       setFilterByLocation(false);
     } finally {
@@ -417,7 +455,8 @@ function ViewWorkoutSessionContent() {
   };
 
   useEffect(() => {
-    equipmentApi.getLocationList()
+    equipmentApi
+      .getLocationList()
       .then((list) => console.log("[viewWorkoutSession] location list:", list))
       .catch(() => {});
   }, []);
@@ -445,8 +484,7 @@ function ViewWorkoutSessionContent() {
         if (changed && filterByLocation) {
           handleLocationFilter(true);
         }
-      } catch {
-      }
+      } catch {}
     };
 
     checkDefaultLocation();
@@ -533,7 +571,9 @@ function ViewWorkoutSessionContent() {
   // chain (OverviewScreen.tsx:1800) — this is a display-only estimate, the
   // actual charge is whatever the backend's create-intent PaymentIntent sets.
   const displayPrice = String(
-    (previewData?.price ?? previewData?.amount ?? previewData?.cost ?? "1") as string | number,
+    (previewData?.price ?? previewData?.amount ?? previewData?.cost ?? "1") as
+      | string
+      | number,
   );
   // Absolute end date/time alongside the relative countdown, so the user
   // doesn't have to do "22h 4m from... when?" math themselves.
@@ -598,7 +638,9 @@ function ViewWorkoutSessionContent() {
       setAuthPrompt(true);
       return;
     }
-    const code = (localStorage.getItem("workoutProgramCode") || "unknown").toUpperCase();
+    const code = (
+      localStorage.getItem("workoutProgramCode") || "unknown"
+    ).toUpperCase();
     localStorage.setItem("pendingSessionCode", code);
     localStorage.setItem("pendingWorkoutGroups", JSON.stringify(workoutGroups));
     router.push("/workout/equipmentNeeded");
@@ -609,8 +651,12 @@ function ViewWorkoutSessionContent() {
   // alphabetically-only, as an earlier version of this did, both duplicates
   // that work and gets the order wrong.
   const getRoundLabel = (roundValue: number | string | undefined): string => {
-    if (!workoutGroups || workoutGroups.length === 0) return `ROUND ${roundValue ?? 1}`;
-    return workoutGroups[Number(roundValue ?? 1) - 1]?.label || `ROUND ${roundValue ?? 1}`;
+    if (!workoutGroups || workoutGroups.length === 0)
+      return `ROUND ${roundValue ?? 1}`;
+    return (
+      workoutGroups[Number(roundValue ?? 1) - 1]?.label ||
+      `ROUND ${roundValue ?? 1}`
+    );
   };
 
   // The power-sets API's own `round` field is unreliable (mobile's own
@@ -665,7 +711,9 @@ function ViewWorkoutSessionContent() {
     // entirely (e.g. swap info for the exercise at `.order === 4` got
     // written against whichever exercise happened to sit at array index 0).
     // That's what caused completely different exercises to render.
-    const sessionLocationName = (session as unknown as { locationName?: string }).locationName;
+    const sessionLocationName = (
+      session as unknown as { locationName?: string }
+    ).locationName;
     if (sessionLocationName) {
       setLocation(sessionLocationName);
       localStorage.setItem("workoutLocationName", sessionLocationName);
@@ -707,19 +755,30 @@ function ViewWorkoutSessionContent() {
         const newSessionId = created.session?.id;
         if (newSessionId) {
           try {
-            await createFeedPost({ sessionId: newSessionId, workoutLibraryId: code || "" });
-          } catch {
-          }
+            await createFeedPost({
+              sessionId: newSessionId,
+              workoutLibraryId: code || "",
+            });
+          } catch {}
           if (code) {
-            localStorage.setItem(`activeSessionId_${code.toUpperCase()}`, newSessionId);
+            localStorage.setItem(
+              `activeSessionId_${code.toUpperCase()}`,
+              newSessionId,
+            );
           }
-          setActiveSession({ ...activeSession, id: newSessionId, session_id: newSessionId });
+          setActiveSession({
+            ...activeSession,
+            id: newSessionId,
+            session_id: newSessionId,
+          });
         }
       } else {
         try {
-          await createFeedPost({ sessionId: activeSession.id, workoutLibraryId: code || "" });
-        } catch {
-        }
+          await createFeedPost({
+            sessionId: activeSession.id,
+            workoutLibraryId: code || "",
+          });
+        } catch {}
       }
     } catch {
     } finally {
@@ -756,7 +815,11 @@ function ViewWorkoutSessionContent() {
       const isReload =
         typeof performance !== "undefined" &&
         performance.getEntriesByType("navigation")[0] &&
-        (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type === "reload";
+        (
+          performance.getEntriesByType(
+            "navigation",
+          )[0] as PerformanceNavigationTiming
+        ).type === "reload";
 
       // Tracks whether a session was resolved via the shared-link deep-link
       // path below — that path's session may legitimately no longer be
@@ -781,7 +844,8 @@ function ViewWorkoutSessionContent() {
             localStorage.setItem("workoutProgramCode", resolvedCode);
           }
           const resolvedTitle = session?.workoutTitle || session?.title;
-          if (resolvedTitle) localStorage.setItem("workoutTitle", resolvedTitle);
+          if (resolvedTitle)
+            localStorage.setItem("workoutTitle", resolvedTitle);
           // These are re-derived below from a fresh getProgramOverview call
           // (workoutIsFree from preview.free) or simply don't apply to a
           // session we didn't set up ourselves — clear them so a value left
@@ -832,8 +896,7 @@ function ViewWorkoutSessionContent() {
               session.id,
             );
           }
-        } catch {
-        }
+        } catch {}
       }
 
       const savedLocation = localStorage.getItem("workoutLocationName");
@@ -871,9 +934,15 @@ function ViewWorkoutSessionContent() {
         ]).then(([stats, records]) => {
           setLoadRecords(records);
           if (!stats) return;
-          const totalLoad = records.length ? Math.max(...records.map((r) => r.load || 0)) : 0;
-          const totalPower = records.length ? Math.max(...records.map((r) => r.power || 0)) : 0;
-          const totalCals = records.length ? Math.max(...records.map((r) => r.kcal || 0)) : 0;
+          const totalLoad = records.length
+            ? Math.max(...records.map((r) => r.load || 0))
+            : 0;
+          const totalPower = records.length
+            ? Math.max(...records.map((r) => r.power || 0))
+            : 0;
+          const totalCals = records.length
+            ? Math.max(...records.map((r) => r.kcal || 0))
+            : 0;
           setWorkoutStats({
             ...stats,
             thisWorkout: {
@@ -937,7 +1006,10 @@ function ViewWorkoutSessionContent() {
             // except when this mount is a genuine browser refresh of a
             // session already engaged with (stamped in sessionStorage), in
             // which case re-showing the banner would just be an annoyance.
-            if (isReload && sessionStorage.getItem(`sessionEngaged_${matched.id}`) === "true") {
+            if (
+              isReload &&
+              sessionStorage.getItem(`sessionEngaged_${matched.id}`) === "true"
+            ) {
               setIsSessionEngaged(true);
             }
           }
@@ -970,7 +1042,9 @@ function ViewWorkoutSessionContent() {
           .then(([preview, groups, tags]) => {
             setProgramTags(tags);
             setPreviewData(preview);
-            setWorkoutGroups(sortWorkoutGroups(Array.isArray(groups) ? groups : []));
+            setWorkoutGroups(
+              sortWorkoutGroups(Array.isArray(groups) ? groups : []),
+            );
             if (preview?.free) {
               localStorage.setItem("workoutIsFree", "true");
               setHasPurchased(true);
@@ -983,16 +1057,23 @@ function ViewWorkoutSessionContent() {
           });
         return;
       }
-      getProgramOverview(programCode.toLowerCase(), { sessionId: storedSessionId })
+      getProgramOverview(programCode.toLowerCase(), {
+        sessionId: storedSessionId,
+      })
         .then((overview) => {
           setProgramTags(Array.isArray(overview.tags) ? overview.tags : []);
           setPreviewData(overview.preview ?? null);
-          setPowerSets(Array.isArray(overview.powerSets) ? overview.powerSets : []);
+          setPowerSets(
+            Array.isArray(overview.powerSets) ? overview.powerSets : [],
+          );
 
           // A shared-link visitor never goes through the "browse program"
           // flow that normally sets workoutIsFree in localStorage, so a
           // free program would otherwise show a "requires purchase" paywall.
-          console.log("[viewWorkout] Workout is", overview.preview?.free ? "FREE" : "PAID");
+          console.log(
+            "[viewWorkout] Workout is",
+            overview.preview?.free ? "FREE" : "PAID",
+          );
           if (overview.preview?.free) {
             localStorage.setItem("workoutIsFree", "true");
             setHasPurchased(true);
@@ -1012,7 +1093,9 @@ function ViewWorkoutSessionContent() {
             setPurchaseExpiresAt(overview.expiresAt ?? null);
           }
 
-          const groups = sortWorkoutGroups(Array.isArray(overview.rounds) ? overview.rounds : []);
+          const groups = sortWorkoutGroups(
+            Array.isArray(overview.rounds) ? overview.rounds : [],
+          );
           setWorkoutGroups(groups);
 
           // Seeds the location display before a session/section fetch takes
@@ -1020,7 +1103,10 @@ function ViewWorkoutSessionContent() {
           // see athenaWorkout.tsx's per-section override).
           if (overview.selectedLocation?.name) {
             setLocation(overview.selectedLocation.name);
-            localStorage.setItem("workoutLocationName", overview.selectedLocation.name);
+            localStorage.setItem(
+              "workoutLocationName",
+              overview.selectedLocation.name,
+            );
           }
 
           // The backend only populates rejoinSessions when the overview is
@@ -1028,8 +1114,13 @@ function ViewWorkoutSessionContent() {
           // confirmed via a live capture, it's absent once a sessionId is
           // passed. Use it directly when present instead of firing a second,
           // redundant request for the same data; fall back otherwise.
-          if (Array.isArray(overview.rejoinSessions) && overview.rejoinSessions.length > 0) {
-            applyIncompleteSessions(overview.rejoinSessions as unknown as IncompleteSession[]);
+          if (
+            Array.isArray(overview.rejoinSessions) &&
+            overview.rejoinSessions.length > 0
+          ) {
+            applyIncompleteSessions(
+              overview.rejoinSessions as unknown as IncompleteSession[],
+            );
           } else {
             getIncompleteSessions(normalizedCode)
               .then(applyIncompleteSessions)
@@ -1051,23 +1142,28 @@ function ViewWorkoutSessionContent() {
         // becomes active on a *different* page (equipmentNeeded), so this
         // mount needs telling once, immediately after, that it's engaged.
         setIsSessionEngaged(true);
-        if (storedSessionId) sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
+        if (storedSessionId)
+          sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
       }
       // Same one-shot pattern for "Return to Workout" from athenaWorkout —
       // mobile's onGoBack keeps activeSession/isSessionActivated intact
       // since it never unmounts; this is the closest web equivalent given
       // it's a genuinely different route.
-      const returningFromAthena = localStorage.getItem("returningFromAthenaWorkout") === "true";
+      const returningFromAthena =
+        localStorage.getItem("returningFromAthenaWorkout") === "true";
       if (returningFromAthena) {
         localStorage.removeItem("returningFromAthenaWorkout");
         setIsSessionEngaged(true);
-        if (storedSessionId) sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
+        if (storedSessionId)
+          sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
       }
-      const returningFromLocation = localStorage.getItem("returningFromLocation") === "true";
+      const returningFromLocation =
+        localStorage.getItem("returningFromLocation") === "true";
       if (returningFromLocation) {
         localStorage.removeItem("returningFromLocation");
         setIsSessionEngaged(true);
-        if (storedSessionId) sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
+        if (storedSessionId)
+          sessionStorage.setItem(`sessionEngaged_${storedSessionId}`, "true");
       }
       const sessionActive = localStorage.getItem("sessionActive") === "true";
 
@@ -1136,7 +1232,9 @@ function ViewWorkoutSessionContent() {
     // up stale while athenaWorkout always reads localStorage fresh, which was
     // making this round-completion check disagree with what it showed there.
     const sid =
-      (code ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`) : null) ??
+      (code
+        ? localStorage.getItem(`activeSessionId_${code.toUpperCase()}`)
+        : null) ??
       activeSession?.id ??
       (activeSession as any)?.session_id;
     if (!sid || !code || workoutGroups.length === 0) return;
@@ -1160,7 +1258,9 @@ function ViewWorkoutSessionContent() {
       setWorkoutGroups((prev) => {
         const changed = prev.some((g, i) => g.isCompleted !== results[i]);
         if (!changed) return prev;
-        return prev.map((g, i) => (g.isCompleted === results[i] ? g : { ...g, isCompleted: results[i] }));
+        return prev.map((g, i) =>
+          g.isCompleted === results[i] ? g : { ...g, isCompleted: results[i] },
+        );
       });
     });
     return () => {
@@ -1217,7 +1317,9 @@ function ViewWorkoutSessionContent() {
   // id, but member_id's value for a genuine non-owner joiner is unverified,
   // so it's deliberately excluded to avoid a false-positive "host" match.
   const isHost = (session: IncompleteSession | null | undefined): boolean =>
-    !!session && myUserId != null && String(session.owner_id) === String(myUserId);
+    !!session &&
+    myUserId != null &&
+    String(session.owner_id) === String(myUserId);
 
   return (
     <>
@@ -1266,239 +1368,250 @@ function ViewWorkoutSessionContent() {
             clutter, matching the Location/Start-Session row below it which
             was already Overview-only. */}
         {activeView === "Overview" && (
-        <div className="bg-white border-b border-[#ececf2] px-4 sm:px-6 lg:px-10 py-4 flex-shrink-0 z-20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-5">
-              <button onClick={() => router.back()} className="text-gray-500">
-                <ArrowLeft size={20} />
-              </button>
-              <div>
-                {/* Franchise name — shown first, above program name. */}
-                {(() => {
-                  const franchiseName = previewData?.franchise_name || previewData?.franchise || previewData?.franchiseCode;
-                  if (!franchiseName) return null;
-                  return (
-                    <span className="inline-block px-2 py-0.5 bg-[#7C3AED] text-white text-[9px] font-black rounded-full uppercase mb-1">
-                      {franchiseName}
-                    </span>
-                  );
-                })()}
-                {/* Program name (e.g. "Reconditioning") — mobile shows this
+          <div className="bg-white border-b border-[#ececf2] px-4 sm:px-6 lg:px-10 py-4 flex-shrink-0 z-20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-5">
+                <button onClick={() => router.back()} className="text-gray-500">
+                  <ArrowLeft size={20} />
+                </button>
+                <div>
+                  {/* Franchise name — shown first, above program name. */}
+                  {(() => {
+                    const franchiseName =
+                      previewData?.franchise_name ||
+                      previewData?.franchise ||
+                      previewData?.franchiseCode;
+                    if (!franchiseName) return null;
+                    return (
+                      <span className="inline-block px-2 py-0.5 bg-[#7C3AED] text-white text-[9px] font-black rounded-full uppercase mb-1">
+                        {franchiseName}
+                      </span>
+                    );
+                  })()}
+                  {/* Program name (e.g. "Reconditioning") — mobile shows this
                     as a subtitle above the main workout title, sourced from
                     the active/incomplete session's program_name. */}
-                {(activeSession?.program_name || incompleteSession?.program_name) && (
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 leading-none">
-                    {activeSession?.program_name || incompleteSession?.program_name}
-                  </p>
-                )}
-                <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase mt-0.5">
-                  {workoutTitle || "Formula-1"}
-                </h1>
-                {(() => {
-                  const tagLabel = (tag: string): string | null => {
-                    const t = tag.toUpperCase();
-                    if (t.includes('UES')) return 'Bench';
-                    if (t.includes('LES')) return 'Squat';
-                    if (t.includes('CCS')) return 'Clean';
-                    if (t.includes('HHP')) return 'Deadlift';
-                    return null;
-                  };
-                  const powerSetTags = programTags.map(tagLabel).filter(Boolean) as string[];
+                  {(activeSession?.program_name ||
+                    incompleteSession?.program_name) && (
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 leading-none">
+                      {activeSession?.program_name ||
+                        incompleteSession?.program_name}
+                    </p>
+                  )}
+                  <h1 className="text-xl font-black text-[#3b82f6] tracking-tight leading-none uppercase mt-0.5">
+                    {workoutTitle || "Formula-1"}
+                  </h1>
+                  {(() => {
+                    const tagLabel = (tag: string): string | null => {
+                      const t = tag.toUpperCase();
+                      if (t.includes("UES")) return "Bench";
+                      if (t.includes("LES")) return "Squat";
+                      if (t.includes("CCS")) return "Clean";
+                      if (t.includes("HHP")) return "Deadlift";
+                      return null;
+                    };
+                    const powerSetTags = programTags
+                      .map(tagLabel)
+                      .filter(Boolean) as string[];
 
-                  if (!powerSetTags.length) return null;
+                    if (!powerSetTags.length) return null;
 
-                  return (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {powerSetTags.map((label, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase"
-                        >
-                          ${label}
-                        </span>
+                    return (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {powerSetTags.map((label, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 bg-[#00B4D8] text-white text-[9px] font-black rounded-full uppercase"
+                          >
+                            ${label}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Ad banner beside session box */}
+                {ads.length > 0 && (
+                  <button
+                    onClick={() => setSelectedAd(ads[adIndex])}
+                    className="hidden md:flex w-72 relative h-14 rounded-xl overflow-hidden items-center text-left flex-shrink-0"
+                  >
+                    <img
+                      src={ads[adIndex].image}
+                      alt="ad"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/25" />
+                    <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
+                      Sponsored
+                    </span>
+                    <div className="relative z-10 ml-auto mr-2 flex gap-1">
+                      {ads.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`}
+                        />
                       ))}
                     </div>
-                  );
-                })()}
+                  </button>
+                )}
+
+                {/* Session info + Share in a box */}
+                {!isLocked && (
+                  <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-400">
+                        Session
+                      </p>
+                      {activeSession ? (
+                        <>
+                          <p className="text-[12px] font-black text-[#222]">
+                            {activeSession.id.slice(0, 8)}
+                          </p>
+                          <p className="text-[9px] text-gray-400">
+                            {new Date(activeSession.created_at)
+                              .toLocaleString("en-US", {
+                                month: "numeric",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              })
+                              .replace(",", "")}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[12px] font-black text-[#222]">
+                          {incompleteSession ? `In Progress` : "Not Started"}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={openInviteModal}
+                      className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+                    >
+                      <Share2 size={15} />
+                    </button>
+                  </div>
+                )}
+
+                <button className="w-9 h-9 rounded-full bg-[#f3f3f6] text-gray-500 flex items-center justify-center">
+                  <ClipboardList size={16} />
+                </button>
+
+                <button
+                  onClick={() => setShowSessionModal(true)}
+                  className="w-9 h-9 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+                >
+                  <Users size={16} />
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Ad banner beside session box */}
-              {ads.length > 0 && (
-                <button
-                  onClick={() => setSelectedAd(ads[adIndex])}
-                  className="hidden md:flex w-72 relative h-14 rounded-xl overflow-hidden items-center text-left flex-shrink-0"
-                >
-                  <img
-                    src={ads[adIndex].image}
-                    alt="ad"
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/25" />
-                  <span className="relative z-10 ml-2 bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">
-                    Sponsored
-                  </span>
-                  <div className="relative z-10 ml-auto mr-2 flex gap-1">
-                    {ads.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1 rounded-full transition-all ${i === adIndex ? "bg-white w-3" : "bg-white/50 w-1"}`}
-                      />
-                    ))}
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
+                {isLocked ? (
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-400">
+                    <MapPin size={14} className="text-gray-400" />
+                    <span className="text-gray-400">Location :</span>
+                    <span>{location || "None"}</span>
                   </div>
-                </button>
-              )}
-
-              {/* Session info + Share in a box */}
-              {!isLocked && (
-                <div className="hidden md:flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2 bg-gray-50">
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-400">Session</p>
-                    {activeSession ? (
-                      <>
-                        <p className="text-[12px] font-black text-[#222]">
-                          {activeSession.id.slice(0, 8)}
-                        </p>
-                        <p className="text-[9px] text-gray-400">
-                          {new Date(activeSession.created_at)
-                            .toLocaleString("en-US", {
-                              month: "numeric",
-                              day: "numeric",
-                              year: "numeric",
-                              hour: "numeric",
-                              minute: "2-digit",
-                              hour12: true,
-                            })
-                            .replace(",", "")}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-[12px] font-black text-[#222]">
-                        {incompleteSession ? `In Progress` : "Not Started"}
-                      </p>
-                    )}
-                  </div>
+                ) : (
                   <button
-                    onClick={openInviteModal}
-                    className="w-8 h-8 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
+                    onClick={() => {
+                      // Same one-shot signal pattern as returningFromAthenaWorkout
+                      // — only set it if actually engaged already, otherwise
+                      // clicking Location before ever joining would wrongly
+                      // mark the next mount as engaged.
+                      if (isSessionEngaged) {
+                        localStorage.setItem("returningFromLocation", "true");
+                      }
+                      router.push("/location");
+                    }}
+                    className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
                   >
-                    <Share2 size={15} />
+                    <MapPin size={14} className="text-[#7c3aed]" />
+                    <span className="text-[#7c3aed]">Location :</span>
+                    <span>{location || "None"}</span>
                   </button>
-                </div>
-              )}
+                )}
 
-              <button className="w-9 h-9 rounded-full bg-[#f3f3f6] text-gray-500 flex items-center justify-center">
-                <ClipboardList size={16} />
-              </button>
-
-              <button
-                onClick={() => setShowSessionModal(true)}
-                className="w-9 h-9 rounded-full bg-[#7c3aed] text-white flex items-center justify-center"
-              >
-                <Users size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto sm:ml-auto">
-                  {isLocked ? (
-                    <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-400">
-                      <MapPin size={14} className="text-gray-400" />
-                      <span className="text-gray-400">Location :</span>
-                      <span>{location || "None"}</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        // Same one-shot signal pattern as returningFromAthenaWorkout
-                        // — only set it if actually engaged already, otherwise
-                        // clicking Location before ever joining would wrongly
-                        // mark the next mount as engaged.
-                        if (isSessionEngaged) {
-                          localStorage.setItem("returningFromLocation", "true");
-                        }
-                        router.push("/location");
-                      }}
-                      className="flex items-center gap-2 text-[12px] font-semibold text-gray-500 hover:opacity-75 transition"
-                    >
-                      <MapPin size={14} className="text-[#7c3aed]" />
-                      <span className="text-[#7c3aed]">Location :</span>
-                      <span>{location || "None"}</span>
-                    </button>
-                  )}
-
-                  {/* Once a session is active, its location is already locked
+                {/* Once a session is active, its location is already locked
                       in (see handleRejoin) — mirrors mobile, which hides this
                       toggle rather than letting the exercise list diverge
                       from what the session was actually created for. */}
-                  {!activeSession && (
-                    <label className={`flex items-center gap-1.5 select-none ${isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
-                      <input
-                        type="checkbox"
-                        checked={filterByLocation}
-                        disabled={locationFilterLoading || isLocked}
-                        onChange={(e) => handleLocationFilter(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
-                      />
-                      <span className="text-[11px] font-semibold text-[#7c3aed]">
-                        {locationFilterLoading
-                          ? "Loading..."
-                          : "Show exercises based on default location"}
-                      </span>
-                    </label>
-                  )}
+                {!activeSession && (
+                  <label
+                    className={`flex items-center gap-1.5 select-none ${isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filterByLocation}
+                      disabled={locationFilterLoading || isLocked}
+                      onChange={(e) => handleLocationFilter(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-[#7c3aed] rounded"
+                    />
+                    <span className="text-[11px] font-semibold text-[#7c3aed]">
+                      {locationFilterLoading
+                        ? "Loading..."
+                        : "Show exercises based on default location"}
+                    </span>
+                  </label>
+                )}
 
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-2">
-                      {!isLocked ? (
-                        <button
-                          onClick={startNewSession}
-                          className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                        >
-                          {activeSession || incompleteSession
-                            ? "Start a New Session"
-                            : "Start a Session"}
-                          <ChevronRight size={14} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setShowPurchaseModal(true)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                        >
-                          Buy Session <Lock size={12} />
-                        </button>
-                      )}
-                      {!isLocked && (
-                        <button
-                          onClick={openInviteModal}
-                          className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-                        >
-                          <UserPlus size={14} />
-                          Invite User
-                        </button>
-                      )}
-                    </div>
-
-                    <p
-                      className={`text-[11px] font-semibold ${isLocked ? "text-yellow-600" : "text-emerald-500"}`}
-                    >
-                      {isLocked
-                        ? "• This workout requires purchase"
-                        : purchaseTimeRemaining
-                          ? `• Unlocked — ${purchaseTimeRemaining}`
-                          : "• This workout is free"}
-                    </p>
-                    {!isLocked && purchaseEndDateLabel && (
-                      <p className="text-[10px] text-gray-400">
-                        Ends {purchaseEndDateLabel}
-                      </p>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    {!isLocked ? (
+                      <button
+                        onClick={startNewSession}
+                        className="bg-[#7c3aed] text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                      >
+                        {activeSession || incompleteSession
+                          ? "Start a New Session"
+                          : "Start a Session"}
+                        <ChevronRight size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowPurchaseModal(true)}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                      >
+                        Buy Session <Lock size={12} />
+                      </button>
+                    )}
+                    {!isLocked && (
+                      <button
+                        onClick={openInviteModal}
+                        className="border border-[#7c3aed] text-[#7c3aed] px-4 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                      >
+                        <UserPlus size={14} />
+                        Invite User
+                      </button>
                     )}
                   </div>
+
+                  <p
+                    className={`text-[11px] font-semibold ${isLocked ? "text-yellow-600" : "text-emerald-500"}`}
+                  >
+                    {isLocked
+                      ? "• This workout requires purchase"
+                      : purchaseTimeRemaining
+                        ? `• Unlocked — ${purchaseTimeRemaining}`
+                        : "• This workout is free"}
+                  </p>
+                  {!isLocked && purchaseEndDateLabel && (
+                    <p className="text-[10px] text-gray-400">
+                      Ends {purchaseEndDateLabel}
+                    </p>
+                  )}
                 </div>
               </div>
-        </div>
+            </div>
+          </div>
         )}
 
         {/* REJOIN BANNER — shows whenever there's a session to resume and the user
@@ -1507,51 +1620,63 @@ function ViewWorkoutSessionContent() {
             engaged with it — mirrors the mobile app's isSessionActive gate.
             Only shown on the Overview (rounds/exercises) view — Results,
             Powersets, and Map don't need the rejoin prompt cluttering them. */}
-        {showRejoinBanner && activeView === "Overview" && (() => {
-          const bannerSession = activeSession || incompleteSession;
-          const bannerIsHost = isHost(bannerSession);
-          const actionLabel = isLocked ? "Unlock" : bannerIsHost ? "Rejoin" : "Join";
-          return (
-            <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
-              <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
-                  <div className="min-w-0">
-                    <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
-                      {bannerSession
-                        ? `${actionLabel} Live Session: ${bannerSession.id.slice(0, 6)}`
-                        : "Active Session In Progress"}
-                    </h3>
-                    <p className="text-white/80 text-[10px] mt-1 font-medium">
-                      {bannerSession
-                        ? `Started ${new Date(bannerSession.created_at).toLocaleString()}`
-                        : "You have an ongoing workout session"}
-                    </p>
+        {showRejoinBanner &&
+          activeView === "Overview" &&
+          (() => {
+            const bannerSession = activeSession || incompleteSession;
+            const bannerIsHost = isHost(bannerSession);
+            const actionLabel = isLocked
+              ? "Unlock"
+              : bannerIsHost
+                ? "Rejoin"
+                : "Join";
+            return (
+              <div className="px-4 sm:px-6 lg:px-10 pt-4 flex-shrink-0">
+                <div className="bg-gradient-to-r from-[#ff6b6b] to-[#ff5757] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
+                    <div className="min-w-0">
+                      <h3 className="text-white font-semibold text-xs sm:text-sm leading-none truncate">
+                        {bannerSession
+                          ? `${actionLabel} Live Session: ${bannerSession.id.slice(0, 6)}`
+                          : "Active Session In Progress"}
+                      </h3>
+                      <p className="text-white/80 text-[10px] mt-1 font-medium">
+                        {bannerSession
+                          ? `Started ${new Date(bannerSession.created_at).toLocaleString()}`
+                          : "You have an ongoing workout session"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => isLocked ? setShowPurchaseModal(true) : handleRejoin(bannerSession!)}
-                    className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
-                  >
-                    {actionLabel}
-                  </button>
-                  {/* Hidden while locked — otherwise a user without access
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() =>
+                        isLocked
+                          ? setShowPurchaseModal(true)
+                          : handleRejoin(bannerSession!)
+                      }
+                      className="bg-white hover:bg-gray-100 transition px-4 py-2 rounded-xl text-[#ef4444] text-xs font-bold shadow-sm"
+                    >
+                      {actionLabel}
+                    </button>
+                    {/* Hidden while locked — otherwise a user without access
                       could join a different incomplete session from this
                       list instead of purchasing. */}
-                  {!isLocked && bannerIsHost && incompleteSessions.length > 0 && (
-                    <button
-                      onClick={() => setShowRejoinModal(true)}
-                      className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
-                    >
-                      <ChevronRight size={16} className="text-white" />
-                    </button>
-                  )}
+                    {!isLocked &&
+                      bannerIsHost &&
+                      incompleteSessions.length > 0 && (
+                        <button
+                          onClick={() => setShowRejoinModal(true)}
+                          className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
+                        >
+                          <ChevronRight size={16} className="text-white" />
+                        </button>
+                      )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {/* REJOIN SESSIONS MODAL */}
         {showRejoinModal && (
@@ -1614,7 +1739,6 @@ function ViewWorkoutSessionContent() {
             </div>
           </div>
         )}
-
       </SessionViewsPanel>
 
       {/* SESSION DETAILS MODAL */}
@@ -1647,7 +1771,9 @@ function ViewWorkoutSessionContent() {
 
               <div className="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-[10px] font-bold mb-3">
                 <Sparkles size={8} />
-                ID: {(activeSession || incompleteSession)?.id?.slice(0, 6) || "pending"}
+                ID:{" "}
+                {(activeSession || incompleteSession)?.id?.slice(0, 6) ||
+                  "pending"}
               </div>
 
               <h2 className="text-[22px] leading-[24px] font-black uppercase mb-1">
@@ -1727,7 +1853,8 @@ function ViewWorkoutSessionContent() {
                   </h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">
                     Session ID:{" "}
-                    {(activeSession || incompleteSession)?.id?.slice(0, 6) || "pending"}
+                    {(activeSession || incompleteSession)?.id?.slice(0, 6) ||
+                      "pending"}
                   </p>
                 </div>
                 <button
@@ -1971,7 +2098,10 @@ function ViewWorkoutSessionContent() {
                     <>
                       <div className="border border-gray-200 rounded-2xl px-4 py-3 mb-3">
                         <div className="flex items-center gap-2">
-                          <Link size={12} className="text-gray-400 flex-shrink-0" />
+                          <Link
+                            size={12}
+                            className="text-gray-400 flex-shrink-0"
+                          />
                           <p className="text-[11px] text-gray-400 truncate">
                             {`https://paxlete.com/workout/viewWorkoutSession?sessionId=${shareSession?.id || "pending"}`}
                           </p>
@@ -1988,7 +2118,11 @@ function ViewWorkoutSessionContent() {
                         disabled={!shareSession?.id}
                         className="w-full bg-[#3b82f6] text-white py-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {sessionLinkCopied ? <Check size={14} /> : <Copy size={14} />}
+                        {sessionLinkCopied ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
                         {sessionLinkCopied ? "Copied!" : "Copy URL"}
                       </button>
                     </>
@@ -2023,8 +2157,12 @@ function ViewWorkoutSessionContent() {
               <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-4">
                 <AlertCircle size={20} className="text-white" />
               </div>
-              <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">Start your Session</h3>
-              <p className="text-white/80 text-sm md:text-base mb-6">Log in or sign up to begin the workout</p>
+              <h3 className="text-white font-medium text-3xl md:text-4xl mb-2">
+                Start your Session
+              </h3>
+              <p className="text-white/80 text-sm md:text-base mb-6">
+                Log in or sign up to begin the workout
+              </p>
               <button
                 onClick={() => router.push(loginUrl)}
                 className="bg-white text-purple-700 font-bold text-sm px-5 py-3 rounded-full hover:bg-gray-50 transition"
@@ -2063,20 +2201,28 @@ function ViewWorkoutSessionContent() {
                   workoutId={programCodeForPurchase}
                   workoutTitle={workoutTitle}
                   onSuccess={() => {
-                    console.log("[viewWorkoutSession] payment flow succeeded — unlocking", { programCode: programCodeForPurchase, workoutTitle });
+                    console.log(
+                      "[viewWorkoutSession] payment flow succeeded — unlocking",
+                      { programCode: programCodeForPurchase, workoutTitle },
+                    );
                     setHasPurchased(true);
                     // Optimistic estimate so the countdown shows immediately
                     // instead of "This workout is free" until the next
                     // getProgramOverview fetch — the backend grants a fixed
                     // 24h window, and the next natural refetch (remount/focus)
                     // will overwrite this with the authoritative expiresAt.
-                    setPurchaseExpiresAt(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+                    setPurchaseExpiresAt(
+                      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                    );
                     setShowPurchaseModal(false);
                     setCheckoutStarted(false);
                     router.push("/success");
                   }}
                   onCancel={() => {
-                    console.log("[viewWorkoutSession] payment flow closed without unlocking", { programCode: programCodeForPurchase });
+                    console.log(
+                      "[viewWorkoutSession] payment flow closed without unlocking",
+                      { programCode: programCodeForPurchase },
+                    );
                     setShowPurchaseModal(false);
                     setCheckoutStarted(false);
                   }}
@@ -2095,7 +2241,9 @@ function ViewWorkoutSessionContent() {
                         <Lock size={22} className="text-white" />
                       </div>
                     </div>
-                    <h2 className="text-[20px] font-bold text-white">Premium Session</h2>
+                    <h2 className="text-[20px] font-bold text-white">
+                      Premium Session
+                    </h2>
                     <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
                       {workoutTitle || "WORKOUT"}
                     </p>
@@ -2105,29 +2253,47 @@ function ViewWorkoutSessionContent() {
                 {/* Body */}
                 <div className="p-4 flex flex-col items-center gap-[10px]">
                   <div className="flex items-end gap-1">
-                    <span className="text-[32px] font-bold text-[#111827] leading-none">${displayPrice}</span>
-                    <span className="text-[13px] font-semibold text-[#6B7280] mb-0.5 ml-1">USD</span>
+                    <span className="text-[32px] font-bold text-[#111827] leading-none">
+                      ${displayPrice}
+                    </span>
+                    <span className="text-[13px] font-semibold text-[#6B7280] mb-0.5 ml-1">
+                      USD
+                    </span>
                   </div>
 
                   <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
-                    This is a premium session. Purchase to unlock full access and start your workout.
+                    This is a premium session. Purchase to unlock full access
+                    and start your workout.
                   </p>
 
                   <div className="w-full bg-[#F9FAFB] rounded-xl p-[10px] flex flex-col gap-1.5">
-                    <p className="text-[14px] font-bold text-[#111827]">Included with purchase:</p>
-                    {["Full workout access", "Set tracking", "Unlimited Sessions"].map((label) => (
+                    <p className="text-[14px] font-bold text-[#111827]">
+                      Included with purchase:
+                    </p>
+                    {[
+                      "Full workout access",
+                      "Set tracking",
+                      "Unlimited Sessions",
+                    ].map((label) => (
                       <div key={label} className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
-                        <span className="text-[13px] font-medium text-[#374151]">{label}</span>
+                        <span className="text-[13px] font-medium text-[#374151]">
+                          {label}
+                        </span>
                       </div>
                     ))}
                   </div>
 
-                  <p className="text-[14px] font-bold text-[#111827] text-center">View Purchase Options:</p>
+                  <p className="text-[14px] font-bold text-[#111827] text-center">
+                    View Purchase Options:
+                  </p>
 
                   <button
                     onClick={() => {
-                      console.log("[viewWorkoutSession] Purchase button tapped", { programCode: programCodeForPurchase, workoutTitle });
+                      console.log(
+                        "[viewWorkoutSession] Purchase button tapped",
+                        { programCode: programCodeForPurchase, workoutTitle },
+                      );
                       setCheckoutStarted(true);
                     }}
                     disabled={!programCodeForPurchase}
@@ -2184,7 +2350,9 @@ function ViewWorkoutSessionContent() {
                     <Play size={24} fill="white" className="text-white ml-1" />
                   </div>
                 </div>
-                <h2 className="text-[20px] font-bold text-white">Ready to Start?</h2>
+                <h2 className="text-[20px] font-bold text-white">
+                  Ready to Start?
+                </h2>
                 <p className="text-[11px] font-bold text-white/75 tracking-[1.2px] uppercase text-center mt-1 line-clamp-2">
                   {workoutTitle || "WORKOUT"}
                 </p>
@@ -2198,7 +2366,8 @@ function ViewWorkoutSessionContent() {
               </p>
 
               <p className="text-[14px] text-[#6B7280] text-center leading-[21px]">
-                Click below to begin your workout session and start tracking your progress.
+                Click below to begin your workout session and start tracking
+                your progress.
               </p>
 
               <button
@@ -2337,33 +2506,51 @@ function ViewWorkoutSessionContent() {
                 // earlier; (2) the no-lift-adjustment fallback previously
                 // just relabeled the raw weight with the unit string instead
                 // of actually converting it via convertToUserUnit.
-                const userUnit = (
-                  userOtherDetail?.measurementUnit || "lbs"
-                ).toLowerCase().trim();
+                const userUnit = (userOtherDetail?.measurementUnit || "lbs")
+                  .toLowerCase()
+                  .trim();
                 const wMap: Record<string, number> = {
-                  "of InputBarbellSquat": parseFloat(String(userOtherDetail?.r_back_squat || 0)) || 0,
-                  "of InputDeadlift": parseFloat(String(userOtherDetail?.r_deadlift || 0)) || 0,
-                  "of InputBenchPress": parseFloat(String(userOtherDetail?.r_bench_press || 0)) || 0,
-                  "of InputPowerClean": parseFloat(String(userOtherDetail?.r_power_clean || 0)) || 0,
-                  "of BodyWeight": parseFloat(String(userOtherDetail?.currentWeight || 0)) || 0,
+                  "of InputBarbellSquat":
+                    parseFloat(String(userOtherDetail?.r_back_squat || 0)) || 0,
+                  "of InputDeadlift":
+                    parseFloat(String(userOtherDetail?.r_deadlift || 0)) || 0,
+                  "of InputBenchPress":
+                    parseFloat(String(userOtherDetail?.r_bench_press || 0)) ||
+                    0,
+                  "of InputPowerClean":
+                    parseFloat(String(userOtherDetail?.r_power_clean || 0)) ||
+                    0,
+                  "of BodyWeight":
+                    parseFloat(String(userOtherDetail?.currentWeight || 0)) ||
+                    0,
                 };
                 const weightAdj = (trackingItem.weight_adj || "").trim();
                 const weightValue = trackingItem.weight || "0";
-                const dWeight = trackingItem.calculated_weight ?? trackingItem.weight ?? null;
-                const msrmt = (trackingItem as unknown as { msrmt?: string }).msrmt;
+                const dWeight =
+                  trackingItem.calculated_weight ?? trackingItem.weight ?? null;
+                const msrmt = (trackingItem as unknown as { msrmt?: string })
+                  .msrmt;
 
                 let displaySuggestedWeight = "";
-                const hasAdj = weightAdj !== "" && wMap[weightAdj] !== undefined && wMap[weightAdj] > 0;
+                const hasAdj =
+                  weightAdj !== "" &&
+                  wMap[weightAdj] !== undefined &&
+                  wMap[weightAdj] > 0;
                 if (hasAdj) {
                   const baseValue = wMap[weightAdj];
                   const multiplier = parseFloat(String(weightValue)) || 0;
                   const calculated = Math.ceil(baseValue * multiplier);
-                  displaySuggestedWeight = calculated > 0 ? `${calculated} ${userUnit}` : "";
+                  displaySuggestedWeight =
+                    calculated > 0 ? `${calculated} ${userUnit}` : "";
                 } else if (dWeight != null) {
                   const dWeightStr = String(dWeight).trim();
                   const numericWeight = parseFloat(dWeightStr) || 0;
                   if (numericWeight > 0) {
-                    displaySuggestedWeight = convertToUserUnit(dWeightStr, userUnit, msrmt || "lbs");
+                    displaySuggestedWeight = convertToUserUnit(
+                      dWeightStr,
+                      userUnit,
+                      msrmt || "lbs",
+                    );
                   }
                 }
                 const displayWeight =
@@ -2483,7 +2670,11 @@ function ViewWorkoutSessionContent() {
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">
-                          Weight ({(userOtherDetail?.measurementUnit || "lbs").toLowerCase()})
+                          Weight (
+                          {(
+                            userOtherDetail?.measurementUnit || "lbs"
+                          ).toLowerCase()}
+                          )
                         </p>
                         <input
                           type="number"
@@ -2621,15 +2812,24 @@ function ViewWorkoutSessionContent() {
                     // two was left blank, same as mobile.
                     const defaultReps =
                       parseInt(
-                        (String(trackingItem.reps || "").split("-").pop() || "").replace(/\D/g, ""),
+                        (
+                          String(trackingItem.reps || "")
+                            .split("-")
+                            .pop() || ""
+                        ).replace(/\D/g, ""),
                         10,
                       ) || 15;
-                    const defaultWeight = parseFloat(String(userOtherDetail?.currentWeight || 0)) || 0;
+                    const defaultWeight =
+                      parseFloat(String(userOtherDetail?.currentWeight || 0)) ||
+                      0;
                     const payloads = sets
                       .map((set, i) => ({ set, setNumber: i + 1 }))
-                      .filter(({ set }) => !set.saved && (set.weight || set.reps))
+                      .filter(
+                        ({ set }) => !set.saved && (set.weight || set.reps),
+                      )
                       .map(({ set, setNumber }) => {
-                        const weightNum = parseFloat(set.weight) || defaultWeight;
+                        const weightNum =
+                          parseFloat(set.weight) || defaultWeight;
                         const repsNum = parseInt(set.reps) || defaultReps;
                         return {
                           title: `Set ${setNumber}`,
@@ -2640,7 +2840,12 @@ function ViewWorkoutSessionContent() {
                           repetitions: repsNum,
                           status: true,
                           tag: "/e",
-                          load: computeTrackingLoad(userOtherDetail, trackingItem, weightNum, repsNum),
+                          load: computeTrackingLoad(
+                            userOtherDetail,
+                            trackingItem,
+                            weightNum,
+                            repsNum,
+                          ),
                         };
                       });
                     if (payloads.length > 0) {
@@ -2681,7 +2886,9 @@ function ViewWorkoutSessionContent() {
           exercise={velocityExercise}
           sets={velocitySets}
           sessionId={activeSession?.id ?? activeSession?.session_id}
-          workoutLibraryId={localStorage.getItem("workoutProgramCode") ?? undefined}
+          workoutLibraryId={
+            localStorage.getItem("workoutProgramCode") ?? undefined
+          }
           userOtherDetail={userOtherDetail}
           onClose={() => {
             if (velocityExercise?.id) {
@@ -2702,12 +2909,15 @@ function ViewWorkoutSessionContent() {
                   if (ps.id !== savedExercise.id) return ps;
                   return {
                     ...ps,
-                    child_sets: ps.child_sets?.map((cs, i) => ({
-                      ...cs,
-                      isCompleted: savedSets[i]?.recorded ? true : cs.isCompleted,
-                    })) ?? [],
+                    child_sets:
+                      ps.child_sets?.map((cs, i) => ({
+                        ...cs,
+                        isCompleted: savedSets[i]?.recorded
+                          ? true
+                          : cs.isCompleted,
+                      })) ?? [],
                   };
-                })
+                }),
               );
             }
           }}
@@ -2719,11 +2929,13 @@ function ViewWorkoutSessionContent() {
 
 export default function ViewWorkoutSessionPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" />
+        </div>
+      }
+    >
       <ViewWorkoutSessionContent />
     </Suspense>
   );

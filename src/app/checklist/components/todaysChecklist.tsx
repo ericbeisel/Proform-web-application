@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Settings, X, Plus, Clock, AlertCircle, Loader2, ListChecks } from "lucide-react";
+import { Calendar, Settings, Plus, Clock, AlertCircle, Loader2, ListChecks, ArrowLeft } from "lucide-react";
 import AddActivityModal from "./addActivityModal";
 import { useRouter } from "next/navigation";
 import { getTodayActivities, getSuggestions, type TodayActivity, type Suggestion } from "@/api/checklist/route";
@@ -182,6 +182,13 @@ export default function TodaysChecklist() {
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => router.back()}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0"
+            >
+              <ArrowLeft size={16} className="sm:hidden" />
+              <ArrowLeft size={17} className="hidden sm:block" />
+            </button>
             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-purple-700 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Calendar size={18} className="sm:hidden text-white" />
               <Calendar size={20} className="hidden sm:block text-white" />
@@ -212,13 +219,6 @@ export default function TodaysChecklist() {
             <button className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0">
               <Settings size={16} className="sm:hidden" />
               <Settings size={17} className="hidden sm:block" />
-            </button>
-            <button
-              onClick={() => router.back()}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 shrink-0"
-            >
-              <X size={16} className="sm:hidden" />
-              <X size={17} className="hidden sm:block" />
             </button>
           </div>
         </div>
