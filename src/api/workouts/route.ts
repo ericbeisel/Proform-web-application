@@ -1152,6 +1152,12 @@ export interface ExerciseLogEntry {
   created_at: string;
   updated_at: string;
   sets: ExerciseLogSet[];
+  user?: {
+    id: number;
+    name: string | null;
+    username: string;
+    image: string | null;
+  } | null;
 }
 
 export interface ExerciseLogsMeta {
@@ -1170,6 +1176,7 @@ export const getExerciseLogs = async (params: {
   page?: number;
   limit?: number;
   exerciseId?: string;
+  username?: string;
 } = {}): Promise<ExerciseLogsResponse> => {
   logExerciseLogAuthDebug("GET /exercise-logs");
   try {
@@ -1177,6 +1184,7 @@ export const getExerciseLogs = async (params: {
     query.set("page", String(params.page ?? 1));
     query.set("limit", String(params.limit ?? 10));
     if (params.exerciseId) query.set("exerciseId", params.exerciseId);
+    if (params.username) query.set("username", params.username);
     console.log("[exerciseLogs] GET /exercise-logs → params:", params);
     const { data } = await apiClient.get<ExerciseLogsResponse>(`/exercise-logs?${query.toString()}`);
     console.log("[exerciseLogs] GET /exercise-logs ✅ response:", data);
@@ -1208,6 +1216,7 @@ export interface CreateExerciseLogPayload {
   measurement?: string;
   notes?: string;
   loggedAt?: string;
+  username?: string;
 }
 
 export const createExerciseLog = async (
@@ -1234,12 +1243,14 @@ export const createExerciseLog = async (
       loggedAt: payload.loggedAt,
       sets: payload.sets,
       photoCount: payload.photos?.length ?? 0,
+      username: payload.username,
     });
     // Don't set Content-Type manually — it must include the multipart boundary,
     // which only the browser can generate when it sees the body is FormData.
     // A hand-set header here has no boundary, so the server's multipart parser
     // can't split the body and throws (surfaces as an opaque 500).
-    const { data } = await apiClient.post<ExerciseLogEntry>("/exercise-logs", formData);
+    const url = payload.username ? `/exercise-logs?username=${encodeURIComponent(payload.username)}` : "/exercise-logs";
+    const { data } = await apiClient.post<ExerciseLogEntry>(url, formData);
     console.log("[exerciseLogs] POST /exercise-logs ✅ response:", data);
     return data;
   } catch (error: unknown) {

@@ -17,7 +17,7 @@ const QUICK_LINK_ITEMS = [
   { label: "All Players",    icon: UserPlus, href: "/coach/players" },
   { label: "All Activities", icon: Target,   href: "/coach/activity" },
   { label: "Leaderboard",    icon: Trophy,   href: "/coach/leaderboard" },
-  { label: "Exercise Log",   icon: Dumbbell, href: "/coach/players/test/exercise-log" },
+  { label: "Exercise Log",   icon: Dumbbell, href: "/coach/exercise-log" },
 ];
 
 export function CoachSidebar({ profilePicture, userInitial, onSwitchToPlayer, onLogOut, isOpen = false, onClose }: CoachSidebarProps) {

@@ -166,10 +166,10 @@ function ExerciseDetailsContent() {
 
   useEffect(() => {
     if (!exerciseId) return;
-    getExerciseLogs({ exerciseId, limit: 50 })
+    getExerciseLogs({ exerciseId, limit: 50, username })
       .then((res) => setHistory(summarizeLogs(res.data)))
       .catch(() => {});
-  }, [exerciseId]);
+  }, [exerciseId, username]);
 
   // Suggested section — sets is a cosmetic recommendation, reps/unit/weight/measurement
   // feed the real set cards once "Submit Set" is pressed.
@@ -248,6 +248,7 @@ function ExerciseDetailsContent() {
         notes: notes || undefined,
         sets: setsPayload,
         photos,
+        username,
       });
       router.push(`/coach/players/${username}/exercise-log`);
     } catch (err) {
